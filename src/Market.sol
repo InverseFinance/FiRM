@@ -24,6 +24,10 @@ interface IDolaBorrowingRights {
     function balanceOf(address user) external view returns (uint);
 }
 
+interface IBorrowController {
+    function borrowAllowed(address borrower, uint amount) external returns (bool);
+}
+
 contract Market {
 
     address public gov;
@@ -31,6 +35,7 @@ contract Market {
     address public pauseGuardian;
     address public immutable escrowImplementation;
     IDolaBorrowingRights public immutable dbr;
+    IBorrowController public borrowController;
     IERC20 public immutable dola;
     IERC20 public immutable collateral;
     IOracle public oracle;
@@ -77,6 +82,8 @@ contract Market {
     }
 
     function setOracle(IOracle _oracle) public onlyGov { oracle = _oracle; }
+
+    function setBorrowController(IBorrowController _borrowController) public onlyGov { borrowController = _borrowController; }
 
     function setGov(address _gov) public onlyGov { gov = _gov; }
 
@@ -189,6 +196,9 @@ contract Market {
 
     function borrow(uint amount) public {
         require(!borrowPaused, "Borrowing is paused");
+        if(borrowController != IBorrowController(address(0))) {
+            require(borrowController.borrowAllowed(msg.sender, amount), "Denied by borrow controller");
+        }
         uint credit = getCreditLimit(msg.sender);
         require(credit >= amount, "Insufficient credit limit");
         debts[msg.sender] += amount;
