@@ -90,7 +90,7 @@ contract DolaBorrowingRights {
     }
 
     function transfer(address to, uint256 amount) public virtual returns (bool) {
-        require(balanceOf(msg.sender) > amount, "Insufficient balance");
+        require(balanceOf(msg.sender) >= amount, "Insufficient balance");
         balances[msg.sender] -= amount;
         unchecked {
             balances[to] += amount;
@@ -106,7 +106,7 @@ contract DolaBorrowingRights {
     ) public virtual returns (bool) {
         uint256 allowed = allowance[from][msg.sender];
         if (allowed != type(uint256).max) allowance[from][msg.sender] = allowed - amount;
-        require(balanceOf(from) > amount, "Insufficient balance");
+        require(balanceOf(from) >= amount, "Insufficient balance");
         balances[from] -= amount;
         unchecked {
             balances[to] += amount;
@@ -214,7 +214,7 @@ contract DolaBorrowingRights {
     }
 
     function _burn(address from, uint256 amount) internal virtual {
-        require(balanceOf(from) > amount, "Insufficient balance");
+        require(balanceOf(from) >= amount, "Insufficient balance");
         balances[from] -= amount;
         unchecked {
             _totalSupply -= amount;
