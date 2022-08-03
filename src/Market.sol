@@ -235,7 +235,7 @@ contract Market {
         debts[user] -= repaidDebt;
         dbr.onRepay(user, repaidDebt);
         dola.transferFrom(msg.sender, address(this), repaidDebt);
-        IEscrow escrow = getEscrow(user);
+        IEscrow escrow = predictEscrow(user);
         escrow.pay(msg.sender, liquidatorReward);
         emit Liquidate(user, msg.sender, repaidDebt, liquidatorReward);
     }
