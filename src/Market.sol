@@ -227,7 +227,6 @@ contract Market {
     function liquidate(address user, uint repaidDebt) public {
         require(repaidDebt > 0, "Must repay positive debt");
         uint debt = debts[user];
-        require(debt > 0, "Cannot liquidate user without user debt");
         require(repaidDebt <= debt, "Insufficient user debt");
         require(getCreditLimit(user) < debt || dbr.balanceOf(user) == 0 || isShutdown(), "User debt and dbr balance are healthy. Market was not shutdown");
         uint liquidatorReward = repaidDebt * 1 ether / oracle.getPrice(address(collateral));
