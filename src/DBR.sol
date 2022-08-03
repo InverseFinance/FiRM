@@ -72,14 +72,14 @@ contract DolaBorrowingRights {
 
     function balanceOf(address user) public view returns (uint) {
         uint debt = debts[user];
-        uint accrued = (block.timestamp - lastUpdated[user]) * (debt / uint(365 days));
+        uint accrued = (block.timestamp - lastUpdated[user]) * debt / 365 days;
         if(dueTokensAccrued[user] + accrued > balances[user]) return 0;
         return balances[user] - dueTokensAccrued[user] - accrued;
     }
 
     function signedBalanceOf(address user) public view returns (int) {
         uint debt = debts[user];
-        uint accrued = (block.timestamp - lastUpdated[user]) * (debt / uint(365 days));
+        uint accrued = (block.timestamp - lastUpdated[user]) * debt / 365 days;
         return int(balances[user]) - int(dueTokensAccrued[user]) - int(accrued);
     }
 
@@ -176,7 +176,7 @@ contract DolaBorrowingRights {
         uint debt = debts[user];
         if(debt == 0) return;
         if(lastUpdated[user] == block.timestamp) return;
-        uint accrued = (block.timestamp - lastUpdated[user]) * (debt / uint(365 days));
+        uint accrued = (block.timestamp - lastUpdated[user]) * debt / 365 days;
         dueTokensAccrued[user] += accrued;
         totalDueTokensAccrued += accrued;
         lastUpdated[user] = block.timestamp;
