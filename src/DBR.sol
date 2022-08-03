@@ -71,12 +71,16 @@ contract DolaBorrowingRights {
     }
 
     function balanceOf(address user) public view returns (uint) {
-        if(dueTokensAccrued[user] > balances[user]) return 0;
-        return balances[user] - dueTokensAccrued[user];
+        uint debt = debts[user];
+        uint accrued = (block.timestamp - lastUpdated[user]) * (debt / uint(365 days));
+        if(dueTokensAccrued[user] + accrued > balances[user]) return 0;
+        return balances[user] - dueTokensAccrued[user] - accrued;
     }
 
     function signedBalanceOf(address user) public view returns (int) {
-        return int(balances[user]) - int(dueTokensAccrued[user]);
+        uint debt = debts[user];
+        uint accrued = (block.timestamp - lastUpdated[user]) * (debt / uint(365 days));
+        return int(balances[user]) - int(dueTokensAccrued[user]) - int(accrued);
     }
 
     function approve(address spender, uint256 amount) public virtual returns (bool) {
