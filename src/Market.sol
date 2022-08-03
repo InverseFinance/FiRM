@@ -62,7 +62,7 @@ contract Market {
         bool _callOnDepositCallback
     ) {
         require(_collateralFactorBps > 0 && _collateralFactorBps < 10000, "Invalid collateral factor");
-        require(_liquidationIncentiveBps < 10000, "Invalid liquidation incentive");
+        require(_liquidationIncentiveBps > 0 && _liquidationIncentiveBps < 10000, "Invalid liquidation incentive");
         gov = _gov;
         lender = _lender;
         pauseGuardian = _pauseGuardian;
@@ -97,7 +97,7 @@ contract Market {
     }
 
     function setLiquidationIncentiveBps(uint _liquidationIncentiveBps) public onlyGov {
-        require(_liquidationIncentiveBps < 10000, "Invalid liquidation incentive");
+        require(_liquidationIncentiveBps > 0 && _liquidationIncentiveBps < 10000, "Invalid liquidation incentive");
         liquidationIncentiveBps = _liquidationIncentiveBps;
     }
 
@@ -231,7 +231,7 @@ contract Market {
         require(repaidDebt <= debt, "Insufficient user debt");
         require(getCreditLimit(user) < debt || dbr.balanceOf(user) == 0 || isShutdown(), "User debt and dbr balance are healthy. Market was not shutdown");
         uint liquidatorReward = repaidDebt * 1 ether / oracle.getPrice(address(collateral));
-        if(liquidationIncentiveBps > 0) liquidatorReward += liquidatorReward * liquidationIncentiveBps / 10000;
+        liquidatorReward += liquidatorReward * liquidationIncentiveBps / 10000;
         debts[user] -= repaidDebt;
         dbr.onRepay(user, repaidDebt);
         dola.transferFrom(msg.sender, address(this), repaidDebt);
