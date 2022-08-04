@@ -77,6 +77,13 @@ contract DolaBorrowingRights {
         return balances[user] - dueTokensAccrued[user] - accrued;
     }
 
+    function deficitOf(address user) public view returns (uint) {
+        uint debt = debts[user];
+        uint accrued = (block.timestamp - lastUpdated[user]) * debt / 365 days;
+        if(dueTokensAccrued[user] + accrued < balances[user]) return 0;
+        return dueTokensAccrued[user] + accrued - balances[user];
+    }
+
     function signedBalanceOf(address user) public view returns (int) {
         uint debt = debts[user];
         uint accrued = (block.timestamp - lastUpdated[user]) * debt / 365 days;
@@ -194,6 +201,15 @@ contract DolaBorrowingRights {
         require(markets[msg.sender], "Only markets can call onRepay");
         accrueDueTokens(user);
         debts[user] -= repaidDebt;
+    }
+
+    function onForceReplenish(address user, uint replenishmentCost) public {
+        uint deficit = deficitOf(user);
+        require(markets[msg.sender], "Only markets can call onForceReplenish");
+        require(deficitOf(user) > 0, "No deficit");
+        accrueDueTokens(user);
+        debts[user] += replenishmentCost;
+        _mint(user, deficit);
     }
 
     function burn(uint amount) public {
