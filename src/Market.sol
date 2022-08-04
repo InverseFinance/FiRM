@@ -42,7 +42,7 @@ contract Market {
     IERC20 public immutable collateral;
     IOracle public oracle;
     uint public collateralFactorBps;
-    uint public replenishmentPriceBps;
+    uint public replenishmentPriceBps = 10000; //Set to 1 USD here, to avoid stack too deep in constructor
     uint public replenishmentIncentiveBps;
     uint public liquidationIncentiveBps;
     bool immutable callOnDepositCallback;
@@ -62,11 +62,13 @@ contract Market {
         IERC20 _collateral,
         IOracle _oracle,
         uint _collateralFactorBps,
+        uint _replenishmentIncentiveBps,
         uint _liquidationIncentiveBps,
         bool _callOnDepositCallback
     ) {
         require(_collateralFactorBps > 0 && _collateralFactorBps < 10000, "Invalid collateral factor");
         require(_liquidationIncentiveBps > 0 && _liquidationIncentiveBps < 10000, "Invalid liquidation incentive");
+        require(_replenishmentIncentiveBps < 10000, "Replenishment incentive must be less than 100%");
         gov = _gov;
         lender = _lender;
         pauseGuardian = _pauseGuardian;
@@ -76,6 +78,7 @@ contract Market {
         collateral = _collateral;
         oracle = _oracle;
         collateralFactorBps = _collateralFactorBps;
+        replenishmentIncentiveBps = _replenishmentIncentiveBps;
         liquidationIncentiveBps = _liquidationIncentiveBps;
         callOnDepositCallback = _callOnDepositCallback;
     }
