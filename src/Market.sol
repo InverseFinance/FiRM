@@ -241,7 +241,6 @@ contract Market {
         require(deficit > 0, "No DBR deficit");
         uint replenishmentCost = deficit * dbr.replenishmentPriceBps() / 10000;
         uint replenisherReward = replenishmentCost * replenishmentIncentiveBps / 10000;
-        require(dola.balanceOf(address(this)) >= replenisherReward, "Dola balance too low");
         debts[user] += replenishmentCost;
         dbr.onForceReplenish(user, replenishmentCost);
         dola.transfer(msg.sender, replenisherReward);
