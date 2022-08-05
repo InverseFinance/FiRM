@@ -206,7 +206,7 @@ contract DolaBorrowingRights {
     function onForceReplenish(address user, uint replenishmentCost) public {
         uint deficit = deficitOf(user);
         require(markets[msg.sender], "Only markets can call onForceReplenish");
-        require(deficitOf(user) > 0, "No deficit");
+        require(deficit > 0, "No deficit");
         accrueDueTokens(user);
         debts[user] += replenishmentCost;
         _mint(user, deficit);
