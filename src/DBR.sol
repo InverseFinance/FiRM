@@ -10,6 +10,7 @@ contract DolaBorrowingRights {
     address public operator;
     address public pendingOperator;
     uint public totalDueTokensAccrued;
+    uint public replenishmentPriceBps;
     mapping(address => uint256) public balances;
     mapping(address => mapping(address => uint256)) public allowance;
     uint256 internal immutable INITIAL_CHAIN_ID;
@@ -22,10 +23,12 @@ contract DolaBorrowingRights {
     mapping (address => uint) public lastUpdated; // user => last update timestamp
 
     constructor(
+        uint _replenishmentPriceBps,
         string memory _name,
         string memory _symbol,
         address _operator
     ) {
+        replenishmentPriceBps = _replenishmentPriceBps;
         name = _name;
         symbol = _symbol;
         operator = _operator;
@@ -40,6 +43,11 @@ contract DolaBorrowingRights {
 
     function setPendingOperator(address newOperator_) public onlyOperator {
         pendingOperator = newOperator_;
+    }
+
+    function setReplenishmentPriceBps(uint newReplenishmentPriceBps) public onlyOperator {
+        require(newReplenishmentPriceBps > 0, "replenishment price must be over 0");
+        replenishmentPriceBps = newReplenishmentPriceBps;
     }
 
     function claimOperator() public {
@@ -206,7 +214,7 @@ contract DolaBorrowingRights {
     function onForceReplenish(address user, uint replenishmentCost) public {
         uint deficit = deficitOf(user);
         require(markets[msg.sender], "Only markets can call onForceReplenish");
-        require(deficitOf(user) > 0, "No deficit");
+        require(deficit > 0, "No deficit");
         accrueDueTokens(user);
         debts[user] += replenishmentCost;
         _mint(user, deficit);

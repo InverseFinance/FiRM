@@ -24,6 +24,7 @@ interface IDolaBorrowingRights {
     function onForceReplenish(address user, uint replenishmentCost) external;
     function balanceOf(address user) external view returns (uint);
     function deficitOf(address user) external view returns (uint);
+    function replenishmentPriceBps() external view returns (uint);
 }
 
 interface IBorrowController {
@@ -42,7 +43,6 @@ contract Market {
     IERC20 public immutable collateral;
     IOracle public oracle;
     uint public collateralFactorBps;
-    uint public replenishmentPriceBps = 10000; //Set to 1 USD here, to avoid stack too deep in constructor
     uint public replenishmentIncentiveBps;
     uint public liquidationIncentiveBps;
     bool immutable callOnDepositCallback;
@@ -101,11 +101,6 @@ contract Market {
     function setCollateralFactorBps(uint _collateralFactorBps) public onlyGov {
         require(_collateralFactorBps > 0 && _collateralFactorBps < 10000, "Invalid collateral factor");
         collateralFactorBps = _collateralFactorBps;
-    }
-
-    function setReplenismentPriceBps(uint _replenishmentPriceBps) public onlyGov {
-        require(_replenishmentPriceBps > 0, "Replenishment price must be higher than 0");
-        replenishmentPriceBps = _replenishmentPriceBps;
     }
 
     function setReplenismentIncentiveBps(uint _replenishmentIncentiveBps) public onlyGov {
@@ -244,7 +239,7 @@ contract Market {
     function forceReplenish(address user) public {
         uint deficit = dbr.deficitOf(user);
         require(deficit > 0, "No DBR deficit");
-        uint replenishmentCost = deficit * replenishmentPriceBps / 10000;
+        uint replenishmentCost = deficit * dbr.replenishmentPriceBps() / 10000;
         uint replenisherReward = replenishmentCost * replenishmentIncentiveBps / 10000;
         require(dola.balanceOf(address(this)) >= replenisherReward, "Dola balance too low");
         debts[user] += replenishmentCost;
