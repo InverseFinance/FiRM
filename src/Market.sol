@@ -16,6 +16,7 @@ interface IEscrow {
     function initialize(IERC20 _token, address beneficiary) external;
     function onDeposit() external;
     function pay(address recipient, uint amount) external;
+    function balance() external view returns (uint);
 }
 
 interface IDolaBorrowingRights {
@@ -173,14 +174,14 @@ contract Market {
 
     function getCreditLimit(address user) public view returns (uint) {
         IEscrow escrow = predictEscrow(user);
-        uint collateralBalance = collateral.balanceOf(address(escrow));
+        uint collateralBalance = escrow.balance();
         uint collateralValue = collateralBalance * oracle.getPrice(address(collateral)) / 1 ether;
         return collateralValue * collateralFactorBps / 10000;
     }
 
     function getWithdrawalLimit(address user) public view returns (uint) {
         IEscrow escrow = predictEscrow(user);
-        uint collateralBalance = collateral.balanceOf(address(escrow));
+        uint collateralBalance = escrow.balance();
         if(collateralBalance == 0) return 0;
         uint debt = debts[user];
         if(debt == 0) return collateralBalance;

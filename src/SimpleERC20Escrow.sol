@@ -24,6 +24,10 @@ contract SimpleERC20Escrow {
         token.transfer(recipient, amount);
     }
 
+    function balance() public view returns (uint) {
+        return token.balanceOf(address(this));
+    }
+
     /* Uncomment if Escrow contract should handle on deposit callbacks. This function should remain callable by anyone to handle direct inbound transfers.
     function onDeposit() public {
 
