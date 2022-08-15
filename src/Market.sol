@@ -21,7 +21,7 @@ interface IEscrow {
 interface IDolaBorrowingRights {
     function onBorrow(address user, uint additionalDebt) external;
     function onRepay(address user, uint repaidDebt) external;
-    function onForceReplenish(address user, uint replenishmentCost) external;
+    function onForceReplenish(address user) external;
     function balanceOf(address user) external view returns (uint);
     function deficitOf(address user) external view returns (uint);
     function replenishmentPriceBps() external view returns (uint);
@@ -242,7 +242,7 @@ contract Market {
         uint replenishmentCost = deficit * dbr.replenishmentPriceBps() / 10000;
         uint replenisherReward = replenishmentCost * replenishmentIncentiveBps / 10000;
         debts[user] += replenishmentCost;
-        dbr.onForceReplenish(user, replenishmentCost);
+        dbr.onForceReplenish(user);
         dola.transfer(msg.sender, replenisherReward);
         emit ForceReplenish(user, msg.sender, deficit, replenishmentCost, replenisherReward);
     }
