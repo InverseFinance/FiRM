@@ -13,7 +13,7 @@ interface IOracle {
 }
 
 interface IEscrow {
-    function initialize(IERC20 _token) external;
+    function initialize(IERC20 _token, address beneficiary) external;
     function onDeposit() external;
     function pay(address recipient, uint amount) external;
 }
@@ -142,7 +142,7 @@ contract Market {
     function getEscrow(address user) internal returns (IEscrow) {
         if(escrows[user] != IEscrow(address(0))) return escrows[user];
         IEscrow escrow = createEscrow(user);
-        escrow.initialize(collateral);
+        escrow.initialize(collateral, user);
         escrows[user] = escrow;
         return escrow;
     }

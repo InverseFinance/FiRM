@@ -13,7 +13,7 @@ contract SimpleERC20Escrow {
     address public market;
     IERC20 public token;
 
-    function initialize(IERC20 _token) public {
+    function initialize(IERC20 _token, address) public {
         require(market == address(0), "ALREADY INITIALIZED");
         market = msg.sender;
         token = _token;
