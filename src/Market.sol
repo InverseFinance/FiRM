@@ -48,6 +48,7 @@ contract Market {
     uint public liquidationIncentiveBps;
     bool immutable callOnDepositCallback;
     bool public borrowPaused;
+    uint public totalDebt;
     mapping (address => IEscrow) public escrows; // user => escrow
     mapping (address => uint) public debts; // user => debt
 
@@ -156,6 +157,7 @@ contract Market {
         }
     }
 
+    // Only use deposit() function for deposits and NOT the predicted escrow address unless you know what you're doing
     function predictEscrow(address user) public view returns (IEscrow predicted) {
         address implementation = escrowImplementation;
         address deployer = address(this);
@@ -199,6 +201,7 @@ contract Market {
         uint credit = getCreditLimit(msg.sender);
         require(credit >= amount, "Insufficient credit limit");
         debts[msg.sender] += amount;
+        totalDebt += amount;
         dbr.onBorrow(msg.sender, amount);
         dola.transfer(msg.sender, amount);
         emit Borrow(msg.sender, amount);
@@ -216,6 +219,7 @@ contract Market {
         uint debt = debts[user];
         require(debt >= amount, "Insufficient debt");
         debts[user] -= amount;
+        totalDebt -= amount;
         dbr.onRepay(user, amount);
         dola.transferFrom(msg.sender, address(this), amount);
         emit Repay(user, msg.sender, amount);
@@ -227,6 +231,7 @@ contract Market {
         uint replenishmentCost = deficit * dbr.replenishmentPriceBps() / 10000;
         uint replenisherReward = replenishmentCost * replenishmentIncentiveBps / 10000;
         debts[user] += replenishmentCost;
+        totalDebt += replenishmentCost;
         dbr.onForceReplenish(user);
         dola.transfer(msg.sender, replenisherReward);
         emit ForceReplenish(user, msg.sender, deficit, replenishmentCost, replenisherReward);
@@ -240,6 +245,7 @@ contract Market {
         uint liquidatorReward = repaidDebt * 1 ether / oracle.getPrice(address(collateral));
         liquidatorReward += liquidatorReward * liquidationIncentiveBps / 10000;
         debts[user] -= repaidDebt;
+        totalDebt -= repaidDebt;
         dbr.onRepay(user, repaidDebt);
         dola.transferFrom(msg.sender, address(this), repaidDebt);
         IEscrow escrow = predictEscrow(user);
