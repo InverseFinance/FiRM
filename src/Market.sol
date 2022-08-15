@@ -47,8 +47,6 @@ contract Market {
     uint public liquidationIncentiveBps;
     bool immutable callOnDepositCallback;
     bool public borrowPaused;
-    uint public constant SHUTDOWN_DELAY = 7 days;
-    uint public scheduledShutdownTimestamp;
     mapping (address => IEscrow) public escrows; // user => escrow
     mapping (address => uint) public debts; // user => debt
 
@@ -66,7 +64,7 @@ contract Market {
         uint _liquidationIncentiveBps,
         bool _callOnDepositCallback
     ) {
-        require(_collateralFactorBps > 0 && _collateralFactorBps < 10000, "Invalid collateral factor");
+        require(_collateralFactorBps < 10000, "Invalid collateral factor");
         require(_liquidationIncentiveBps > 0 && _liquidationIncentiveBps < 10000, "Invalid liquidation incentive");
         require(_replenishmentIncentiveBps < 10000, "Replenishment incentive must be less than 100%");
         gov = _gov;
@@ -99,7 +97,7 @@ contract Market {
     function setPauseGuardian(address _pauseGuardian) public onlyGov { pauseGuardian = _pauseGuardian; }
 
     function setCollateralFactorBps(uint _collateralFactorBps) public onlyGov {
-        require(_collateralFactorBps > 0 && _collateralFactorBps < 10000, "Invalid collateral factor");
+        require(_collateralFactorBps < 10000, "Invalid collateral factor");
         collateralFactorBps = _collateralFactorBps;
     }
 
@@ -111,21 +109,6 @@ contract Market {
     function setLiquidationIncentiveBps(uint _liquidationIncentiveBps) public onlyGov {
         require(_liquidationIncentiveBps > 0 && _liquidationIncentiveBps < 10000, "Invalid liquidation incentive");
         liquidationIncentiveBps = _liquidationIncentiveBps;
-    }
-
-    // if shutdown is false, it cancels a pending shutdown or restarts the market after a successful shutdown
-    function shutdown(bool _value) public onlyGov {
-        if(_value) {
-            scheduledShutdownTimestamp = block.timestamp + SHUTDOWN_DELAY;
-        } else {
-            scheduledShutdownTimestamp = 0;
-        }
-        emit ScheduleShutdown(_value, scheduledShutdownTimestamp);
-    }
-
-    function isShutdown() public view returns (bool) {
-        if(scheduledShutdownTimestamp == 0) return false;
-        return scheduledShutdownTimestamp > block.timestamp;
     }
 
     function recall(uint amount) public {
@@ -201,6 +184,7 @@ contract Market {
         if(collateralBalance == 0) return 0;
         uint debt = debts[user];
         if(debt == 0) return collateralBalance;
+        if(collateralFactorBps == 0) return 0;
         uint minimumCollateral = debt * 1 ether / oracle.getPrice(address(collateral)) * 10000 / collateralFactorBps;
         if(collateralBalance <= minimumCollateral) return 0;
         return collateralBalance - minimumCollateral;
@@ -251,7 +235,7 @@ contract Market {
         require(repaidDebt > 0, "Must repay positive debt");
         uint debt = debts[user];
         require(repaidDebt <= debt, "Insufficient user debt");
-        require(getCreditLimit(user) < debt || isShutdown(), "User debt is healthy. Market was not shutdown");
+        require(getCreditLimit(user) < debt, "User debt is healthy");
         uint liquidatorReward = repaidDebt * 1 ether / oracle.getPrice(address(collateral));
         liquidatorReward += liquidatorReward * liquidationIncentiveBps / 10000;
         debts[user] -= repaidDebt;
@@ -267,6 +251,5 @@ contract Market {
     event Repay(address indexed account, address indexed repayer, uint amount);
     event ForceReplenish(address indexed account, address indexed replenisher, uint deficit, uint replenishmentCost, uint replenisherReward);
     event Liquidate(address indexed account, address indexed liquidator, uint repaidDebt, uint liquidatorReward);
-    event ScheduleShutdown(bool value, uint scheduledTimestamp);
     event CreateEscrow(address indexed user, address escrow);
 }
