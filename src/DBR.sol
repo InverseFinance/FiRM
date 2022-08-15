@@ -10,6 +10,7 @@ contract DolaBorrowingRights {
     address public operator;
     address public pendingOperator;
     uint public totalDueTokensAccrued;
+    uint public replenishmentPriceBps;
     mapping(address => uint256) public balances;
     mapping(address => mapping(address => uint256)) public allowance;
     uint256 internal immutable INITIAL_CHAIN_ID;
@@ -22,10 +23,12 @@ contract DolaBorrowingRights {
     mapping (address => uint) public lastUpdated; // user => last update timestamp
 
     constructor(
+        uint _replenishmentPriceBps,
         string memory _name,
         string memory _symbol,
         address _operator
     ) {
+        replenishmentPriceBps = _replenishmentPriceBps;
         name = _name;
         symbol = _symbol;
         operator = _operator;
@@ -40,6 +43,11 @@ contract DolaBorrowingRights {
 
     function setPendingOperator(address newOperator_) public onlyOperator {
         pendingOperator = newOperator_;
+    }
+
+    function setReplenishmentPriceBps(uint newReplenishmentPriceBps) public onlyOperator {
+        require(newReplenishmentPriceBps > 0, "replenishment price must be over 0");
+        replenishmentPriceBps = newReplenishmentPriceBps;
     }
 
     function claimOperator() public {
@@ -75,6 +83,13 @@ contract DolaBorrowingRights {
         uint accrued = (block.timestamp - lastUpdated[user]) * debt / 365 days;
         if(dueTokensAccrued[user] + accrued > balances[user]) return 0;
         return balances[user] - dueTokensAccrued[user] - accrued;
+    }
+
+    function deficitOf(address user) public view returns (uint) {
+        uint debt = debts[user];
+        uint accrued = (block.timestamp - lastUpdated[user]) * debt / 365 days;
+        if(dueTokensAccrued[user] + accrued < balances[user]) return 0;
+        return dueTokensAccrued[user] + accrued - balances[user];
     }
 
     function signedBalanceOf(address user) public view returns (int) {
@@ -194,6 +209,16 @@ contract DolaBorrowingRights {
         require(markets[msg.sender], "Only markets can call onRepay");
         accrueDueTokens(user);
         debts[user] -= repaidDebt;
+    }
+
+    function onForceReplenish(address user) public {
+        require(markets[msg.sender], "Only markets can call onForceReplenish");
+        uint deficit = deficitOf(user);
+        require(deficit > 0, "No deficit");
+        uint replenishmentCost = deficit * replenishmentPriceBps / 10000;
+        accrueDueTokens(user);
+        debts[user] += replenishmentCost;
+        _mint(user, deficit);
     }
 
     function burn(uint amount) public {

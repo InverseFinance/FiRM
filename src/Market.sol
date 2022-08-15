@@ -21,7 +21,10 @@ interface IEscrow {
 interface IDolaBorrowingRights {
     function onBorrow(address user, uint additionalDebt) external;
     function onRepay(address user, uint repaidDebt) external;
+    function onForceReplenish(address user) external;
     function balanceOf(address user) external view returns (uint);
+    function deficitOf(address user) external view returns (uint);
+    function replenishmentPriceBps() external view returns (uint);
 }
 
 interface IBorrowController {
@@ -40,6 +43,7 @@ contract Market {
     IERC20 public immutable collateral;
     IOracle public oracle;
     uint public collateralFactorBps;
+    uint public replenishmentIncentiveBps;
     uint public liquidationIncentiveBps;
     bool immutable callOnDepositCallback;
     bool public borrowPaused;
@@ -58,11 +62,13 @@ contract Market {
         IERC20 _collateral,
         IOracle _oracle,
         uint _collateralFactorBps,
+        uint _replenishmentIncentiveBps,
         uint _liquidationIncentiveBps,
         bool _callOnDepositCallback
     ) {
         require(_collateralFactorBps > 0 && _collateralFactorBps < 10000, "Invalid collateral factor");
         require(_liquidationIncentiveBps > 0 && _liquidationIncentiveBps < 10000, "Invalid liquidation incentive");
+        require(_replenishmentIncentiveBps < 10000, "Replenishment incentive must be less than 100%");
         gov = _gov;
         lender = _lender;
         pauseGuardian = _pauseGuardian;
@@ -72,6 +78,7 @@ contract Market {
         collateral = _collateral;
         oracle = _oracle;
         collateralFactorBps = _collateralFactorBps;
+        replenishmentIncentiveBps = _replenishmentIncentiveBps;
         liquidationIncentiveBps = _liquidationIncentiveBps;
         callOnDepositCallback = _callOnDepositCallback;
     }
@@ -94,6 +101,11 @@ contract Market {
     function setCollateralFactorBps(uint _collateralFactorBps) public onlyGov {
         require(_collateralFactorBps > 0 && _collateralFactorBps < 10000, "Invalid collateral factor");
         collateralFactorBps = _collateralFactorBps;
+    }
+
+    function setReplenismentIncentiveBps(uint _replenishmentIncentiveBps) public onlyGov {
+        require(_replenishmentIncentiveBps > 0 && _replenishmentIncentiveBps < 10000, "Invalid replenishment incentive");
+        replenishmentIncentiveBps = _replenishmentIncentiveBps;
     }
 
     function setLiquidationIncentiveBps(uint _liquidationIncentiveBps) public onlyGov {
@@ -224,11 +236,22 @@ contract Market {
         emit Repay(user, msg.sender, amount);
     }
 
+    function forceReplenish(address user) public {
+        uint deficit = dbr.deficitOf(user);
+        require(deficit > 0, "No DBR deficit");
+        uint replenishmentCost = deficit * dbr.replenishmentPriceBps() / 10000;
+        uint replenisherReward = replenishmentCost * replenishmentIncentiveBps / 10000;
+        debts[user] += replenishmentCost;
+        dbr.onForceReplenish(user);
+        dola.transfer(msg.sender, replenisherReward);
+        emit ForceReplenish(user, msg.sender, deficit, replenishmentCost, replenisherReward);
+    }
+
     function liquidate(address user, uint repaidDebt) public {
         require(repaidDebt > 0, "Must repay positive debt");
         uint debt = debts[user];
         require(repaidDebt <= debt, "Insufficient user debt");
-        require(getCreditLimit(user) < debt || dbr.balanceOf(user) == 0 || isShutdown(), "User debt and dbr balance are healthy. Market was not shutdown");
+        require(getCreditLimit(user) < debt || isShutdown(), "User debt is healthy. Market was not shutdown");
         uint liquidatorReward = repaidDebt * 1 ether / oracle.getPrice(address(collateral));
         liquidatorReward += liquidatorReward * liquidationIncentiveBps / 10000;
         debts[user] -= repaidDebt;
@@ -242,6 +265,7 @@ contract Market {
     event Borrow(address indexed account, uint amount);
     event Withdraw(address indexed account, address indexed to, uint amount);
     event Repay(address indexed account, address indexed repayer, uint amount);
+    event ForceReplenish(address indexed account, address indexed replenisher, uint deficit, uint replenishmentCost, uint replenisherReward);
     event Liquidate(address indexed account, address indexed liquidator, uint repaidDebt, uint liquidatorReward);
     event ScheduleShutdown(bool value, uint scheduledTimestamp);
     event CreateEscrow(address indexed user, address escrow);
