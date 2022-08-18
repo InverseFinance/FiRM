@@ -189,7 +189,6 @@ contract DolaBorrowingRights {
 
     function accrueDueTokens(address user) public {
         uint debt = debts[user];
-        if(debt == 0) return;
         if(lastUpdated[user] == block.timestamp) return;
         uint accrued = (block.timestamp - lastUpdated[user]) * debt / 365 days;
         dueTokensAccrued[user] += accrued;
