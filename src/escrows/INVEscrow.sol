@@ -6,6 +6,7 @@ interface IERC20 {
     function transfer(address,uint) external returns (bool);
     function transferFrom(address,address,uint) external returns (bool);
     function balanceOf(address) external view returns (uint);
+    function approve(address, uint) external view returns (uint);
     function delegate(address delegatee) external;
     function delegates(address delegator) external view returns (address delegatee);
 }
@@ -35,6 +36,7 @@ contract INVEscrow {
         token = _token;
         beneficiary = _beneficiary;
         _token.delegate(_token.delegates(_beneficiary));
+        _token.approve(address(xINV), type(uint).max);
         xINV.syncDelegate(address(this));
     }
 
