@@ -49,8 +49,11 @@ contract Market {
     bool immutable callOnDepositCallback;
     bool public borrowPaused;
     uint public totalDebt;
+    uint256 internal immutable INITIAL_CHAIN_ID;
+    bytes32 internal immutable INITIAL_DOMAIN_SEPARATOR;
     mapping (address => IEscrow) public escrows; // user => escrow
     mapping (address => uint) public debts; // user => debt
+    mapping(address => uint256) public nonces; // user => nonce
 
     constructor (
         address _gov,
@@ -81,11 +84,30 @@ contract Market {
         replenishmentIncentiveBps = _replenishmentIncentiveBps;
         liquidationIncentiveBps = _liquidationIncentiveBps;
         callOnDepositCallback = _callOnDepositCallback;
+        INITIAL_CHAIN_ID = block.chainid;
+        INITIAL_DOMAIN_SEPARATOR = computeDomainSeparator();
     }
 
     modifier onlyGov {
         require(msg.sender == gov, "Only gov can call this function");
         _;
+    }
+
+    function DOMAIN_SEPARATOR() public view virtual returns (bytes32) {
+        return block.chainid == INITIAL_CHAIN_ID ? INITIAL_DOMAIN_SEPARATOR : computeDomainSeparator();
+    }
+
+    function computeDomainSeparator() internal view virtual returns (bytes32) {
+        return
+            keccak256(
+                abi.encode(
+                    keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+                    keccak256(bytes("DBR MARKET")),
+                    keccak256("1"),
+                    block.chainid,
+                    address(this)
+                )
+            );
     }
 
     function setOracle(IOracle _oracle) public onlyGov { oracle = _oracle; }
@@ -193,26 +215,100 @@ contract Market {
         return collateralBalance - minimumCollateral;
     }
 
-    function borrow(uint amount) public {
+    function borrowInternal(address borrower, address to, uint amount) internal {
         require(!borrowPaused, "Borrowing is paused");
         if(borrowController != IBorrowController(address(0))) {
-            require(borrowController.borrowAllowed(msg.sender, amount), "Denied by borrow controller");
+            require(borrowController.borrowAllowed(borrower, amount), "Denied by borrow controller");
         }
-        uint credit = getCreditLimit(msg.sender);
+        uint credit = getCreditLimit(borrower);
         require(credit >= amount, "Insufficient credit limit");
-        debts[msg.sender] += amount;
+        debts[borrower] += amount;
         totalDebt += amount;
-        dbr.onBorrow(msg.sender, amount);
-        dola.transfer(msg.sender, amount);
-        emit Borrow(msg.sender, amount);
+        dbr.onBorrow(borrower, amount);
+        dola.transfer(to, amount);
+        emit Borrow(borrower, amount);
     }
 
-    function withdraw(address to, uint amount) public {
-        uint limit = getWithdrawalLimit(msg.sender);
+    function borrow(uint amount) public {
+        borrowInternal(msg.sender, msg.sender, amount);
+    }
+
+    function borrowOnBehalf(address from, uint amount, uint deadline, uint8 v, bytes32 r, bytes32 s) public {
+        require(deadline >= block.timestamp, "DEADLINE_EXPIRED");
+        unchecked {
+            address recoveredAddress = ecrecover(
+                keccak256(
+                    abi.encodePacked(
+                        "\x19\x01",
+                        DOMAIN_SEPARATOR(),
+                        keccak256(
+                            abi.encode(
+                                keccak256(
+                                    "BorrowOnBehalf(address caller,address from,uint256 amount,uint256 nonce,uint256 deadline)"
+                                ),
+                                msg.sender,
+                                from,
+                                amount,
+                                nonces[from]++,
+                                deadline
+                            )
+                        )
+                    )
+                ),
+                v,
+                r,
+                s
+            );
+            require(recoveredAddress != address(0) && recoveredAddress == from, "INVALID_SIGNER");
+            borrowInternal(from, msg.sender, amount);
+        }
+    }
+
+    function withdrawInternal(address from, address to, uint amount) internal {
+        uint limit = getWithdrawalLimit(from);
         require(limit >= amount, "Insufficient withdrawal limit");
-        IEscrow escrow = getEscrow(msg.sender);
+        IEscrow escrow = getEscrow(from);
         escrow.pay(to, amount);
-        emit Withdraw(msg.sender, to, amount);
+        emit Withdraw(from, to, amount);
+    }
+
+    function withdraw(uint amount) public {
+        withdrawInternal(msg.sender, msg.sender, amount);
+    }
+
+    function withdrawOnBehalf(address from, uint amount, uint deadline, uint8 v, bytes32 r, bytes32 s) public {
+        require(deadline >= block.timestamp, "DEADLINE_EXPIRED");
+        unchecked {
+            address recoveredAddress = ecrecover(
+                keccak256(
+                    abi.encodePacked(
+                        "\x19\x01",
+                        DOMAIN_SEPARATOR(),
+                        keccak256(
+                            abi.encode(
+                                keccak256(
+                                    "WithdrawOnBehalf(address caller,address from,uint256 amount,uint256 nonce,uint256 deadline)"
+                                ),
+                                msg.sender,
+                                from,
+                                amount,
+                                nonces[from]++,
+                                deadline
+                            )
+                        )
+                    )
+                ),
+                v,
+                r,
+                s
+            );
+            require(recoveredAddress != address(0) && recoveredAddress == from, "INVALID_SIGNER");
+            withdrawInternal(from, msg.sender, amount);
+        }
+    }
+
+    function invalidateNonce() public {
+        nonces[msg.sender]++;
     }
 
     function repay(address user, uint amount) public {

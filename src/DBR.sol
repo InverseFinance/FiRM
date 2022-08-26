@@ -170,6 +170,10 @@ contract DolaBorrowingRights {
         emit Approval(owner, spender, value);
     }
 
+    function invalidateNonce() public {
+        nonces[msg.sender]++;
+    }
+
     function DOMAIN_SEPARATOR() public view virtual returns (bytes32) {
         return block.chainid == INITIAL_CHAIN_ID ? INITIAL_DOMAIN_SEPARATOR : computeDomainSeparator();
     }
