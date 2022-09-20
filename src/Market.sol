@@ -221,8 +221,8 @@ contract Market {
             require(borrowController.borrowAllowed(borrower, amount), "Denied by borrow controller");
         }
         uint credit = getCreditLimit(borrower);
-        require(credit >= amount, "Insufficient credit limit");
         debts[borrower] += amount;
+        require(credit >= debts[borrower], "Insufficient credit limit");
         totalDebt += amount;
         dbr.onBorrow(borrower, amount);
         dola.transfer(to, amount);
