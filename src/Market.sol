@@ -47,6 +47,7 @@ contract Market {
     uint public replenishmentIncentiveBps;
     uint public liquidationIncentiveBps;
     uint public liquidationFeeBps;
+    uint public liquidationFactorBps = 5000; // 50% by default
     bool immutable callOnDepositCallback;
     bool public borrowPaused;
     uint public totalDebt;
@@ -124,6 +125,11 @@ contract Market {
     function setCollateralFactorBps(uint _collateralFactorBps) public onlyGov {
         require(_collateralFactorBps < 10000, "Invalid collateral factor");
         collateralFactorBps = _collateralFactorBps;
+    }
+
+    function setLiquidationFactorBps(uint _liquidationFactorBps) public onlyGov {
+        require(_liquidationFactorBps > 0 && _liquidationFactorBps <= 10000, "Invalid liquidation factor");
+        liquidationFactorBps = _liquidationFactorBps;
     }
 
     function setReplenismentIncentiveBps(uint _replenishmentIncentiveBps) public onlyGov {
@@ -345,11 +351,19 @@ contract Market {
         emit ForceReplenish(user, msg.sender, deficit, replenishmentCost, replenisherReward);
     }
 
+    function getLiquidatableDebt(address user) public view returns (uint) {
+        uint debt = debts[user];
+        if (debt == 0) return 0;
+        uint credit = getCreditLimit(user);
+        if(credit > debt) return 0;
+        return debt * liquidationFactorBps / 10000;
+    }
+
     function liquidate(address user, uint repaidDebt) public {
         require(repaidDebt > 0, "Must repay positive debt");
         uint debt = debts[user];
-        require(repaidDebt <= debt, "Insufficient user debt");
         require(getCreditLimit(user) < debt, "User debt is healthy");
+        require(repaidDebt <= debt * liquidationFactorBps / 10000, "Exceeded liquidation factor");
         uint liquidatorReward = repaidDebt * 1 ether / oracle.getPrice(address(collateral));
         liquidatorReward += liquidatorReward * liquidationIncentiveBps / 10000;
         debts[user] -= repaidDebt;
