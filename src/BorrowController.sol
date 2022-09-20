@@ -21,8 +21,8 @@ contract BorrowController {
 
     function deny(address deniedContract) public onlyOperator { contractAllowlist[deniedContract] = false; }
 
-    function borrowAllowed(address borrower, uint) public view returns (bool) {
-        if(borrower == tx.origin) return true;
-        return contractAllowlist[borrower];
+    function borrowAllowed(address msgSender, address, uint) public view returns (bool) {
+        if(msgSender == tx.origin) return true;
+        return contractAllowlist[msgSender];
     }
 }

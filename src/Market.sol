@@ -29,7 +29,7 @@ interface IDolaBorrowingRights {
 }
 
 interface IBorrowController {
-    function borrowAllowed(address borrower, uint amount) external returns (bool);
+    function borrowAllowed(address msgSender, address borrower, uint amount) external returns (bool);
 }
 
 contract Market {
@@ -196,10 +196,14 @@ contract Market {
         }
     }
 
-    function getCreditLimit(address user) public view returns (uint) {
+    function getCollateralValue(address user) public view returns (uint) {
         IEscrow escrow = predictEscrow(user);
         uint collateralBalance = escrow.balance();
-        uint collateralValue = collateralBalance * oracle.getPrice(address(collateral)) / 1 ether;
+        return collateralBalance * oracle.getPrice(address(collateral)) / 1 ether;
+    }
+
+    function getCreditLimit(address user) public view returns (uint) {
+        uint collateralValue = getCollateralValue(user);
         return collateralValue * collateralFactorBps / 10000;
     }
 
@@ -218,11 +222,11 @@ contract Market {
     function borrowInternal(address borrower, address to, uint amount) internal {
         require(!borrowPaused, "Borrowing is paused");
         if(borrowController != IBorrowController(address(0))) {
-            require(borrowController.borrowAllowed(borrower, amount), "Denied by borrow controller");
+            require(borrowController.borrowAllowed(msg.sender, borrower, amount), "Denied by borrow controller");
         }
         uint credit = getCreditLimit(borrower);
         debts[borrower] += amount;
-        require(credit >= debts[borrower], "Insufficient credit limit");
+        require(credit >= debts[borrower], "Exceeded credit limit");
         totalDebt += amount;
         dbr.onBorrow(borrower, amount);
         dola.transfer(to, amount);
@@ -327,6 +331,8 @@ contract Market {
         uint replenishmentCost = deficit * dbr.replenishmentPriceBps() / 10000;
         uint replenisherReward = replenishmentCost * replenishmentIncentiveBps / 10000;
         debts[user] += replenishmentCost;
+        uint collateralValue = getCollateralValue(user);
+        require(collateralValue >= debts[user], "Exceeded collateral value");
         totalDebt += replenishmentCost;
         dbr.onForceReplenish(user);
         dola.transfer(msg.sender, replenisherReward);
