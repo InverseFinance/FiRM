@@ -46,6 +46,7 @@ contract Market {
     uint public collateralFactorBps;
     uint public replenishmentIncentiveBps;
     uint public liquidationIncentiveBps;
+    uint public liquidationFeeBps;
     bool immutable callOnDepositCallback;
     bool public borrowPaused;
     uint public totalDebt;
@@ -131,8 +132,13 @@ contract Market {
     }
 
     function setLiquidationIncentiveBps(uint _liquidationIncentiveBps) public onlyGov {
-        require(_liquidationIncentiveBps > 0 && _liquidationIncentiveBps < 10000, "Invalid liquidation incentive");
+        require(_liquidationIncentiveBps > 0 && _liquidationIncentiveBps + liquidationFeeBps < 10000, "Invalid liquidation incentive");
         liquidationIncentiveBps = _liquidationIncentiveBps;
+    }
+
+    function setLiquidationFeeBps(uint _liquidationFeeBps) public onlyGov {
+        require(_liquidationFeeBps > 0 && _liquidationFeeBps + liquidationIncentiveBps < 10000, "Invalid liquidation fee");
+        liquidationFeeBps = _liquidationFeeBps;
     }
 
     function recall(uint amount) public {
@@ -352,6 +358,12 @@ contract Market {
         dola.transferFrom(msg.sender, address(this), repaidDebt);
         IEscrow escrow = predictEscrow(user);
         escrow.pay(msg.sender, liquidatorReward);
+        if(liquidationFeeBps > 0) {
+            uint liquidationFee = repaidDebt * 1 ether / oracle.getPrice(address(collateral)) * liquidationFeeBps / 10000;
+            if(escrow.balance() >= liquidationFee) {
+                escrow.pay(gov, liquidationFee);
+            }
+        }
         emit Liquidate(user, msg.sender, repaidDebt, liquidatorReward);
     }
 
