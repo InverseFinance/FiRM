@@ -44,7 +44,84 @@ contract MarketTest is FrontierV2Test {
         vm.startPrank(user);
 
         deposit(wethTestAmount);
-        market.borrow(wethTestAmount * ethFeed.latestAnswer() * collateralFactorBps / 1e18 / 10_000);
+        uint borrowAmount = convertWethToDola(wethTestAmount) * collateralFactorBps / 10_000;
+        market.borrow(borrowAmount);
+    }
+
+    function testBorrowOnBehalf() public {
+        address userPk = vm.addr(1);
+        gibWeth(userPk, wethTestAmount);
+        gibDBR(userPk, wethTestAmount);
+        
+        vm.startPrank(userPk);
+        uint maxBorrowAmount = convertWethToDola(wethTestAmount) * collateralFactorBps / 10_000;
+        bytes32 hash = keccak256(
+                    abi.encodePacked(
+                        "\x19\x01",
+                        market.DOMAIN_SEPARATOR(),
+                        keccak256(
+                            abi.encode(
+                                keccak256(
+                                    "BorrowOnBehalf(address caller,address from,uint256 amount,uint256 nonce,uint256 deadline)"
+                                ),
+                                user2,
+                                userPk,
+                                maxBorrowAmount,
+                                0,
+                                block.timestamp
+                            )
+                        )
+                    )
+                );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
+
+        deposit(wethTestAmount);
+        vm.stopPrank();
+
+        assertEq(WETH.balanceOf(address(market.escrows(userPk))), wethTestAmount, "failed to deposit WETH");
+        assertEq(WETH.balanceOf(userPk), 0, "failed to deposit WETH");
+
+        vm.startPrank(user2);
+        market.borrowOnBehalf(userPk, maxBorrowAmount, block.timestamp, v, r, s);
+
+        assertEq(DOLA.balanceOf(userPk), 0, "borrowed DOLA went to the wrong user");
+        assertEq(DOLA.balanceOf(user2), maxBorrowAmount, "failed to borrow DOLA");
+    }
+
+    function testBorrowOnBehalf_Fails_When_InvalidateNonceCalledPrior() public {
+        address userPk = vm.addr(1);
+        gibWeth(userPk, wethTestAmount);
+        gibDBR(userPk, wethTestAmount);
+        
+        vm.startPrank(userPk);
+        uint maxBorrowAmount = convertWethToDola(wethTestAmount) * collateralFactorBps / 10_000;
+        bytes32 hash = keccak256(
+                    abi.encodePacked(
+                        "\x19\x01",
+                        market.DOMAIN_SEPARATOR(),
+                        keccak256(
+                            abi.encode(
+                                keccak256(
+                                    "BorrowOnBehalf(address caller,address from,uint256 amount,uint256 nonce,uint256 deadline)"
+                                ),
+                                user2,
+                                userPk,
+                                maxBorrowAmount,
+                                0,
+                                block.timestamp
+                            )
+                        )
+                    )
+                );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
+
+        deposit(wethTestAmount);
+        market.invalidateNonce();
+        vm.stopPrank();
+
+        vm.startPrank(user2);
+        vm.expectRevert("INVALID_SIGNER");
+        market.borrowOnBehalf(userPk, maxBorrowAmount, block.timestamp, v, r, s);
     }
 
     function testBorrow_Fails_When_BorrowingPaused() public {
@@ -58,9 +135,9 @@ contract MarketTest is FrontierV2Test {
 
         deposit(wethTestAmount);
 
-        uint ethPrice = ethFeed.latestAnswer();
+        uint borrowAmount = convertWethToDola(wethTestAmount) * collateralFactorBps / 10_000;
         vm.expectRevert("Borrowing is paused");
-        market.borrow(wethTestAmount * ethPrice * collateralFactorBps / 1e18 / 10_000);
+        market.borrow(borrowAmount);
     }
 
     function testBorrow_Fails_When_DeniedByBorrowController() public {
@@ -74,9 +151,9 @@ contract MarketTest is FrontierV2Test {
 
         borrowContract.deposit(wethTestAmount);
 
-        uint ethPrice = ethFeed.latestAnswer();
+        uint borrowAmount = convertWethToDola(wethTestAmount) * collateralFactorBps / 10_000;
         vm.expectRevert("Denied by borrow controller");
-        borrowContract.borrow(wethTestAmount * ethPrice * collateralFactorBps / 1e18 / 10_000);
+        borrowContract.borrow(borrowAmount);
     }
 
     function testBorrow_Fails_When_AmountGTCreditLimit() public {
@@ -86,19 +163,64 @@ contract MarketTest is FrontierV2Test {
 
         deposit(wethTestAmount);
 
-        uint ethPrice = ethFeed.latestAnswer();
+        uint borrowAmount = convertWethToDola(wethTestAmount);
         vm.expectRevert("Exceeded credit limit");
-        market.borrow(wethTestAmount * ethPrice / 1e18);
+        market.borrow(borrowAmount);
     }
 
-    function testLiquidate() public {
+    function testLiquidate_NoLiquidationFee(uint depositAmount, uint liqAmount) public {
+        depositAmount = bound(depositAmount, 1e18, 100_000e18);
+        liqAmount = bound(liqAmount, 500e18, 200_000_000e18);
+
+        uint maxBorrowAmount = convertWethToDola(depositAmount) * collateralFactorBps / 10_000;
+        vm.assume(maxBorrowAmount * market.liquidationFactorBps() / 10_000 > liqAmount);
+
+        gibWeth(user, depositAmount);
+        gibDBR(user, depositAmount);
+
+        vm.startPrank(chair);
+        fed.expansion(IMarket(address(market)), convertWethToDola(depositAmount));
+        vm.stopPrank();
+
+        vm.startPrank(user);
+        deposit(depositAmount);
+        market.borrow(maxBorrowAmount);
+        vm.stopPrank();
+
+        ethFeed.changeAnswer(ethFeed.latestAnswer() * 9 / 10);
+
+        vm.startPrank(user2);
+        gibDOLA(user2, liqAmount);
+        DOLA.approve(address(market), type(uint).max);
+
+        uint marketDolaBal = DOLA.balanceOf(address(market));
+        uint govDolaBal = DOLA.balanceOf(gov);
+        uint repayAmount = market.debts(user) * market.liquidationFactorBps() / 10_000;
+        repayAmount = liqAmount;
+        market.liquidate(user, repayAmount);
+
+        uint expectedReward = convertDolaToWeth(repayAmount);
+        expectedReward += expectedReward * market.liquidationIncentiveBps() / 10_000;
+        assertEq(expectedReward, WETH.balanceOf(user2), "user2 didn't receive proper liquidation reward");
+        assertEq(DOLA.balanceOf(address(market)), marketDolaBal + repayAmount, "market didn't receive repaid DOLA");
+        assertEq(DOLA.balanceOf(gov), govDolaBal, "gov should not receive liquidation fee when it's set to 0");
+    }
+
+    function testLiquidate_WithLiquidationFee(uint256 liquidationFeeBps) public {
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount);
+
+        vm.startPrank(gov);
+        liquidationFeeBps = bound(liquidationFeeBps, 1, 10_000);
+        vm.assume(liquidationFeeBps > 0 && liquidationFeeBps + market.liquidationIncentiveBps() < 10000);
+        market.setLiquidationFeeBps(liquidationFeeBps);
+        vm.stopPrank();
 
         vm.startPrank(user);
 
         deposit(wethTestAmount);
-        market.borrow(wethTestAmount * ethFeed.latestAnswer() * collateralFactorBps / 1e18 / 10_000);
+        uint borrowAmount = convertWethToDola(wethTestAmount) * collateralFactorBps / 10_000;
+        market.borrow(borrowAmount);
 
         vm.stopPrank();
 
@@ -107,7 +229,18 @@ contract MarketTest is FrontierV2Test {
         vm.startPrank(user2);
         gibDOLA(user2, 5_000 ether);
         DOLA.approve(address(market), type(uint).max);
-        market.liquidate(user, market.debts(user) * market.liquidationFactorBps() / 10_000);
+
+        uint marketDolaBal = DOLA.balanceOf(address(market));
+        uint govWethBal = DOLA.balanceOf(gov);
+        uint repayAmount = market.debts(user) * market.liquidationFactorBps() / 10_000;
+        market.liquidate(user, repayAmount);
+
+        uint expectedReward = convertDolaToWeth(repayAmount);
+        expectedReward += expectedReward * market.liquidationIncentiveBps() / 10_000;
+        uint expectedLiquidationFee = convertDolaToWeth(repayAmount) * market.liquidationFeeBps() / 10_000;
+        assertEq(expectedReward, WETH.balanceOf(user2), "user2 didn't receive proper liquidation reward");
+        assertEq(DOLA.balanceOf(address(market)), marketDolaBal + repayAmount, "market didn't receive repaid DOLA");
+        assertEq(WETH.balanceOf(gov), govWethBal + expectedLiquidationFee, "gov didn't receive proper liquidation fee");
     }
 
     function testLiquidate_Fails_When_repaidDebtIs0() public {
@@ -117,7 +250,8 @@ contract MarketTest is FrontierV2Test {
         vm.startPrank(user);
 
         deposit(wethTestAmount);
-        market.borrow(wethTestAmount * ethFeed.latestAnswer() * collateralFactorBps / 1e18 / 10_000);
+        uint borrowAmount = convertWethToDola(wethTestAmount) * collateralFactorBps / 10_000;
+        market.borrow(borrowAmount);
 
         vm.stopPrank();
 
@@ -137,7 +271,8 @@ contract MarketTest is FrontierV2Test {
         vm.startPrank(user);
 
         deposit(wethTestAmount);
-        market.borrow(wethTestAmount * ethFeed.latestAnswer() * collateralFactorBps / 1e18 / 10_000);
+        uint borrowAmount = convertWethToDola(wethTestAmount) * collateralFactorBps / 10_000;
+        market.borrow(borrowAmount);
 
         vm.stopPrank();
 
@@ -159,7 +294,8 @@ contract MarketTest is FrontierV2Test {
         vm.startPrank(user);
 
         deposit(wethTestAmount);
-        market.borrow(wethTestAmount * ethFeed.latestAnswer() * collateralFactorBps / 1e18 / 10_000);
+        uint borrowAmount = convertWethToDola(wethTestAmount) * collateralFactorBps / 10_000;
+        market.borrow(borrowAmount);
 
         vm.stopPrank();
 
@@ -179,7 +315,8 @@ contract MarketTest is FrontierV2Test {
         vm.startPrank(user);
 
         deposit(wethTestAmount);
-        market.borrow(wethTestAmount * ethFeed.latestAnswer() * collateralFactorBps / 1e18 / 10_000);
+        uint borrowAmount = convertWethToDola(wethTestAmount) * collateralFactorBps / 10_000;
+        market.borrow(borrowAmount);
 
         uint initialUserDebt = market.debts(user);
         uint initialDolaBal = DOLA.balanceOf(user);
@@ -197,7 +334,8 @@ contract MarketTest is FrontierV2Test {
         vm.startPrank(user);
 
         deposit(wethTestAmount);
-        market.borrow(wethTestAmount * ethFeed.latestAnswer() * collateralFactorBps / 1e18 / 10_000);
+        uint borrowAmount = convertWethToDola(wethTestAmount) * collateralFactorBps / 10_000;
+        market.borrow(borrowAmount);
 
         vm.stopPrank();
         vm.startPrank(user2);
@@ -219,7 +357,8 @@ contract MarketTest is FrontierV2Test {
         vm.startPrank(user);
 
         deposit(wethTestAmount);
-        market.borrow(wethTestAmount * ethFeed.latestAnswer() * collateralFactorBps / 1e18 / 10_000);
+        uint borrowAmount = convertWethToDola(wethTestAmount) * collateralFactorBps / 10_000;
+        market.borrow(borrowAmount);
 
         vm.stopPrank();
 
@@ -236,7 +375,8 @@ contract MarketTest is FrontierV2Test {
         vm.startPrank(user);
 
         deposit(wethTestAmount);
-        market.borrow(wethTestAmount * ethFeed.latestAnswer() * collateralFactorBps / 1e18 / 10_000);
+        uint borrowAmount = convertWethToDola(wethTestAmount) * collateralFactorBps / 10_000;
+        market.borrow(borrowAmount);
 
         vm.stopPrank();
         vm.startPrank(user2);
@@ -267,6 +407,96 @@ contract MarketTest is FrontierV2Test {
 
         vm.expectRevert(onlyGovUnpause);
         market.pauseBorrows(false);
+    }
+
+    function testWithdraw() public {
+        gibWeth(user, wethTestAmount);
+        gibDBR(user, wethTestAmount);
+        vm.startPrank(user);
+
+        deposit(wethTestAmount);
+
+        assertEq(WETH.balanceOf(address(market.escrows(user))), wethTestAmount, "failed to deposit WETH");
+        assertEq(WETH.balanceOf(user), 0, "failed to deposit WETH");
+
+        market.withdraw(wethTestAmount);
+
+        assertEq(WETH.balanceOf(address(market.escrows(user))), 0, "failed to withdraw WETH");
+        assertEq(WETH.balanceOf(user), wethTestAmount, "failed to withdraw WETH");
+    }
+
+    function testWithdrawOnBehalf() public {
+        address userPk = vm.addr(1);
+        gibWeth(userPk, wethTestAmount);
+        gibDBR(userPk, wethTestAmount);
+        
+        vm.startPrank(userPk);
+        bytes32 hash = keccak256(
+                    abi.encodePacked(
+                        "\x19\x01",
+                        market.DOMAIN_SEPARATOR(),
+                        keccak256(
+                            abi.encode(
+                                keccak256(
+                                    "WithdrawOnBehalf(address caller,address from,uint256 amount,uint256 nonce,uint256 deadline)"
+                                ),
+                                user2,
+                                userPk,
+                                wethTestAmount,
+                                0,
+                                block.timestamp
+                            )
+                        )
+                    )
+                );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
+
+        deposit(wethTestAmount);
+        vm.stopPrank();
+
+        assertEq(WETH.balanceOf(address(market.escrows(userPk))), wethTestAmount, "failed to deposit WETH");
+        assertEq(WETH.balanceOf(userPk), 0, "failed to deposit WETH");
+
+        vm.startPrank(user2);
+        market.withdrawOnBehalf(userPk, wethTestAmount, block.timestamp, v, r, s);
+
+        assertEq(WETH.balanceOf(address(market.escrows(userPk))), 0, "failed to withdraw WETH");
+        assertEq(WETH.balanceOf(user2), wethTestAmount, "failed to withdraw WETH");
+    }
+
+    function testWithdrawOnBehalf_When_InvalidateNonceCalledPrior() public {
+        address userPk = vm.addr(1);
+        gibWeth(userPk, wethTestAmount);
+        gibDBR(userPk, wethTestAmount);
+        
+        vm.startPrank(userPk);
+        bytes32 hash = keccak256(
+                    abi.encodePacked(
+                        "\x19\x01",
+                        market.DOMAIN_SEPARATOR(),
+                        keccak256(
+                            abi.encode(
+                                keccak256(
+                                    "WithdrawOnBehalf(address caller,address from,uint256 amount,uint256 nonce,uint256 deadline)"
+                                ),
+                                user2,
+                                userPk,
+                                wethTestAmount,
+                                0,
+                                block.timestamp
+                            )
+                        )
+                    )
+                );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
+
+        deposit(wethTestAmount);
+        market.invalidateNonce();
+        vm.stopPrank();
+
+        vm.startPrank(user2);
+        vm.expectRevert("INVALID_SIGNER");
+        market.withdrawOnBehalf(userPk, wethTestAmount, block.timestamp, v, r, s);
     }
 
     //Access Control Tests

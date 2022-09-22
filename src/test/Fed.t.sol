@@ -21,14 +21,14 @@ contract FedTest is FrontierV2Test {
         marketParameter = IMarket(address(market));
     }
 
-    function testExpansion() public {
+    function testExpansion(uint256 amount) public {
         uint startingDolaBal = DOLA.balanceOf(address(marketParameter));
 
         vm.startPrank(chair);
-        fed.expansion(marketParameter, testAmount);
+        fed.expansion(marketParameter, amount);
 
-        assertEq(startingDolaBal + testAmount, DOLA.balanceOf(address(marketParameter)), "Expansion failed - dola balanace");
-        assertEq(fed.supplies(marketParameter), testAmount, "Expansion failed - fed accounting");
+        assertEq(startingDolaBal + amount, DOLA.balanceOf(address(marketParameter)), "Expansion failed - dola balanace");
+        assertEq(fed.supplies(marketParameter), amount, "Expansion failed - fed accounting");
     }
 
     function testExpansion_Fails_If_UnsupportedMarket() public {
@@ -47,13 +47,13 @@ contract FedTest is FrontierV2Test {
         fed.expansion(marketParameter, testAmount);
     }
 
-    function testContraction() public {
+    function testContraction(uint256 amount) public {
         vm.startPrank(chair);
-        fed.expansion(marketParameter, testAmount);
-        assertEq(fed.supplies(marketParameter), testAmount, "expansion failed - fed accounting");
-        assertEq(DOLA.balanceOf(address(marketParameter)), testAmount, "expansion failed - dola balance");
+        fed.expansion(marketParameter, amount);
+        assertEq(fed.supplies(marketParameter), amount, "expansion failed - fed accounting");
+        assertEq(DOLA.balanceOf(address(marketParameter)), amount, "expansion failed - dola balance");
 
-        fed.contraction(marketParameter, testAmount);
+        fed.contraction(marketParameter, amount);
         assertEq(fed.supplies(marketParameter), 0, "contraction failed - fed accounting");
         assertEq(DOLA.balanceOf(address(marketParameter)), 0, "contraction failed - dola balance");
     }

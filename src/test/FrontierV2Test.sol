@@ -79,6 +79,14 @@ contract FrontierV2Test is Test {
         market.deposit(amount);
     }
 
+    function convertWethToDola(uint amount) public view returns (uint) {
+        return amount * ethFeed.latestAnswer() / 1e18;
+    }
+
+    function convertDolaToWeth(uint amount) public view returns (uint) {
+        return amount * 1e18 / ethFeed.latestAnswer();
+    }
+
     function gibWeth(address _address, uint _amount) internal {
         vm.deal(_address, _amount);
         vm.startPrank(_address);
