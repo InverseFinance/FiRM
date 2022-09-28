@@ -204,7 +204,7 @@ contract DolaBorrowingRights {
     function onBorrow(address user, uint additionalDebt) public {
         require(markets[msg.sender], "Only markets can call onBorrow");
         accrueDueTokens(user);
-        require(balanceOf(user) > 0, "Insufficient balance");
+        require(balanceOf(user) >= 0, "DBR Deficit");
         debts[user] += additionalDebt;
     }
 
