@@ -22,7 +22,7 @@ interface IEscrow {
 interface IDolaBorrowingRights {
     function onBorrow(address user, uint additionalDebt) external;
     function onRepay(address user, uint repaidDebt) external;
-    function onForceReplenish(address user) external;
+    function onForceReplenish(address user, uint amount) external;
     function balanceOf(address user) external view returns (uint);
     function deficitOf(address user) external view returns (uint);
     function replenishmentPriceBps() external view returns (uint);
@@ -337,18 +337,19 @@ contract Market {
         emit Repay(user, msg.sender, amount);
     }
 
-    function forceReplenish(address user) public {
+    function forceReplenish(address user, uint amount) public {
         uint deficit = dbr.deficitOf(user);
         require(deficit > 0, "No DBR deficit");
-        uint replenishmentCost = deficit * dbr.replenishmentPriceBps() / 10000;
+        require(deficit >= amount, "Amount > deficit");
+        uint replenishmentCost = amount * dbr.replenishmentPriceBps() / 10000;
         uint replenisherReward = replenishmentCost * replenishmentIncentiveBps / 10000;
         debts[user] += replenishmentCost;
         uint collateralValue = getCollateralValue(user);
         require(collateralValue >= debts[user], "Exceeded collateral value");
         totalDebt += replenishmentCost;
-        dbr.onForceReplenish(user);
+        dbr.onForceReplenish(user, amount);
         dola.transfer(msg.sender, replenisherReward);
-        emit ForceReplenish(user, msg.sender, deficit, replenishmentCost, replenisherReward);
+        emit ForceReplenish(user, msg.sender, amount, replenishmentCost, replenisherReward);
     }
 
     function getLiquidatableDebt(address user) public view returns (uint) {
