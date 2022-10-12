@@ -88,6 +88,10 @@ contract FrontierV2Test is Test {
         return amount * 1e18 / ethFeed.latestAnswer();
     }
 
+    function getMaxBorrowAmount(uint amountWeth) public returns (uint) {
+        return convertWethToDola(amountWeth) * market.collateralFactorBps() / 10_000;
+    }
+
     function gibWeth(address _address, uint _amount) internal {
         vm.deal(_address, _amount);
         vm.startPrank(_address);

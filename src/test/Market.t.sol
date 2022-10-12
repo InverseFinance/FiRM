@@ -44,7 +44,7 @@ contract MarketTest is FrontierV2Test {
         vm.startPrank(user);
 
         deposit(wethTestAmount);
-        uint borrowAmount = convertWethToDola(wethTestAmount) * market.collateralFactorBps() / 10_000;
+        uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
         market.borrow(borrowAmount);
     }
 
@@ -54,7 +54,7 @@ contract MarketTest is FrontierV2Test {
         gibDBR(userPk, wethTestAmount);
         
         vm.startPrank(userPk);
-        uint maxBorrowAmount = convertWethToDola(wethTestAmount) * market.collateralFactorBps() / 10_000;
+        uint maxBorrowAmount = getMaxBorrowAmount(wethTestAmount);
         bytes32 hash = keccak256(
                     abi.encodePacked(
                         "\x19\x01",
@@ -94,7 +94,7 @@ contract MarketTest is FrontierV2Test {
         gibDBR(userPk, wethTestAmount);
         
         vm.startPrank(userPk);
-        uint maxBorrowAmount = convertWethToDola(wethTestAmount) * market.collateralFactorBps() / 10_000;
+        uint maxBorrowAmount = getMaxBorrowAmount(wethTestAmount);
         bytes32 hash = keccak256(
                     abi.encodePacked(
                         "\x19\x01",
@@ -135,7 +135,7 @@ contract MarketTest is FrontierV2Test {
 
         deposit(wethTestAmount);
 
-        uint borrowAmount = convertWethToDola(wethTestAmount) * market.collateralFactorBps() / 10_000;
+        uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
         vm.expectRevert("Borrowing is paused");
         market.borrow(borrowAmount);
     }
@@ -151,7 +151,7 @@ contract MarketTest is FrontierV2Test {
 
         borrowContract.deposit(wethTestAmount);
 
-        uint borrowAmount = convertWethToDola(wethTestAmount) * market.collateralFactorBps() / 10_000;
+        uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
         vm.expectRevert("Denied by borrow controller");
         borrowContract.borrow(borrowAmount);
     }
@@ -294,7 +294,7 @@ contract MarketTest is FrontierV2Test {
         vm.startPrank(user);
 
         deposit(wethTestAmount);
-        uint borrowAmount = convertWethToDola(wethTestAmount) * market.collateralFactorBps() / 10_000;
+        uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
         market.borrow(borrowAmount);
 
         vm.stopPrank();
@@ -315,7 +315,7 @@ contract MarketTest is FrontierV2Test {
         vm.startPrank(user);
 
         deposit(wethTestAmount);
-        uint borrowAmount = convertWethToDola(wethTestAmount) * market.collateralFactorBps() / 10_000;
+        uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
         market.borrow(borrowAmount);
 
         vm.stopPrank();
@@ -338,7 +338,7 @@ contract MarketTest is FrontierV2Test {
         vm.startPrank(user);
 
         deposit(wethTestAmount);
-        uint borrowAmount = convertWethToDola(wethTestAmount) * market.collateralFactorBps() / 10_000;
+        uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
         market.borrow(borrowAmount);
 
         vm.stopPrank();
@@ -359,7 +359,7 @@ contract MarketTest is FrontierV2Test {
         vm.startPrank(user);
 
         deposit(wethTestAmount);
-        uint borrowAmount = convertWethToDola(wethTestAmount) * market.collateralFactorBps() / 10_000;
+        uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
         market.borrow(borrowAmount);
 
         uint initialUserDebt = market.debts(user);
@@ -378,7 +378,7 @@ contract MarketTest is FrontierV2Test {
         vm.startPrank(user);
 
         deposit(wethTestAmount);
-        uint borrowAmount = convertWethToDola(wethTestAmount) * market.collateralFactorBps() / 10_000;
+        uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
         market.borrow(borrowAmount);
 
         vm.stopPrank();
@@ -401,7 +401,7 @@ contract MarketTest is FrontierV2Test {
 
         vm.startPrank(user);
         deposit(wethTestAmount);
-        uint borrowAmount = convertWethToDola(wethTestAmount) * market.collateralFactorBps() / 10_000;
+        uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
         market.borrow(borrowAmount);
         uint userDebtBefore = market.debts(user);
         uint marketDolaBefore = DOLA.balanceOf(address(market));
@@ -426,7 +426,7 @@ contract MarketTest is FrontierV2Test {
         vm.startPrank(user);
 
         deposit(wethTestAmount);
-        uint borrowAmount = convertWethToDola(wethTestAmount) * market.collateralFactorBps() / 10_000;
+        uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
         market.borrow(borrowAmount);
 
         vm.stopPrank();
@@ -442,7 +442,7 @@ contract MarketTest is FrontierV2Test {
 
         vm.startPrank(user);
         deposit(wethTestAmount);
-        uint borrowAmount = convertWethToDola(wethTestAmount) * market.collateralFactorBps() / 10_000;
+        uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
         market.borrow(borrowAmount);
 
         vm.warp(block.timestamp + 5 days);
@@ -460,7 +460,7 @@ contract MarketTest is FrontierV2Test {
 
         vm.startPrank(user);
         deposit(wethTestAmount);
-        uint borrowAmount = convertWethToDola(wethTestAmount) * market.collateralFactorBps() / 10_000;
+        uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
         market.borrow(borrowAmount);
 
         vm.warp(block.timestamp + 5 days);
@@ -479,7 +479,7 @@ contract MarketTest is FrontierV2Test {
 
         vm.startPrank(user);
         deposit(wethTestAmount);
-        uint borrowAmount = convertWethToDola(wethTestAmount) * market.collateralFactorBps() / 10_000;
+        uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
         market.borrow(borrowAmount);
 
         vm.warp(block.timestamp + 10000 days);
@@ -491,7 +491,7 @@ contract MarketTest is FrontierV2Test {
     }
 
     function testGetWithdrawalLimit() public {
-        uint borrowAmount = convertWethToDola(wethTestAmount) * market.collateralFactorBps() / 10_000;
+        uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount);
 
