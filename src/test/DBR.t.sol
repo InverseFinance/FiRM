@@ -52,20 +52,63 @@ contract DBRTest is FrontierV2Test {
         market.borrow(borrowAmount / 2);
     }
 
-    function test_BalanceOf_GivesCorrectBalance() public {
-        assert(false); //Not implemented yet
+    function test_BalanceFunctions_ReturnCorrectBalance_WhenAddressHasDeficit() public {
+        gibWeth(user, wethTestAmount);
+        gibDBR(user, wethTestAmount / 20);
+
+        vm.startPrank(user);
+        deposit(wethTestAmount);
+        uint borrowAmount = 1 ether;
+        market.borrow(borrowAmount);
+
+        vm.warp(block.timestamp + 365 days);
+
+        assertEq(dbr.balanceOf(user), 0, "balanceOf should be 0 when user has deficit");
+        //We give user 0.05 DBR. Borrow 1 DOLA for 1 year, expect to pay 1 DBR. -0.95 DBR should be the deficit.
+        assertEq(dbr.deficitOf(user), borrowAmount * 19 / 20, "incorrect deficitOf");
+        assertEq(dbr.signedBalanceOf(user), int(0) - int(dbr.deficitOf(user)), "signedBalanceOf should equal negative deficitOf when there is a deficit");
+
+        //ensure balances are the same after accrueDueTokens is called
+        dbr.accrueDueTokens(user);
+        assertEq(dbr.balanceOf(user), 0, "balanceOf should be 0 when user has deficit");
+        assertEq(dbr.deficitOf(user), borrowAmount * 19 / 20, "incorrect deficitOf");
+        assertEq(dbr.signedBalanceOf(user), int(0) - int(dbr.deficitOf(user)), "signedBalanceOf should equal negative deficitOf when there is a deficit");
     }
 
-    function test_BalanceOf_ReturnsZero_WhenAddressHasDeficit() public {
-        assert(false); //Not implemented yet
+    function test_BalanceFunctions_ReturnCorrectBalance_WhenAddressHasPositiveBalance() public {
+        gibWeth(user, wethTestAmount);
+        gibDBR(user, wethTestAmount * 2);
+
+        vm.startPrank(user);
+        deposit(wethTestAmount);
+
+        uint borrowAmount = wethTestAmount;
+        market.borrow(borrowAmount);
+
+        vm.warp(block.timestamp + 365 days);
+
+        assertEq(dbr.deficitOf(user), 0, "deficitOf should be 0 when user has deficit");
+        //We give user 2 DBR. Borrow 1 DOLA for 1 year, expect to pay 1 DBR. 1 DBR should be left as the balance.
+        assertEq(dbr.balanceOf(user), borrowAmount, "incorrect dbr balance");
+        assertEq(dbr.signedBalanceOf(user), int(dbr.balanceOf(user)), "signedBalanceOf should equal balanceOf when there is a positive balance");
+
+         //ensure balances are the same after accrueDueTokens is called
+        dbr.accrueDueTokens(user);
+        assertEq(dbr.deficitOf(user), 0, "deficitOf should be 0 when user has deficit");
+        assertEq(dbr.balanceOf(user), borrowAmount, "incorrect dbr balance");
+        assertEq(dbr.signedBalanceOf(user), int(dbr.balanceOf(user)), "signedBalanceOf should equal balanceOf when there is a positive balance");
     }
 
-    function test_BalanceOf_GivesCorrectDeficit() public {
-        assert(false); //Not implemented yet
-    }
+    function test_BalanceFunctions_ReturnCorrectBalance_WhenAddressHasZeroBalance() public {
+        assertEq(dbr.deficitOf(user), 0, "deficitOf should be 0 when user has no balance");
+        assertEq(dbr.balanceOf(user), 0, "balanceOf should be 0 when user has no balance");
+        assertEq(dbr.signedBalanceOf(user), 0, "signedBalanceOf should be 0 when user has no balance");
 
-    function test_BalanceOf_ReturnsZero_WhenAddressHasAPositiveBalance() public {
-        assert(false); //Not implemented yet
+         //ensure balances are the same after accrueDueTokens is called
+        dbr.accrueDueTokens(user);
+        assertEq(dbr.deficitOf(user), 0, "deficitOf should be 0 when user has no balance");
+        assertEq(dbr.balanceOf(user), 0, "balanceOf should be 0 when user has no balance");
+        assertEq(dbr.signedBalanceOf(user), 0, "signedBalanceOf should be 0 when user has no balance");
     }
 
     //Access Control
