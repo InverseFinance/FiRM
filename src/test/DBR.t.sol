@@ -52,6 +52,22 @@ contract DBRTest is FrontierV2Test {
         market.borrow(borrowAmount / 2);
     }
 
+    function test_BalanceOf_GivesCorrectBalance() public {
+        assert(false); //Not implemented yet
+    }
+
+    function test_BalanceOf_ReturnsZero_WhenAddressHasDeficit() public {
+        assert(false); //Not implemented yet
+    }
+
+    function test_BalanceOf_GivesCorrectDeficit() public {
+        assert(false); //Not implemented yet
+    }
+
+    function test_BalanceOf_ReturnsZero_WhenAddressHasAPositiveBalance() public {
+        assert(false); //Not implemented yet
+    }
+
     //Access Control
     function test_accessControl_setPendingOperator() public {
         vm.startPrank(operator);
