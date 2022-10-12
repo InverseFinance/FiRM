@@ -381,19 +381,26 @@ contract MarketTest is FrontierV2Test {
     function testForceReplenish() public {
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount / 14);
+        uint replenisherDolaBefore = DOLA.balanceOf(replenisher);
 
         vm.startPrank(user);
-
         deposit(wethTestAmount);
         uint borrowAmount = convertWethToDola(wethTestAmount) * collateralFactorBps / 10_000;
         market.borrow(borrowAmount);
-
+        uint userDebtBefore = market.debts(user);
+        uint marketDolaBefore = DOLA.balanceOf(address(market));
         vm.stopPrank();
 
         vm.warp(block.timestamp + 5 days);
-        vm.startPrank(user2);
+        uint deficitBefore = dbr.deficitOf(user);
+        vm.startPrank(replenisher);
 
         market.forceReplenish(user);
+        assertGt(DOLA.balanceOf(replenisher), replenisherDolaBefore);
+        assertLt(DOLA.balanceOf(address(market)), marketDolaBefore);
+        assertEq(DOLA.balanceOf(replenisher) - replenisherDolaBefore, marketDolaBefore - DOLA.balanceOf(address(market)));
+        assertEq(dbr.deficitOf(user), 0);
+        assertEq(market.debts(user) - userDebtBefore, deficitBefore * replenishmentPriceBps / 10000);
     }
 
     function testForceReplenish_Fails_When_UserHasNoDbrDeficit() public {
