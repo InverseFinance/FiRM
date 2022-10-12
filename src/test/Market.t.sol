@@ -168,6 +168,22 @@ contract MarketTest is FrontierV2Test {
         market.borrow(borrowAmount);
     }
 
+    function testBorrow_Fails_When_NotEnoughDolaInMarket() public {
+        vm.startPrank(market.lender());
+        market.recall(DOLA.balanceOf(address(market)));
+        vm.stopPrank();
+
+        gibWeth(user, wethTestAmount);
+        gibDBR(user, wethTestAmount);
+
+        vm.startPrank(user);
+        
+        deposit(wethTestAmount);
+
+        vm.expectRevert("SafeMath: subtraction underflow");
+        market.borrow(1 ether);
+    }
+
     function testLiquidate_NoLiquidationFee(uint depositAmount, uint liqAmount, uint16 borrowMulti_) public {
         depositAmount = bound(depositAmount, 1e18, 100_000e18);
         liqAmount = bound(liqAmount, 500e18, 200_000_000e18);
@@ -420,6 +436,60 @@ contract MarketTest is FrontierV2Test {
         market.forceReplenish(user);
     }
 
+    function testForceReplenish_Fails_When_UserHasRepaidDebt() public {
+        gibWeth(user, wethTestAmount);
+        gibDBR(user, wethTestAmount / 14);
+
+        vm.startPrank(user);
+        deposit(wethTestAmount);
+        uint borrowAmount = convertWethToDola(wethTestAmount) * collateralFactorBps / 10_000;
+        market.borrow(borrowAmount);
+
+        vm.warp(block.timestamp + 5 days);
+        market.repay(user, borrowAmount);
+        vm.stopPrank();
+
+        vm.startPrank(replenisher);   
+        vm.expectRevert("No dola debt");
+        market.forceReplenish(user);
+    }
+
+    function testForceReplenish_Fails_When_NotEnoughDolaInMarket() public {
+        gibWeth(user, wethTestAmount);
+        gibDBR(user, wethTestAmount / 14);
+
+        vm.startPrank(user);
+        deposit(wethTestAmount);
+        uint borrowAmount = convertWethToDola(wethTestAmount) * collateralFactorBps / 10_000;
+        market.borrow(borrowAmount);
+
+        vm.warp(block.timestamp + 5 days);
+        vm.stopPrank();
+        vm.startPrank(market.lender());
+        market.recall(DOLA.balanceOf(address(market)));
+        vm.stopPrank();
+        vm.startPrank(replenisher);   
+        vm.expectRevert("SafeMath: subtraction underflow");
+        market.forceReplenish(user);   
+    }
+
+    function testForceReplenish_Fails_When_DebtWouldExceedCollateralValue() public {
+        gibWeth(user, wethTestAmount);
+        gibDBR(user, wethTestAmount / 14);
+
+        vm.startPrank(user);
+        deposit(wethTestAmount);
+        uint borrowAmount = convertWethToDola(wethTestAmount) * collateralFactorBps / 10_000;
+        market.borrow(borrowAmount);
+
+        vm.warp(block.timestamp + 10000 days);
+        vm.stopPrank();
+
+        vm.startPrank(replenisher);   
+        vm.expectRevert("Exceeded collateral value");
+        market.forceReplenish(user);   
+    }
+
     function testPauseBorrows() public {
         vm.startPrank(gov);
 
@@ -458,6 +528,25 @@ contract MarketTest is FrontierV2Test {
 
         assertEq(WETH.balanceOf(address(market.escrows(user))), 0, "failed to withdraw WETH");
         assertEq(WETH.balanceOf(user), wethTestAmount, "failed to withdraw WETH");
+    }
+
+    function testWithdraw_Fail_When_WithdrawingCollateralBelowCF() public {
+        gibWeth(user, wethTestAmount);
+        gibDBR(user, wethTestAmount);
+        vm.startPrank(user);
+
+        deposit(wethTestAmount);
+
+        assertEq(WETH.balanceOf(address(market.escrows(user))), wethTestAmount, "failed to deposit WETH");
+        assertEq(WETH.balanceOf(user), 0, "failed to deposit WETH");
+
+        market.borrow(1 ether);
+
+        vm.expectRevert("Insufficient withdrawal limit");
+        market.withdraw(wethTestAmount);
+
+        assertEq(WETH.balanceOf(address(market.escrows(user))), wethTestAmount, "successfully withdrew WETH");
+        assertEq(WETH.balanceOf(user), 0, "successfully withdrew WETH");
     }
 
     function testWithdrawOnBehalf() public {

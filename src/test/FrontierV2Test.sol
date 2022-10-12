@@ -17,6 +17,7 @@ contract FrontierV2Test is Test {
     //EOAs & Multisigs
     address user = address(0x69);
     address user2 = address(0x70);
+    address replenisher = address(0x71);
     address gov = address(0xA);
     address chair = address(0xB);
     address pauseGuardian = address(0xB);
