@@ -20,6 +20,27 @@ contract OracleTest is FrontierV2Test {
         initialize(replenishmentPriceBps, collateralFactorBps, replenishmentIncentiveBps, liquidationBonusBps, callOnDepositCallback);
     }
 
+    function test_getPrice_reverts_whenNoPriceSet() public {
+        vm.expectRevert("Price not found");
+        oracle.getPrice(address(0));
+    }
+
+    function test_getPrice_returnsFixedPrice_whenFixedPriceAndOracleSet() public {
+        //WETH feed is already set in FrontierV2Test.sol's `initialize()`
+        assertEq(oracle.getPrice(address(WETH)), ethFeed.latestAnswer(), "WETH feed not set");
+
+        vm.startPrank(operator);
+        oracle.setFixedPrice(address(WETH), 1_000e18);
+        assertEq(oracle.getPrice(address(WETH)), 1_000e18, "Fixed price should overwrite feed");
+    }
+
+    function test_getPrice_reverts_whenFeedPriceReturns0() public {
+        ethFeed.changeAnswer(0);
+
+        vm.expectRevert("Invalid feed price");
+        oracle.getPrice(address(WETH));
+    }
+    
     //Access Control
 
     function test_accessControl_setPendingOperator() public {
