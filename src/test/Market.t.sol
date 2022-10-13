@@ -124,6 +124,45 @@ contract MarketTest is FrontierV2Test {
         market.borrowOnBehalf(userPk, maxBorrowAmount, block.timestamp, v, r, s);
     }
 
+    function testBorrowOnBehalf_Fails_When_DeadlineHasPassed() public {
+        address userPk = vm.addr(1);
+        gibWeth(userPk, wethTestAmount);
+        gibDBR(userPk, wethTestAmount);
+
+        uint timestamp = block.timestamp;
+        
+        vm.startPrank(userPk);
+        uint maxBorrowAmount = getMaxBorrowAmount(wethTestAmount);
+        bytes32 hash = keccak256(
+                    abi.encodePacked(
+                        "\x19\x01",
+                        market.DOMAIN_SEPARATOR(),
+                        keccak256(
+                            abi.encode(
+                                keccak256(
+                                    "BorrowOnBehalf(address caller,address from,uint256 amount,uint256 nonce,uint256 deadline)"
+                                ),
+                                user2,
+                                userPk,
+                                maxBorrowAmount,
+                                0,
+                                timestamp
+                            )
+                        )
+                    )
+                );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
+
+        deposit(wethTestAmount);
+        market.invalidateNonce();
+        vm.stopPrank();
+
+        vm.startPrank(user2);
+        vm.warp(block.timestamp + 1);
+        vm.expectRevert("DEADLINE_EXPIRED");
+        market.borrowOnBehalf(userPk, maxBorrowAmount, timestamp, v, r, s);
+    }
+
     function testBorrow_Fails_When_BorrowingPaused() public {
         vm.startPrank(gov);
         market.pauseBorrows(true);
@@ -394,6 +433,21 @@ contract MarketTest is FrontierV2Test {
         assertEq(initialDolaBal - initialUserDebt, DOLA.balanceOf(user2), "DOLA was not subtracted from user2");
     }
 
+    function testRepay_Fails_WhenAmountGtDebt() public {
+        gibWeth(user, wethTestAmount);
+        gibDBR(user, wethTestAmount);
+        gibDOLA(user, 500e18);
+
+        vm.startPrank(user);
+
+        deposit(wethTestAmount);
+        uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
+        market.borrow(borrowAmount);
+
+        vm.expectRevert("Insufficient debt");
+        market.repay(user, borrowAmount + 1);
+    }
+
     function testForceReplenish() public {
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount / 14);
@@ -519,6 +573,24 @@ contract MarketTest is FrontierV2Test {
         vm.startPrank(gov);
         market.setCollateralFactorBps(0);
         assertEq(market.getWithdrawalLimit(user), 0, "Should return 0 when user has non-zero debt & collateralFactorBps = 0");
+    }
+
+    function testGetLiquidatableDebt() public {
+        assertEq(market.getLiquidatableDebt(user), 0, "Should return 0 when user has no debt");
+
+        uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
+        gibWeth(user, wethTestAmount);
+        gibDBR(user, wethTestAmount);
+
+        vm.startPrank(user);
+        deposit(wethTestAmount);
+        market.borrow(borrowAmount);
+
+        assertEq(market.getLiquidatableDebt(user), 0, "Should return 0 when user credit = debt");
+
+        ethFeed.changeAnswer(ethFeed.latestAnswer() * 5 / 10);
+
+        assertGt(market.getLiquidatableDebt(user), 0, "Should return liquidatable debt when user debt > credit");
     }
 
     function testPauseBorrows() public {
@@ -654,6 +726,44 @@ contract MarketTest is FrontierV2Test {
         market.withdrawOnBehalf(userPk, wethTestAmount, block.timestamp, v, r, s);
     }
 
+    function testWithdrawOnBehalf_When_DeadlineHasPassed() public {
+        address userPk = vm.addr(1);
+        gibWeth(userPk, wethTestAmount);
+        gibDBR(userPk, wethTestAmount);
+
+        uint timestamp = block.timestamp;
+        
+        vm.startPrank(userPk);
+        bytes32 hash = keccak256(
+                    abi.encodePacked(
+                        "\x19\x01",
+                        market.DOMAIN_SEPARATOR(),
+                        keccak256(
+                            abi.encode(
+                                keccak256(
+                                    "WithdrawOnBehalf(address caller,address from,uint256 amount,uint256 nonce,uint256 deadline)"
+                                ),
+                                user2,
+                                userPk,
+                                wethTestAmount,
+                                0,
+                                timestamp
+                            )
+                        )
+                    )
+                );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
+
+        deposit(wethTestAmount);
+        market.invalidateNonce();
+        vm.stopPrank();
+
+        vm.startPrank(user2);
+        vm.warp(block.timestamp + 1);
+        vm.expectRevert("DEADLINE_EXPIRED");
+        market.withdrawOnBehalf(userPk, wethTestAmount, timestamp, v, r, s);
+    }
+
     //Access Control Tests
 
     function test_accessControl_setOracle() public {
@@ -704,6 +814,9 @@ contract MarketTest is FrontierV2Test {
     function test_accessControl_setCollateralFactorBps() public {
         vm.startPrank(gov);
         market.setCollateralFactorBps(100);
+
+        vm.expectRevert("Invalid collateral factor");
+        market.setCollateralFactorBps(10001);
         vm.stopPrank();
 
         vm.expectRevert(onlyGov);
@@ -713,6 +826,9 @@ contract MarketTest is FrontierV2Test {
     function test_accessControl_setReplenismentIncentiveBps() public {
         vm.startPrank(gov);
         market.setReplenismentIncentiveBps(100);
+
+        vm.expectRevert("Invalid replenishment incentive");
+        market.setReplenismentIncentiveBps(10001);
         vm.stopPrank();
 
         vm.expectRevert(onlyGov);
@@ -722,10 +838,37 @@ contract MarketTest is FrontierV2Test {
     function test_accessControl_setLiquidationIncentiveBps() public {
         vm.startPrank(gov);
         market.setLiquidationIncentiveBps(100);
+
+        vm.expectRevert("Invalid liquidation incentive");
+        market.setLiquidationIncentiveBps(0);
         vm.stopPrank();
 
         vm.expectRevert(onlyGov);
         market.setLiquidationIncentiveBps(100);
+    }
+
+    function test_accessControl_setLiquidationFactorBps() public {
+        vm.startPrank(gov);
+        market.setLiquidationFactorBps(100);
+
+        vm.expectRevert("Invalid liquidation factor");
+        market.setLiquidationFactorBps(0);
+        vm.stopPrank();
+
+        vm.expectRevert(onlyGov);
+        market.setLiquidationFactorBps(100);
+    }
+
+    function test_accessControl_setLiquidationFeeBps() public {
+        vm.startPrank(gov);
+        market.setLiquidationFeeBps(100);
+
+        vm.expectRevert("Invalid liquidation fee");
+        market.setLiquidationFeeBps(0);
+        vm.stopPrank();
+
+        vm.expectRevert(onlyGov);
+        market.setLiquidationFeeBps(100);
     }
 
     function test_accessControl_recall() public {

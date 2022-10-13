@@ -111,6 +111,247 @@ contract DBRTest is FrontierV2Test {
         assertEq(dbr.signedBalanceOf(user), 0, "signedBalanceOf should be 0 when user has no balance");
     }
 
+    function test_burn() public {
+        vm.startPrank(operator);
+        dbr.mint(user, 1e18);
+        vm.stopPrank();
+
+        assertEq(dbr.totalSupply(), 1e18, "dbr mint failed");
+        assertEq(dbr.balanceOf(user), 1e18, "dbr mint failed");
+
+        vm.startPrank(user);
+        dbr.burn(1e18);
+
+        assertEq(dbr.totalSupply(), 0, "dbr burn failed");
+        assertEq(dbr.balanceOf(user), 0, "dbr burn failed");
+    }
+
+    function test_burn_reverts_whenAmountGtCallerBalance() public {
+        gibDBR(user, 1e18);
+
+        vm.startPrank(user);
+        vm.expectRevert("Insufficient balance");
+        dbr.burn(2e18);
+    }
+
+    function test_totalSupply() public {
+        vm.startPrank(operator);
+        dbr.mint(user, 100e18);
+
+        assertEq(dbr.totalSupply(), 100e18, "Incorrect total supply");
+    }
+
+    function test_totalSupply_returns0_whenTotalDueTokensAccruedGtSupply() public {
+        gibWeth(user, wethTestAmount);
+        gibDBR(user, 1);
+
+        vm.startPrank(user);    
+        deposit(wethTestAmount);
+
+        market.borrow(getMaxBorrowAmount(wethTestAmount));
+        vm.warp(block.timestamp + 365 days);
+
+        dbr.accrueDueTokens(user);        
+        assertEq(dbr.totalSupply(), 0, "Incorrect total supply");
+    }
+
+    function test_invalidateNonce() public {
+        assertEq(dbr.nonces(user), 0, "User nonce should be uninitialized");
+
+        vm.startPrank(user);
+        dbr.invalidateNonce();
+
+        assertEq(dbr.nonces(user), 1, "User nonce was not invalidated");
+    }
+
+    function test_approve_increasesAllowanceByAmount() public {
+        uint amount = 100e18;
+
+        assertEq(dbr.allowance(user, gov), 0, "Allowance should not be set yet");
+
+        vm.startPrank(user);
+        dbr.approve(gov, amount);
+
+        assertEq(dbr.allowance(user, gov), amount, "Allowance was not set properly");
+    }
+
+    function test_permit_increasesAllowanceByAmount() public {
+        uint amount = 100e18;
+        address userPk = vm.addr(1);
+
+        bytes32 hash = keccak256(
+                    abi.encodePacked(
+                        "\x19\x01",
+                        dbr.DOMAIN_SEPARATOR(),
+                        keccak256(
+                            abi.encode(
+                                keccak256(
+                                    "Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"
+                                ),
+                                userPk,
+                                gov,
+                                amount,
+                                0,
+                                block.timestamp
+                            )
+                        )
+                    )
+                );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
+
+        assertEq(dbr.allowance(userPk, gov), 0, "Allowance should not be set yet");
+
+        vm.startPrank(gov);
+        dbr.permit(userPk, gov, amount, block.timestamp, v, r, s);
+
+        assertEq(dbr.allowance(userPk, gov), amount, "Allowance was not set properly");
+    }
+
+    function test_permit_reverts_whenDeadlinesHasPassed() public {
+        uint amount = 100e18;
+        address userPk = vm.addr(1);
+
+        uint timestamp = block.timestamp;
+
+        bytes32 hash = keccak256(
+                    abi.encodePacked(
+                        "\x19\x01",
+                        dbr.DOMAIN_SEPARATOR(),
+                        keccak256(
+                            abi.encode(
+                                keccak256(
+                                    "Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"
+                                ),
+                                userPk,
+                                gov,
+                                amount,
+                                0,
+                                timestamp
+                            )
+                        )
+                    )
+                );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
+
+        assertEq(dbr.allowance(userPk, gov), 0, "Allowance should not be set yet");
+
+        vm.startPrank(gov);
+        vm.warp(block.timestamp + 1);
+        vm.expectRevert("PERMIT_DEADLINE_EXPIRED");
+        dbr.permit(userPk, gov, amount, timestamp, v, r, s);
+    }
+
+    function test_permit_reverts_whenNonceInvaidated() public {
+        uint amount = 100e18;
+        address userPk = vm.addr(1);
+
+        bytes32 hash = keccak256(
+                    abi.encodePacked(
+                        "\x19\x01",
+                        dbr.DOMAIN_SEPARATOR(),
+                        keccak256(
+                            abi.encode(
+                                keccak256(
+                                    "Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"
+                                ),
+                                userPk,
+                                gov,
+                                amount,
+                                0,
+                                block.timestamp
+                            )
+                        )
+                    )
+                );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
+
+        vm.startPrank(userPk);
+        dbr.invalidateNonce();
+        vm.stopPrank();
+
+        assertEq(dbr.allowance(userPk, gov), 0, "Allowance should not be set yet");
+
+        vm.startPrank(gov);
+        vm.expectRevert("INVALID_SIGNER");
+        dbr.permit(userPk, gov, amount, block.timestamp, v, r, s);
+    }
+
+    function test_transfer() public {
+        uint amount = 100e18;
+
+        vm.startPrank(operator);
+        dbr.mint(user, amount * 2);
+        vm.stopPrank();
+
+        assertEq(dbr.balanceOf(user), amount * 2);
+        assertEq(dbr.balanceOf(gov), 0);
+        vm.startPrank(user);
+        dbr.transfer(gov, amount);
+        assertEq(dbr.balanceOf(user), amount);
+        assertEq(dbr.balanceOf(gov), amount);
+    }
+
+    function test_transfer_reverts_whenAmountGtCallerBalance() public {
+        uint amount = 100e18;
+
+        vm.startPrank(operator);
+        dbr.mint(user, amount / 2);
+        vm.stopPrank();
+
+        vm.startPrank(user);
+        vm.expectRevert("Insufficient balance");
+        dbr.transfer(gov, amount);
+    }
+
+    function test_transferFrom() public {
+        uint amount = 100e18;
+
+        vm.startPrank(operator);
+        dbr.mint(user, amount * 2);
+        vm.stopPrank();
+
+        assertEq(dbr.balanceOf(user), amount * 2);
+        assertEq(dbr.balanceOf(gov), 0);
+
+        vm.startPrank(user);
+        dbr.approve(gov, amount);
+        vm.stopPrank();
+
+        vm.startPrank(gov);
+        dbr.transferFrom(user, gov, amount);
+
+        assertEq(dbr.balanceOf(user), amount);
+        assertEq(dbr.balanceOf(gov), amount);
+    }
+
+    function test_transferFrom_reverts_whenAmountGtFromBalance() public {
+        uint amount = 100e18;
+
+        vm.startPrank(user);
+        dbr.approve(gov, amount);
+        vm.stopPrank();
+
+        vm.startPrank(gov);
+        vm.expectRevert("Insufficient balance");
+        dbr.transferFrom(user, gov, amount);
+    }
+
+    function test_transferFrom_reverts_whenAmountGtAllowance() public {
+        uint amount = 100e18;
+
+        vm.startPrank(operator);
+        dbr.mint(user, amount * 2);
+        vm.stopPrank();
+
+        vm.startPrank(user);
+        dbr.approve(gov, amount);
+        vm.stopPrank();
+
+        vm.startPrank(gov);
+        vm.expectRevert();
+        dbr.transferFrom(user, gov, amount * 2);
+    }
+
     //Access Control
     function test_accessControl_setPendingOperator() public {
         vm.startPrank(operator);
@@ -139,6 +380,9 @@ contract DBRTest is FrontierV2Test {
     function test_accessControl_setReplenishmentPriceBps() public {
         vm.startPrank(operator);
         dbr.setReplenishmentPriceBps(100);
+
+        vm.expectRevert("replenishment price must be over 0");
+        dbr.setReplenishmentPriceBps(0);
         vm.stopPrank();
 
         vm.expectRevert(onlyOperator);
