@@ -65,7 +65,7 @@ contract FrontierV2Test is Test {
         escrowImplementation = new SimpleERC20Escrow();
         dbr = new DolaBorrowingRights(replenishmentPriceBps_, "DOLA Borrowing Rights", "DBR", gov);
         fed = new Fed(IDBR(address(dbr)), IDola(address(DOLA)), gov, chair);
-        market = new Market(gov, address(fed), pauseGuardian, address(escrowImplementation), IDolaBorrowingRights(address(dbr)), IERC20(address(DOLA)), IERC20(address(WETH)), IOracle(address(oracle)), collateralFactorBps_, replenishmentIncentiveBps_, liquidationBonusBps_, callOnDepositCallback_);
+        market = new Market(gov, address(fed), pauseGuardian, address(escrowImplementation), IDolaBorrowingRights(address(dbr)), IERC20(address(WETH)), IOracle(address(oracle)), collateralFactorBps_, replenishmentIncentiveBps_, liquidationBonusBps_, callOnDepositCallback_);
 
         dbr.addMarket(address(market));
         oracle.setFeed(address(WETH), IChainlinkFeed(address(ethFeed)), 18);

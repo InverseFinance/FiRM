@@ -40,7 +40,7 @@ contract Market {
     address public immutable escrowImplementation;
     IDolaBorrowingRights public immutable dbr;
     IBorrowController public borrowController;
-    IERC20 public immutable dola;
+    IERC20 public immutable dola = IERC20(0x865377367054516e17014CcdED1e7d814EDC9ce4);
     IERC20 public immutable collateral;
     IOracle public oracle;
     uint public collateralFactorBps;
@@ -63,7 +63,6 @@ contract Market {
         address _pauseGuardian,
         address _escrowImplementation,
         IDolaBorrowingRights _dbr,
-        IERC20 _dola,
         IERC20 _collateral,
         IOracle _oracle,
         uint _collateralFactorBps,
@@ -79,7 +78,6 @@ contract Market {
         pauseGuardian = _pauseGuardian;
         escrowImplementation = _escrowImplementation;
         dbr = _dbr;
-        dola = _dola;
         collateral = _collateral;
         oracle = _oracle;
         collateralFactorBps = _collateralFactorBps;
