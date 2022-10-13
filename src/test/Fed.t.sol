@@ -72,6 +72,22 @@ contract FedTest is FrontierV2Test {
         fed.contraction(marketParameter, testAmount + 1);
     }
 
+    function testGetProfit_Returns0_If_SuppliedDola_GT_MarketDolaValue() public {
+        gibWeth(user, wethTestAmount);
+        gibDBR(user, wethTestAmount);
+
+        vm.startPrank(chair);
+        fed.expansion(marketParameter, testAmount);
+
+        vm.stopPrank();
+        vm.startPrank(user);
+        deposit(wethTestAmount);
+        market.borrow(getMaxBorrowAmount(wethTestAmount));
+
+        assertLt(DOLA.balanceOf(address(market)), testAmount, "Market DOLA value > Supplied Dola");
+        assertEq(fed.getProfit(marketParameter), 0, "getProfit should return 0 since market DOLA value > fed's supplied DOLA");
+    }
+
     function test_takeProfit() public {
         vm.startPrank(chair);
         fed.expansion(marketParameter, testAmount);
@@ -84,6 +100,16 @@ contract FedTest is FrontierV2Test {
         fed.takeProfit(marketParameter);
         
         assertEq(startingDolaBal + testAmount, DOLA.balanceOf(gov), "takeProfit failed");
+    }
+
+    function test_takeProfit_doesNothing_WhenProfitIs0() public {
+        vm.startPrank(chair);
+        fed.expansion(marketParameter, testAmount);
+
+        uint startingDolaBal = DOLA.balanceOf(gov);
+        fed.takeProfit(marketParameter);
+        
+        assertEq(startingDolaBal, DOLA.balanceOf(gov), "DOLA balance should be unchanged, there is no profit");
     }
 
     //Access Control
