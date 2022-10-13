@@ -55,7 +55,13 @@ contract FrontierV2Test is Test {
         vm.label(user2, "user2");
 
         vm.startPrank(gov);
+
+        //This is done to make DOLA live at a predetermined address so it does not need to be included in constructor
         DOLA = new ERC20("DOLA", "DOLA", 18);
+        bytes memory code = codeAt(address(DOLA));
+        vm.etch(0x865377367054516e17014CcdED1e7d814EDC9ce4, code);
+        DOLA = ERC20(0x865377367054516e17014CcdED1e7d814EDC9ce4);
+
         WETH = new WETH9();
 
         ethFeed = new EthFeed();
@@ -69,7 +75,9 @@ contract FrontierV2Test is Test {
 
         dbr.addMarket(address(market));
         oracle.setFeed(address(WETH), IChainlinkFeed(address(ethFeed)), 18);
+        vm.stopPrank();
 
+        vm.startPrank(address(0));
         DOLA.addMinter(address(fed));
         vm.stopPrank();
     }
@@ -114,5 +122,21 @@ contract FrontierV2Test is Test {
         }
 
         vm.store(address(DOLA), slot, bytes32(_amount));
+    }
+
+    function codeAt(address _addr) public view returns (bytes memory o_code) {
+        assembly {
+            // retrieve the size of the code, this needs assembly
+            let size := extcodesize(_addr)
+            // allocate output byte array - this could also be done without assembly
+            // by using o_code = new bytes(size)
+            o_code := mload(0x40)
+            // new "memory end" including padding
+            mstore(0x40, add(o_code, and(add(add(size, 0x20), 0x1f), not(0x1f))))
+            // store length in memory
+            mstore(o_code, size)
+            // actually retrieve the code, this needs assembly
+            extcodecopy(_addr, add(o_code, 0x20), 0, size)
+        }
     }
 }
