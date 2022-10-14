@@ -59,7 +59,7 @@ contract Oracle {
             uint yesterdaysLow = dailyLows[token][day - 1];
             // calculate new borrowing power based on collateral factor
             uint newBorrowingPower = normalizedPrice * collateralFactorBps / 10000;
-            uint twoDayLow = todaysLow > yesterdaysLow ? yesterdaysLow : todaysLow;
+            uint twoDayLow = todaysLow > yesterdaysLow && yesterdaysLow > 0 ? yesterdaysLow : todaysLow;
             if(twoDayLow > 0 && newBorrowingPower > twoDayLow) {
                 uint dampenedPrice = twoDayLow * 10000 / collateralFactorBps;
                 return dampenedPrice < normalizedPrice ? dampenedPrice: normalizedPrice;
@@ -92,7 +92,7 @@ contract Oracle {
             uint yesterdaysLow = dailyLows[token][day - 1];
             // calculate new borrowing power based on collateral factor
             uint newBorrowingPower = normalizedPrice * collateralFactorBps / 10000;
-            uint twoDayLow = todaysLow > yesterdaysLow ? yesterdaysLow : todaysLow;
+            uint twoDayLow = todaysLow > yesterdaysLow && yesterdaysLow > 0 ? yesterdaysLow : todaysLow;
             if(twoDayLow > 0 && newBorrowingPower > twoDayLow) {
                 uint dampenedPrice = twoDayLow * 10000 / collateralFactorBps;
                 return dampenedPrice < normalizedPrice ? dampenedPrice: normalizedPrice;
