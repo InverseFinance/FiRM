@@ -33,19 +33,25 @@ contract MarketTest is FrontierV2Test {
 
     function testDeposit() public {
         gibWeth(user, wethTestAmount);
+        uint balanceUserBefore = WETH.balanceOf(user); 
 
         vm.startPrank(user);
         deposit(wethTestAmount);
+        assertEq(WETH.balanceOf(address(market.predictEscrow(user))), wethTestAmount, "Escrow balance did not increase");
+        assertEq(WETH.balanceOf(user), balanceUserBefore - wethTestAmount, "User balance did not decrease");
     }
 
     function testBorrow() public {
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount);
         vm.startPrank(user);
-
+        uint initialDolaBalance = DOLA.balanceOf(user);
         deposit(wethTestAmount);
+
         uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
         market.borrow(borrowAmount);
+
+        assertEq(DOLA.balanceOf(user), initialDolaBalance + borrowAmount, "User balance did not increase by borrowAmount");
     }
 
     function testBorrowOnBehalf() public {
@@ -399,7 +405,8 @@ contract MarketTest is FrontierV2Test {
         deposit(wethTestAmount);
         uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
         market.borrow(borrowAmount);
-
+        
+        uint initialMarketBal = DOLA.balanceOf(address(market));
         uint initialUserDebt = market.debts(user);
         uint initialDolaBal = DOLA.balanceOf(user);
 
@@ -407,6 +414,7 @@ contract MarketTest is FrontierV2Test {
 
         assertEq(market.debts(user), 0, "user's debt was not paid");
         assertEq(initialDolaBal - initialUserDebt, DOLA.balanceOf(user), "DOLA was not subtracted from user");
+        assertEq(initialMarketBal + initialUserDebt, DOLA.balanceOf(address(market)), "Market DOLA balance did not increase");
     }
 
     function testRepay_Successful_OtherUserBorrow_FullAmount() public {
@@ -450,14 +458,14 @@ contract MarketTest is FrontierV2Test {
     function testForceReplenish() public {
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount / 14);
-        uint replenisherDolaBefore = DOLA.balanceOf(replenisher);
+        uint initialReplenisherDola = DOLA.balanceOf(replenisher);
 
         vm.startPrank(user);
         deposit(wethTestAmount);
         uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
         market.borrow(borrowAmount);
-        uint userDebtBefore = market.debts(user);
-        uint marketDolaBefore = DOLA.balanceOf(address(market));
+        uint initialUserDebt = market.debts(user);
+        uint initialMarketDola = DOLA.balanceOf(address(market));
         vm.stopPrank();
 
         vm.warp(block.timestamp + 5 days);
@@ -465,11 +473,11 @@ contract MarketTest is FrontierV2Test {
         vm.startPrank(replenisher);
 
         market.forceReplenish(user);
-        assertGt(DOLA.balanceOf(replenisher), replenisherDolaBefore);
-        assertLt(DOLA.balanceOf(address(market)), marketDolaBefore);
-        assertEq(DOLA.balanceOf(replenisher) - replenisherDolaBefore, marketDolaBefore - DOLA.balanceOf(address(market)));
-        assertEq(dbr.deficitOf(user), 0);
-        assertEq(market.debts(user) - userDebtBefore, deficitBefore * replenishmentPriceBps / 10000);
+        assertGt(DOLA.balanceOf(replenisher), initialReplenisherDola, "DOLA balance of replenisher did not increase");
+        assertLt(DOLA.balanceOf(address(market)), initialMarketDola, "DOLA balance of market did not decrease");
+        assertEq(DOLA.balanceOf(replenisher) - initialReplenisherDola, initialMarketDola - DOLA.balanceOf(address(market)), "DOLA balance of market did not decrease by amount paid to replenisher");
+        assertEq(dbr.deficitOf(user), 0, "Deficit of borrower was not fully replenished");
+        assertEq(market.debts(user) - initialUserDebt, deficitBefore * replenishmentPriceBps / 10000, "Debt of borrower did not increase by replenishment price");
     }
 
     function testForceReplenish_Fails_When_UserHasNoDbrDeficit() public {

@@ -27,7 +27,7 @@ contract FedTest is FrontierV2Test {
         vm.startPrank(chair);
         fed.expansion(marketParameter, amount);
 
-        assertEq(startingDolaBal + amount, DOLA.balanceOf(address(marketParameter)), "Expansion failed - dola balanace");
+        assertEq(startingDolaBal + amount, DOLA.balanceOf(address(marketParameter)), "Expansion failed - dola balance");
         assertEq(fed.supplies(marketParameter), amount, "Expansion failed - fed accounting");
     }
 
