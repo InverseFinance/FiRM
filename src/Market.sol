@@ -87,7 +87,7 @@ contract Market {
         INITIAL_CHAIN_ID = block.chainid;
         INITIAL_DOMAIN_SEPARATOR = computeDomainSeparator();
     }
-
+    
     modifier onlyGov {
         require(msg.sender == gov, "Only gov can call this function");
         _;
@@ -110,46 +110,104 @@ contract Market {
             );
     }
 
+    /**
+    @notice sets the oracle to a new oracle. Only callable by governance.
+    @param _oracle The new oracle conforming to the IOracle interface.
+    */
     function setOracle(IOracle _oracle) public onlyGov { oracle = _oracle; }
 
+    /**
+    @notice sets the borrow controller to a new borrow controller. Only callable by governance.
+    @param _borrowController The new borrow controller conforming to the IBorrowController interface.
+    */
     function setBorrowController(IBorrowController _borrowController) public onlyGov { borrowController = _borrowController; }
 
+    /**
+    @notice sets the address of governance. Only callable by governance.
+    @param _gov Address of the new governance.
+    */
     function setGov(address _gov) public onlyGov { gov = _gov; }
 
+    /**
+    @notice sets the lender to a new lender. The lender is allowed to recall dola from the contract. Only callable by governance.
+    @param _lender Address of the new lender.
+    */
     function setLender(address _lender) public onlyGov { lender = _lender; }
 
+    /**
+    @notice sets the pause guardian. The pause guardian can pause borrowing. Only callable by governance.
+    @param _pauseGuardian Address of the new pauseGuardian.
+    */
     function setPauseGuardian(address _pauseGuardian) public onlyGov { pauseGuardian = _pauseGuardian; }
-
+    
+    /**
+    @notice sets the Collateral Factor requirement of the market as measured in basis points. 1 = 0.01%. Only callable by governance.
+    @dev Collateral factor mus be set below 100%
+    @param _collateralFactorBps The new collateral factor as measured in basis points. 
+    */
     function setCollateralFactorBps(uint _collateralFactorBps) public onlyGov {
         require(_collateralFactorBps < 10000, "Invalid collateral factor");
         collateralFactorBps = _collateralFactorBps;
     }
-
+    
+    /**
+    @notice sets the Liquidation Factor of the market as denoted in basis points.
+     The liquidation Factor denotes the maximum amount of debt that can be liquidated in basis points.
+     At 5000, 50% of of a borrower's underwater debt can be liquidated. Only callable by governance.
+    @dev Must be set between 1 and 10000.
+    @param _liquidationFactorBps The new liquidation factor in basis points. 1 = 0.01%/
+    */
     function setLiquidationFactorBps(uint _liquidationFactorBps) public onlyGov {
         require(_liquidationFactorBps > 0 && _liquidationFactorBps <= 10000, "Invalid liquidation factor");
         liquidationFactorBps = _liquidationFactorBps;
     }
 
+    /**
+    @notice sets the Replenishment Incentive of the market as denoted in basis points.
+     The Replenishment Incentive is the percentage paid out to replenishers on a successful forceReplenish call, denoted in basis points.
+    @dev Must be set between 1 and 10000.
+    @param _replenishmentIncentiveBps The new replenishment incentive set in basis points. 1 = 0.01%
+    */
     function setReplenismentIncentiveBps(uint _replenishmentIncentiveBps) public onlyGov {
         require(_replenishmentIncentiveBps > 0 && _replenishmentIncentiveBps < 10000, "Invalid replenishment incentive");
         replenishmentIncentiveBps = _replenishmentIncentiveBps;
     }
 
+    /**
+    @notice sets the Liquidation Incentive of the market as denoted in basis points.
+     The Liquidation Incentive is the percentage paid out to liquidators of a borrower's debt when successfully liquidated.
+    @dev Must be set between 0 and 10000 - liquidation fee.
+    @param _liquidationIncentiveBps The new liqudation incentive set in basis points. 1 = 0.01% 
+    */
     function setLiquidationIncentiveBps(uint _liquidationIncentiveBps) public onlyGov {
         require(_liquidationIncentiveBps > 0 && _liquidationIncentiveBps + liquidationFeeBps < 10000, "Invalid liquidation incentive");
         liquidationIncentiveBps = _liquidationIncentiveBps;
     }
 
+    /**
+    @notice sets the Liquidation Fee of the market as denoted in basis points.
+     The Liquidation Fee is the percentage paid out to governance of a borrower's debt when successfully liquidated.
+    @dev Must be set between 0 and 10000 - liquidation factor.
+    @param _liquidationFeeBps The new liquidation fee set in basis points. 1 = 0.01%
+    */
     function setLiquidationFeeBps(uint _liquidationFeeBps) public onlyGov {
         require(_liquidationFeeBps > 0 && _liquidationFeeBps + liquidationIncentiveBps < 10000, "Invalid liquidation fee");
         liquidationFeeBps = _liquidationFeeBps;
     }
 
+    /**
+    @notice Recalls amount of DOLA to the lender.
+    @param amount The amount od DOLA to recall to the the lender.
+    */
     function recall(uint amount) public {
         require(msg.sender == lender, "Only lender can recall");
         dola.transfer(msg.sender, amount);
     }
 
+    /**
+    @notice Pauses or unpauses borrowing for the market. Only gov can unpause a market, while gov and pauseGuardian can pause it.
+    @param _value Boolean representing the state pause state of borrows. true = paused, false = unpaused.
+    */
     function pauseBorrows(bool _value) public {
         if(_value) {
             require(msg.sender == pauseGuardian || msg.sender == gov, "Only pause guardian or governance can pause");
@@ -159,6 +217,11 @@ contract Market {
         borrowPaused = _value;
     }
 
+    /**
+    @notice Internal function for creating an escrow for users to deposit collateral in.
+    @dev Uses create2 and minimal proxies to create the escrow at a deterministic address
+    @param user The address of the user to create an escrow for.
+    */
     function createEscrow(address user) internal returns (IEscrow instance) {
         address implementation = escrowImplementation;
         /// @solidity memory-safe-assembly
@@ -173,6 +236,11 @@ contract Market {
         emit CreateEscrow(user, address(instance));
     }
 
+    /**
+    @notice Internal function for getting the escrow of a user.
+    @dev If the escrow doesn't exist, an escrow contract is deployed.
+    @param user The address of the user owning the escrow.
+    */
     function getEscrow(address user) internal returns (IEscrow) {
         if(escrows[user] != IEscrow(address(0))) return escrows[user];
         IEscrow escrow = createEscrow(user);
@@ -181,6 +249,11 @@ contract Market {
         return escrow;
     }
 
+    /**
+    @notice Deposit amount of collateral into escrow
+    @dev Will deposit the amount into the escrow contract.
+    @param amount Amount of collateral token to deposit.
+    */
     function deposit(uint amount) public {
         IEscrow escrow = getEscrow(msg.sender);
         collateral.transferFrom(msg.sender, address(escrow), amount);
@@ -188,8 +261,11 @@ contract Market {
             escrow.onDeposit();
         }
     }
-
-    // Only use deposit() function for deposits and NOT the predicted escrow address unless you know what you're doing
+    /**
+    @notice View function for predicting the deterministic escrow address of a user.
+    @dev Only use deposit() function for deposits and NOT the predicted escrow address unless you know what you're doing
+    @param user Address of the user owning the escrow.
+    */
     function predictEscrow(address user) public view returns (IEscrow predicted) {
         address implementation = escrowImplementation;
         address deployer = address(this);
@@ -206,17 +282,31 @@ contract Market {
         }
     }
 
+    /**
+    @notice View function for getting the dollar value of the user's collateral in escrow for the market.
+    @param user Address of the user.
+    */
     function getCollateralValue(address user) public view returns (uint) {
         IEscrow escrow = predictEscrow(user);
         uint collateralBalance = escrow.balance();
         return collateralBalance * oracle.getPrice(address(collateral)) / 1 ether;
     }
 
+    /**
+    @notice View function for getting the credit limit of a user.
+    @dev To calculate the available credit, subtract user debt from credit limit.
+    @param user Address of the user.
+    */
     function getCreditLimit(address user) public view returns (uint) {
         uint collateralValue = getCollateralValue(user);
         return collateralValue * collateralFactorBps / 10000;
     }
 
+    /**
+    @notice View function for getting the withdrawal limit of a user.
+     The withdrawal limit is how much collateral a user can withdraw before their loan would be underwater.
+    @param user Address of the user.
+    */
     function getWithdrawalLimit(address user) public view returns (uint) {
         IEscrow escrow = predictEscrow(user);
         uint collateralBalance = escrow.balance();
@@ -229,6 +319,13 @@ contract Market {
         return collateralBalance - minimumCollateral;
     }
 
+    /**
+    @notice Internal function for borrowing DOLA against collateral.
+    @dev This internal function is shared between the borrow and borrowOnBehalf function
+    @param borrower The address of the borrower that debt will be accrued to.
+    @param to The address that will receive the borrowed DOLA
+    @param amount The amount of DOLA to be borrowed
+    */
     function borrowInternal(address borrower, address to, uint amount) internal {
         require(!borrowPaused, "Borrowing is paused");
         if(borrowController != IBorrowController(address(0))) {
@@ -243,10 +340,25 @@ contract Market {
         emit Borrow(borrower, amount);
     }
 
+    /**
+    @notice Function for borrowing DOLA.
+    @dev Will borrow to msg.sender
+    @param amount The amount of DOLA to be borrowed.
+    */
     function borrow(uint amount) public {
         borrowInternal(msg.sender, msg.sender, amount);
     }
 
+    /**
+    @notice Function for using a signed message to borrow on behalf of an address owning an escrow with collateral.
+    @dev Signed messaged can be invalidated by incrementing the nonce. Will always borrow to the msg.sender.
+    @param from The address of the user being borrowed from
+    @param amount The amount to be borrowed
+    @param deadline Timestamp after which the signed message will be invalid
+    @param v The v param of the ECDSA signature
+    @param r The r param of the ECDSA signature
+    @param s The s param of the ECDSA signature
+    */
     function borrowOnBehalf(address from, uint amount, uint deadline, uint8 v, bytes32 r, bytes32 s) public {
         require(deadline >= block.timestamp, "DEADLINE_EXPIRED");
         unchecked {
@@ -278,6 +390,13 @@ contract Market {
         }
     }
 
+    /**
+    @notice Internal function for withdrawing from the escrow
+    @dev The internal function is shared by the withdraw function and withdrawOnBehalf function
+    @param from The address owning the escrow to withdraw from.
+    @param to The address receiving the tokens
+    @param amount The amount being withdrawn.
+    */
     function withdrawInternal(address from, address to, uint amount) internal {
         uint limit = getWithdrawalLimit(from);
         require(limit >= amount, "Insufficient withdrawal limit");
@@ -286,10 +405,24 @@ contract Market {
         emit Withdraw(from, to, amount);
     }
 
+    /**
+    @notice Function for withdrawing to msg.sender.
+    @param amount Amount to withdraw.
+    */
     function withdraw(uint amount) public {
         withdrawInternal(msg.sender, msg.sender, amount);
     }
 
+    /**
+    @notice Function for using a signed message to withdraw on behalf of an address owning an escrow with collateral.
+    @dev Signed messaged can be invalidated by incrementing the nonce. Will always withdraw to the msg.sender.
+    @param from The address of the user owning the escrow being withdrawn from
+    @param amount The amount to be withdrawn
+    @param deadline Timestamp after which the signed message will be invalid
+    @param v The v param of the ECDSA signature
+    @param r The r param of the ECDSA signature
+    @param s The s param of the ECDSA signature
+    */
     function withdrawOnBehalf(address from, uint amount, uint deadline, uint8 v, bytes32 r, bytes32 s) public {
         require(deadline >= block.timestamp, "DEADLINE_EXPIRED");
         unchecked {
@@ -321,10 +454,20 @@ contract Market {
         }
     }
 
+    /**
+    @notice Function for incrementing the nonce of the msg.sender, making their latest signed message unusable.
+    */
     function invalidateNonce() public {
         nonces[msg.sender]++;
     }
-
+    
+    /**
+    @notice Function for repaying debt on behalf of user. Debt must be repaid in DOLA.
+    @dev Querying debts[user] and using it for amount to be repaid will always result in full repayment, unless the user has a DBR deficit.
+     If the user has a DBR deficit, they risk initial debt being accrued by forced replenishments.
+    @param user Address of the user whose debt is being repaid
+    @param amount DOLA amount to be repaid
+    */
     function repay(address user, uint amount) public {
         uint debt = debts[user];
         require(debt >= amount, "Insufficient debt");
@@ -335,6 +478,13 @@ contract Market {
         emit Repay(user, msg.sender, amount);
     }
 
+    /**
+    @notice Function for forcing a user to top up their DBR deficit at a pre-determined price.
+     The top up will accrue additional DOLA debt.
+     On a successful call, the caller will be paid a replenishment incentive.
+    @dev The function will only top the user back up to 0, meaning that the user will have a DBR deficit again in the next block.
+    @param user The address of the user being forced to replenish DBR
+    */
     function forceReplenish(address user) public {
         uint deficit = dbr.deficitOf(user);
         require(deficit > 0, "No DBR deficit");
@@ -349,6 +499,10 @@ contract Market {
         emit ForceReplenish(user, msg.sender, deficit, replenishmentCost, replenisherReward);
     }
 
+    /**
+    @notice View function for getting the amount of liquidateable debt a user holds.
+    @param user The address of the user.
+    */
     function getLiquidatableDebt(address user) public view returns (uint) {
         uint debt = debts[user];
         if (debt == 0) return 0;
@@ -357,6 +511,11 @@ contract Market {
         return debt * liquidationFactorBps / 10000;
     }
 
+    /**
+    @notice Function for liquidating a user's under water debt. Debt is under water when the value of a user's debt is above their collateral factor.
+    @param user The user to be liquidated
+    @param repaidDebt Th amount of user user debt to liquidate.
+    */
     function liquidate(address user, uint repaidDebt) public {
         require(repaidDebt > 0, "Must repay positive debt");
         uint debt = debts[user];
