@@ -337,6 +337,11 @@ contract Market {
         emit Repay(user, msg.sender, amount);
     }
 
+    function repayAndWithdraw(uint repayAmount, uint withdrawAmount) public {
+        repay(msg.sender, repayAmount);
+        withdraw(withdrawAmount);
+    }
+
     function forceReplenish(address user, uint amount) public {
         uint deficit = dbr.deficitOf(user);
         require(deficit > 0, "No DBR deficit");
