@@ -61,8 +61,8 @@ contract Oracle {
             uint newBorrowingPower = normalizedPrice * collateralFactorBps / 10000;
             uint twoDayLow = todaysLow > yesterdaysLow ? yesterdaysLow : todaysLow;
             if(twoDayLow > 0 && newBorrowingPower > twoDayLow) {
-                uint lowBorrowingPower = twoDayLow * 10000 / collateralFactorBps;
-                return lowBorrowingPower < normalizedPrice ? lowBorrowingPower: normalizedPrice;
+                uint dampenedPrice = twoDayLow * 10000 / collateralFactorBps;
+                return dampenedPrice < normalizedPrice ? dampenedPrice: normalizedPrice;
             }
             return normalizedPrice;
 
