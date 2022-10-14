@@ -303,7 +303,6 @@ contract MarketTest is FrontierV2Test {
         DOLA.approve(address(market), type(uint).max);
 
         uint marketDolaBal = DOLA.balanceOf(address(market));
-        uint govDolaBal = DOLA.balanceOf(gov);
         uint govWethBal = WETH.balanceOf(gov);
         uint repayAmount = market.debts(user) * market.liquidationFactorBps() / 10_000;
 

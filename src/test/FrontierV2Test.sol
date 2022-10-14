@@ -96,7 +96,7 @@ contract FrontierV2Test is Test {
         return amount * 1e18 / ethFeed.latestAnswer();
     }
 
-    function getMaxBorrowAmount(uint amountWeth) public returns (uint) {
+    function getMaxBorrowAmount(uint amountWeth) public view returns (uint) {
         return convertWethToDola(amountWeth) * market.collateralFactorBps() / 10_000;
     }
 
