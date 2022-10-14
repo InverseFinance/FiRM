@@ -545,7 +545,6 @@ contract MarketTest is FrontierV2Test {
     }
 
     function testGetWithdrawalLimit_Returns_CollateralBalance() public {
-        uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount);
 
@@ -571,7 +570,6 @@ contract MarketTest is FrontierV2Test {
     }
 
     function testGetWithdrawalLimit_Returns_0_WhenEscrowBalanceIs0() public {
-        uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount);
 
@@ -586,7 +584,6 @@ contract MarketTest is FrontierV2Test {
     }
 
     function testGetWithdrawalLimit_Returns_0_WhenCollateralValueLtDebts() public {
-        uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount);
 
@@ -604,7 +601,6 @@ contract MarketTest is FrontierV2Test {
     }
 
     function testGetWithdrawalLimit_Returns_0_WhenMarketCollateralFactoris0() public {
-        uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount);
 
@@ -618,9 +614,11 @@ contract MarketTest is FrontierV2Test {
         assertEq(market.getWithdrawalLimit(user), 0, "Should return 0 when user has non-zero debt & collateralFactorBps = 0");
     }
 
-    function testGetLiquidatableDebt() public {
+    function testGetLiquidatableDebt_Returns_0_WhenUserHasNoDebt() public {
         assertEq(market.getLiquidatableDebt(user), 0, "Should return 0 when user has no debt");
+    }
 
+    function testGetLiquidatableDebt_Returns_0_WhenUserCreditEqualsDebt() public {
         uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount);
@@ -630,6 +628,16 @@ contract MarketTest is FrontierV2Test {
         market.borrow(borrowAmount);
 
         assertEq(market.getLiquidatableDebt(user), 0, "Should return 0 when user credit = debt");
+    }
+
+    function testGetLiquidatableDebt_Returns_LiquidatableDebt_WhenUserDebtGtCredit() public {
+        uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
+        gibWeth(user, wethTestAmount);
+        gibDBR(user, wethTestAmount);
+
+        vm.startPrank(user);
+        deposit(wethTestAmount);
+        market.borrow(borrowAmount);
 
         ethFeed.changeAnswer(ethFeed.latestAnswer() * 5 / 10);
 
