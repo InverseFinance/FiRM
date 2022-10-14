@@ -544,7 +544,7 @@ contract MarketTest is FrontierV2Test {
         market.forceReplenish(user);   
     }
 
-    function testGetWithdrawalLimit() public {
+    function testGetWithdrawalLimit_Returns_CollateralBalance() public {
         uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount);
@@ -555,19 +555,62 @@ contract MarketTest is FrontierV2Test {
         uint collateralBalance = market.escrows(user).balance();
         assertEq(collateralBalance, wethTestAmount);
         assertEq(market.getWithdrawalLimit(user), collateralBalance, "Should return collateralBalance when user's escrow balance > 0 & debts = 0");
+    }
+
+    function testGetWithdrawalLimit_Returns_CollateralBalanceAdjustedForDebts() public {
+        uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
+        gibWeth(user, wethTestAmount);
+        gibDBR(user, wethTestAmount);
+
+        vm.startPrank(user);
+        deposit(wethTestAmount);
+        market.borrow(borrowAmount);
+        uint collateralBalance = market.escrows(user).balance();
+        uint minimumCollateral = borrowAmount * 1 ether / oracle.getPrice(address(WETH)) * 10000 / market.collateralFactorBps();
+        assertEq(market.getWithdrawalLimit(user), collateralBalance - minimumCollateral, "Should return collateral balance adjusted for debt");
+    }
+
+    function testGetWithdrawalLimit_Returns_0_WhenEscrowBalanceIs0() public {
+        uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
+        gibWeth(user, wethTestAmount);
+        gibDBR(user, wethTestAmount);
+
+        vm.startPrank(user);
+        deposit(wethTestAmount);
+
+        uint collateralBalance = market.escrows(user).balance();
+        assertEq(collateralBalance, wethTestAmount);
 
         market.withdraw(wethTestAmount);
         assertEq(market.getWithdrawalLimit(user), 0, "Should return 0 when user's escrow balance is 0");
+    }
 
+    function testGetWithdrawalLimit_Returns_0_WhenCollateralValueLtDebts() public {
+        uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
+        gibWeth(user, wethTestAmount);
+        gibDBR(user, wethTestAmount);
+
+        vm.startPrank(user);
         deposit(wethTestAmount);
-        market.borrow(borrowAmount);
-        uint minimumCollateral = borrowAmount * 1 ether / oracle.getPrice(address(WETH)) * 10000 / market.collateralFactorBps();
-        assertEq(market.getWithdrawalLimit(user), collateralBalance - minimumCollateral, "");
+
+        uint collateralBalance = market.escrows(user).balance();
+        assertEq(collateralBalance, wethTestAmount);
+        market.withdraw(wethTestAmount);
 
         uint ethPrice = ethFeed.latestAnswer();
         ethFeed.changeAnswer(ethPrice * 6 / 10);
         assertEq(market.getWithdrawalLimit(user), 0, "Should return 0 when user's collateral value is less than debts");
         ethFeed.changeAnswer(ethPrice);
+    }
+
+    function testGetWithdrawalLimit_Returns_0_WhenMarketCollateralFactoris0() public {
+        uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
+        gibWeth(user, wethTestAmount);
+        gibDBR(user, wethTestAmount);
+
+        vm.startPrank(user);
+        deposit(wethTestAmount);
+        market.borrow(1);
         vm.stopPrank();
 
         vm.startPrank(gov);
