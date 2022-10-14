@@ -361,7 +361,7 @@ contract Market {
         uint debt = debts[user];
         if (debt == 0) return 0;
         uint credit = getCreditLimit(user);
-        if(credit > debt) return 0;
+        if(credit >= debt) return 0;
         return debt * liquidationFactorBps / 10000;
     }
 
