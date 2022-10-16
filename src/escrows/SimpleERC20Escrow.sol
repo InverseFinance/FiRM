@@ -12,18 +12,31 @@ interface IERC20 {
 contract SimpleERC20Escrow {
     address public market;
     IERC20 public token;
-
+    
+    /**
+    @notice Function called right after being created by a market
+    @param _token The IERC20 token to be stored in this specific escrow
+    */
     function initialize(IERC20 _token, address) public {
         require(market == address(0), "ALREADY INITIALIZED");
         market = msg.sender;
         token = _token;
     }
-
+    
+    /**
+    @notice Transfers the associated ERC20 token to a recipient.
+    @param recipient The address to receive payment from the escrow
+    @param amount The amount of ERC20 token to be transferred.
+    */
     function pay(address recipient, uint amount) public {
         require(msg.sender == market, "ONLY MARKET");
         token.transfer(recipient, amount);
     }
 
+    /**
+    @notice Get the token balance of the escrow
+    @return Uint representing the token balance of the escrow
+    */
     function balance() public view returns (uint) {
         return token.balanceOf(address(this));
     }
