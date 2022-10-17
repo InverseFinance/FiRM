@@ -24,18 +24,26 @@ contract Fed {
     IDola public immutable dola;
     address public gov;
     address public chair;
+    uint public supplyCeiling;
+    uint public globalSupply;
     mapping (IMarket => uint) public supplies;
 
-    constructor (IDBR _dbr, IDola _dola, address _gov, address _chair) {
+    constructor (IDBR _dbr, IDola _dola, address _gov, address _chair, uint _supplyCeiling) {
         dbr = _dbr;
         dola = _dola;
         gov = _gov;
         chair = _chair;
+        supplyCeiling = _supplyCeiling;
     }
 
     function changeGov(address _gov) public {
         require(msg.sender == gov, "ONLY GOV");
         gov = _gov;
+    }
+
+    function changeSupplyCeiling(uint _supplyCeiling) public {
+        require(msg.sender == gov, "ONLY GOV");
+        supplyCeiling = _supplyCeiling;
     }
 
     function changeChair(address _chair) public {
@@ -54,6 +62,8 @@ contract Fed {
         require(market.borrowPaused() != true, "CANNOT EXPAND PAUSED MARKETS");
         dola.mint(address(market), amount);
         supplies[market] += amount;
+        globalSupply += amount;
+        require(globalSupply <= supplyCeiling);
         emit Expansion(market, amount);
     }
 
@@ -65,6 +75,7 @@ contract Fed {
         market.recall(amount);
         dola.burn(amount);
         supplies[market] -= amount;
+        globalSupply -= amount;
         emit Contraction(market, amount);
     }
 

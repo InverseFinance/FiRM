@@ -295,7 +295,7 @@ contract DolaBorrowingRights {
     function onBorrow(address user, uint additionalDebt) public {
         require(markets[msg.sender], "Only markets can call onBorrow");
         accrueDueTokens(user);
-        require(balanceOf(user) > 0, "Insufficient balance");
+        require(deficitOf(user) == 0, "DBR Deficit");
         debts[user] += additionalDebt;
     }
 
@@ -315,15 +315,17 @@ contract DolaBorrowingRights {
     @notice Function to be called by markets when a force replenish occurs. This function can only be called if the user has a DBR deficit.
     @dev Accrues due tokens on behalf of the user, before increasing their debt by the replenishment price and minting them new DBR.
     @param user The user to be force replenished.
+    @param amount The amount of DBR the user will be force replenished.
     */
-    function onForceReplenish(address user) public {
+    function onForceReplenish(address user, uint amount) public {
         require(markets[msg.sender], "Only markets can call onForceReplenish");
         uint deficit = deficitOf(user);
         require(deficit > 0, "No deficit");
-        uint replenishmentCost = deficit * replenishmentPriceBps / 10000;
+        require(deficit >= amount, "Amount > deficit");
+        uint replenishmentCost = amount * replenishmentPriceBps / 10000;
         accrueDueTokens(user);
         debts[user] += replenishmentCost;
-        _mint(user, deficit);
+        _mint(user, amount);
     }
 
     /**

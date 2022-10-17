@@ -22,7 +22,7 @@ interface IEscrow {
 interface IDolaBorrowingRights {
     function onBorrow(address user, uint additionalDebt) external;
     function onRepay(address user, uint repaidDebt) external;
-    function onForceReplenish(address user) external;
+    function onForceReplenish(address user, uint amount) external;
     function balanceOf(address user) external view returns (uint);
     function deficitOf(address user) external view returns (uint);
     function replenishmentPriceBps() external view returns (uint);
@@ -479,24 +479,36 @@ contract Market {
     }
 
     /**
-    @notice Function for forcing a user to top up their DBR deficit at a pre-determined price.
-     The top up will accrue additional DOLA debt.
+    @notice Bundles repayment and withdrawal into a single function call.
+    @param repayAmount Amount of DOLA to be repaid
+    @param withdrawAmount Amount of underlying to be withdrawn from the escrow
+    */
+    function repayAndWithdraw(uint repayAmount, uint withdrawAmount) public {
+        repay(msg.sender, repayAmount);
+        withdraw(withdrawAmount);
+    }
+
+    /**
+    @notice Function for forcing a user to replenish their DBR deficit at a pre-determined price.
+     The replenishment will accrue additional DOLA debt.
      On a successful call, the caller will be paid a replenishment incentive.
     @dev The function will only top the user back up to 0, meaning that the user will have a DBR deficit again in the next block.
     @param user The address of the user being forced to replenish DBR
+    @param amount The amount of DBR the user will be replenished.
     */
-    function forceReplenish(address user) public {
+    function forceReplenish(address user, uint amount) public {
         uint deficit = dbr.deficitOf(user);
         require(deficit > 0, "No DBR deficit");
-        uint replenishmentCost = deficit * dbr.replenishmentPriceBps() / 10000;
+        require(deficit >= amount, "Amount > deficit");
+        uint replenishmentCost = amount * dbr.replenishmentPriceBps() / 10000;
         uint replenisherReward = replenishmentCost * replenishmentIncentiveBps / 10000;
         debts[user] += replenishmentCost;
         uint collateralValue = getCollateralValue(user);
         require(collateralValue >= debts[user], "Exceeded collateral value");
         totalDebt += replenishmentCost;
-        dbr.onForceReplenish(user);
+        dbr.onForceReplenish(user, amount);
         dola.transfer(msg.sender, replenisherReward);
-        emit ForceReplenish(user, msg.sender, deficit, replenishmentCost, replenisherReward);
+        emit ForceReplenish(user, msg.sender, amount, replenishmentCost, replenisherReward);
     }
 
     /**
@@ -507,7 +519,7 @@ contract Market {
         uint debt = debts[user];
         if (debt == 0) return 0;
         uint credit = getCreditLimit(user);
-        if(credit > debt) return 0;
+        if(credit >= debt) return 0;
         return debt * liquidationFactorBps / 10000;
     }
 
