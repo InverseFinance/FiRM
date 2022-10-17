@@ -6,6 +6,10 @@ interface IChainlinkFeed {
     function latestAnswer() external view returns (uint);
 }
 
+/**
+@title Oracle
+@notice Oracle used by markets. Can use both fixed price feeds and Chainlink-style feeds for prices.
+*/
 contract Oracle {
 
     struct FeedData {

@@ -18,6 +18,11 @@ interface IDBR {
     function markets(address) external view returns (bool);
 }
 
+/**
+@title The Market Fed
+@notice Feds are a class of contracts in the Inverse Finance ecosystem responsible for minting and burning DOLA.
+ This specific Fed can expand DOLA supply into markets and contract DOLA supply from markets.
+*/
 contract Fed {
 
     IDBR public immutable dbr;

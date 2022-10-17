@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
+/**
+@title Borrow Controller
+@notice Contract for limiting the contracts that are allowed to interact with markets
+*/
 contract BorrowController {
-
+    
     address public operator;
     mapping(address => bool) public contractAllowlist;
 

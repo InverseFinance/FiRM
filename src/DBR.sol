@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
+/**
+@title Dola Borrow Rights
+@notice The DolaBorrowRights contract is a non-standard ERC20 token, that gives the right of holders to borrow DOLA at 0% interest.
+ As a borrower takes on DOLA debt, their DBR balance will be exhausted at 1 DBR per 1 DOLA borrowed per year.
+*/
 contract DolaBorrowingRights {
 
     string public name;
