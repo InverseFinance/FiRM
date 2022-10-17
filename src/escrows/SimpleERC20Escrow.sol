@@ -18,7 +18,8 @@ contract SimpleERC20Escrow {
     IERC20 public token;
     
     /**
-    @notice Function called right after being created by a market
+    @notice Initialize escrow with a token
+    @dev Must be called right after proxy is created
     @param _token The IERC20 token to be stored in this specific escrow
     */
     function initialize(IERC20 _token, address) public {

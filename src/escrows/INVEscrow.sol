@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-// Caution. We assume all failed transfers cause reverts and ignore the returned bool.
+// @dev Caution: We assume all failed transfers cause reverts and ignore the returned bool.
 interface IERC20 {
     function transfer(address,uint) external returns (bool);
     function transferFrom(address,address,uint) external returns (bool);
@@ -25,7 +25,6 @@ interface IXINV {
  This escrow allows user to deposit INV collateral directly into the xINV contract, earning APY and allowing them to delegate votes on behalf of the xINV collateral
 @dev Caution: This is a proxy implementation. Follow proxy pattern best practices
 */
-
 contract INVEscrow {
     address public market;
     IERC20 public token;
