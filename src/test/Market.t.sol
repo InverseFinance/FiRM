@@ -498,25 +498,6 @@ contract MarketTest is FrontierV2Test {
         market.forceReplenish(user, deficit);
     }
 
-    function testForceReplenish_Fails_When_UserHasRepaidDebt() public {
-        gibWeth(user, wethTestAmount);
-        gibDBR(user, wethTestAmount / 14);
-
-        vm.startPrank(user);
-        deposit(wethTestAmount);
-        uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
-        market.borrow(borrowAmount);
-
-        vm.warp(block.timestamp + 5 days);
-        market.repay(user, borrowAmount);
-        uint deficit = dbr.deficitOf(user);
-        vm.stopPrank();
-
-        vm.startPrank(replenisher);   
-        vm.expectRevert("No dola debt");
-        market.forceReplenish(user, deficit);
-    }
-
     function testForceReplenish_Fails_When_NotEnoughDolaInMarket() public {
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount / 14);
