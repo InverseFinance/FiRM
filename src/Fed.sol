@@ -36,26 +36,48 @@ contract Fed {
         supplyCeiling = _supplyCeiling;
     }
 
+    /**
+    @notice Change the governance of the Fed contact. Only callable by governance.
+    @param _gov The address of the new governance contract
+    */
     function changeGov(address _gov) public {
         require(msg.sender == gov, "ONLY GOV");
         gov = _gov;
     }
 
+    /**
+    @notice Set the supply ceiling of the Fed. Only callable by governance.
+    @param _supplyCeiling Amount to set the supply ceiling to
+    */
     function changeSupplyCeiling(uint _supplyCeiling) public {
         require(msg.sender == gov, "ONLY GOV");
         supplyCeiling = _supplyCeiling;
     }
 
+    /**
+    @notice Set the chair of the fed. Only callable by governance.
+    @param _chair Address of the new chair.
+    */
     function changeChair(address _chair) public {
         require(msg.sender == gov, "ONLY GOV");
         chair = _chair;
     }
 
+    /**
+    @notice Set the address of the chair to the 0 address. Only callable by the chair.
+    @dev Useful for immediately removing chair powers in case of a wallet compromise.
+    */
     function resign() public {
         require(msg.sender == chair, "ONLY CHAIR");
         chair = address(0);
     }
 
+    /**
+    @notice Expand the amount of DOLA by depositing the amount into a specific market.
+    @dev While not immediately dangerous to the DOLA peg, make sure the market can absorb the new potential supply.
+    @param market The market to add additional DOLA supply to.
+    @param amount The amount of DOLA to mint and supply to the market.
+    */
     function expansion(IMarket market, uint amount) public {
         require(msg.sender == chair, "ONLY CHAIR");
         require(dbr.markets(address(market)), "UNSUPPORTED MARKET");
@@ -67,6 +89,12 @@ contract Fed {
         emit Expansion(market, amount);
     }
 
+    /**
+    @notice Contract the amount of DOLA by withdrawing some amount of DOLA from a market, before burning it.
+    @dev Markets can have more DOLA in them than they've been supplied, due to force replenishes. This call will revert if trying to contract more than have been supplied.
+    @param market The market to withdraw DOLA from
+    @param amount The amount of DOLA to withdraw and burn.
+    */
     function contraction(IMarket market, uint amount) public {
         require(msg.sender == chair, "ONLY CHAIR");
         require(dbr.markets(address(market)), "UNSUPPORTED MARKET");
@@ -79,6 +107,11 @@ contract Fed {
         emit Contraction(market, amount);
     }
 
+    /**
+    @notice Gets the profit of a market.
+    @param market The market to withdraw profit from.
+    @return A uint representing the profit of the market.
+    */
     function getProfit(IMarket market) public view returns (uint) {
         uint marketValue = dola.balanceOf(address(market)) + market.totalDebt();
         uint supply = supplies[market];
@@ -86,6 +119,10 @@ contract Fed {
         return marketValue - supply;
     }
 
+    /**
+    @notice Takes profit from a market
+    @param market The market to take profit from.
+    */
     function takeProfit(IMarket market) public {
         uint profit = getProfit(market);
         if(profit > 0) {
