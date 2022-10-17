@@ -472,7 +472,7 @@ contract MarketTest is FrontierV2Test {
         uint deficitBefore = dbr.deficitOf(user);
         vm.startPrank(replenisher);
 
-        market.forceReplenish(user);
+        market.forceReplenish(user, deficitBefore);
         assertGt(DOLA.balanceOf(replenisher), initialReplenisherDola, "DOLA balance of replenisher did not increase");
         assertLt(DOLA.balanceOf(address(market)), initialMarketDola, "DOLA balance of market did not decrease");
         assertEq(DOLA.balanceOf(replenisher) - initialReplenisherDola, initialMarketDola - DOLA.balanceOf(address(market)), "DOLA balance of market did not decrease by amount paid to replenisher");
@@ -489,12 +489,13 @@ contract MarketTest is FrontierV2Test {
         deposit(wethTestAmount);
         uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
         market.borrow(borrowAmount);
+        uint deficit = dbr.deficitOf(user);
 
         vm.stopPrank();
         vm.startPrank(user2);
 
         vm.expectRevert("No DBR deficit");
-        market.forceReplenish(user);
+        market.forceReplenish(user, deficit);
     }
 
     function testForceReplenish_Fails_When_UserHasRepaidDebt() public {
@@ -508,11 +509,12 @@ contract MarketTest is FrontierV2Test {
 
         vm.warp(block.timestamp + 5 days);
         market.repay(user, borrowAmount);
+        uint deficit = dbr.deficitOf(user);
         vm.stopPrank();
 
         vm.startPrank(replenisher);   
         vm.expectRevert("No dola debt");
-        market.forceReplenish(user);
+        market.forceReplenish(user, deficit);
     }
 
     function testForceReplenish_Fails_When_NotEnoughDolaInMarket() public {
@@ -528,10 +530,11 @@ contract MarketTest is FrontierV2Test {
         vm.stopPrank();
         vm.startPrank(market.lender());
         market.recall(DOLA.balanceOf(address(market)));
+        uint deficit = dbr.deficitOf(user);
         vm.stopPrank();
         vm.startPrank(replenisher);   
         vm.expectRevert("SafeMath: subtraction underflow");
-        market.forceReplenish(user);   
+        market.forceReplenish(user, deficit);   
     }
 
     function testForceReplenish_Fails_When_DebtWouldExceedCollateralValue() public {
@@ -544,11 +547,12 @@ contract MarketTest is FrontierV2Test {
         market.borrow(borrowAmount);
 
         vm.warp(block.timestamp + 10000 days);
+        uint deficit = dbr.deficitOf(user);
         vm.stopPrank();
 
         vm.startPrank(replenisher);   
         vm.expectRevert("Exceeded collateral value");
-        market.forceReplenish(user);   
+        market.forceReplenish(user, deficit);   
     }
 
     function testGetWithdrawalLimit_Returns_CollateralBalance() public {

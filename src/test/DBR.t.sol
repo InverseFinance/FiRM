@@ -25,17 +25,6 @@ contract DBRTest is FrontierV2Test {
         vm.stopPrank();
     }
 
-    function testOnBorrow_Reverts_When_UserHasNoDbr() public {
-        gibWeth(user, wethTestAmount);
-
-        vm.startPrank(user);
-
-        deposit(wethTestAmount);
-        uint borrowAmount = wethTestAmount * ethFeed.latestAnswer() * collateralFactorBps / 1e18 / 10_000;
-        vm.expectRevert("Insufficient balance");
-        market.borrow(borrowAmount);
-    }
-
     function testOnBorrow_Reverts_When_AccrueDueTokensBringsUserDbrBelow0() public {
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount);
@@ -48,7 +37,7 @@ contract DBRTest is FrontierV2Test {
 
         vm.warp(block.timestamp + 7 days);
 
-        vm.expectRevert("Insufficient balance");
+        vm.expectRevert("DBR Deficit");
         market.borrow(borrowAmount / 2);
     }
 
@@ -447,8 +436,9 @@ contract DBRTest is FrontierV2Test {
     }
 
     function test_accessControl_onForceReplenish() public {
-        vm.startPrank(operator);
+        vm.startPrank(user);
+        uint deficit = dbr.deficitOf(user);
         vm.expectRevert(onForceReplenishError);
-        dbr.onForceReplenish(user);
+        dbr.onForceReplenish(user, deficit);
     }
 }
