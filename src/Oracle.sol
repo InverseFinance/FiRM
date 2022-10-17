@@ -28,11 +28,33 @@ contract Oracle {
         require(msg.sender == operator, "ONLY OPERATOR");
         _;
     }
-
+    
+    /**
+    @notice Sets the pending operator of the oracle. Only callable by operator.
+    @param newOperator_ The address of the pending operator.
+    */
     function setPendingOperator(address newOperator_) public onlyOperator { pendingOperator = newOperator_; }
+
+    /**
+    @notice Sets the price feed of a specific token address.
+    @dev Even though the price feeds implement the chainlink interface, it's possible to use other price oracle.
+    @param token Address of the ERC20 token to set a feed for
+    @param feed The chainlink feed of the ERC20 token.
+    @param tokenDecimals uint8 representing the decimal precision of the token
+    */
     function setFeed(address token, IChainlinkFeed feed, uint8 tokenDecimals) public onlyOperator { feeds[token] = FeedData(feed, tokenDecimals); }
+
+    /**
+    @notice Sets a fixed price for a token
+    @dev Be careful when setting this. Assuming a fixed price where one doesn't exist can have disastrous consequences.
+    @param token The address of the fixed price token
+    @param price The fixed price of the token. Remember to account for decimal precision when setting this.
+    */
     function setFixedPrice(address token, uint price) public onlyOperator { fixedPrices[token] = price; }
 
+    /**
+    @notice Claims the operator role. Only successfully callable by the pending operator.
+    */
     function claimOperator() public {
         require(msg.sender == pendingOperator, "ONLY PENDING OPERATOR");
         operator = pendingOperator;
@@ -40,6 +62,11 @@ contract Oracle {
         emit ChangeOperator(operator);
     }
 
+    /**
+    @notice Gets the price of a specific token in DOLA
+    @param token The address of the token to get price of
+    @return The price of the token in DOLA, adjusted for token and feed decimals
+    */
     function getPrice(address token) external view returns (uint) {
         if(fixedPrices[token] > 0) return fixedPrices[token];
         if(feeds[token].feed != IChainlinkFeed(address(0))) {
