@@ -557,7 +557,8 @@ contract MarketTest is FrontierV2Test {
         deposit(wethTestAmount);
         market.borrow(borrowAmount);
         uint collateralBalance = market.escrows(user).balance();
-        uint minimumCollateral = borrowAmount * 1 ether / oracle.getPrice(address(WETH)) * 10000 / market.collateralFactorBps();
+        uint collateralFactor = market.collateralFactorBps();
+        uint minimumCollateral = borrowAmount * 1 ether / oracle.viewPrice(address(WETH), collateralFactor) * 10000 / collateralFactor;
         assertEq(market.getWithdrawalLimit(user), collateralBalance - minimumCollateral, "Should return collateral balance adjusted for debt");
     }
 
