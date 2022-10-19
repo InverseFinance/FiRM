@@ -37,6 +37,35 @@ contract OracleTest is FrontierV2Test {
         assertEq(oracle.dailyLows(address(WETH), day), newPrice, "Oracle didn't record daily low on call to getPrice");
     }
 
+    function test_viewPrice_returnsDampenedPrice() public {
+        uint collateralFactor = market.collateralFactorBps();
+        uint day = block.timestamp / 1 days;
+        uint feedPrice = ethFeed.latestAnswer();
+
+        //1600e18 price saved as daily low
+        oracle.getPrice(address(WETH), collateralFactor);
+        assertEq(oracle.dailyLows(address(WETH), day), feedPrice, "Oracle didn't record daily low on call to getPrice");
+
+        vm.warp(block.timestamp + 1 days);
+        uint newPrice = 1200e18;
+        ethFeed.changeAnswer(newPrice);
+        //1200e18 price saved as daily low
+        oracle.getPrice(address(WETH), collateralFactor);
+        assertEq(oracle.dailyLows(address(WETH), ++day), newPrice, "Oracle didn't record daily low on call to getPrice");
+
+        vm.warp(block.timestamp + 1 days);
+        newPrice = 3000e18;
+        ethFeed.changeAnswer(newPrice);
+
+        //1200e18 should be twoDayLow, 3000e18 is current price. We should receive dampened price here.
+        uint price = oracle.getPrice(address(WETH), collateralFactor);
+        uint viewPrice = oracle.viewPrice(address(WETH), collateralFactor);
+        assertEq(oracle.dailyLows(address(WETH), ++day), newPrice, "Oracle didn't record daily low on call to getPrice");
+
+        assertEq(price, 1200e18 * 10_000 / collateralFactor, "Oracle did not dampen price correctly");
+        assertEq(viewPrice, 1200e18 * 10_000 / collateralFactor, "Oracle did not dampen price correctly");
+    }
+
     function test_viewPrice_reverts_whenNoPriceSet() public {
         uint collateralFactor = market.collateralFactorBps();
 
