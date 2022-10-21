@@ -41,6 +41,19 @@ contract MarketTest is FrontierV2Test {
         assertEq(WETH.balanceOf(user), balanceUserBefore - wethTestAmount, "User balance did not decrease");
     }
 
+    function testDeposit2() public {
+        gibWeth(user, wethTestAmount);
+        uint balanceUserBefore = WETH.balanceOf(user); 
+
+        vm.startPrank(user);
+        WETH.approve(address(market), wethTestAmount);
+        market.deposit(user2, wethTestAmount);
+        assertEq(WETH.balanceOf(address(market.predictEscrow(user))), 0, "User balance not 0");
+        assertEq(WETH.balanceOf(address(market.predictEscrow(user2))), wethTestAmount, "User2 escrow balance did not increase ");
+        assertEq(WETH.balanceOf(user), balanceUserBefore - wethTestAmount, "User balance did not decrease");
+        assertEq(WETH.balanceOf(user2), 0, "User2 not 0");
+    }
+
     function testBorrow() public {
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount);
@@ -52,6 +65,22 @@ contract MarketTest is FrontierV2Test {
         market.borrow(borrowAmount);
 
         assertEq(DOLA.balanceOf(user), initialDolaBalance + borrowAmount, "User balance did not increase by borrowAmount");
+    }
+
+    function testDepositAndBorrow() public {
+        gibWeth(user, wethTestAmount);
+        gibDBR(user, wethTestAmount);
+        vm.startPrank(user);
+
+        uint initialDolaBalance = DOLA.balanceOf(user);
+        uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
+        uint balanceUserBefore = WETH.balanceOf(user); 
+        WETH.approve(address(market), wethTestAmount);
+        market.depositAndBorrow(wethTestAmount, borrowAmount);
+
+        assertEq(DOLA.balanceOf(user), initialDolaBalance + borrowAmount, "User balance did not increase by borrowAmount");
+        assertEq(WETH.balanceOf(address(market.predictEscrow(user))), wethTestAmount, "Escrow balance did not increase");
+        assertEq(WETH.balanceOf(user), balanceUserBefore - wethTestAmount, "User balance did not decrease");
     }
 
     function testBorrowOnBehalf() public {
