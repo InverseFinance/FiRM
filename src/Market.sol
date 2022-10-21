@@ -255,12 +255,34 @@ contract Market {
     @param amount Amount of collateral token to deposit.
     */
     function deposit(uint amount) public {
-        IEscrow escrow = getEscrow(msg.sender);
+        deposit(msg.sender, amount);
+    }
+
+    /**
+    @notice Deposit and borrow in a single transaction.
+    @param amountDeposit Amount of collateral token to deposit into escrow.
+    @param amountBorrow Amount of DOLA to borrow.
+    */
+    function depositAndBorrow(uint amountDeposit, uint amountBorrow) public {
+        deposit(amountDeposit);
+        borrow(amountBorrow);
+    }
+
+    /**
+    @notice Deposit amount of collateral into escrow on behalf of msg.sender
+    @dev Will deposit the amount into the escrow contract.
+    @param user User to deposit on behalf of.
+    @param amount Amount of collateral token to deposit.
+    */
+    function deposit(address user, uint amount) public {
+        IEscrow escrow = getEscrow(user);
         collateral.transferFrom(msg.sender, address(escrow), amount);
         if(callOnDepositCallback) {
             escrow.onDeposit();
         }
+        emit Deposit(user, amount);
     }
+
     /**
     @notice View function for predicting the deterministic escrow address of a user.
     @dev Only use deposit() function for deposits and NOT the predicted escrow address unless you know what you're doing
@@ -549,7 +571,8 @@ contract Market {
         }
         emit Liquidate(user, msg.sender, repaidDebt, liquidatorReward);
     }
-
+    
+    event Deposit(address indexed account, uint amount);
     event Borrow(address indexed account, uint amount);
     event Withdraw(address indexed account, address indexed to, uint amount);
     event Repay(address indexed account, address indexed repayer, uint amount);
