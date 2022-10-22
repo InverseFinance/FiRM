@@ -315,6 +315,11 @@ contract Market {
         return collateralBalance * oracle.viewPrice(address(collateral), collateralFactorBps) / 1 ether;
     }
 
+    /**
+    @notice Internal function for getting the dollar value of the user's collateral in escrow for the market.
+    @dev Updates the lowest price comparisons of the pessimistic oracle
+    @param user Address of the user.
+    */
     function getCollateralValueInternal(address user) internal returns (uint) {
         IEscrow escrow = predictEscrow(user);
         uint collateralBalance = escrow.balance();
@@ -331,11 +336,20 @@ contract Market {
         return collateralValue * collateralFactorBps / 10000;
     }
 
+    /**
+    @notice Internal function for getting the credit limit of a user.
+    @dev To calculate the available credit, subtract user debt from credit limit. Updates the pessimistic oracle.
+    @param user Address of the user.
+    */
     function getCreditLimitInternal(address user) internal returns (uint) {
         uint collateralValue = getCollateralValueInternal(user);
         return collateralValue * collateralFactorBps / 10000;
     }
-
+    /**
+    @notice Internal function for getting the withdrawal limit of a user.
+     The withdrawal limit is how much collateral a user can withdraw before their loan would be underwater. Updates the pessimistic oracle.
+    @param user Address of the user.
+    */
     function getWithdrawalLimitInternal(address user) internal returns (uint) {
         IEscrow escrow = predictEscrow(user);
         uint collateralBalance = escrow.balance();

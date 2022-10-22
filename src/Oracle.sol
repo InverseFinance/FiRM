@@ -9,9 +9,9 @@ interface IChainlinkFeed {
 /**
 @title Oracle
 @notice Oracle used by markets. Can use both fixed price feeds and Chainlink-style feeds for prices.
-The Oracle is a pessimistic oracle, using the lowest time logged over the past 2 days as the price of an asset.
+The Pessimistic Oracle introduces collateral factor into the pricing formula. It ensures that any given oracle price is dampened to prevent borrowers from borrowing more than the lowest recorded value of their collateral over the past 2 days.
 This has the advantage of making price manipulation attacks more difficult, as an attacker needs to log artificially high lows.
-It has the disadvantage of reducing borrow power of borrowers to a 2 day minimum.
+It has the disadvantage of reducing borrow power of borrowers to a 2-day minimum value of their collateral, where the value must have been seen by the oracle.
 */
 contract Oracle {
 
@@ -125,6 +125,7 @@ contract Oracle {
             uint todaysLow = dailyLows[token][day];
             if(todaysLow == 0 || normalizedPrice < todaysLow) {
                 dailyLows[token][day] = normalizedPrice;
+                todaysLow = normalizedPrice;
                 emit RecordDailyLow(token, normalizedPrice);
             }
             // get yesterday's low
