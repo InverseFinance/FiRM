@@ -9,6 +9,8 @@ contract BorrowController {
     
     address public operator;
     mapping(address => bool) public contractAllowlist;
+    mapping(address => uint) public dailyLimits;
+    mapping(address => mapping(uint => uint)) public dailyBorrows;
 
     constructor(address _operator) {
         operator = _operator;
@@ -38,12 +40,29 @@ contract BorrowController {
     function deny(address deniedContract) public onlyOperator { contractAllowlist[deniedContract] = false; }
 
     /**
+    @notice Sets the daily borrow limit for a specific market
+    @param market The addres of the market contract
+    @param limit The daily borrow limit amount
+    */
+    function setDailyLimit(address market, uint limit) public onlyOperator { dailyLimits[market] = limit; }
+
+    /**
     @notice Checks if a borrow is allowed
-    @dev Currently the borrowController only checks if contracts are part of an allow list
+    @dev Currently the borrowController checks if contracts are part of an allow list and enforces a daily limit
     @param msgSender The message sender trying to borrow
+    @param amount The amount to be borrowed
     @return A boolean that is true if borrowing is allowed and false if not.
     */
-    function borrowAllowed(address msgSender, address, uint) public view returns (bool) {
+    function borrowAllowed(address msgSender, address, uint amount) public returns (bool) {
+        uint day = block.timestamp / 1 days;
+        uint dailyLimit = dailyLimits[msg.sender];
+        if(dailyLimit > 0) {
+            if(dailyBorrows[msg.sender][day] + amount > dailyLimit) {
+                return false;
+            } else {
+                dailyBorrows[msg.sender][day] += amount;
+            }
+        }
         if(msgSender == tx.origin) return true;
         return contractAllowlist[msgSender];
     }
