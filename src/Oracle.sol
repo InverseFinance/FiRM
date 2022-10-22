@@ -117,6 +117,7 @@ contract Oracle {
             uint todaysLow = dailyLows[token][day];
             if(todaysLow == 0 || normalizedPrice < todaysLow) {
                 dailyLows[token][day] = normalizedPrice;
+                todaysLow = normalizedPrice;
                 emit RecordDailyLow(token, normalizedPrice);
             }
             // get yesterday's low

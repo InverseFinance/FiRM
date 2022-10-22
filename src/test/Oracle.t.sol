@@ -62,8 +62,8 @@ contract OracleTest is FrontierV2Test {
         uint viewPrice = oracle.viewPrice(address(WETH), collateralFactor);
         assertEq(oracle.dailyLows(address(WETH), ++day), newPrice, "Oracle didn't record daily low on call to getPrice");
 
-        assertEq(price, 1200e18 * 10_000 / collateralFactor, "Oracle did not dampen price correctly");
-        assertEq(viewPrice, 1200e18 * 10_000 / collateralFactor, "Oracle did not dampen price correctly");
+        assertEq(price, 1200e18 * 10_000 / collateralFactor, "Oracle did not dampen price correctly 1");
+        assertEq(viewPrice, 1200e18 * 10_000 / collateralFactor, "Oracle did not dampen price correctly 2");
     }
 
     function test_viewPrice_reverts_whenNoPriceSet() public {
