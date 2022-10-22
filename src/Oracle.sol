@@ -9,6 +9,9 @@ interface IChainlinkFeed {
 /**
 @title Oracle
 @notice Oracle used by markets. Can use both fixed price feeds and Chainlink-style feeds for prices.
+The Oracle is a pessimistic oracle, using the lowest time logged over the past 2 days as the price of an asset.
+This has the advantage of making price manipulation attacks more difficult, as an attacker needs to log artificially high lows.
+It has the disadvantage of reducing borrow power of borrowers to a 2 day minimum.
 */
 contract Oracle {
 
@@ -101,6 +104,11 @@ contract Oracle {
         revert("Price not found");
     }
 
+    /**
+    @notice Gets the price of a specific token in DOLA while also saving the price if it is the day's lowest.
+    @param token The address of the token to get price of
+    @return The price of the token in DOLA, adjusted for token and feed decimals
+    */
     function getPrice(address token, uint collateralFactorBps) external returns (uint) {
         if(fixedPrices[token] > 0) return fixedPrices[token];
         if(feeds[token].feed != IChainlinkFeed(address(0))) {
