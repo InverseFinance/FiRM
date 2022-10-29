@@ -54,6 +54,8 @@ contract FrontierV2Test is Test {
         vm.label(user, "user");
         vm.label(user2, "user2");
 
+        //Warp forward 7 days since local chain timestamp is 0, will cause revert when calculating `days` in oracle.
+        vm.warp(block.timestamp + 7 days);
         vm.startPrank(gov);
 
         //This is done to make DOLA live at a predetermined address so it does not need to be included in constructor

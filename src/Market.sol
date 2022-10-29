@@ -9,7 +9,8 @@ interface IERC20 {
 }
 
 interface IOracle {
-    function getPrice(address) external view returns (uint);
+    function getPrice(address,uint) external returns (uint);
+    function viewPrice(address,uint) external view returns (uint);
 }
 
 interface IEscrow {
@@ -311,7 +312,18 @@ contract Market {
     function getCollateralValue(address user) public view returns (uint) {
         IEscrow escrow = predictEscrow(user);
         uint collateralBalance = escrow.balance();
-        return collateralBalance * oracle.getPrice(address(collateral)) / 1 ether;
+        return collateralBalance * oracle.viewPrice(address(collateral), collateralFactorBps) / 1 ether;
+    }
+
+    /**
+    @notice Internal function for getting the dollar value of the user's collateral in escrow for the market.
+    @dev Updates the lowest price comparisons of the pessimistic oracle
+    @param user Address of the user.
+    */
+    function getCollateralValueInternal(address user) internal returns (uint) {
+        IEscrow escrow = predictEscrow(user);
+        uint collateralBalance = escrow.balance();
+        return collateralBalance * oracle.getPrice(address(collateral), collateralFactorBps) / 1 ether;
     }
 
     /**
@@ -322,6 +334,32 @@ contract Market {
     function getCreditLimit(address user) public view returns (uint) {
         uint collateralValue = getCollateralValue(user);
         return collateralValue * collateralFactorBps / 10000;
+    }
+
+    /**
+    @notice Internal function for getting the credit limit of a user.
+    @dev To calculate the available credit, subtract user debt from credit limit. Updates the pessimistic oracle.
+    @param user Address of the user.
+    */
+    function getCreditLimitInternal(address user) internal returns (uint) {
+        uint collateralValue = getCollateralValueInternal(user);
+        return collateralValue * collateralFactorBps / 10000;
+    }
+    /**
+    @notice Internal function for getting the withdrawal limit of a user.
+     The withdrawal limit is how much collateral a user can withdraw before their loan would be underwater. Updates the pessimistic oracle.
+    @param user Address of the user.
+    */
+    function getWithdrawalLimitInternal(address user) internal returns (uint) {
+        IEscrow escrow = predictEscrow(user);
+        uint collateralBalance = escrow.balance();
+        if(collateralBalance == 0) return 0;
+        uint debt = debts[user];
+        if(debt == 0) return collateralBalance;
+        if(collateralFactorBps == 0) return 0;
+        uint minimumCollateral = debt * 1 ether / oracle.getPrice(address(collateral), collateralFactorBps) * 10000 / collateralFactorBps;
+        if(collateralBalance <= minimumCollateral) return 0;
+        return collateralBalance - minimumCollateral;
     }
 
     /**
@@ -336,7 +374,7 @@ contract Market {
         uint debt = debts[user];
         if(debt == 0) return collateralBalance;
         if(collateralFactorBps == 0) return 0;
-        uint minimumCollateral = debt * 1 ether / oracle.getPrice(address(collateral)) * 10000 / collateralFactorBps;
+        uint minimumCollateral = debt * 1 ether / oracle.viewPrice(address(collateral), collateralFactorBps) * 10000 / collateralFactorBps;
         if(collateralBalance <= minimumCollateral) return 0;
         return collateralBalance - minimumCollateral;
     }
@@ -353,7 +391,7 @@ contract Market {
         if(borrowController != IBorrowController(address(0))) {
             require(borrowController.borrowAllowed(msg.sender, borrower, amount), "Denied by borrow controller");
         }
-        uint credit = getCreditLimit(borrower);
+        uint credit = getCreditLimitInternal(borrower);
         debts[borrower] += amount;
         require(credit >= debts[borrower], "Exceeded credit limit");
         totalDebt += amount;
@@ -420,7 +458,7 @@ contract Market {
     @param amount The amount being withdrawn.
     */
     function withdrawInternal(address from, address to, uint amount) internal {
-        uint limit = getWithdrawalLimit(from);
+        uint limit = getWithdrawalLimitInternal(from);
         require(limit >= amount, "Insufficient withdrawal limit");
         IEscrow escrow = getEscrow(from);
         escrow.pay(to, amount);
@@ -525,7 +563,7 @@ contract Market {
         uint replenishmentCost = amount * dbr.replenishmentPriceBps() / 10000;
         uint replenisherReward = replenishmentCost * replenishmentIncentiveBps / 10000;
         debts[user] += replenishmentCost;
-        uint collateralValue = getCollateralValue(user);
+        uint collateralValue = getCollateralValueInternal(user);
         require(collateralValue >= debts[user], "Exceeded collateral value");
         totalDebt += replenishmentCost;
         dbr.onForceReplenish(user, amount);
@@ -553,9 +591,10 @@ contract Market {
     function liquidate(address user, uint repaidDebt) public {
         require(repaidDebt > 0, "Must repay positive debt");
         uint debt = debts[user];
-        require(getCreditLimit(user) < debt, "User debt is healthy");
+        require(getCreditLimitInternal(user) < debt, "User debt is healthy");
         require(repaidDebt <= debt * liquidationFactorBps / 10000, "Exceeded liquidation factor");
-        uint liquidatorReward = repaidDebt * 1 ether / oracle.getPrice(address(collateral));
+        uint price = oracle.getPrice(address(collateral), collateralFactorBps);
+        uint liquidatorReward = repaidDebt * 1 ether / price;
         liquidatorReward += liquidatorReward * liquidationIncentiveBps / 10000;
         debts[user] -= repaidDebt;
         totalDebt -= repaidDebt;
@@ -564,7 +603,7 @@ contract Market {
         IEscrow escrow = predictEscrow(user);
         escrow.pay(msg.sender, liquidatorReward);
         if(liquidationFeeBps > 0) {
-            uint liquidationFee = repaidDebt * 1 ether / oracle.getPrice(address(collateral)) * liquidationFeeBps / 10000;
+            uint liquidationFee = repaidDebt * 1 ether / price * liquidationFeeBps / 10000;
             if(escrow.balance() >= liquidationFee) {
                 escrow.pay(gov, liquidationFee);
             }
