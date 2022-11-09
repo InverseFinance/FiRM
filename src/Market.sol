@@ -594,8 +594,8 @@ contract Market {
         require(getCreditLimitInternal(user) < debt, "User debt is healthy");
         require(repaidDebt <= debt * liquidationFactorBps / 10000, "Exceeded liquidation factor");
         uint price = oracle.getPrice(address(collateral), collateralFactorBps);
-        uint liquidatorReward = repaidDebt * 1 ether / price;
-        liquidatorReward += liquidatorReward * liquidationIncentiveBps / 10000;
+        uint liquidationAmount = repaidDebt * 1 ether / price;
+        uint liquidatorReward = liquidationAmount * liquidationIncentiveBps / 10000;
         debts[user] -= repaidDebt;
         totalDebt -= repaidDebt;
         dbr.onRepay(user, repaidDebt);

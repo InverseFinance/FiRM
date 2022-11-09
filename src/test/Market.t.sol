@@ -319,8 +319,8 @@ contract MarketTest is FrontierV2Test {
             //Successful liquidation
             market.liquidate(user, liqAmount);
 
-            uint expectedReward = convertDolaToWeth(liqAmount);
-            expectedReward += expectedReward * market.liquidationIncentiveBps() / 10_000;
+            uint expectedAmount = convertDolaToWeth(liqAmount);
+            uint expectedReward = expectedAmount * market.liquidationIncentiveBps() / 10_000;
             assertEq(expectedReward, WETH.balanceOf(user2), "user2 didn't receive proper liquidation reward");
             assertEq(DOLA.balanceOf(address(market)), marketDolaBal + liqAmount, "market didn't receive repaid DOLA");
             assertEq(DOLA.balanceOf(gov), govDolaBal, "gov should not receive liquidation fee when it's set to 0");
@@ -372,8 +372,8 @@ contract MarketTest is FrontierV2Test {
             //Successful liquidation
             market.liquidate(user, liqAmount);
 
-            uint expectedReward = convertDolaToWeth(liqAmount);
-            expectedReward += expectedReward * market.liquidationIncentiveBps() / 10_000;
+            uint expectedAmount = convertDolaToWeth(liqAmount);
+            uint expectedReward = expectedAmount * market.liquidationIncentiveBps() / 10_000;
             uint expectedLiquidationFee = convertDolaToWeth(liqAmount) * market.liquidationFeeBps() / 10_000;
             assertEq(expectedReward, WETH.balanceOf(user2), "user2 didn't receive proper liquidation reward");
             assertEq(DOLA.balanceOf(address(market)), marketDolaBal + liqAmount, "market didn't receive repaid DOLA");
