@@ -530,7 +530,9 @@ contract Market {
     */
     function repay(address user, uint amount) public {
         uint debt = debts[user];
-        require(debt >= amount, "Insufficient debt");
+        if(debt < amount){
+            amount = debt;
+        }
         debts[user] -= amount;
         totalDebt -= amount;
         dbr.onRepay(user, amount);
