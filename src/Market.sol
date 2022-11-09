@@ -606,6 +606,8 @@ contract Market {
             uint liquidationFee = repaidDebt * 1 ether / price * liquidationFeeBps / 10000;
             if(escrow.balance() >= liquidationFee) {
                 escrow.pay(gov, liquidationFee);
+            } else {
+                escrow.pay(gov, escrow.balance());
             }
         }
         emit Liquidate(user, msg.sender, repaidDebt, liquidatorReward);
