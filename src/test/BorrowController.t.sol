@@ -5,6 +5,23 @@ import "forge-std/Test.sol";
 import "../BorrowController.sol";
 import "./mocks/BorrowContract.sol";
 import "./FrontierV2Test.sol";
+import "../Market.sol";
+import "./mocks/WETH9.sol";
+
+contract BorrowContractTxOrigin {
+    
+    uint256 constant AMOUNT = 1 ether;
+    uint256 constant PRICE = 1000;
+    uint256 constant COLLATERAL_FACTOR_BPS = 8500;
+    uint256 constant BPS_BASIS = 10_000;
+
+    constructor(Market market, WETH9 weth) payable {
+        weth.approve(address(market), type(uint).max);
+        weth.deposit{value: msg.value}();
+        market.deposit(address(this), AMOUNT);
+        market.borrow(AMOUNT * COLLATERAL_FACTOR_BPS * PRICE / BPS_BASIS);
+    }
+}  
 
 contract BorrowControllerTest is FrontierV2Test {
     BorrowContract borrowContract;
@@ -51,6 +68,18 @@ contract BorrowControllerTest is FrontierV2Test {
         borrowController.deny(address(borrowContract));
 
         assertEq(borrowController.contractAllowlist(address(borrowContract)), false, "Contract was not removed from allowlist successfully");
+    }
+
+    function test_BorrowAllowed_False_Where_UserIsUnallowedContractCallingFromConstructor() public {
+        vm.startPrank(chair);
+        fed.expansion(IMarket(address(market)), convertWethToDola(1 ether));
+        vm.stopPrank();
+
+        vm.deal(user, 1 ether);
+        vm.startPrank(user, user);
+        bytes memory denied = "Denied by borrow controller";
+        vm.expectRevert(denied);
+        new BorrowContractTxOrigin{value:1 ether}(market, WETH);
     }
 
     //Access Control
