@@ -581,9 +581,28 @@ contract MarketTest is FrontierV2Test {
         uint deficit = dbr.deficitOf(user);
         vm.stopPrank();
 
-        vm.startPrank(replenisher);   
+        vm.startPrank(replenisher);
         vm.expectRevert("Exceeded collateral value");
         market.forceReplenish(user, deficit);   
+    }
+
+    function testForceReplenish_Succeed_When_PartiallyReplenishedDebtExceedCollateralValue() public {
+        gibWeth(user, wethTestAmount);
+        gibDBR(user, wethTestAmount / 14);
+
+        vm.startPrank(user);
+        deposit(wethTestAmount);
+        uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
+        market.borrow(borrowAmount);
+
+        vm.warp(block.timestamp + 10000 days);
+        uint deficit = dbr.deficitOf(user);
+        vm.stopPrank();
+
+        vm.startPrank(replenisher);
+        uint maxDebt = market.getCollateralValue(user) * (10000 - market.liquidationIncentiveBps() - market.liquidationFeeBps()) / 10000;
+        market.forceReplenish(user, maxDebt - market.debts(user));
+        assertEq(market.debts(user), maxDebt);
     }
 
     function testGetWithdrawalLimit_Returns_CollateralBalance() public {

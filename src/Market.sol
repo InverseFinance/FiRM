@@ -563,7 +563,7 @@ contract Market {
         uint replenishmentCost = amount * dbr.replenishmentPriceBps() / 10000;
         uint replenisherReward = replenishmentCost * replenishmentIncentiveBps / 10000;
         debts[user] += replenishmentCost;
-        uint collateralValue = getCollateralValueInternal(user);
+        uint collateralValue = getCollateralValueInternal(user) * (10000 - liquidationIncentiveBps - liquidationFeeBps) / 10000;
         require(collateralValue >= debts[user], "Exceeded collateral value");
         totalDebt += replenishmentCost;
         dbr.onForceReplenish(user, amount);
