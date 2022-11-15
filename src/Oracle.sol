@@ -89,6 +89,9 @@ contract Oracle {
             uint day = block.timestamp / 1 days;
             // get today's low
             uint todaysLow = dailyLows[token][day];
+            if(todaysLow == 0 || normalizedPrice < todaysLow) {
+                todaysLow = normalizedPrice;
+            }
             // get yesterday's low
             uint yesterdaysLow = dailyLows[token][day - 1];
             // calculate new borrowing power based on collateral factor
