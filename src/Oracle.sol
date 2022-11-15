@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 interface IChainlinkFeed {
     function decimals() external view returns (uint8);
-    function latestAnswer() external view returns (uint);
+    function latestRound() external view returns (uint);
 }
 
 /**
@@ -79,7 +79,7 @@ contract Oracle {
         if(fixedPrices[token] > 0) return fixedPrices[token];
         if(feeds[token].feed != IChainlinkFeed(address(0))) {
             // get price from feed
-            uint price = feeds[token].feed.latestAnswer();
+            uint price = feeds[token].feed.latestRound();
             require(price > 0, "Invalid feed price");
             // normalize price
             uint8 feedDecimals = feeds[token].feed.decimals();
@@ -113,7 +113,7 @@ contract Oracle {
         if(fixedPrices[token] > 0) return fixedPrices[token];
         if(feeds[token].feed != IChainlinkFeed(address(0))) {
             // get price from feed
-            uint price = feeds[token].feed.latestAnswer();
+            uint price = feeds[token].feed.latestRound();
             require(price > 0, "Invalid feed price");
             // normalize price
             uint8 feedDecimals = feeds[token].feed.decimals();

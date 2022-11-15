@@ -17,6 +17,10 @@ contract EthFeed is IChainlinkFeed {
         return price_;
     }
 
+    function latestRound() external view returns (uint) {
+        return price_;
+    }
+
     function changeAnswer(uint price) external {
         price_ = price;
     }
