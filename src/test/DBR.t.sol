@@ -29,7 +29,7 @@ contract DBRTest is FrontierV2Test {
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount);
 
-        vm.startPrank(user);
+        vm.startPrank(user, user);
 
         deposit(wethTestAmount);
         uint borrowAmount = wethTestAmount * ethFeed.latestAnswer() * collateralFactorBps / 1e18 / 10_000;
@@ -45,7 +45,7 @@ contract DBRTest is FrontierV2Test {
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount / 20);
 
-        vm.startPrank(user);
+        vm.startPrank(user, user);
         deposit(wethTestAmount);
         uint borrowAmount = 1 ether;
         market.borrow(borrowAmount);
@@ -68,7 +68,7 @@ contract DBRTest is FrontierV2Test {
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount * 2);
 
-        vm.startPrank(user);
+        vm.startPrank(user, user);
         deposit(wethTestAmount);
 
         uint borrowAmount = wethTestAmount;
@@ -108,7 +108,7 @@ contract DBRTest is FrontierV2Test {
         assertEq(dbr.totalSupply(), 1e18, "dbr mint failed");
         assertEq(dbr.balanceOf(user), 1e18, "dbr mint failed");
 
-        vm.startPrank(user);
+        vm.startPrank(user, user);
         dbr.burn(1e18);
 
         assertEq(dbr.totalSupply(), 0, "dbr burn failed");
@@ -118,7 +118,7 @@ contract DBRTest is FrontierV2Test {
     function test_burn_reverts_whenAmountGtCallerBalance() public {
         gibDBR(user, 1e18);
 
-        vm.startPrank(user);
+        vm.startPrank(user, user);
         vm.expectRevert("Insufficient balance");
         dbr.burn(2e18);
     }
@@ -134,7 +134,7 @@ contract DBRTest is FrontierV2Test {
         gibWeth(user, wethTestAmount);
         gibDBR(user, 1);
 
-        vm.startPrank(user);    
+        vm.startPrank(user, user);    
         deposit(wethTestAmount);
 
         market.borrow(getMaxBorrowAmount(wethTestAmount));
@@ -147,7 +147,7 @@ contract DBRTest is FrontierV2Test {
     function test_invalidateNonce() public {
         assertEq(dbr.nonces(user), 0, "User nonce should be uninitialized");
 
-        vm.startPrank(user);
+        vm.startPrank(user, user);
         dbr.invalidateNonce();
 
         assertEq(dbr.nonces(user), 1, "User nonce was not invalidated");
@@ -158,7 +158,7 @@ contract DBRTest is FrontierV2Test {
 
         assertEq(dbr.allowance(user, gov), 0, "Allowance should not be set yet");
 
-        vm.startPrank(user);
+        vm.startPrank(user, user);
         dbr.approve(gov, amount);
 
         assertEq(dbr.allowance(user, gov), amount, "Allowance was not set properly");
@@ -274,7 +274,7 @@ contract DBRTest is FrontierV2Test {
 
         assertEq(dbr.balanceOf(user), amount * 2);
         assertEq(dbr.balanceOf(gov), 0);
-        vm.startPrank(user);
+        vm.startPrank(user, user);
         dbr.transfer(gov, amount);
         assertEq(dbr.balanceOf(user), amount);
         assertEq(dbr.balanceOf(gov), amount);
@@ -287,7 +287,7 @@ contract DBRTest is FrontierV2Test {
         dbr.mint(user, amount / 2);
         vm.stopPrank();
 
-        vm.startPrank(user);
+        vm.startPrank(user, user);
         vm.expectRevert("Insufficient balance");
         dbr.transfer(gov, amount);
     }
@@ -302,7 +302,7 @@ contract DBRTest is FrontierV2Test {
         assertEq(dbr.balanceOf(user), amount * 2);
         assertEq(dbr.balanceOf(gov), 0);
 
-        vm.startPrank(user);
+        vm.startPrank(user, user);
         dbr.approve(gov, amount);
         vm.stopPrank();
 
@@ -316,7 +316,7 @@ contract DBRTest is FrontierV2Test {
     function test_transferFrom_reverts_whenAmountGtFromBalance() public {
         uint amount = 100e18;
 
-        vm.startPrank(user);
+        vm.startPrank(user, user);
         dbr.approve(gov, amount);
         vm.stopPrank();
 
@@ -332,7 +332,7 @@ contract DBRTest is FrontierV2Test {
         dbr.mint(user, amount * 2);
         vm.stopPrank();
 
-        vm.startPrank(user);
+        vm.startPrank(user, user);
         dbr.approve(gov, amount);
         vm.stopPrank();
 
@@ -361,7 +361,7 @@ contract DBRTest is FrontierV2Test {
         dbr.claimOperator();
         vm.stopPrank();
 
-        vm.startPrank(user);
+        vm.startPrank(user, user);
         dbr.claimOperator();
         assertEq(dbr.operator(), user, "Call to claimOperator failed");
     }
@@ -414,7 +414,7 @@ contract DBRTest is FrontierV2Test {
         vm.startPrank(operator);
         dbr.addMinter(user);
         vm.stopPrank();
-        vm.startPrank(user);
+        vm.startPrank(user, user);
         dbr.mint(user, 100);
         assertEq(dbr.balanceOf(user), 200, "mint failed");
         vm.stopPrank();
@@ -436,7 +436,7 @@ contract DBRTest is FrontierV2Test {
     }
 
     function test_accessControl_onForceReplenish() public {
-        vm.startPrank(user);
+        vm.startPrank(user, user);
         uint deficit = dbr.deficitOf(user);
         vm.expectRevert(onForceReplenishError);
         dbr.onForceReplenish(user, deficit);
