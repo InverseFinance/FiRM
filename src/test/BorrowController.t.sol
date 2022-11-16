@@ -31,6 +31,7 @@ contract BorrowControllerTest is FrontierV2Test {
         initialize(replenishmentPriceBps, collateralFactorBps, replenishmentIncentiveBps, liquidationBonusBps, callOnDepositCallback);
 
         borrowContract = new BorrowContract(address(market), payable(address(WETH)));
+        require(address(market.borrowController()) != address(0), "Borrow controller not set");
     }
 
     function test_BorrowAllowed_True_Where_UserIsEOA() public {
@@ -74,9 +75,8 @@ contract BorrowControllerTest is FrontierV2Test {
         vm.startPrank(chair);
         fed.expansion(IMarket(address(market)), convertWethToDola(1 ether));
         vm.stopPrank();
-
-        vm.deal(user, 1 ether);
-        vm.startPrank(user, user);
+        vm.deal(address(0xA), 1 ether);
+        vm.startPrank(address(0xA), address(0xA));
         bytes memory denied = "Denied by borrow controller";
         vm.expectRevert(denied);
         new BorrowContractTxOrigin{value:1 ether}(market, WETH);
