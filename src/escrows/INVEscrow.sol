@@ -23,7 +23,6 @@ interface IDbrDistributor {
     function stake(uint amount) external;
     function unstake(uint amount) external;
     function claim(address to) external;
-    function balanceOf(address) external view returns (uint);
     function claimable(address user) external view returns(uint);
 }
 
