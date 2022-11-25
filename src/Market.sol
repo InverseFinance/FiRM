@@ -460,6 +460,7 @@ contract Market {
     function withdrawInternal(address from, address to, uint amount) internal {
         uint limit = getWithdrawalLimitInternal(from);
         require(limit >= amount, "Insufficient withdrawal limit");
+        require(dbr.deficitOf(from) == 0, "Can't withdraw with DBR deficit");
         IEscrow escrow = getEscrow(from);
         escrow.pay(to, amount);
         emit Withdraw(from, to, amount);
