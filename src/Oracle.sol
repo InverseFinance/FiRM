@@ -78,14 +78,8 @@ contract Oracle {
     function viewPrice(address token, uint collateralFactorBps) external view returns (uint) {
         if(fixedPrices[token] > 0) return fixedPrices[token];
         if(feeds[token].feed != IChainlinkFeed(address(0))) {
-            // get price from feed
-            uint price = feeds[token].feed.latestAnswer();
-            require(price > 0, "Invalid feed price");
-            // normalize price
-            uint8 feedDecimals = feeds[token].feed.decimals();
-            uint8 tokenDecimals = feeds[token].tokenDecimals;
-            uint8 decimals = 36 - feedDecimals - tokenDecimals;
-            uint normalizedPrice = price * (10 ** decimals);
+            //get normalized price
+            uint normalizedPrice = getNormalizedPrice(token);
             uint day = block.timestamp / 1 days;
             // get today's low
             uint todaysLow = dailyLows[token][day];
@@ -112,14 +106,8 @@ contract Oracle {
     function getPrice(address token, uint collateralFactorBps) external returns (uint) {
         if(fixedPrices[token] > 0) return fixedPrices[token];
         if(feeds[token].feed != IChainlinkFeed(address(0))) {
-            // get price from feed
-            uint price = feeds[token].feed.latestAnswer();
-            require(price > 0, "Invalid feed price");
-            // normalize price
-            uint8 feedDecimals = feeds[token].feed.decimals();
-            uint8 tokenDecimals = feeds[token].tokenDecimals;
-            uint8 decimals = 36 - feedDecimals - tokenDecimals;
-            uint normalizedPrice = price * (10 ** decimals);
+            // get normalized price
+            uint normalizedPrice = getNormalizedPrice(token);
             // potentially store price as today's low
             uint day = block.timestamp / 1 days;
             uint todaysLow = dailyLows[token][day];
@@ -141,6 +129,28 @@ contract Oracle {
 
         }
         revert("Price not found");
+    }
+    
+    /**
+    @notice Gets the price from the price feed and normalizes it.
+    @param token The token to get the normalized price for.
+    @return normalizedPrice Returns the normalized price.
+    */
+    function getNormalizedPrice(address token) internal view returns (uint normalizedPrice) {
+        //get price from feed
+        uint price = feeds[token].feed.latestAnswer();
+        require(price > 0, "Invalid feed price");
+        // normalize price
+        uint8 feedDecimals = feeds[token].feed.decimals();
+        uint8 tokenDecimals = feeds[token].tokenDecimals;
+        if(feedDecimals + tokenDecimals <= 36) {
+            uint8 decimals = 36 - feedDecimals - tokenDecimals;
+            normalizedPrice = price * (10 ** decimals);
+        } else {
+            uint8 decimals = feedDecimals + tokenDecimals - 36;
+            normalizedPrice = price / 10 ** decimals;
+        }
+
     }
 
     event ChangeOperator(address indexed newOperator);

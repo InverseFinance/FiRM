@@ -11,6 +11,8 @@ import "../Oracle.sol";
 
 import "./mocks/ERC20.sol";
 import "./mocks/WETH9.sol";
+import "./mocks/WBTC.sol";
+import {WbtcFeed} from "./mocks/WbtcFeed.sol";
 import {EthFeed} from "./mocks/EthFeed.sol";
 
 contract FrontierV2Test is Test {
@@ -25,10 +27,12 @@ contract FrontierV2Test is Test {
     //ERC-20s
     ERC20 DOLA;
     WETH9 WETH;
+    WBTC wBTC;
 
     //Frontier V2
     Oracle oracle;
     EthFeed ethFeed;
+    WbtcFeed wbtcFeed;
     BorrowController borrowController;
     SimpleERC20Escrow escrowImplementation;
     DolaBorrowingRights dbr;
@@ -65,8 +69,10 @@ contract FrontierV2Test is Test {
         DOLA = ERC20(0x865377367054516e17014CcdED1e7d814EDC9ce4);
 
         WETH = new WETH9();
+        wBTC = new WBTC();
 
         ethFeed = new EthFeed();
+        wbtcFeed = new WbtcFeed();
 
         oracle = new Oracle(gov);
         borrowController = new BorrowController(gov);
@@ -78,6 +84,7 @@ contract FrontierV2Test is Test {
 
         dbr.addMarket(address(market));
         oracle.setFeed(address(WETH), IChainlinkFeed(address(ethFeed)), 18);
+        oracle.setFeed(address(wBTC), IChainlinkFeed(address(wbtcFeed)), 8);
         vm.stopPrank();
 
         vm.startPrank(address(0));
