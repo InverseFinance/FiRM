@@ -71,8 +71,9 @@ contract INVEscrow {
         if(invBalance < amount) {
             unchecked {
                 uint stakedInv = amount - invBalance;
+                uint xinvBal = xINV.balanceOf(address(this));
                 xINV.redeemUnderlying(stakedInv); // we do not check return value because transfer call will fail if this fails anyway
-                distributor.unstake(stakedInv);
+                distributor.unstake(xinvBal - xINV.balanceOf(address(this)));
             }
         }
         token.transfer(recipient, amount);
@@ -103,8 +104,9 @@ contract INVEscrow {
     function onDeposit() public {
         uint invBalance = token.balanceOf(address(this));
         if(invBalance > 0) {
+            uint xinvBal = xINV.balanceOf(address(this));
             xINV.mint(invBalance); // we do not check return value because we don't want errors to block this call
-            distributor.stake(invBalance);
+            distributor.stake(xINV.balanceOf(address(this)) - xinvBal);
         }
     }
 
