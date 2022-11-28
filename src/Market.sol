@@ -31,6 +31,7 @@ interface IDolaBorrowingRights {
 
 interface IBorrowController {
     function borrowAllowed(address msgSender, address borrower, uint amount) external returns (bool);
+    function onRepay(uint amount) external;
 }
 
 contract Market {
@@ -534,6 +535,7 @@ contract Market {
         debts[user] -= amount;
         totalDebt -= amount;
         dbr.onRepay(user, amount);
+        borrowController.onRepay(amount);
         dola.transferFrom(msg.sender, address(this), amount);
         emit Repay(user, msg.sender, amount);
     }
