@@ -535,7 +535,9 @@ contract Market {
         debts[user] -= amount;
         totalDebt -= amount;
         dbr.onRepay(user, amount);
-        borrowController.onRepay(amount);
+        if(address(borrowController) != address(0)){
+            borrowController.onRepay(amount);
+        }
         dola.transferFrom(msg.sender, address(this), amount);
         emit Repay(user, msg.sender, amount);
     }
