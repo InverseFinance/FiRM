@@ -60,7 +60,10 @@ contract BorrowController {
             if(dailyBorrows[msg.sender][day] + amount > dailyLimit) {
                 return false;
             } else {
-                dailyBorrows[msg.sender][day] += amount;
+                //Safe to use unchecked, as function will revert in if statement if overflow
+                unchecked{
+                    dailyBorrows[msg.sender][day] += amount;
+                }
             }
         }
         if(msgSender == tx.origin) return true;
@@ -77,7 +80,10 @@ contract BorrowController {
         if(dailyBorrows[msg.sender][day] < amount) {
             dailyBorrows[msg.sender][day] = 0;
         } else {
-            dailyBorrows[msg.sender][day] -= amount;
+            //Safe to use unchecked, as dailyBorow is checked to be higher than amount
+            unchecked{
+                dailyBorrows[msg.sender][day] -= amount;
+            }
         }
     }
 }
