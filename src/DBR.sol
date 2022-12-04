@@ -61,6 +61,7 @@ contract DolaBorrowingRights {
     */
     function setReplenishmentPriceBps(uint newReplenishmentPriceBps_) public onlyOperator {
         require(newReplenishmentPriceBps_ > 0, "replenishment price must be over 0");
+        require(newReplenishmentPriceBps_ <= 1_000_000, "Replenishment price cannot exceed 100 DOLA per DBR");
         replenishmentPriceBps = newReplenishmentPriceBps_;
     }
     
