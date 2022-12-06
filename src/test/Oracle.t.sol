@@ -20,7 +20,7 @@ contract OracleTest is FrontierV2Test {
         initialize(replenishmentPriceBps, collateralFactorBps, replenishmentIncentiveBps, liquidationBonusBps, callOnDepositCallback);
     }
 
-    function test_getPrice_recordsDailyLow() public {
+    function test_getPrice_recordsDailyLowWeth() public {
         uint day = block.timestamp / 1 days;
         uint collateralFactor = market.collateralFactorBps();
         uint feedPrice = ethFeed.latestAnswer();
@@ -35,6 +35,25 @@ contract OracleTest is FrontierV2Test {
 
         assertEq(oraclePrice, newPrice, "Oracle didn't update when feed did");
         assertEq(oracle.dailyLows(address(WETH), day), newPrice, "Oracle didn't record daily low on call to getPrice");
+    }
+
+    function test_getPrice_recordsDailyLowWbtc() public {
+        uint day = block.timestamp / 1 days;
+        uint collateralFactor = market.collateralFactorBps();
+        uint feedPrice = wbtcFeed.latestAnswer();
+        uint expectedOraclePrice = feedPrice * 1e20;
+        uint oraclePrice = oracle.getPrice(address(wBTC), collateralFactor);
+        emit log_uint(oraclePrice);
+        assertEq(oraclePrice, expectedOraclePrice);
+        assertEq(oracle.dailyLows(address(wBTC), day), expectedOraclePrice, "Oracle didn't record daily low on call to getPrice");
+
+        uint newPrice = 12000e8;
+        uint expectedPrice = newPrice * 1e20;
+        wbtcFeed.changeAnswer(newPrice);
+        oraclePrice = oracle.getPrice(address(wBTC), collateralFactor);
+
+        assertEq(oraclePrice, expectedPrice, "Oracle didn't update when feed did");
+        assertEq(oracle.dailyLows(address(wBTC), day), expectedPrice, "Oracle didn't record daily low on call to getPrice");
     }
 
     function test_viewPrice_returnsDampenedPrice() public {
@@ -119,7 +138,34 @@ contract OracleTest is FrontierV2Test {
 
         oracle.getPrice(address(WETH), collateralFactor);
     }
-  
+
+    function test_viewPriceNoDampenedPrice_AUDIT() public {
+        uint collateralFactor = market.collateralFactorBps();
+        uint day = block.timestamp / 1 days;
+        uint feedPrice = ethFeed.latestAnswer();
+
+        //1600e18 price saved as daily low
+        oracle.getPrice(address(WETH), collateralFactor);
+        assertEq(oracle.dailyLows(address(WETH), day), feedPrice);
+
+        vm.warp(block.timestamp + 1 days);
+        uint newPrice = 1200e18;
+        ethFeed.changeAnswer(newPrice);
+        //1200e18 price saved as daily low
+        oracle.getPrice(address(WETH), collateralFactor);
+        assertEq(oracle.dailyLows(address(WETH), ++day), newPrice);
+
+        vm.warp(block.timestamp + 1 days);
+        newPrice = 3000e18;
+        ethFeed.changeAnswer(newPrice);
+
+        //1200e18 should be twoDayLow, 3000e18 is current price. We should receive dampened price here.
+        // Notice that viewPrice is called before getPrice.
+        uint viewPrice = oracle.viewPrice(address(WETH), collateralFactor);
+        uint price = oracle.getPrice(address(WETH), collateralFactor);
+        assertEq(viewPrice, price);
+    }
+    
     //Access Control
 
     function test_accessControl_setPendingOperator() public {

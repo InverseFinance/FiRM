@@ -46,9 +46,11 @@ contract SimpleERC20Escrow {
         return token.balanceOf(address(this));
     }
 
-    /* Uncomment if Escrow contract should handle on deposit callbacks. This function should remain callable by anyone to handle direct inbound transfers.
+    /**
+    @notice Function called by market on deposit. Function is empty for this escrow.
+    @dev This function should remain callable by anyone to handle direct inbound transfers.
+    */
     function onDeposit() public {
 
     }
-    */
 }

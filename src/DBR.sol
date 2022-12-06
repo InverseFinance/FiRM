@@ -61,6 +61,7 @@ contract DolaBorrowingRights {
     */
     function setReplenishmentPriceBps(uint newReplenishmentPriceBps_) public onlyOperator {
         require(newReplenishmentPriceBps_ > 0, "replenishment price must be over 0");
+        require(newReplenishmentPriceBps_ <= 1_000_000, "Replenishment price cannot exceed 100 DOLA per DBR");
         replenishmentPriceBps = newReplenishmentPriceBps_;
     }
     
@@ -285,10 +286,12 @@ contract DolaBorrowingRights {
         uint debt = debts[user];
         if(lastUpdated[user] == block.timestamp) return;
         uint accrued = (block.timestamp - lastUpdated[user]) * debt / 365 days;
-        dueTokensAccrued[user] += accrued;
-        totalDueTokensAccrued += accrued;
-        lastUpdated[user] = block.timestamp;
-        emit Transfer(user, address(0), accrued);
+        if(accrued > 0 || lastUpdated[user] == 0){
+            dueTokensAccrued[user] += accrued;
+            totalDueTokensAccrued += accrued;
+            lastUpdated[user] = block.timestamp;
+            emit Transfer(user, address(0), accrued);
+        }
     }
 
     /**
