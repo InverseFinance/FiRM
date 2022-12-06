@@ -299,7 +299,7 @@ contract MarketTest is FrontierV2Test {
         market.borrow(borrowAmount);
         vm.stopPrank();
 
-        ethFeed.changeAnswer(ethFeed.latestAnswer() * 9 / 10);
+        ethFeed.changeAnswer(oracle.getFeedPrice(address(WETH)) * 9 / 10);
 
         vm.startPrank(user2);
         gibDOLA(user2, liqAmount);
@@ -352,7 +352,7 @@ contract MarketTest is FrontierV2Test {
         market.borrow(borrowAmount);
         vm.stopPrank();
 
-        ethFeed.changeAnswer(ethFeed.latestAnswer() * 9 / 10);
+        ethFeed.changeAnswer(oracle.getFeedPrice(address(WETH)) * 9 / 10);
 
         vm.startPrank(user2);
         gibDOLA(user2, liqAmount);
@@ -393,7 +393,7 @@ contract MarketTest is FrontierV2Test {
 
         vm.stopPrank();
 
-        ethFeed.changeAnswer(ethFeed.latestAnswer() * 9 / 10);
+        ethFeed.changeAnswer(oracle.getFeedPrice(address(WETH)) * 9 / 10);
 
         vm.startPrank(user2);
         gibDOLA(user2, 5_000 ether);
@@ -414,7 +414,7 @@ contract MarketTest is FrontierV2Test {
 
         vm.stopPrank();
 
-        ethFeed.changeAnswer(ethFeed.latestAnswer() * 9 / 10);
+        ethFeed.changeAnswer(oracle.getFeedPrice(address(WETH)) * 9 / 10);
 
         vm.startPrank(user2);
         gibDOLA(user2, 5_000 ether);
@@ -637,7 +637,7 @@ contract MarketTest is FrontierV2Test {
         assertEq(collateralBalance, wethTestAmount);
         market.withdraw(wethTestAmount);
 
-        uint ethPrice = ethFeed.latestAnswer();
+        uint ethPrice = oracle.getFeedPrice(address(WETH));
         ethFeed.changeAnswer(ethPrice * 6 / 10);
         assertEq(market.getWithdrawalLimit(user), 0, "Should return 0 when user's collateral value is less than debts");
         ethFeed.changeAnswer(ethPrice);
@@ -682,7 +682,7 @@ contract MarketTest is FrontierV2Test {
         deposit(wethTestAmount);
         market.borrow(borrowAmount);
 
-        ethFeed.changeAnswer(ethFeed.latestAnswer() * 5 / 10);
+        ethFeed.changeAnswer(oracle.getFeedPrice(address(WETH)) * 5 / 10);
 
         assertGt(market.getLiquidatableDebt(user), 0, "Should return liquidatable debt when user debt > credit");
     }

@@ -119,7 +119,7 @@ contract OracleTest is FrontierV2Test {
 
         oracle.getPrice(address(WETH), collateralFactor);
     }
-    
+  
     //Access Control
 
     function test_accessControl_setPendingOperator() public {
