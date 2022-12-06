@@ -60,10 +60,30 @@ contract BorrowController {
             if(dailyBorrows[msg.sender][day] + amount > dailyLimit) {
                 return false;
             } else {
-                dailyBorrows[msg.sender][day] += amount;
+                //Safe to use unchecked, as function will revert in if statement if overflow
+                unchecked{
+                    dailyBorrows[msg.sender][day] += amount;
+                }
             }
         }
         if(msgSender == tx.origin) return true;
         return contractAllowlist[msgSender];
+    }
+
+    /**
+    @notice Reduces the daily limit used, when a user repays debt
+    @dev This is necessary to prevent a DOS attack, where a user borrows the daily limit and immediately repays it again.
+    @param amount Amount repaid in the market
+    */
+    function onRepay(uint amount) public {
+        uint day = block.timestamp / 1 days;
+        if(dailyBorrows[msg.sender][day] < amount) {
+            dailyBorrows[msg.sender][day] = 0;
+        } else {
+            //Safe to use unchecked, as dailyBorow is checked to be higher than amount
+            unchecked{
+                dailyBorrows[msg.sender][day] -= amount;
+            }
+        }
     }
 }
