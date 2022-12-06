@@ -88,11 +88,23 @@ contract Market {
         callOnDepositCallback = _callOnDepositCallback;
         INITIAL_CHAIN_ID = block.chainid;
         INITIAL_DOMAIN_SEPARATOR = computeDomainSeparator();
+        if(collateralFactorBps > 0){
+            uint unsafeLiquidationIncentive = 10000 * 10000 / collateralFactorBps - 10000 - liquidationFeeBps;
+            require(liquidationIncentiveBps < unsafeLiquidationIncentive,  "Liquidation param allow profitable self liquidation");
+        }
     }
     
     modifier onlyGov {
         require(msg.sender == gov, "Only gov can call this function");
         _;
+    }
+
+    modifier liquidationParamChecker {
+        _;
+        if(collateralFactorBps > 0){
+            uint unsafeLiquidationIncentive = 10000 * 10000 / collateralFactorBps - 10000 - liquidationFeeBps;
+            require(liquidationIncentiveBps < unsafeLiquidationIncentive,  "New liquidation param allow profitable self liquidation");
+        }
     }
 
     function DOMAIN_SEPARATOR() public view virtual returns (bytes32) {
@@ -147,7 +159,7 @@ contract Market {
     @dev Collateral factor mus be set below 100%
     @param _collateralFactorBps The new collateral factor as measured in basis points. 
     */
-    function setCollateralFactorBps(uint _collateralFactorBps) public onlyGov {
+    function setCollateralFactorBps(uint _collateralFactorBps) public onlyGov liquidationParamChecker {
         require(_collateralFactorBps < 10000, "Invalid collateral factor");
         collateralFactorBps = _collateralFactorBps;
     }
@@ -181,7 +193,7 @@ contract Market {
     @dev Must be set between 0 and 10000 - liquidation fee.
     @param _liquidationIncentiveBps The new liqudation incentive set in basis points. 1 = 0.01% 
     */
-    function setLiquidationIncentiveBps(uint _liquidationIncentiveBps) public onlyGov {
+    function setLiquidationIncentiveBps(uint _liquidationIncentiveBps) public onlyGov liquidationParamChecker {
         require(_liquidationIncentiveBps > 0 && _liquidationIncentiveBps + liquidationFeeBps < 10000, "Invalid liquidation incentive");
         liquidationIncentiveBps = _liquidationIncentiveBps;
     }
@@ -192,7 +204,7 @@ contract Market {
     @dev Must be set between 0 and 10000 - liquidation factor.
     @param _liquidationFeeBps The new liquidation fee set in basis points. 1 = 0.01%
     */
-    function setLiquidationFeeBps(uint _liquidationFeeBps) public onlyGov {
+    function setLiquidationFeeBps(uint _liquidationFeeBps) public onlyGov liquidationParamChecker {
         require(_liquidationFeeBps > 0 && _liquidationFeeBps + liquidationIncentiveBps < 10000, "Invalid liquidation fee");
         liquidationFeeBps = _liquidationFeeBps;
     }
