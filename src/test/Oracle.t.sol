@@ -138,6 +138,33 @@ contract OracleTest is FrontierV2Test {
 
         oracle.getPrice(address(WETH), collateralFactor);
     }
+
+    function test_viewPriceNoDampenedPrice_AUDIT() public {
+        uint collateralFactor = market.collateralFactorBps();
+        uint day = block.timestamp / 1 days;
+        uint feedPrice = ethFeed.latestAnswer();
+
+        //1600e18 price saved as daily low
+        oracle.getPrice(address(WETH), collateralFactor);
+        assertEq(oracle.dailyLows(address(WETH), day), feedPrice);
+
+        vm.warp(block.timestamp + 1 days);
+        uint newPrice = 1200e18;
+        ethFeed.changeAnswer(newPrice);
+        //1200e18 price saved as daily low
+        oracle.getPrice(address(WETH), collateralFactor);
+        assertEq(oracle.dailyLows(address(WETH), ++day), newPrice);
+
+        vm.warp(block.timestamp + 1 days);
+        newPrice = 3000e18;
+        ethFeed.changeAnswer(newPrice);
+
+        //1200e18 should be twoDayLow, 3000e18 is current price. We should receive dampened price here.
+        // Notice that viewPrice is called before getPrice.
+        uint viewPrice = oracle.viewPrice(address(WETH), collateralFactor);
+        uint price = oracle.getPrice(address(WETH), collateralFactor);
+        assertEq(viewPrice, price);
+    }
     
     //Access Control
 
