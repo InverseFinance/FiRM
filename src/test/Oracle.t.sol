@@ -20,7 +20,7 @@ contract OracleTest is FrontierV2Test {
         initialize(replenishmentPriceBps, collateralFactorBps, replenishmentIncentiveBps, liquidationBonusBps, callOnDepositCallback);
     }
 
-    function test_getPrice_recordsDailyLow() public {
+    function test_getPrice_recordsDailyLowWeth() public {
         uint day = block.timestamp / 1 days;
         uint collateralFactor = market.collateralFactorBps();
         uint feedPrice = ethFeed.latestAnswer();
@@ -35,6 +35,25 @@ contract OracleTest is FrontierV2Test {
 
         assertEq(oraclePrice, newPrice, "Oracle didn't update when feed did");
         assertEq(oracle.dailyLows(address(WETH), day), newPrice, "Oracle didn't record daily low on call to getPrice");
+    }
+
+    function test_getPrice_recordsDailyLowWbtc() public {
+        uint day = block.timestamp / 1 days;
+        uint collateralFactor = market.collateralFactorBps();
+        uint feedPrice = wbtcFeed.latestAnswer();
+        uint expectedOraclePrice = feedPrice * 1e20;
+        uint oraclePrice = oracle.getPrice(address(wBTC), collateralFactor);
+        emit log_uint(oraclePrice);
+        assertEq(oraclePrice, expectedOraclePrice);
+        assertEq(oracle.dailyLows(address(wBTC), day), expectedOraclePrice, "Oracle didn't record daily low on call to getPrice");
+
+        uint newPrice = 12000e8;
+        uint expectedPrice = newPrice * 1e20;
+        wbtcFeed.changeAnswer(newPrice);
+        oraclePrice = oracle.getPrice(address(wBTC), collateralFactor);
+
+        assertEq(oraclePrice, expectedPrice, "Oracle didn't update when feed did");
+        assertEq(oracle.dailyLows(address(wBTC), day), expectedPrice, "Oracle didn't record daily low on call to getPrice");
     }
 
     function test_viewPrice_returnsDampenedPrice() public {
