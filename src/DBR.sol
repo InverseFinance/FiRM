@@ -286,10 +286,12 @@ contract DolaBorrowingRights {
         uint debt = debts[user];
         if(lastUpdated[user] == block.timestamp) return;
         uint accrued = (block.timestamp - lastUpdated[user]) * debt / 365 days;
-        dueTokensAccrued[user] += accrued;
-        totalDueTokensAccrued += accrued;
-        lastUpdated[user] = block.timestamp;
-        emit Transfer(user, address(0), accrued);
+        if(accrued > 0 || lastUpdated[user] == 0){
+            dueTokensAccrued[user] += accrued;
+            totalDueTokensAccrued += accrued;
+            lastUpdated[user] = block.timestamp;
+            emit Transfer(user, address(0), accrued);
+        }
     }
 
     /**
