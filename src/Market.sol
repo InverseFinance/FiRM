@@ -587,6 +587,17 @@ contract Market {
         dola.transfer(msg.sender, replenisherReward);
         emit ForceReplenish(user, msg.sender, amount, replenishmentCost, replenisherReward);
     }
+    /**
+    @notice Function for forcing a user to replenish all of their DBR deficit at a pre-determined price.
+     The replenishment will accrue additional DOLA debt.
+     On a successful call, the caller will be paid a replenishment incentive.
+    @dev The function will only top the user back up to 0, meaning that the user will have a DBR deficit again in the next block.
+    @param user The address of the user being forced to replenish DBR
+    */
+    function forceReplenishAll(address user) public {
+        uint deficit = dbr.deficitOf(user);
+        forceReplenish(user, deficit);
+    }
 
     /**
     @notice View function for getting the amount of liquidateable debt a user holds.
