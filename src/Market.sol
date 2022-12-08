@@ -89,7 +89,7 @@ contract Market {
         INITIAL_CHAIN_ID = block.chainid;
         INITIAL_DOMAIN_SEPARATOR = computeDomainSeparator();
         if(collateralFactorBps > 0){
-            uint unsafeLiquidationIncentive = 10000 * 10000 / collateralFactorBps - 10000 - liquidationFeeBps;
+            uint unsafeLiquidationIncentive = (10000 - collateralFactorBps) * (liquidationFeeBps + 10000) / collateralFactorBps;
             require(liquidationIncentiveBps < unsafeLiquidationIncentive,  "Liquidation param allow profitable self liquidation");
         }
     }
@@ -102,7 +102,7 @@ contract Market {
     modifier liquidationParamChecker {
         _;
         if(collateralFactorBps > 0){
-            uint unsafeLiquidationIncentive = 10000 * 10000 / collateralFactorBps - 10000 - liquidationFeeBps;
+            uint unsafeLiquidationIncentive = (10000 - collateralFactorBps) * (liquidationFeeBps + 10000) / collateralFactorBps;
             require(liquidationIncentiveBps < unsafeLiquidationIncentive,  "New liquidation param allow profitable self liquidation");
         }
     }

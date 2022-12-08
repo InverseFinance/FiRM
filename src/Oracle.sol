@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 interface IChainlinkFeed {
     function decimals() external view returns (uint8);
-    function latestAnswer() external view returns (uint);
+    function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80);
 }
 
 /**
@@ -78,6 +78,7 @@ contract Oracle {
     function viewPrice(address token, uint collateralFactorBps) external view returns (uint) {
         if(fixedPrices[token] > 0) return fixedPrices[token];
         if(feeds[token].feed != IChainlinkFeed(address(0))) {
+
             //get normalized price
             uint normalizedPrice = getNormalizedPrice(token);
             uint day = block.timestamp / 1 days;
@@ -141,8 +142,7 @@ contract Oracle {
     */
     function getNormalizedPrice(address token) internal view returns (uint normalizedPrice) {
         //get price from feed
-        uint price = feeds[token].feed.latestAnswer();
-        require(price > 0, "Invalid feed price");
+        uint price = getFeedPrice(token);
         // normalize price
         uint8 feedDecimals = feeds[token].feed.decimals();
         uint8 tokenDecimals = feeds[token].tokenDecimals;
@@ -154,6 +154,18 @@ contract Oracle {
             normalizedPrice = price / 10 ** decimals;
         }
 
+    }
+
+    /**
+    @notice returns the underlying feed price of the given token address
+    @dev Will revert if price is negative or token is not in the oracle
+    @param token The address of the token to get the price of
+    @return Return the unaltered price of the underlying token
+    */
+    function getFeedPrice(address token) public view returns(uint) {
+        (,int256 price,,,) = feeds[token].feed.latestRoundData();
+        require(price > 0, "Invalid feed price");
+        return uint(price);
     }
 
     event ChangeOperator(address indexed newOperator);

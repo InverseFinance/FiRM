@@ -299,7 +299,7 @@ contract MarketTest is FrontierV2Test {
         market.borrow(borrowAmount);
         vm.stopPrank();
 
-        ethFeed.changeAnswer(ethFeed.latestAnswer() * 9 / 10);
+        ethFeed.changeAnswer(oracle.getFeedPrice(address(WETH)) * 9 / 10);
 
         vm.startPrank(user2);
         gibDOLA(user2, liqAmount);
@@ -352,7 +352,7 @@ contract MarketTest is FrontierV2Test {
         market.borrow(borrowAmount);
         vm.stopPrank();
 
-        ethFeed.changeAnswer(ethFeed.latestAnswer() * 9 / 10);
+        ethFeed.changeAnswer(oracle.getFeedPrice(address(WETH)) * 9 / 10);
 
         vm.startPrank(user2);
         gibDOLA(user2, liqAmount);
@@ -393,7 +393,7 @@ contract MarketTest is FrontierV2Test {
 
         vm.stopPrank();
 
-        ethFeed.changeAnswer(ethFeed.latestAnswer() * 9 / 10);
+        ethFeed.changeAnswer(oracle.getFeedPrice(address(WETH)) * 9 / 10);
 
         vm.startPrank(user2);
         gibDOLA(user2, 5_000 ether);
@@ -414,7 +414,7 @@ contract MarketTest is FrontierV2Test {
 
         vm.stopPrank();
 
-        ethFeed.changeAnswer(ethFeed.latestAnswer() * 9 / 10);
+        ethFeed.changeAnswer(oracle.getFeedPrice(address(WETH)) * 9 / 10);
 
         vm.startPrank(user2);
         gibDOLA(user2, 5_000 ether);
@@ -590,7 +590,7 @@ contract MarketTest is FrontierV2Test {
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount / 14);
 
-        vm.startPrank(user);
+        vm.startPrank(user, user);
         deposit(wethTestAmount);
         uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
         market.borrow(borrowAmount);
@@ -599,10 +599,11 @@ contract MarketTest is FrontierV2Test {
         uint deficit = dbr.deficitOf(user);
         vm.stopPrank();
 
-        vm.startPrank(replenisher);
+        vm.startPrank(replenisher, replenisher);
         uint maxDebt = market.getCollateralValue(user) * (10000 - market.liquidationIncentiveBps() - market.liquidationFeeBps()) / 10000;
         market.forceReplenish(user, maxDebt - market.debts(user));
         assertEq(market.debts(user), maxDebt);
+        assertLt(dbr.deficitOf(user), deficit, "Deficit didn't shrink");
     }
 
     function testGetWithdrawalLimit_Returns_CollateralBalance() public {
@@ -656,7 +657,7 @@ contract MarketTest is FrontierV2Test {
         assertEq(collateralBalance, wethTestAmount);
         market.withdraw(wethTestAmount);
 
-        uint ethPrice = ethFeed.latestAnswer();
+        uint ethPrice = oracle.getFeedPrice(address(WETH));
         ethFeed.changeAnswer(ethPrice * 6 / 10);
         assertEq(market.getWithdrawalLimit(user), 0, "Should return 0 when user's collateral value is less than debts");
         ethFeed.changeAnswer(ethPrice);
@@ -701,7 +702,7 @@ contract MarketTest is FrontierV2Test {
         deposit(wethTestAmount);
         market.borrow(borrowAmount);
 
-        ethFeed.changeAnswer(ethFeed.latestAnswer() * 5 / 10);
+        ethFeed.changeAnswer(oracle.getFeedPrice(address(WETH)) * 5 / 10);
 
         assertGt(market.getLiquidatableDebt(user), 0, "Should return liquidatable debt when user debt > credit");
     }
