@@ -23,7 +23,7 @@ interface IEscrow {
 interface IDolaBorrowingRights {
     function onBorrow(address user, uint additionalDebt) external;
     function onRepay(address user, uint repaidDebt) external;
-    function onForceReplenish(address user, uint amount) external;
+    function onForceReplenish(address user, address replenisher, uint amount, uint replenisherReward) external;
     function balanceOf(address user) external view returns (uint);
     function deficitOf(address user) external view returns (uint);
     function replenishmentPriceBps() external view returns (uint);
@@ -585,9 +585,8 @@ contract Market {
         uint collateralValue = getCollateralValueInternal(user) * (10000 - liquidationIncentiveBps - liquidationFeeBps) / 10000;
         require(collateralValue >= debts[user], "Exceeded collateral value");
         totalDebt += replenishmentCost;
-        dbr.onForceReplenish(user, amount);
+        dbr.onForceReplenish(user, msg.sender, amount, replenisherReward);
         dola.transfer(msg.sender, replenisherReward);
-        emit ForceReplenish(user, msg.sender, amount, replenishmentCost, replenisherReward);
     }
     /**
     @notice Function for forcing a user to replenish all of their DBR deficit at a pre-determined price.
@@ -648,7 +647,6 @@ contract Market {
     event Borrow(address indexed account, uint amount);
     event Withdraw(address indexed account, address indexed to, uint amount);
     event Repay(address indexed account, address indexed repayer, uint amount);
-    event ForceReplenish(address indexed account, address indexed replenisher, uint deficit, uint replenishmentCost, uint replenisherReward);
     event Liquidate(address indexed account, address indexed liquidator, uint repaidDebt, uint liquidatorReward);
     event CreateEscrow(address indexed user, address escrow);
 }

@@ -439,6 +439,6 @@ contract DBRTest is FrontierV2Test {
         vm.startPrank(user, user);
         uint deficit = dbr.deficitOf(user);
         vm.expectRevert(onForceReplenishError);
-        dbr.onForceReplenish(user, deficit);
+        dbr.onForceReplenish(user, msg.sender, deficit, 1);
     }
 }
