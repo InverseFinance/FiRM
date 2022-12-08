@@ -537,14 +537,16 @@ contract Market {
     
     /**
     @notice Function for repaying debt on behalf of user. Debt must be repaid in DOLA.
-    @dev Querying debts[user] and using it for amount to be repaid will always result in full repayment, unless the user has a DBR deficit.
-     If the user has a DBR deficit, they risk initial debt being accrued by forced replenishments.
+    @dev If the user has a DBR deficit, they risk initial debt being accrued by forced replenishments.
     @param user Address of the user whose debt is being repaid
-    @param amount DOLA amount to be repaid
+    @param amount DOLA amount to be repaid. If set to max uint debt will be repaid in full.
     */
     function repay(address user, uint amount) public {
         uint debt = debts[user];
-        require(debt >= amount, "Insufficient debt");
+        if(amount == type(uint).max){
+            amount = debt;
+        }
+        require(debt >= amount, "Repayment greater than debt");
         debts[user] -= amount;
         totalDebt -= amount;
         dbr.onRepay(user, amount);

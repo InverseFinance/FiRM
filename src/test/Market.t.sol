@@ -490,7 +490,7 @@ contract MarketTest is FrontierV2Test {
         assertEq(initialDolaBal - initialUserDebt, DOLA.balanceOf(user2), "DOLA was not subtracted from user2");
     }
 
-    function testRepay_Fails_WhenAmountGtDebt() public {
+    function testRepay_RepaysDebt_WhenAmountSetToMaxUint() public {
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount);
         gibDOLA(user, 500e18);
@@ -500,8 +500,29 @@ contract MarketTest is FrontierV2Test {
         deposit(wethTestAmount);
         uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
         market.borrow(borrowAmount);
+        uint dolaBalAfterBorrow = DOLA.balanceOf(user);
+        uint debtAfterBorrow = market.debts(user);
 
-        vm.expectRevert("Insufficient debt");
+        market.repay(user, type(uint).max);
+        assertEq(dolaBalAfterBorrow-borrowAmount, DOLA.balanceOf(user));
+        assertEq(market.debts(user), 0);
+    }
+
+
+    function testRepay_Fails_WhenAmountGtThanDebt() public {
+        gibWeth(user, wethTestAmount);
+        gibDBR(user, wethTestAmount);
+        gibDOLA(user, 500e18);
+
+        vm.startPrank(user);
+
+        deposit(wethTestAmount);
+        uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
+        market.borrow(borrowAmount);
+        uint dolaBalAfterBorrow = DOLA.balanceOf(user);
+        uint debtAfterBorrow = market.debts(user);
+        
+        vm.expectRevert("Repayment greater than debt");
         market.repay(user, borrowAmount + 1);
     }
 
