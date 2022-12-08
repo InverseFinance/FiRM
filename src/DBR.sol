@@ -334,6 +334,7 @@ contract DolaBorrowingRights {
         accrueDueTokens(user);
         debts[user] += replenishmentCost;
         _mint(user, amount);
+        emit OnForceReplenish(user, msg.sender, amount, replenishmentCost);
     }
 
     /**
@@ -387,4 +388,5 @@ contract DolaBorrowingRights {
     event RemoveMinter(address indexed minter);
     event AddMarket(address indexed market);
     event ChangeOperator(address indexed newOperator);
+    event OnForceReplenish(address indexed account, address indexed market, uint deficit, uint replenishmentCost);
 }

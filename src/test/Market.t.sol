@@ -514,7 +514,7 @@ contract MarketTest is FrontierV2Test {
         gibDBR(user, wethTestAmount);
         gibDOLA(user, 500e18);
 
-        vm.startPrank(user);
+        vm.startPrank(user, user);
 
         deposit(wethTestAmount);
         uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
