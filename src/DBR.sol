@@ -325,7 +325,7 @@ contract DolaBorrowingRights {
     @param user The user to be force replenished.
     @param amount The amount of DBR the user will be force replenished.
     */
-    function onForceReplenish(address user, uint amount) public {
+    function onForceReplenish(address user, address replenisher, uint amount, uint replenisherReward) public {
         require(markets[msg.sender], "Only markets can call onForceReplenish");
         uint deficit = deficitOf(user);
         require(deficit > 0, "No deficit");
@@ -334,7 +334,7 @@ contract DolaBorrowingRights {
         accrueDueTokens(user);
         debts[user] += replenishmentCost;
         _mint(user, amount);
-        emit OnForceReplenish(user, msg.sender, amount, replenishmentCost);
+        emit ForceReplenish(user, replenisher, msg.sender, amount, replenishmentCost, replenisherReward);
     }
 
     /**
@@ -388,5 +388,6 @@ contract DolaBorrowingRights {
     event RemoveMinter(address indexed minter);
     event AddMarket(address indexed market);
     event ChangeOperator(address indexed newOperator);
-    event OnForceReplenish(address indexed account, address indexed market, uint deficit, uint replenishmentCost);
+    event ForceReplenish(address indexed account, address indexed replenisher, address indexed market, uint deficit, uint replenishmentCost, uint replenisherReward);
+
 }
