@@ -99,28 +99,6 @@ contract OracleTest is FrontierV2Test {
         oracle.getPrice(address(0), collateralFactor);
     }
 
-    function test_viewPrice_returnsFixedPrice_whenFixedPriceAndOracleSet() public {
-        uint collateralFactor = market.collateralFactorBps();
-
-        //WETH feed is already set in FrontierV2Test.sol's `initialize()`
-        assertEq(oracle.viewPrice(address(WETH), collateralFactor), ethFeed.latestAnswer(), "WETH feed not set");
-
-        vm.startPrank(operator);
-        oracle.setFixedPrice(address(WETH), 1_000e18);
-        assertEq(oracle.viewPrice(address(WETH), collateralFactor), 1_000e18, "Fixed price should overwrite feed");
-    }
-
-    function test_getPrice_returnsFixedPrice_whenFixedPriceAndOracleSet() public {
-        uint collateralFactor = market.collateralFactorBps();
-
-        //WETH feed is already set in FrontierV2Test.sol's `initialize()`
-        assertEq(oracle.getPrice(address(WETH), collateralFactor), ethFeed.latestAnswer(), "WETH feed not set");
-
-        vm.startPrank(operator);
-        oracle.setFixedPrice(address(WETH), 1_000e18);
-        assertEq(oracle.getPrice(address(WETH), collateralFactor), 1_000e18, "Fixed price should overwrite feed");
-    }
-
     function test_viewPrice_reverts_whenFeedPriceReturns0() public {
         ethFeed.changeAnswer(0);
         uint collateralFactor = market.collateralFactorBps();
@@ -203,14 +181,4 @@ contract OracleTest is FrontierV2Test {
         oracle.setFeed(address(WETH), IChainlinkFeed(address(ethFeed)), 18);
     }
 
-    function test_accessControl_setFixedPrice() public {
-        vm.startPrank(operator);
-        uint collateralFactor = market.collateralFactorBps();
-        oracle.setFixedPrice(address(WETH), 1200e18);
-        assertEq(oracle.viewPrice(address(WETH), collateralFactor), 1200e18, "Fixed price failed to set");
-        vm.stopPrank();
-
-        vm.expectRevert(onlyOperator);
-        oracle.setFixedPrice(address(WETH), 1200e18);
-    }
 }
