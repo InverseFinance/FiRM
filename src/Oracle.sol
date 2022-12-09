@@ -8,7 +8,7 @@ interface IChainlinkFeed {
 
 /**
 @title Oracle
-@notice Oracle used by markets. Can use both fixed price feeds and Chainlink-style feeds for prices.
+@notice Oracle used by markets. Uses Chainlink-style feeds for prices.
 The Pessimistic Oracle introduces collateral factor into the pricing formula. It ensures that any given oracle price is dampened to prevent borrowers from borrowing more than the lowest recorded value of their collateral over the past 2 days.
 This has the advantage of making price manipulation attacks more difficult, as an attacker needs to log artificially high lows.
 It has the disadvantage of reducing borrow power of borrowers to a 2-day minimum value of their collateral, where the value must have been seen by the oracle.
@@ -23,7 +23,6 @@ contract Oracle {
     address public operator;
     address public pendingOperator;
     mapping (address => FeedData) public feeds;
-    mapping (address => uint) public fixedPrices;
     mapping (address => mapping(uint => uint)) public dailyLows; // token => day => price
 
     constructor(
@@ -53,14 +52,6 @@ contract Oracle {
     function setFeed(address token, IChainlinkFeed feed, uint8 tokenDecimals) public onlyOperator { feeds[token] = FeedData(feed, tokenDecimals); }
 
     /**
-    @notice Sets a fixed price for a token
-    @dev Be careful when setting this. Assuming a fixed price where one doesn't exist can have disastrous consequences.
-    @param token The address of the fixed price token
-    @param price The fixed price of the token. Remember to account for decimal precision when setting this.
-    */
-    function setFixedPrice(address token, uint price) public onlyOperator { fixedPrices[token] = price; }
-
-    /**
     @notice Claims the operator role. Only successfully callable by the pending operator.
     */
     function claimOperator() public {
@@ -76,7 +67,6 @@ contract Oracle {
     @return The price of the token in DOLA, adjusted for token and feed decimals
     */
     function viewPrice(address token, uint collateralFactorBps) external view returns (uint) {
-        if(fixedPrices[token] > 0) return fixedPrices[token];
         if(feeds[token].feed != IChainlinkFeed(address(0))) {
 
             //get normalized price
@@ -108,7 +98,6 @@ contract Oracle {
     @return The price of the token in DOLA, adjusted for token and feed decimals
     */
     function getPrice(address token, uint collateralFactorBps) external returns (uint) {
-        if(fixedPrices[token] > 0) return fixedPrices[token];
         if(feeds[token].feed != IChainlinkFeed(address(0))) {
             // get normalized price
             uint normalizedPrice = getNormalizedPrice(token);
