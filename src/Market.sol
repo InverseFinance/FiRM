@@ -601,18 +601,6 @@ contract Market {
     }
 
     /**
-    @notice View function for getting the amount of liquidateable debt a user holds.
-    @param user The address of the user.
-    */
-    function getLiquidatableDebt(address user) public view returns (uint) {
-        uint debt = debts[user];
-        if (debt == 0) return 0;
-        uint credit = getCreditLimit(user);
-        if(credit >= debt) return 0;
-        return debt * liquidationFactorBps / 10000;
-    }
-
-    /**
     @notice Function for liquidating a user's under water debt. Debt is under water when the value of a user's debt is above their collateral factor.
     @param user The user to be liquidated
     @param repaidDebt Th amount of user user debt to liquidate.
