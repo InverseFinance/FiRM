@@ -32,6 +32,7 @@ contract Fed {
     uint public supplyCeiling;
     uint public globalSupply;
     mapping (IMarket => uint) public supplies;
+    mapping (IMarket => uint) public ceilings;
 
     constructor (IDBR _dbr, IDola _dola, address _gov, address _chair, uint _supplyCeiling) {
         dbr = _dbr;
@@ -60,6 +61,16 @@ contract Fed {
     }
 
     /**
+    @notice Set a market's isolated ceiling of the Fed. Only callable by governance.
+    @param _market Market to set the ceiling for
+    @param _ceiling Amount to set the ceiling to
+    */
+    function changeMarketCeiling(IMarket _market, uint _ceiling) public {
+        require(msg.sender == gov, "ONLY GOV");
+        ceilings[_market] = _ceiling;
+    }
+
+    /**
     @notice Set the chair of the fed. Only callable by governance.
     @param _chair Address of the new chair.
     */
@@ -79,7 +90,7 @@ contract Fed {
 
     /**
     @notice Expand the amount of DOLA by depositing the amount into a specific market.
-    @dev While not immediately dangerous to the DOLA peg, make sure the market can absorb the new potential supply.
+    @dev While not immediately dangerous to the DOLA peg, make sure the market can absorb the new potential supply. Market must have a positive ceiling before expansion.
     @param market The market to add additional DOLA supply to.
     @param amount The amount of DOLA to mint and supply to the market.
     */
@@ -91,6 +102,7 @@ contract Fed {
         supplies[market] += amount;
         globalSupply += amount;
         require(globalSupply <= supplyCeiling);
+        require(supplies[market] <= ceilings[market]);
         emit Expansion(market, amount);
     }
 
