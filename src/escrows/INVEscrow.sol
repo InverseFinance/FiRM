@@ -19,6 +19,13 @@ interface IXINV {
     function syncDelegate(address user) external;
 }
 
+interface IDbrDistributor {
+    function stake(uint amount) external;
+    function unstake(uint amount) external;
+    function claim(address to) external;
+    function claimable(address user) external view returns(uint);
+}
+
 /**
 @title INV Escrow
 @notice Collateral is stored in unique escrow contracts for every user and every market.
@@ -30,9 +37,11 @@ contract INVEscrow {
     IERC20 public token;
     address public beneficiary;
     IXINV public immutable xINV;
+    IDbrDistributor public immutable distributor;
 
-    constructor(IXINV _xINV) {
+    constructor(IXINV _xINV, IDbrDistributor _distributor) {
         xINV = _xINV; // TODO: Test whether an immutable variable will persist across proxies
+        distributor = _distributor;
     }
 
     /**
@@ -59,8 +68,24 @@ contract INVEscrow {
     function pay(address recipient, uint amount) public {
         require(msg.sender == market, "ONLY MARKET");
         uint invBalance = token.balanceOf(address(this));
-        if(invBalance < amount) xINV.redeemUnderlying(amount - invBalance); // we do not check return value because next call will fail if this fails anyway
+        if(invBalance < amount) {
+            unchecked {
+                uint stakedInv = amount - invBalance;
+                uint xinvBal = xINV.balanceOf(address(this));
+                xINV.redeemUnderlying(stakedInv); // we do not check return value because transfer call will fail if this fails anyway
+                distributor.unstake(xinvBal - xINV.balanceOf(address(this)));
+            }
+        }
         token.transfer(recipient, amount);
+    }
+
+    function claimDBR() public {
+        require(msg.sender == beneficiary, "ONLY BENEFICIARY");
+        distributor.claim(msg.sender);
+    }
+
+    function claimable() public view returns (uint) {
+        return distributor.claimable(address(this));
     }
 
     /**
@@ -79,7 +104,9 @@ contract INVEscrow {
     function onDeposit() public {
         uint invBalance = token.balanceOf(address(this));
         if(invBalance > 0) {
+            uint xinvBal = xINV.balanceOf(address(this));
             xINV.mint(invBalance); // we do not check return value because we don't want errors to block this call
+            distributor.stake(xINV.balanceOf(address(this)) - xinvBal);
         }
     }
 
