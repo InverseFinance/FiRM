@@ -35,7 +35,7 @@ contract MarketTest is FrontierV2Test {
         gibWeth(user, wethTestAmount);
         uint balanceUserBefore = WETH.balanceOf(user); 
 
-        vm.startPrank(user);
+        vm.startPrank(user, user);
         deposit(wethTestAmount);
         assertEq(WETH.balanceOf(address(market.predictEscrow(user))), wethTestAmount, "Escrow balance did not increase");
         assertEq(WETH.balanceOf(user), balanceUserBefore - wethTestAmount, "User balance did not decrease");
@@ -45,7 +45,7 @@ contract MarketTest is FrontierV2Test {
         gibWeth(user, wethTestAmount);
         uint balanceUserBefore = WETH.balanceOf(user); 
 
-        vm.startPrank(user);
+        vm.startPrank(user, user);
         WETH.approve(address(market), wethTestAmount);
         market.deposit(user2, wethTestAmount);
         assertEq(WETH.balanceOf(address(market.predictEscrow(user))), 0, "User balance not 0");
@@ -57,7 +57,7 @@ contract MarketTest is FrontierV2Test {
     function testBorrow() public {
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount);
-        vm.startPrank(user);
+        vm.startPrank(user, user);
         uint initialDolaBalance = DOLA.balanceOf(user);
         deposit(wethTestAmount);
 
@@ -70,7 +70,7 @@ contract MarketTest is FrontierV2Test {
     function testBorrow_BurnsCorrectAmountOfDBR_WhenTimePasses() public {
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount);
-        vm.startPrank(user);
+        vm.startPrank(user, user);
         uint initialDolaBalance = DOLA.balanceOf(user);
         deposit(wethTestAmount);
 
@@ -91,7 +91,7 @@ contract MarketTest is FrontierV2Test {
     function testDepositAndBorrow() public {
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount);
-        vm.startPrank(user);
+        vm.startPrank(user, user);
 
         uint initialDolaBalance = DOLA.balanceOf(user);
         uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
@@ -109,7 +109,7 @@ contract MarketTest is FrontierV2Test {
         gibWeth(userPk, wethTestAmount);
         gibDBR(userPk, wethTestAmount);
         
-        vm.startPrank(userPk);
+        vm.startPrank(userPk, userPk);
         uint maxBorrowAmount = getMaxBorrowAmount(wethTestAmount);
         bytes32 hash = keccak256(
                     abi.encodePacked(
@@ -137,7 +137,7 @@ contract MarketTest is FrontierV2Test {
         assertEq(WETH.balanceOf(address(market.escrows(userPk))), wethTestAmount, "failed to deposit WETH");
         assertEq(WETH.balanceOf(userPk), 0, "failed to deposit WETH");
 
-        vm.startPrank(user2);
+        vm.startPrank(user2, user2);
         market.borrowOnBehalf(userPk, maxBorrowAmount, block.timestamp, v, r, s);
 
         assertEq(DOLA.balanceOf(userPk), 0, "borrowed DOLA went to the wrong user");
@@ -226,7 +226,7 @@ contract MarketTest is FrontierV2Test {
 
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount);
-        vm.startPrank(user);
+        vm.startPrank(user, user);
 
         deposit(wethTestAmount);
 
@@ -242,7 +242,7 @@ contract MarketTest is FrontierV2Test {
 
         gibWeth(address(borrowContract), wethTestAmount);
         gibDBR(address(borrowContract), wethTestAmount);
-        vm.startPrank(user);
+        vm.startPrank(user, user);
 
         borrowContract.deposit(wethTestAmount);
 
@@ -254,7 +254,7 @@ contract MarketTest is FrontierV2Test {
     function testBorrow_Fails_When_AmountGTCreditLimit() public {
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount);
-        vm.startPrank(user);
+        vm.startPrank(user, user);
 
         deposit(wethTestAmount);
 
@@ -271,7 +271,7 @@ contract MarketTest is FrontierV2Test {
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount);
 
-        vm.startPrank(user);
+        vm.startPrank(user, user);
         
         deposit(wethTestAmount);
 
@@ -294,12 +294,12 @@ contract MarketTest is FrontierV2Test {
         fed.expansion(IMarket(address(market)), convertWethToDola(depositAmount));
         vm.stopPrank();
 
-        vm.startPrank(user);
+        vm.startPrank(user, user);
         deposit(depositAmount);
         market.borrow(borrowAmount);
         vm.stopPrank();
 
-        ethFeed.changeAnswer(ethFeed.latestAnswer() * 9 / 10);
+        ethFeed.changeAnswer(oracle.getFeedPrice(address(WETH)) * 9 / 10);
 
         vm.startPrank(user2);
         gibDOLA(user2, liqAmount);
@@ -345,14 +345,14 @@ contract MarketTest is FrontierV2Test {
         market.setLiquidationFeeBps(liquidationFeeBps);
         vm.stopPrank();
 
-        vm.startPrank(user);
+        vm.startPrank(user, user);
         deposit(depositAmount);
         uint maxBorrowAmount = convertWethToDola(depositAmount) * market.collateralFactorBps() / 10_000;
         uint borrowAmount = maxBorrowAmount * borrowMulti / 100;
         market.borrow(borrowAmount);
         vm.stopPrank();
 
-        ethFeed.changeAnswer(ethFeed.latestAnswer() * 9 / 10);
+        ethFeed.changeAnswer(oracle.getFeedPrice(address(WETH)) * 9 / 10);
 
         vm.startPrank(user2);
         gibDOLA(user2, liqAmount);
@@ -385,7 +385,7 @@ contract MarketTest is FrontierV2Test {
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount);
 
-        vm.startPrank(user);
+        vm.startPrank(user, user);
 
         deposit(wethTestAmount);
         uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
@@ -393,7 +393,7 @@ contract MarketTest is FrontierV2Test {
 
         vm.stopPrank();
 
-        ethFeed.changeAnswer(ethFeed.latestAnswer() * 9 / 10);
+        ethFeed.changeAnswer(oracle.getFeedPrice(address(WETH)) * 9 / 10);
 
         vm.startPrank(user2);
         gibDOLA(user2, 5_000 ether);
@@ -406,7 +406,7 @@ contract MarketTest is FrontierV2Test {
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount);
 
-        vm.startPrank(user);
+        vm.startPrank(user, user);
 
         deposit(wethTestAmount);
         uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
@@ -414,7 +414,7 @@ contract MarketTest is FrontierV2Test {
 
         vm.stopPrank();
 
-        ethFeed.changeAnswer(ethFeed.latestAnswer() * 9 / 10);
+        ethFeed.changeAnswer(oracle.getFeedPrice(address(WETH)) * 9 / 10);
 
         vm.startPrank(user2);
         gibDOLA(user2, 5_000 ether);
@@ -429,7 +429,7 @@ contract MarketTest is FrontierV2Test {
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount);
 
-        vm.startPrank(user);
+        vm.startPrank(user, user);
 
         deposit(wethTestAmount);
         uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
@@ -450,7 +450,7 @@ contract MarketTest is FrontierV2Test {
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount);
 
-        vm.startPrank(user);
+        vm.startPrank(user, user);
 
         deposit(wethTestAmount);
         uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
@@ -471,7 +471,7 @@ contract MarketTest is FrontierV2Test {
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount);
 
-        vm.startPrank(user);
+        vm.startPrank(user, user);
 
         deposit(wethTestAmount);
         uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
@@ -490,18 +490,39 @@ contract MarketTest is FrontierV2Test {
         assertEq(initialDolaBal - initialUserDebt, DOLA.balanceOf(user2), "DOLA was not subtracted from user2");
     }
 
-    function testRepay_Fails_WhenAmountGtDebt() public {
+    function testRepay_RepaysDebt_WhenAmountSetToMaxUint() public {
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount);
         gibDOLA(user, 500e18);
 
-        vm.startPrank(user);
+        vm.startPrank(user, user);
 
         deposit(wethTestAmount);
         uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
         market.borrow(borrowAmount);
+        uint dolaBalAfterBorrow = DOLA.balanceOf(user);
+        uint debtAfterBorrow = market.debts(user);
 
-        vm.expectRevert("Insufficient debt");
+        market.repay(user, type(uint).max);
+        assertEq(dolaBalAfterBorrow-borrowAmount, DOLA.balanceOf(user));
+        assertEq(market.debts(user), 0);
+    }
+
+
+    function testRepay_Fails_WhenAmountGtThanDebt() public {
+        gibWeth(user, wethTestAmount);
+        gibDBR(user, wethTestAmount);
+        gibDOLA(user, 500e18);
+
+        vm.startPrank(user, user);
+
+        deposit(wethTestAmount);
+        uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
+        market.borrow(borrowAmount);
+        uint dolaBalAfterBorrow = DOLA.balanceOf(user);
+        uint debtAfterBorrow = market.debts(user);
+        
+        vm.expectRevert("Repayment greater than debt");
         market.repay(user, borrowAmount + 1);
     }
 
@@ -510,7 +531,7 @@ contract MarketTest is FrontierV2Test {
         gibDBR(user, wethTestAmount / 14);
         uint initialReplenisherDola = DOLA.balanceOf(replenisher);
 
-        vm.startPrank(user);
+        vm.startPrank(user, user);
         deposit(wethTestAmount);
         uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
         market.borrow(borrowAmount);
@@ -534,7 +555,7 @@ contract MarketTest is FrontierV2Test {
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount * 100);
 
-        vm.startPrank(user);
+        vm.startPrank(user, user);
 
         deposit(wethTestAmount);
         uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
@@ -552,7 +573,7 @@ contract MarketTest is FrontierV2Test {
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount / 14);
 
-        vm.startPrank(user);
+        vm.startPrank(user, user);
         deposit(wethTestAmount);
         uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
         market.borrow(borrowAmount);
@@ -572,7 +593,7 @@ contract MarketTest is FrontierV2Test {
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount / 14);
 
-        vm.startPrank(user);
+        vm.startPrank(user, user);
         deposit(wethTestAmount);
         uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
         market.borrow(borrowAmount);
@@ -581,16 +602,36 @@ contract MarketTest is FrontierV2Test {
         uint deficit = dbr.deficitOf(user);
         vm.stopPrank();
 
-        vm.startPrank(replenisher);   
+        vm.startPrank(replenisher);
         vm.expectRevert("Exceeded collateral value");
         market.forceReplenish(user, deficit);   
+    }
+
+    function testForceReplenish_Succeed_When_PartiallyReplenishedDebtExceedCollateralValue() public {
+        gibWeth(user, wethTestAmount);
+        gibDBR(user, wethTestAmount / 14);
+
+        vm.startPrank(user, user);
+        deposit(wethTestAmount);
+        uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
+        market.borrow(borrowAmount);
+
+        vm.warp(block.timestamp + 10000 days);
+        uint deficit = dbr.deficitOf(user);
+        vm.stopPrank();
+
+        vm.startPrank(replenisher, replenisher);
+        uint maxDebt = market.getCollateralValue(user) * (10000 - market.liquidationIncentiveBps() - market.liquidationFeeBps()) / 10000;
+        market.forceReplenish(user, maxDebt - market.debts(user));
+        assertEq(market.debts(user), maxDebt);
+        assertLt(dbr.deficitOf(user), deficit, "Deficit didn't shrink");
     }
 
     function testGetWithdrawalLimit_Returns_CollateralBalance() public {
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount);
 
-        vm.startPrank(user);
+        vm.startPrank(user, user);
         deposit(wethTestAmount);
 
         uint collateralBalance = market.escrows(user).balance();
@@ -603,7 +644,7 @@ contract MarketTest is FrontierV2Test {
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount);
 
-        vm.startPrank(user);
+        vm.startPrank(user, user);
         deposit(wethTestAmount);
         market.borrow(borrowAmount);
         uint collateralBalance = market.escrows(user).balance();
@@ -616,7 +657,7 @@ contract MarketTest is FrontierV2Test {
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount);
 
-        vm.startPrank(user);
+        vm.startPrank(user, user);
         deposit(wethTestAmount);
 
         uint collateralBalance = market.escrows(user).balance();
@@ -630,14 +671,14 @@ contract MarketTest is FrontierV2Test {
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount);
 
-        vm.startPrank(user);
+        vm.startPrank(user, user);
         deposit(wethTestAmount);
 
         uint collateralBalance = market.escrows(user).balance();
         assertEq(collateralBalance, wethTestAmount);
         market.withdraw(wethTestAmount);
 
-        uint ethPrice = ethFeed.latestAnswer();
+        uint ethPrice = oracle.getFeedPrice(address(WETH));
         ethFeed.changeAnswer(ethPrice * 6 / 10);
         assertEq(market.getWithdrawalLimit(user), 0, "Should return 0 when user's collateral value is less than debts");
         ethFeed.changeAnswer(ethPrice);
@@ -647,7 +688,7 @@ contract MarketTest is FrontierV2Test {
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount);
 
-        vm.startPrank(user);
+        vm.startPrank(user, user);
         deposit(wethTestAmount);
         market.borrow(1);
         vm.stopPrank();
@@ -666,7 +707,7 @@ contract MarketTest is FrontierV2Test {
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount);
 
-        vm.startPrank(user);
+        vm.startPrank(user, user);
         deposit(wethTestAmount);
         market.borrow(borrowAmount);
 
@@ -678,11 +719,11 @@ contract MarketTest is FrontierV2Test {
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount);
 
-        vm.startPrank(user);
+        vm.startPrank(user, user);
         deposit(wethTestAmount);
         market.borrow(borrowAmount);
 
-        ethFeed.changeAnswer(ethFeed.latestAnswer() * 5 / 10);
+        ethFeed.changeAnswer(oracle.getFeedPrice(address(WETH)) * 5 / 10);
 
         assertGt(market.getLiquidatableDebt(user), 0, "Should return liquidatable debt when user debt > credit");
     }
@@ -703,7 +744,7 @@ contract MarketTest is FrontierV2Test {
         market.pauseBorrows(false);
         vm.stopPrank();
 
-        vm.startPrank(user);
+        vm.startPrank(user, user);
         vm.expectRevert(onlyPauseGuardianOrGov);
         market.pauseBorrows(true);
 
@@ -714,7 +755,7 @@ contract MarketTest is FrontierV2Test {
     function testWithdraw() public {
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount);
-        vm.startPrank(user);
+        vm.startPrank(user, user);
 
         deposit(wethTestAmount);
 
@@ -730,7 +771,7 @@ contract MarketTest is FrontierV2Test {
     function testWithdraw_Fail_When_WithdrawingCollateralBelowCF() public {
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount);
-        vm.startPrank(user);
+        vm.startPrank(user, user);
 
         deposit(wethTestAmount);
 

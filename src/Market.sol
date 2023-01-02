@@ -23,7 +23,7 @@ interface IEscrow {
 interface IDolaBorrowingRights {
     function onBorrow(address user, uint additionalDebt) external;
     function onRepay(address user, uint repaidDebt) external;
-    function onForceReplenish(address user, uint amount) external;
+    function onForceReplenish(address user, address replenisher, uint amount, uint replenisherReward) external;
     function balanceOf(address user) external view returns (uint);
     function deficitOf(address user) external view returns (uint);
     function replenishmentPriceBps() external view returns (uint);
@@ -31,6 +31,7 @@ interface IDolaBorrowingRights {
 
 interface IBorrowController {
     function borrowAllowed(address msgSender, address borrower, uint amount) external returns (bool);
+    function onRepay(uint amount) external;
 }
 
 contract Market {
@@ -87,11 +88,23 @@ contract Market {
         callOnDepositCallback = _callOnDepositCallback;
         INITIAL_CHAIN_ID = block.chainid;
         INITIAL_DOMAIN_SEPARATOR = computeDomainSeparator();
+        if(collateralFactorBps > 0){
+            uint unsafeLiquidationIncentive = (10000 - collateralFactorBps) * (liquidationFeeBps + 10000) / collateralFactorBps;
+            require(liquidationIncentiveBps < unsafeLiquidationIncentive,  "Liquidation param allow profitable self liquidation");
+        }
     }
     
     modifier onlyGov {
         require(msg.sender == gov, "Only gov can call this function");
         _;
+    }
+
+    modifier liquidationParamChecker {
+        _;
+        if(collateralFactorBps > 0){
+            uint unsafeLiquidationIncentive = (10000 - collateralFactorBps) * (liquidationFeeBps + 10000) / collateralFactorBps;
+            require(liquidationIncentiveBps < unsafeLiquidationIncentive,  "New liquidation param allow profitable self liquidation");
+        }
     }
 
     function DOMAIN_SEPARATOR() public view virtual returns (bytes32) {
@@ -146,7 +159,7 @@ contract Market {
     @dev Collateral factor mus be set below 100%
     @param _collateralFactorBps The new collateral factor as measured in basis points. 
     */
-    function setCollateralFactorBps(uint _collateralFactorBps) public onlyGov {
+    function setCollateralFactorBps(uint _collateralFactorBps) public onlyGov liquidationParamChecker {
         require(_collateralFactorBps < 10000, "Invalid collateral factor");
         collateralFactorBps = _collateralFactorBps;
     }
@@ -180,7 +193,7 @@ contract Market {
     @dev Must be set between 0 and 10000 - liquidation fee.
     @param _liquidationIncentiveBps The new liqudation incentive set in basis points. 1 = 0.01% 
     */
-    function setLiquidationIncentiveBps(uint _liquidationIncentiveBps) public onlyGov {
+    function setLiquidationIncentiveBps(uint _liquidationIncentiveBps) public onlyGov liquidationParamChecker {
         require(_liquidationIncentiveBps > 0 && _liquidationIncentiveBps + liquidationFeeBps < 10000, "Invalid liquidation incentive");
         liquidationIncentiveBps = _liquidationIncentiveBps;
     }
@@ -191,7 +204,7 @@ contract Market {
     @dev Must be set between 0 and 10000 - liquidation factor.
     @param _liquidationFeeBps The new liquidation fee set in basis points. 1 = 0.01%
     */
-    function setLiquidationFeeBps(uint _liquidationFeeBps) public onlyGov {
+    function setLiquidationFeeBps(uint _liquidationFeeBps) public onlyGov liquidationParamChecker {
         require(_liquidationFeeBps > 0 && _liquidationFeeBps + liquidationIncentiveBps < 10000, "Invalid liquidation fee");
         liquidationFeeBps = _liquidationFeeBps;
     }
@@ -460,6 +473,7 @@ contract Market {
     function withdrawInternal(address from, address to, uint amount) internal {
         uint limit = getWithdrawalLimitInternal(from);
         require(limit >= amount, "Insufficient withdrawal limit");
+        require(dbr.deficitOf(from) == 0, "Can't withdraw with DBR deficit");
         IEscrow escrow = getEscrow(from);
         escrow.pay(to, amount);
         emit Withdraw(from, to, amount);
@@ -523,17 +537,22 @@ contract Market {
     
     /**
     @notice Function for repaying debt on behalf of user. Debt must be repaid in DOLA.
-    @dev Querying debts[user] and using it for amount to be repaid will always result in full repayment, unless the user has a DBR deficit.
-     If the user has a DBR deficit, they risk initial debt being accrued by forced replenishments.
+    @dev If the user has a DBR deficit, they risk initial debt being accrued by forced replenishments.
     @param user Address of the user whose debt is being repaid
-    @param amount DOLA amount to be repaid
+    @param amount DOLA amount to be repaid. If set to max uint debt will be repaid in full.
     */
     function repay(address user, uint amount) public {
         uint debt = debts[user];
-        require(debt >= amount, "Insufficient debt");
+        if(amount == type(uint).max){
+            amount = debt;
+        }
+        require(debt >= amount, "Repayment greater than debt");
         debts[user] -= amount;
         totalDebt -= amount;
         dbr.onRepay(user, amount);
+        if(address(borrowController) != address(0)){
+            borrowController.onRepay(amount);
+        }
         dola.transferFrom(msg.sender, address(this), amount);
         emit Repay(user, msg.sender, amount);
     }
@@ -563,12 +582,22 @@ contract Market {
         uint replenishmentCost = amount * dbr.replenishmentPriceBps() / 10000;
         uint replenisherReward = replenishmentCost * replenishmentIncentiveBps / 10000;
         debts[user] += replenishmentCost;
-        uint collateralValue = getCollateralValueInternal(user);
+        uint collateralValue = getCollateralValueInternal(user) * (10000 - liquidationIncentiveBps - liquidationFeeBps) / 10000;
         require(collateralValue >= debts[user], "Exceeded collateral value");
         totalDebt += replenishmentCost;
-        dbr.onForceReplenish(user, amount);
+        dbr.onForceReplenish(user, msg.sender, amount, replenisherReward);
         dola.transfer(msg.sender, replenisherReward);
-        emit ForceReplenish(user, msg.sender, amount, replenishmentCost, replenisherReward);
+    }
+    /**
+    @notice Function for forcing a user to replenish all of their DBR deficit at a pre-determined price.
+     The replenishment will accrue additional DOLA debt.
+     On a successful call, the caller will be paid a replenishment incentive.
+    @dev The function will only top the user back up to 0, meaning that the user will have a DBR deficit again in the next block.
+    @param user The address of the user being forced to replenish DBR
+    */
+    function forceReplenishAll(address user) public {
+        uint deficit = dbr.deficitOf(user);
+        forceReplenish(user, deficit);
     }
 
     /**
@@ -604,8 +633,11 @@ contract Market {
         escrow.pay(msg.sender, liquidatorReward);
         if(liquidationFeeBps > 0) {
             uint liquidationFee = repaidDebt * 1 ether / price * liquidationFeeBps / 10000;
-            if(escrow.balance() >= liquidationFee) {
+            uint balance = escrow.balance();
+            if(balance >= liquidationFee) {
                 escrow.pay(gov, liquidationFee);
+            } else if(balance > 0) {
+                escrow.pay(gov, balance);
             }
         }
         emit Liquidate(user, msg.sender, repaidDebt, liquidatorReward);
@@ -615,7 +647,6 @@ contract Market {
     event Borrow(address indexed account, uint amount);
     event Withdraw(address indexed account, address indexed to, uint amount);
     event Repay(address indexed account, address indexed repayer, uint amount);
-    event ForceReplenish(address indexed account, address indexed replenisher, uint deficit, uint replenishmentCost, uint replenisherReward);
     event Liquidate(address indexed account, address indexed liquidator, uint repaidDebt, uint liquidatorReward);
     event CreateEscrow(address indexed user, address escrow);
 }

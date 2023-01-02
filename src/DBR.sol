@@ -61,6 +61,7 @@ contract DolaBorrowingRights {
     */
     function setReplenishmentPriceBps(uint newReplenishmentPriceBps_) public onlyOperator {
         require(newReplenishmentPriceBps_ > 0, "replenishment price must be over 0");
+        require(newReplenishmentPriceBps_ <= 1_000_000, "Replenishment price cannot exceed 100 DOLA per DBR");
         replenishmentPriceBps = newReplenishmentPriceBps_;
     }
     
@@ -285,10 +286,12 @@ contract DolaBorrowingRights {
         uint debt = debts[user];
         if(lastUpdated[user] == block.timestamp) return;
         uint accrued = (block.timestamp - lastUpdated[user]) * debt / 365 days;
-        dueTokensAccrued[user] += accrued;
-        totalDueTokensAccrued += accrued;
-        lastUpdated[user] = block.timestamp;
-        emit Transfer(user, address(0), accrued);
+        if(accrued > 0 || lastUpdated[user] == 0){
+            dueTokensAccrued[user] += accrued;
+            totalDueTokensAccrued += accrued;
+            lastUpdated[user] = block.timestamp;
+            emit Transfer(user, address(0), accrued);
+        }
     }
 
     /**
@@ -322,7 +325,7 @@ contract DolaBorrowingRights {
     @param user The user to be force replenished.
     @param amount The amount of DBR the user will be force replenished.
     */
-    function onForceReplenish(address user, uint amount) public {
+    function onForceReplenish(address user, address replenisher, uint amount, uint replenisherReward) public {
         require(markets[msg.sender], "Only markets can call onForceReplenish");
         uint deficit = deficitOf(user);
         require(deficit > 0, "No deficit");
@@ -331,6 +334,7 @@ contract DolaBorrowingRights {
         accrueDueTokens(user);
         debts[user] += replenishmentCost;
         _mint(user, amount);
+        emit ForceReplenish(user, replenisher, msg.sender, amount, replenishmentCost, replenisherReward);
     }
 
     /**
@@ -384,4 +388,6 @@ contract DolaBorrowingRights {
     event RemoveMinter(address indexed minter);
     event AddMarket(address indexed market);
     event ChangeOperator(address indexed newOperator);
+    event ForceReplenish(address indexed account, address indexed replenisher, address indexed market, uint deficit, uint replenishmentCost, uint replenisherReward);
+
 }

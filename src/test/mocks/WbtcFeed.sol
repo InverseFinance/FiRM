@@ -5,9 +5,9 @@ interface IChainlinkFeed {
     function latestAnswer() external view returns (uint);
 }
 
-contract EthFeed is IChainlinkFeed {
-    uint8 decimals_ = 18;
-    uint price_ = 1600e18;
+contract WbtcFeed is IChainlinkFeed {
+    uint8 decimals_ = 8;
+    uint price_ = 16000e8;
 
     function decimals() external view returns (uint8) {
         return decimals_;
@@ -18,7 +18,7 @@ contract EthFeed is IChainlinkFeed {
     }
 
     function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80) {
-        return (0,int(price_),0,0,0);
+        return(0, int(price_), 0, 0, 0);
     }
 
     function changeAnswer(uint price) external {

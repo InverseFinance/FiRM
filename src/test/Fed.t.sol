@@ -80,7 +80,7 @@ contract FedTest is FrontierV2Test {
         fed.expansion(marketParameter, testAmount);
 
         vm.stopPrank();
-        vm.startPrank(user);
+        vm.startPrank(user, user);
         deposit(wethTestAmount);
         market.borrow(getMaxBorrowAmount(wethTestAmount));
 
