@@ -29,15 +29,14 @@ abstract contract AbstractHelper {
     /**
     Abstract functions
     */
-    function getDbrPrice() public virtual view returns(uint);
+    function _buyExactDbr(uint amount, uint maxIn) internal virtual;
 
-    function _buyExactDbr(uint amount) internal virtual;
-
-    function _sellExactDbr(uint amount) internal virtual;
+    function _sellExactDbr(uint amount, uint minOut) internal virtual;
 
     function borrowOnBehalf(
         IMarket market, 
-        uint dolaAmount, 
+        uint dolaAmount,
+        uint maxDolaIn,
         uint duration, 
         uint deadline, 
         uint v, 
@@ -50,7 +49,7 @@ abstract contract AbstractHelper {
         
         //Buy DBR
         uint amountToBuy = dolaAmount * duration / 365 days;
-        _buyExactDbr(amountToBuy);
+        _buyExactDbr(amountToBuy, maxDolaIn);
 
         //Transfer remaining DBR and DOLA balance to user
         DOLA.transfer(msg.sender, DOLA.balanceOf(address(this)));
@@ -60,7 +59,8 @@ abstract contract AbstractHelper {
     function depositAndBorrowOnBehalf(
         IMarket market, 
         uint collateralAmount, 
-        uint dolaAmount, 
+        uint dolaAmount,
+        uint maxDolaIn,
         uint duration, 
         uint deadline, 
         uint v, 
@@ -76,18 +76,18 @@ abstract contract AbstractHelper {
         market.deposit(msg.sender, collateralAmount);
 
         //Borrow dola and buy dbr
-        borrowOnBehalf(market, dolaAmount, duration, deadline, v, r , s);
+        borrowOnBehalf(market, dolaAmount, maxDolaIn, duration, deadline, v, r , s);
 
     }
 
-    function sellDbrAndRepayOnBehalf(IMarket market, uint dolaAmount, uint dbrAmountToSell) public {
+    function sellDbrAndRepayOnBehalf(IMarket market, uint dolaAmount, uint minDolaOut, uint dbrAmountToSell) public {
         uint dbrBal = DBR.balanceOf(msg.sender);
 
         //If user has less DBR than ordered, sell what's available
         if(dbrAmountToSell > dbrBal){
-            _sellExactDbr(dbrBal);
+            _sellExactDbr(dbrBal, minDolaOut);
         } else {
-            _sellExactDbr(dbrAmountToSell);
+            _sellExactDbr(dbrAmountToSell, minDolaOut);
         }
 
         uint debt = market.debts(msg.sender);
@@ -111,6 +111,7 @@ abstract contract AbstractHelper {
         IMarket market, 
         uint dolaAmount, 
         uint dbrAmountToSell, 
+        uint minDolaOut,
         uint collateralAmount, 
         uint deadline, 
         uint v, 
@@ -119,7 +120,7 @@ abstract contract AbstractHelper {
         external 
     {
         //Repay
-        sellDbrAndRepayOnBehalf(market, dolaAmount, dbrAmountToSell);
+        sellDbrAndRepayOnBehalf(market, dolaAmount, minDolaOut, dbrAmountToSell);
 
         //Withdraw
         market.withdrawOnBehalf(msg.sender, collateralAmount, deadline, v, r, s);
