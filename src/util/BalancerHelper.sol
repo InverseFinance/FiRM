@@ -16,6 +16,8 @@ contract BalancerHelper is AbstractHelper{
         //TODO: Explore if it makes sense to have recipient be the user
         fundManangement.recipient = payable(address(this));
         fundManangement.toInternalBalance = false;
+        IERC20(_dola).approve(_vault, type(uint).max);
+        IERC20(_dbr).approve(_vault, type(uint).max);
     }
 
     /**

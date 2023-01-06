@@ -1,19 +1,10 @@
 pragma solidity ^0.8.13;
-
+import "../interfaces/IMarket.sol";
 interface IERC20 {
     function transfer(address to, uint amount) external;
     function transferFrom(address from, address to, uint amount) external;
     function approve(address to, uint amount) external;
     function balanceOf(address user) external view returns(uint);
-}
-
-interface IMarket {
-    function borrowOnBehalf(address msgSender, uint dolaAmount, uint deadline, uint v, uint r, uint s) external;
-    function withdrawOnBehalf(address msgSender, uint amount, uint deadline, uint v, uint r, uint s) external;
-    function deposit(address msgSender, uint collateralAmount) external;
-    function repay(address msgSender, uint amount) external;
-    function collateral() external returns(address);
-    function debts(address user) external returns(uint);
 }
 
 abstract contract AbstractHelper {
@@ -39,9 +30,9 @@ abstract contract AbstractHelper {
         uint maxDolaIn,
         uint duration, 
         uint deadline, 
-        uint v, 
-        uint r, 
-        uint s) 
+        uint8 v, 
+        bytes32 r, 
+        bytes32 s) 
         public 
     {
         //Borrow Dola
@@ -63,9 +54,9 @@ abstract contract AbstractHelper {
         uint maxDolaIn,
         uint duration, 
         uint deadline, 
-        uint v, 
-        uint r, 
-        uint s) 
+        uint8 v, 
+        bytes32 r, 
+        bytes32 s) 
         public 
     {
         IERC20 collateral = IERC20(market.collateral());
@@ -104,6 +95,7 @@ abstract contract AbstractHelper {
         }
 
         //Repay repayAmount
+        DOLA.approve(address(market), repayAmount);
         market.repay(msg.sender, repayAmount);
     }
 
@@ -114,9 +106,9 @@ abstract contract AbstractHelper {
         uint minDolaOut,
         uint collateralAmount, 
         uint deadline, 
-        uint v, 
-        uint r, 
-        uint s) 
+        uint8 v, 
+        bytes32 r, 
+        bytes32 s) 
         external 
     {
         //Repay
