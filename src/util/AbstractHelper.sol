@@ -24,11 +24,15 @@ abstract contract AbstractHelper {
 
     function _sellExactDbr(uint amount, uint minOut) internal virtual;
 
+    function _getOutGivenIn(address tokenIn, address tokenOut, uint amountIn) public virtual returns(uint);
+
+    function _getInGivenOut(address tokenIn, address tokenOut, uint amountOut) public virtual returns(uint);
+
     function borrowOnBehalf(
         IMarket market, 
         uint dolaAmount,
-        uint maxDolaIn,
-        uint duration, 
+        uint minDuration,
+        uint dbrAmount, 
         uint deadline, 
         uint8 v, 
         bytes32 r, 
