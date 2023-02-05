@@ -24,39 +24,48 @@ abstract contract AbstractHelper {
 
     function _sellExactDbr(uint amount, uint minOut) internal virtual;
 
-    function _getOutGivenIn(address tokenIn, address tokenOut, uint amountIn) public virtual returns(uint);
+    function _getOutGivenIn(uint balanceIn, uint balanceOut, uint amountIn) internal view virtual returns(uint);
 
-    function _getInGivenOut(address tokenIn, address tokenOut, uint amountOut) public virtual returns(uint);
+    function _getInGivenOut(uint balanceIn, uint balanceOut, uint amountOut) internal view virtual returns(uint);
+
+    function _getTokenBalances(address tokenIn, address tokenOut) internal view virtual returns(uint, uint);
 
     function borrowOnBehalf(
         IMarket market, 
         uint dolaAmount,
-        uint minDuration,
-        uint dbrAmount, 
+        uint maxBorrow,
+        uint duration,
         uint deadline, 
         uint8 v, 
         bytes32 r, 
         bytes32 s) 
         public 
     {
+        //Calculate DOLA needed to pay out dolaAmount + buying enough DBR to approximately sustain loan for the duration
+        (uint dolaToBorrow, uint dbrNeeded) = approximateDolaAndDbrNeeded(dolaAmount, duration, 8);
+        require(maxBorrow >= dolaToBorrow, "Cost of borrow exceeds max borrow");
+
         //Borrow Dola
-        market.borrowOnBehalf(msg.sender, dolaAmount, deadline, v, r, s);
+        market.borrowOnBehalf(msg.sender, maxBorrow, deadline, v, r, s);
         
         //Buy DBR
-        uint amountToBuy = dolaAmount * duration / 365 days;
-        _buyExactDbr(amountToBuy, maxDolaIn);
+        _buyExactDbr(dbrNeeded, maxBorrow - dolaAmount);
 
-        //Transfer remaining DBR and DOLA balance to user
-        DOLA.transfer(msg.sender, DOLA.balanceOf(address(this)));
+        //Transfer remaining DBR and DOLA amount to user
+        DOLA.transfer(msg.sender, dolaAmount);
         DBR.transfer(msg.sender, DBR.balanceOf(address(this)));
+
+        //Repay what remains of max borrow
+        uint dolaBalance = DOLA.balanceOf(address(this));
+        market.repay(msg.sender, dolaBalance);
     }
 
     function depositAndBorrowOnBehalf(
         IMarket market, 
         uint collateralAmount, 
         uint dolaAmount,
-        uint maxDolaIn,
-        uint duration, 
+        uint maxBorrow,
+        uint duration,
         uint deadline, 
         uint8 v, 
         bytes32 r, 
@@ -71,7 +80,7 @@ abstract contract AbstractHelper {
         market.deposit(msg.sender, collateralAmount);
 
         //Borrow dola and buy dbr
-        borrowOnBehalf(market, dolaAmount, maxDolaIn, duration, deadline, v, r , s);
+        borrowOnBehalf(market, dolaAmount, maxBorrow, duration, deadline, v, r , s);
 
     }
 
@@ -123,5 +132,16 @@ abstract contract AbstractHelper {
 
         //Transfer collateral to msg.sender
         IERC20(market.collateral()).transfer(msg.sender, collateralAmount);
+    }
+
+    function approximateDolaAndDbrNeeded(uint dolaBorrowAmount, uint period, uint iterations) public view returns(uint, uint){
+        (uint balanceIn, uint balanceOut) = _getTokenBalances(address(DOLA), address(DBR));
+        uint dolaNeeded  = dolaBorrowAmount;
+        uint dbrNeeded;
+        for(uint i; i < iterations;i++){
+            dbrNeeded = dolaNeeded * period / 365 days;
+            dolaNeeded = dolaBorrowAmount + _getInGivenOut(balanceIn, balanceOut, dbrNeeded);
+        }
+        return (dolaNeeded, dbrNeeded);
     }
 }

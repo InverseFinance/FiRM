@@ -60,5 +60,40 @@ contract BalancerHelper is AbstractHelper{
         vault.swap(swapStruct, fundManangement, maxIn, block.timestamp+1);
     }
 
+    function _getTokenBalances(address tokenIn, address tokenOut) override internal view returns(uint balanceIn, uint balanceOut){
+        (address[] memory tokens, uint[] memory balances,) = vault.getPoolTokens(poolId);
+        if(tokens[0] == tokenIn && tokens[1] == tokenOut){
+            balanceIn = balances[0];
+            balanceOut = balances[1];
+        } else if(tokens[1] == tokenIn && tokens[0] == tokenOut){
+            balanceIn = balances[1];
+            balanceOut = balances[0];       
+        } else {
+            revert("Wrong tokens in pool");
+        }   
+    }
 
+    /**
+    @notice Calculates the amount of a token received from balancer weighted pool, given balances and amount in
+    @dev Will only work for 50-50 weighted pools
+    @param balanceIn Pool balance of token being traded in
+    @param balanceOut Pool balance of token received
+    @param amountIn Amount of token being traded in
+    @return Amount of token received
+    */
+    function _getOutGivenIn(uint balanceIn, uint balanceOut, uint amountIn) override internal pure returns(uint){
+        return balanceOut * (10**18 - (balanceIn * 10**18 / (balanceIn + amountIn))) / 10**18 * 997 / 1000; //Magic numbers account for fee rate
+    }
+
+    /**
+    @notice Calculates the amount of a token to pay to a balancer weighted pool, given balances and amount out
+    @dev Will only work for 50-50 weighted pools
+    @param balanceIn Pool balance of token being traded in
+    @param balanceOut Pool balance of token received
+    @param amountOut Amount of token desired to receive
+    @return Amount of token to pay in
+    */
+    function _getInGivenOut(uint balanceIn, uint balanceOut, uint amountOut) override internal pure returns(uint){
+        return balanceIn * (balanceOut * 10**18 / (balanceOut - amountOut) - 10**18) / 10**18 * 1003 / 1000; //Magic numbers account for fee rate
+    }
 }

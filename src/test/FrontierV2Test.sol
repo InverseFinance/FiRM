@@ -20,7 +20,7 @@ contract FrontierV2Test is Test {
     address user = address(0x69);
     address user2 = address(0x70);
     address replenisher = address(0x71);
-    address gov = address(0xA);
+    address gov = address(0x926dF14a23BE491164dCF93f4c468A50ef659D5B);
     address chair = address(0xB);
     address pauseGuardian = address(0xB);
 
@@ -87,7 +87,7 @@ contract FrontierV2Test is Test {
         oracle.setFeed(address(wBTC), IChainlinkFeed(address(wbtcFeed)), 8);
         vm.stopPrank();
 
-        vm.startPrank(address(0));
+        vm.startPrank(address(gov));
         DOLA.addMinter(address(fed));
         vm.stopPrank();
     }

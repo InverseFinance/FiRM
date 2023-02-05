@@ -1,11 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
-
-interface IMarket {
-    function recall(uint amount) external;
-    function totalDebt() external view returns (uint);
-    function borrowPaused() external view returns (bool);
-}
+import "src/interfaces/IMarket.sol";
 
 interface IDola {
     function mint(address to, uint amount) external;
