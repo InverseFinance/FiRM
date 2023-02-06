@@ -2,15 +2,22 @@ pragma solidity ^0.8.16;
 import "src/util/IVault.sol";
 import "src/util/AbstractHelper.sol";
 
+interface BalancerPool {
+    function getSwapFeePercentage() external view returns(uint);
+}
+
 contract BalancerHelper is AbstractHelper{
 
     IVault immutable vault;
     bytes32 immutable poolId;
+    BalancerPool balancerPool;
     IVault.FundManagement fundManangement;
 
     constructor(address _dola, address _dbr, bytes32 _poolId, address _vault) AbstractHelper(_dola, _dbr){
         vault = IVault(_vault);
         poolId = _poolId;
+        (address balancerPoolAddress,) = vault.getPool(_poolId);
+        balancerPool = BalancerPool(balancerPoolAddress);
         fundManangement.sender = address(this);
         fundManangement.fromInternalBalance = false;
         //TODO: Explore if it makes sense to have recipient be the user
@@ -60,7 +67,7 @@ contract BalancerHelper is AbstractHelper{
         vault.swap(swapStruct, fundManangement, maxIn, block.timestamp+1);
     }
 
-    function _getTokenBalances(address tokenIn, address tokenOut) override internal view returns(uint balanceIn, uint balanceOut){
+    function _getTokenBalances(address tokenIn, address tokenOut) internal view returns(uint balanceIn, uint balanceOut){
         (address[] memory tokens, uint[] memory balances,) = vault.getPoolTokens(poolId);
         if(tokens[0] == tokenIn && tokens[1] == tokenOut){
             balanceIn = balances[0];
@@ -81,8 +88,8 @@ contract BalancerHelper is AbstractHelper{
     @param amountIn Amount of token being traded in
     @return Amount of token received
     */
-    function _getOutGivenIn(uint balanceIn, uint balanceOut, uint amountIn) override internal pure returns(uint){
-        return balanceOut * (10**18 - (balanceIn * 10**18 / (balanceIn + amountIn))) / 10**18 * 997 / 1000; //Magic numbers account for fee rate
+    function _getOutGivenIn(uint balanceIn, uint balanceOut, uint amountIn, uint tradeFee) internal pure returns(uint){
+        return balanceOut * (10**18 - (balanceIn * 10**18 / (balanceIn + amountIn))) / 10**18 * (10**18 - tradeFee) / 10**18;
     }
 
     /**
@@ -93,7 +100,19 @@ contract BalancerHelper is AbstractHelper{
     @param amountOut Amount of token desired to receive
     @return Amount of token to pay in
     */
-    function _getInGivenOut(uint balanceIn, uint balanceOut, uint amountOut) override internal pure returns(uint){
-        return balanceIn * (balanceOut * 10**18 / (balanceOut - amountOut) - 10**18) / 10**18 * 1003 / 1000; //Magic numbers account for fee rate
+    function _getInGivenOut(uint balanceIn, uint balanceOut, uint amountOut, uint tradeFee) internal pure returns(uint){
+        return balanceIn * (balanceOut * 10**18 / (balanceOut - amountOut) - 10**18) / 10**18 * (10**18 + tradeFee) / 1 ether;
+    }
+
+    function approximateDolaAndDbrNeeded(uint dolaBorrowAmount, uint period, uint iterations) override public view returns(uint, uint){
+        (uint balanceIn, uint balanceOut) = _getTokenBalances(address(DOLA), address(DBR));
+        uint dolaNeeded  = dolaBorrowAmount;
+        uint dbrNeeded;
+        uint tradeFee = balancerPool.getSwapFeePercentage();
+        for(uint i; i < iterations;i++){
+            dbrNeeded = dolaNeeded * period / 365 days;
+            dolaNeeded = dolaBorrowAmount + _getInGivenOut(balanceIn, balanceOut, dbrNeeded, tradeFee);
+        }
+        return (dolaNeeded, dbrNeeded);
     }
 }

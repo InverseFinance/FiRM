@@ -128,14 +128,15 @@ contract HelperTest is FrontierV2Test {
         assertEq(DOLA.balanceOf(userPk), maxBorrowAmount / 2, "failed to borrow DOLA");
     }
 
-    function testSellDbrRepayAndWithdrawOnBehalf() public {
+    function testSellDbrAndRepayOnBehalf() public {
         address userPk = vm.addr(1);
         uint duration = 365 days;
         gibWeth(userPk, wethTestAmount);
+        gibDOLA(userPk, 10000 ether);
 
         vm.startPrank(userPk, userPk);
         uint maxBorrowAmount = getMaxBorrowAmount(wethTestAmount);
-        bytes32 hash = keccak256(
+        bytes32 borrowHash = keccak256(
                     abi.encodePacked(
                         "\x19\x01",
                         market.DOMAIN_SEPARATOR(),
@@ -153,12 +154,15 @@ contract HelperTest is FrontierV2Test {
                         )
                     )
                 );
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
-
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, borrowHash);
         deposit(wethTestAmount);
         vm.stopPrank();
-        vm.prank(userPk, userPk);
+        vm.startPrank(userPk, userPk);
+        DOLA.approve(address(helper), type(uint).max);
+        dbr.approve(address(helper), type(uint).max);
         helper.borrowOnBehalf(IMarket(address(market)), maxBorrowAmount / 2, maxBorrowAmount, duration, block.timestamp, v, r, s);
+        helper.sellDbrAndRepayOnBehalf(IMarket(address(market)), market.debts(userPk), dbr.balanceOf(userPk) / 100,dbr.balanceOf(userPk));
+        vm.stopPrank();
 
         emit log_named_uint("DBR balance", dbr.balanceOf(userPk));
         emit log_named_uint("Dola balance", DOLA.balanceOf(userPk));
@@ -167,8 +171,82 @@ contract HelperTest is FrontierV2Test {
         assertEq(WETH.balanceOf(address(market.escrows(userPk))), wethTestAmount, "failed to deposit WETH");
         assertEq(WETH.balanceOf(userPk), 0, "failed to deposit WETH");
         
-        assertGt(duration, market.debts(userPk) * 365 days / dbr.balanceOf(userPk) - 1 days); 
-        assertEq(DOLA.balanceOf(userPk), maxBorrowAmount / 2, "failed to borrow DOLA");
+        assertEq(market.debts(userPk), 0, "Did not repay debt"); 
+        assertEq(dbr.balanceOf(userPk), 0, "Did not sell DBR"); 
+    }
+
+    function testSellDbrRepayAndWithdrawOnBehalf() public {
+        address userPk = vm.addr(1);
+        uint duration = 365 days;
+        gibWeth(userPk, wethTestAmount);
+        gibDOLA(userPk, 10000 ether);
+
+        vm.startPrank(userPk, userPk);
+        uint maxBorrowAmount = getMaxBorrowAmount(wethTestAmount);
+        bytes32 borrowHash = keccak256(
+                    abi.encodePacked(
+                        "\x19\x01",
+                        market.DOMAIN_SEPARATOR(),
+                        keccak256(
+                            abi.encode(
+                                keccak256(
+                                    "BorrowOnBehalf(address caller,address from,uint256 amount,uint256 nonce,uint256 deadline)"
+                                ),
+                                address(helper),
+                                userPk,
+                                maxBorrowAmount,
+                                0,
+                                block.timestamp
+                            )
+                        )
+                    )
+                );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, borrowHash);
+        deposit(wethTestAmount);
+        vm.stopPrank();
+        vm.startPrank(userPk, userPk);
+        DOLA.approve(address(helper), type(uint).max);
+        dbr.approve(address(helper), type(uint).max);
+        helper.borrowOnBehalf(IMarket(address(market)), maxBorrowAmount / 2, maxBorrowAmount, duration, block.timestamp, v, r, s);
+        bytes32 withdrawHash = keccak256(
+                    abi.encodePacked(
+                        "\x19\x01",
+                        market.DOMAIN_SEPARATOR(),
+                        keccak256(
+                            abi.encode(
+                                keccak256(
+                                    "WithdrawOnBehalf(address caller,address from,uint256 amount,uint256 nonce,uint256 deadline)"
+                                ),
+                                address(helper),
+                                userPk,
+                                wethTestAmount,
+                                1,
+                                block.timestamp
+                            )
+                        )
+                    )
+                );
+
+        (v, r, s) = vm.sign(1, withdrawHash);
+
+        helper.sellDbrRepayAndWithdrawOnBehalf(
+            IMarket(address(market)),
+            market.debts(userPk),
+            dbr.balanceOf(userPk) / 100,
+            dbr.balanceOf(userPk), 
+            wethTestAmount,
+            block.timestamp,
+            v, r, s);
+        vm.stopPrank();
+        emit log_named_uint("DBR balance", dbr.balanceOf(userPk));
+        emit log_named_uint("Dola balance", DOLA.balanceOf(userPk));
+        emit log_named_uint("Debt", market.debts(userPk));
+
+        assertEq(WETH.balanceOf(address(market.escrows(userPk))), 0, "failed to withdraw WETH");
+        assertEq(WETH.balanceOf(userPk), wethTestAmount, "failed to withdraw WETH");
+        
+        assertEq(market.debts(userPk), 0, "Did not repay debt"); 
+        assertEq(dbr.balanceOf(userPk), 0, "Did not sell DBR"); 
     }
 
 

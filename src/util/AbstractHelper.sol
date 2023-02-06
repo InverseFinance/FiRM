@@ -24,11 +24,7 @@ abstract contract AbstractHelper {
 
     function _sellExactDbr(uint amount, uint minOut) internal virtual;
 
-    function _getOutGivenIn(uint balanceIn, uint balanceOut, uint amountIn) internal view virtual returns(uint);
-
-    function _getInGivenOut(uint balanceIn, uint balanceOut, uint amountOut) internal view virtual returns(uint);
-
-    function _getTokenBalances(address tokenIn, address tokenOut) internal view virtual returns(uint, uint);
+    function approximateDolaAndDbrNeeded(uint dolaBorrowAmount, uint period, uint iterations) public view virtual returns(uint, uint);
 
     function borrowOnBehalf(
         IMarket market, 
@@ -84,24 +80,26 @@ abstract contract AbstractHelper {
 
     }
 
-    function sellDbrAndRepayOnBehalf(IMarket market, uint dolaAmount, uint minDolaOut, uint dbrAmountToSell) public {
+    function sellDbrAndRepayOnBehalf(IMarket market, uint dolaAmount, uint minDolaFromDbr, uint dbrAmountToSell) public {
         uint dbrBal = DBR.balanceOf(msg.sender);
 
         //If user has less DBR than ordered, sell what's available
         if(dbrAmountToSell > dbrBal){
-            _sellExactDbr(dbrBal, minDolaOut);
+            DBR.transferFrom(msg.sender, address(this), dbrBal);
+            _sellExactDbr(dbrBal, minDolaFromDbr);
         } else {
-            _sellExactDbr(dbrAmountToSell, minDolaOut);
+            DBR.transferFrom(msg.sender, address(this), dbrAmountToSell);
+            _sellExactDbr(dbrAmountToSell, minDolaFromDbr);
         }
 
         uint debt = market.debts(msg.sender);
         uint dolaBal = DOLA.balanceOf(address(this));
 
-        //Repay user's entire debt if less than dolaAmount, otherwise repay dolaAmount
-        uint repayAmount = market.debts(msg.sender) < dolaAmount ? debt : dolaAmount;
+        uint repayAmount = debt < dolaAmount ? debt : dolaAmount;
 
         //If dolaBal is less than repayAmount, transfer remaining DOLA from user, otherwise transfer excess dola to user
         if(dolaBal < repayAmount){
+            require(repayAmount <= dolaAmount + dolaBal, "Repay amount exceeds dola amount");
             DOLA.transferFrom(msg.sender, address(this), repayAmount - DOLA.balanceOf(address(this)));
         } else {
             DOLA.transfer(msg.sender, dolaBal - repayAmount);
@@ -115,8 +113,8 @@ abstract contract AbstractHelper {
     function sellDbrRepayAndWithdrawOnBehalf(
         IMarket market, 
         uint dolaAmount, 
-        uint dbrAmountToSell, 
         uint minDolaOut,
+        uint dbrAmountToSell, 
         uint collateralAmount, 
         uint deadline, 
         uint8 v, 
@@ -132,16 +130,5 @@ abstract contract AbstractHelper {
 
         //Transfer collateral to msg.sender
         IERC20(market.collateral()).transfer(msg.sender, collateralAmount);
-    }
-
-    function approximateDolaAndDbrNeeded(uint dolaBorrowAmount, uint period, uint iterations) public view returns(uint, uint){
-        (uint balanceIn, uint balanceOut) = _getTokenBalances(address(DOLA), address(DBR));
-        uint dolaNeeded  = dolaBorrowAmount;
-        uint dbrNeeded;
-        for(uint i; i < iterations;i++){
-            dbrNeeded = dolaNeeded * period / 365 days;
-            dolaNeeded = dolaBorrowAmount + _getInGivenOut(balanceIn, balanceOut, dbrNeeded);
-        }
-        return (dolaNeeded, dbrNeeded);
     }
 }
