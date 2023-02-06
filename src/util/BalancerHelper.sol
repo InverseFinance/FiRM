@@ -20,7 +20,6 @@ contract BalancerHelper is AbstractHelper{
         balancerPool = BalancerPool(balancerPoolAddress);
         fundManangement.sender = address(this);
         fundManangement.fromInternalBalance = false;
-        //TODO: Explore if it makes sense to have recipient be the user
         fundManangement.recipient = payable(address(this));
         fundManangement.toInternalBalance = false;
         IERC20(_dola).approve(_vault, type(uint).max);
@@ -28,8 +27,7 @@ contract BalancerHelper is AbstractHelper{
     }
 
     /**
-    @notice Swaps exact amount of assetIn for asseetOut through a balancer pool. Output must be higher than minOut
-    @dev Due to the unique design of Balancer ComposableStablePools, where BPT are part of the swappable balance, we can just swap DOLA directly for BPT
+    @notice Sells an exact amount of DBR for DOLA in a balancer pool
     @param amount Amount of DBR to sell
     @param minOut minimum amount of DOLA to receive
     */
@@ -48,8 +46,7 @@ contract BalancerHelper is AbstractHelper{
     }
 
     /**
-    @notice Swaps amount of DOLA for exact amount of DBR through a balancer pool. Input must be lower than maxIn
-    @dev Due to the unique design of Balancer ComposableStablePools, where BPT are part of the swappable balance, we can just swap DOLA directly for BPT
+    @notice Buys an exact amount of DBR for DOLA in a balancer pool
     @param amount Amount of DBR to receive
     @param maxIn maximum amount of DOLA to put in
     */
@@ -66,7 +63,14 @@ contract BalancerHelper is AbstractHelper{
 
         vault.swap(swapStruct, fundManangement, maxIn, block.timestamp+1);
     }
-
+    
+    /**
+    @notice Retrieve the token balance of tokens in a balancer pool with only two tokens.
+    @dev Will break if used on balancer pools with more than two tokens.
+    @param tokenIn Address of the token being traded in
+    @param tokenOut Address of the token being traded out
+    @return balanceIn balanceOut A tuple of (balanceIn, balanceOut) balances
+    */
     function _getTokenBalances(address tokenIn, address tokenOut) internal view returns(uint balanceIn, uint balanceOut){
         (address[] memory tokens, uint[] memory balances,) = vault.getPoolTokens(poolId);
         if(tokens[0] == tokenIn && tokens[1] == tokenOut){
@@ -86,6 +90,7 @@ contract BalancerHelper is AbstractHelper{
     @param balanceIn Pool balance of token being traded in
     @param balanceOut Pool balance of token received
     @param amountIn Amount of token being traded in
+    @param tradeFee The fee taking by LPs
     @return Amount of token received
     */
     function _getOutGivenIn(uint balanceIn, uint balanceOut, uint amountIn, uint tradeFee) internal pure returns(uint){
@@ -98,21 +103,29 @@ contract BalancerHelper is AbstractHelper{
     @param balanceIn Pool balance of token being traded in
     @param balanceOut Pool balance of token received
     @param amountOut Amount of token desired to receive
+    @param tradeFee The fee taking by LPs
     @return Amount of token to pay in
     */
     function _getInGivenOut(uint balanceIn, uint balanceOut, uint amountOut, uint tradeFee) internal pure returns(uint){
         return balanceIn * (balanceOut * 10**18 / (balanceOut - amountOut) - 10**18) / 10**18 * (10**18 + tradeFee) / 1 ether;
     }
 
-    function approximateDolaAndDbrNeeded(uint dolaBorrowAmount, uint period, uint iterations) override public view returns(uint, uint){
+    /**
+    @notice Approximates the amount of additional DOLA and DBR needed to sustain dolaBorrowAmount over the period
+    @dev Increasing iterations will increase accuracy of the approximation but also the gas cost. Will always undershoot actual DBR amoutn needed.
+    @param dolaBorrowAmount The amount of DOLA the user wishes to borrow before covering DBR expenses
+    @param period The amount of seconds the user wish to borrow the DOLA for
+    @param iterations The amount of approximation iterations.
+    @return dolaNeeded dbrNeeded Tuple of (dolaNeeded, dbrNeeded) representing the total dola needed to pay for the DBR and pay out dolaBorrowAmoutn and the dbrNeeded to sustain the loan over the period
+    */
+    function approximateDolaAndDbrNeeded(uint dolaBorrowAmount, uint period, uint iterations) override public view returns(uint dolaNeeded, uint dbrNeeded){
         (uint balanceIn, uint balanceOut) = _getTokenBalances(address(DOLA), address(DBR));
-        uint dolaNeeded  = dolaBorrowAmount;
-        uint dbrNeeded;
+        dolaNeeded  = dolaBorrowAmount;
         uint tradeFee = balancerPool.getSwapFeePercentage();
-        for(uint i; i < iterations;i++){
+        //There may be a better analytical way of computing this
+        for(uint i; i < iterations; i++){
             dbrNeeded = dolaNeeded * period / 365 days;
             dolaNeeded = dolaBorrowAmount + _getInGivenOut(balanceIn, balanceOut, dbrNeeded, tradeFee);
         }
-        return (dolaNeeded, dbrNeeded);
     }
 }
