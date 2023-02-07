@@ -268,13 +268,44 @@ abstract contract AbstractHelper {
         sellDbrAndRepayOnBehalf(market, dolaAmount, minDolaFromDbr, dbrAmountToSell);
 
         //Withdraw
+        withdrawNativeEthOnBehalf(market, collateralAmount, deadline, v, r, s);
+    }
+
+    /**
+    @notice Helper function for depositing native eth to WETH markets
+    @param market The WETH market to deposit to
+    */
+    function depositNativeEthOnBehalf(IMarket market) public payable {
+        require(address(market.collateral()) == address(WETH), "Not an ETH market");
+        WETH.deposit{value:msg.value}();
+        WETH.approve(address(market), msg.value);
+        market.deposit(msg.sender, msg.value);
+    }
+    /**
+    @notice Helper function for withdrawing to native eth
+    @param market WETH market to withdraw collateral from
+    @param collateralAmount Amount of collateral to withdraw
+    @param deadline Deadline of the signature
+    @param v V parameter of the signature
+    @param r R parameter of the signature
+    @param s S parameter of the signature
+    */
+    function withdrawNativeEthOnBehalf(
+        IMarket market,
+        uint collateralAmount,
+        uint deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s)
+        public
+    {
         market.withdrawOnBehalf(msg.sender, collateralAmount, deadline, v, r, s);
 
         IERC20 collateral = IERC20(market.collateral());
         require(address(collateral) == address(WETH), "Not an ETH market");
         WETH.withdraw(collateralAmount);
 
-        payable(msg.sender).transfer(collateralAmount);
+        payable(msg.sender).transfer(collateralAmount);      
     }
     
     //Empty receive function for receiving the native eth sent by the WETH contract

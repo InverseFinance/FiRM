@@ -159,25 +159,8 @@ contract HelperTest is FrontierV2Test {
         DOLA.approve(address(helper), type(uint).max);
         dbr.approve(address(helper), type(uint).max);
         helper.borrowOnBehalf(IMarket(address(market)), maxBorrowAmount / 2, maxBorrowAmount, duration, block.timestamp, v, r, s);
-        bytes32 withdrawHash = keccak256(
-                    abi.encodePacked(
-                        "\x19\x01",
-                        market.DOMAIN_SEPARATOR(),
-                        keccak256(
-                            abi.encode(
-                                keccak256(
-                                    "WithdrawOnBehalf(address caller,address from,uint256 amount,uint256 nonce,uint256 deadline)"
-                                ),
-                                address(helper),
-                                userPk,
-                                wethTestAmount,
-                                1,
-                                block.timestamp
-                            )
-                        )
-                    )
-                );
 
+        bytes32 withdrawHash = getWithdrawHash(wethTestAmount, 1);
         (v, r, s) = vm.sign(1, withdrawHash);
 
         helper.sellDbrRepayAndWithdrawOnBehalf(
@@ -209,25 +192,8 @@ contract HelperTest is FrontierV2Test {
         DOLA.approve(address(helper), type(uint).max);
         dbr.approve(address(helper), type(uint).max);
         helper.borrowOnBehalf(IMarket(address(market)), maxBorrowAmount / 2, maxBorrowAmount, duration, block.timestamp, v, r, s);
-        bytes32 withdrawHash = keccak256(
-                    abi.encodePacked(
-                        "\x19\x01",
-                        market.DOMAIN_SEPARATOR(),
-                        keccak256(
-                            abi.encode(
-                                keccak256(
-                                    "WithdrawOnBehalf(address caller,address from,uint256 amount,uint256 nonce,uint256 deadline)"
-                                ),
-                                address(helper),
-                                userPk,
-                                wethTestAmount,
-                                1,
-                                block.timestamp
-                            )
-                        )
-                    )
-                );
 
+        bytes32 withdrawHash = getWithdrawHash(wethTestAmount, 1);
         (v, r, s) = vm.sign(1, withdrawHash);
 
         helper.sellDbrRepayAndWithdrawNativeEthOnBehalf(
@@ -246,6 +212,50 @@ contract HelperTest is FrontierV2Test {
         assertEq(dbr.balanceOf(userPk), 0, "Did not sell DBR"); 
     }
 
+    function testWithdrawNativeEthOnBehalf() public {
+        vm.startPrank(userPk, userPk);
+        deposit(wethTestAmount);
+        
+        bytes32 withdrawHash = getWithdrawHash(wethTestAmount, 0);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, withdrawHash);
 
+        helper.withdrawNativeEthOnBehalf(IMarket(address(market)), wethTestAmount, block.timestamp, v, r, s);
+        vm.stopPrank();
 
+        assertEq(WETH.balanceOf(address(market.escrows(userPk))), 0, "failed to withdraw WETH");
+        assertEq(payable(userPk).balance, wethTestAmount, "failed to withdraw WETH");
+    }
+
+    function testDepositNativeEthOnBehalf() public {
+        vm.startPrank(userPk, userPk);
+        WETH.withdraw(wethTestAmount);
+
+        assertEq(WETH.balanceOf(address(market.escrows(userPk))), 0);
+        helper.depositNativeEthOnBehalf{value:wethTestAmount}(IMarket(address(market)));
+        vm.stopPrank();
+
+        assertEq(WETH.balanceOf(address(market.escrows(userPk))), wethTestAmount, "failed to deposit WETH");       
+    }
+
+    function getWithdrawHash(uint amount, uint nonce) public view returns(bytes32){
+         bytes32 withdrawHash = keccak256(
+                    abi.encodePacked(
+                        "\x19\x01",
+                        market.DOMAIN_SEPARATOR(),
+                        keccak256(
+                            abi.encode(
+                                keccak256(
+                                    "WithdrawOnBehalf(address caller,address from,uint256 amount,uint256 nonce,uint256 deadline)"
+                                ),
+                                address(helper),
+                                userPk,
+                                amount,
+                                nonce,
+                                block.timestamp
+                            )
+                        )
+                    )
+                );
+        return withdrawHash;
+    }
 }
