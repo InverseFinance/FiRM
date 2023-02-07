@@ -13,7 +13,7 @@ contract BalancerHelper is AbstractHelper{
     BalancerPool balancerPool;
     IVault.FundManagement fundManangement;
 
-    constructor(address _dola, address _dbr, bytes32 _poolId, address _vault) AbstractHelper(_dola, _dbr){
+    constructor(address _dola, address _dbr, address _weth, bytes32 _poolId, address _vault) AbstractHelper(_dola, _dbr, _weth){
         vault = IVault(_vault);
         poolId = _poolId;
         (address balancerPoolAddress,) = vault.getPool(_poolId);

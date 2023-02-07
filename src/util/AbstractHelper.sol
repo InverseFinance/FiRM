@@ -7,14 +7,21 @@ interface IERC20 {
     function balanceOf(address user) external view returns(uint);
 }
 
+interface IWETH is IERC20 {
+    function withdraw(uint wad) external;
+    function deposit() external payable;
+}
+
 abstract contract AbstractHelper {
 
     IERC20 DOLA;
     IERC20 DBR;
+    IWETH WETH;
 
-    constructor(address _dola, address _dbr){
+    constructor(address _dola, address _dbr, address _weth){
         DOLA = IERC20(_dola);
         DBR = IERC20(_dbr);
+        WETH = IWETH(_weth);
     }
     
     /**
@@ -120,7 +127,42 @@ abstract contract AbstractHelper {
 
         //Borrow dola and buy dbr
         borrowOnBehalf(market, dolaAmount, maxDebt, duration, deadline, v, r , s);
+    }
 
+    /**
+    @notice Deposits native eth as collateral and borrows on behalf of the caller,
+    buying the necessary DBR to pay for the loan over the period, by borrowing aditional funds to pay for the necessary DBR
+    @dev Has to borrow the maxDebt amount due to how the market's borrowOnBehalf functions, and repay the excess at the end of the call resulting in a weird repay event
+    @param market Market the caller wish to deposit to and borrow from
+    @param dolaAmount Amount the caller wants to end up with at their disposal
+    @param maxDebt The max amount of debt the caller is willing to end up with
+    @param duration The duration the caller wish to borrow for
+    @param deadline Deadline of the signature
+    @param v V parameter of the signature
+    @param r R parameter of the signature
+    @param s S parameter of the signature
+    */
+    function depositNativeEthAndBorrowOnBehalf(
+        IMarket market, 
+        uint dolaAmount,
+        uint maxDebt,
+        uint duration,
+        uint deadline, 
+        uint8 v, 
+        bytes32 r, 
+        bytes32 s) 
+        public payable
+    {
+        IERC20 collateral = IERC20(market.collateral());
+        require(address(collateral) == address(WETH), "Market is not an ETH market");
+        WETH.deposit{value:msg.value}();
+
+        //Deposit collateral
+        collateral.approve(address(market), msg.value);
+        market.deposit(msg.sender, msg.value);
+
+        //Borrow dola and buy dbr
+        borrowOnBehalf(market, dolaAmount, maxDebt, duration, deadline, v, r , s);
     }
 
     /**
@@ -128,7 +170,7 @@ abstract contract AbstractHelper {
     @dev The caller is unlikely to spend all of the DOLA they make available for the function call
     @param market The market the user wishes to repay debt in
     @param dolaAmount The maximum amount of dola debt the user is willing to repay
-    @param minDolaDromDbr The minimum amount of DOLA the caller expects to get in return for selling their DBR
+    @param minDolaFromDbr The minimum amount of DOLA the caller expects to get in return for selling their DBR
     @param dbrAmountToSell The amount of DBR the caller wishes to sell
     */
     function sellDbrAndRepayOnBehalf(IMarket market, uint dolaAmount, uint minDolaFromDbr, uint dbrAmountToSell) public {
@@ -167,7 +209,7 @@ abstract contract AbstractHelper {
     @dev The caller is unlikely to spend all of the DOLA they make available for the function call
     @param market Market the user wishes to repay debt in
     @param dolaAmount Maximum amount of dola debt the user is willing to repay
-    @param minDolaDromDbr Minimum amount of DOLA the caller expects to get in return for selling their DBR
+    @param minDolaFromDbr Minimum amount of DOLA the caller expects to get in return for selling their DBR
     @param dbrAmountToSell Amount of DBR the caller wishes to sell
     @param collateralAmount Amount of collateral to withdraw
     @param deadline Deadline of the signature
@@ -178,7 +220,7 @@ abstract contract AbstractHelper {
     function sellDbrRepayAndWithdrawOnBehalf(
         IMarket market, 
         uint dolaAmount, 
-        uint minDolaOut,
+        uint minDolaFromDbr,
         uint dbrAmountToSell, 
         uint collateralAmount, 
         uint deadline, 
@@ -188,7 +230,7 @@ abstract contract AbstractHelper {
         external 
     {
         //Repay
-        sellDbrAndRepayOnBehalf(market, dolaAmount, minDolaOut, dbrAmountToSell);
+        sellDbrAndRepayOnBehalf(market, dolaAmount, minDolaFromDbr, dbrAmountToSell);
 
         //Withdraw
         market.withdrawOnBehalf(msg.sender, collateralAmount, deadline, v, r, s);
@@ -196,4 +238,45 @@ abstract contract AbstractHelper {
         //Transfer collateral to msg.sender
         IERC20(market.collateral()).transfer(msg.sender, collateralAmount);
     }
+
+    /**
+    @notice Sells DBR on behalf of the caller and uses the proceeds along with DOLA from the caller to repay debt, and then withdraws collateral
+    @dev The caller is unlikely to spend all of the DOLA they make available for the function call
+    @param market Market the user wishes to repay debt in
+    @param dolaAmount Maximum amount of dola debt the user is willing to repay
+    @param minDolaFromDbr Minimum amount of DOLA the caller expects to get in return for selling their DBR
+    @param dbrAmountToSell Amount of DBR the caller wishes to sell
+    @param collateralAmount Amount of collateral to withdraw
+    @param deadline Deadline of the signature
+    @param v V parameter of the signature
+    @param r R parameter of the signature
+    @param s S parameter of the signature
+    */
+    function sellDbrRepayAndWithdrawNativeEthOnBehalf(
+        IMarket market, 
+        uint dolaAmount, 
+        uint minDolaFromDbr,
+        uint dbrAmountToSell, 
+        uint collateralAmount, 
+        uint deadline, 
+        uint8 v, 
+        bytes32 r, 
+        bytes32 s) 
+        external 
+    {
+        //Repay
+        sellDbrAndRepayOnBehalf(market, dolaAmount, minDolaFromDbr, dbrAmountToSell);
+
+        //Withdraw
+        market.withdrawOnBehalf(msg.sender, collateralAmount, deadline, v, r, s);
+
+        IERC20 collateral = IERC20(market.collateral());
+        require(address(collateral) == address(WETH), "Not an ETH market");
+        WETH.withdraw(collateralAmount);
+
+        payable(msg.sender).transfer(collateralAmount);
+    }
+    
+    //Empty receive function for receiving the native eth sent by the WETH contract
+    receive() external payable {}
 }
