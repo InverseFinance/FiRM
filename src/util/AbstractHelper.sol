@@ -91,6 +91,7 @@ abstract contract AbstractHelper {
 
         //Repay what remains of max borrow
         uint dolaBalance = DOLA.balanceOf(address(this));
+        DOLA.approve(address(market), dolaBalance);
         market.repay(msg.sender, dolaBalance);
     }
 
