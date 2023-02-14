@@ -64,7 +64,7 @@ abstract contract AbstractHelper {
     @param r R parameter of the signature
     @param s S parameter of the signature
     */
-    function borrowOnBehalf(
+    function buyDbrAndBorrowOnBehalf(
         IMarket market, 
         uint dolaAmount,
         uint maxDebt,
@@ -107,7 +107,7 @@ abstract contract AbstractHelper {
     @param r R parameter of the signature
     @param s S parameter of the signature
     */
-    function depositAndBorrowOnBehalf(
+    function depositBuyDbrAndBorrowOnBehalf(
         IMarket market, 
         uint collateralAmount, 
         uint dolaAmount,
@@ -127,7 +127,7 @@ abstract contract AbstractHelper {
         market.deposit(msg.sender, collateralAmount);
 
         //Borrow dola and buy dbr
-        borrowOnBehalf(market, dolaAmount, maxDebt, duration, deadline, v, r , s);
+        buyDbrAndBorrowOnBehalf(market, dolaAmount, maxDebt, duration, deadline, v, r , s);
     }
 
     /**
@@ -143,7 +143,7 @@ abstract contract AbstractHelper {
     @param r R parameter of the signature
     @param s S parameter of the signature
     */
-    function depositNativeEthAndBorrowOnBehalf(
+    function depositNativeEthBuyDbrAndBorrowOnBehalf(
         IMarket market, 
         uint dolaAmount,
         uint maxDebt,
@@ -163,7 +163,7 @@ abstract contract AbstractHelper {
         market.deposit(msg.sender, msg.value);
 
         //Borrow dola and buy dbr
-        borrowOnBehalf(market, dolaAmount, maxDebt, duration, deadline, v, r , s);
+        buyDbrAndBorrowOnBehalf(market, dolaAmount, maxDebt, duration, deadline, v, r , s);
     }
 
     /**
@@ -282,6 +282,29 @@ abstract contract AbstractHelper {
         WETH.approve(address(market), msg.value);
         market.deposit(msg.sender, msg.value);
     }
+
+    /**
+    @notice Helper function for depositing native eth to WETH markets before borrowing on behalf of the depositor
+    @param market The WETH market to deposit to
+    @param borrowAmount The amount to borrow on behalf of the depositor
+    @param deadline Deadline of the signature
+    @param v V parameter of the signature
+    @param r R parameter of the signature
+    @param s S parameter of the signature
+    */
+    function depositNativeEthAndBorrowOnBehalf(IMarket market, uint borrowAmount, uint deadline, uint8 v, bytes32 r, bytes32 s) public payable {
+        require(address(market.collateral()) == address(WETH), "Not an ETH market");
+
+        //Deposit native eth
+        WETH.deposit{value:msg.value}();
+        WETH.approve(address(market), msg.value);
+        market.deposit(msg.sender, msg.value);
+
+        //Borrow Dola
+        market.borrowOnBehalf(msg.sender, borrowAmount, deadline, v, r, s);
+        DOLA.transfer(msg.sender, borrowAmount);
+    }
+
     /**
     @notice Helper function for withdrawing to native eth
     @param market WETH market to withdraw collateral from

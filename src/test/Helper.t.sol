@@ -78,7 +78,7 @@ contract HelperTest is FrontierV2Test {
         vm.stopPrank();
         vm.startPrank(userPk, userPk);
         WETH.approve(address(helper), type(uint).max);
-        helper.depositAndBorrowOnBehalf(IMarket(address(market)), wethTestAmount, maxBorrowAmount / 2, maxBorrowAmount, duration, block.timestamp, v, r, s);
+        helper.depositBuyDbrAndBorrowOnBehalf(IMarket(address(market)), wethTestAmount, maxBorrowAmount / 2, maxBorrowAmount, duration, block.timestamp, v, r, s);
         vm.stopPrank();
 
         assertEq(WETH.balanceOf(address(market.escrows(userPk))), wethTestAmount, "failed to deposit WETH");
@@ -88,7 +88,7 @@ contract HelperTest is FrontierV2Test {
         assertEq(DOLA.balanceOf(userPk), maxBorrowAmount / 2, "failed to borrow DOLA");
     }
 
-    function testDepositAndBorrowOnBehalf2() public {
+    function testDepositAndBorrowOnBehalfFullOnChain() public {
         uint duration = 365 days;
 
         wethTestAmount = 1 ether / 100;
@@ -103,27 +103,24 @@ contract HelperTest is FrontierV2Test {
         borrowController.allow(address(helper));
         vm.startPrank(userPk, userPk);
         weth.approve(address(helper), type(uint).max);
-        (uint dolaNeeded, uint dbrNeeded) = helper.approximateDolaAndDbrNeeded(1 ether, duration, 8);
-        emit log_named_uint("Dola needed", dolaNeeded);
-        emit log_named_uint("Dbr needed", dbrNeeded);
-        helper.depositAndBorrowOnBehalf(IMarket(address(market)), wethTestAmount, 1 ether, maxBorrowAmount, duration, block.timestamp, v, r, s);
+        helper.depositBuyDbrAndBorrowOnBehalf(IMarket(address(market)), 1 ether, 1 ether, maxBorrowAmount, duration, block.timestamp, v, r, s);
         vm.stopPrank();
 
-        assertEq(WETH.balanceOf(address(market.escrows(userPk))), wethTestAmount, "failed to deposit WETH");
-        assertEq(WETH.balanceOf(userPk), 0, "failed to deposit WETH");
+        assertEq(weth.balanceOf(address(market.escrows(userPk))), 1 ether, "failed to deposit WETH");
+        assertEq(weth.balanceOf(userPk), 0, "failed to deposit WETH");
         
         assertGt(duration, market.debts(userPk) * 365 days / dbr.balanceOf(userPk) - 1 days); 
         assertEq(DOLA.balanceOf(userPk), 1 ether, "failed to borrow DOLA");
     }
 
-    function testDepositNativeEthAndBorrowOnBehalf() public {
+    function testDepositNativeEthBuyDbrAndBorrowOnBehalf() public {
         uint duration = 365 days;
 
         vm.startPrank(userPk, userPk);
         WETH.withdraw(wethTestAmount);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, borrowHash);
         
-        helper.depositNativeEthAndBorrowOnBehalf{value:wethTestAmount}(IMarket(address(market)), maxBorrowAmount / 2, maxBorrowAmount, duration, block.timestamp, v, r, s);
+        helper.depositNativeEthBuyDbrAndBorrowOnBehalf{value:wethTestAmount}(IMarket(address(market)), maxBorrowAmount / 2, maxBorrowAmount, duration, block.timestamp, v, r, s);
         vm.stopPrank();
 
         assertEq(WETH.balanceOf(address(market.escrows(userPk))), wethTestAmount, "failed to deposit WETH");
@@ -143,7 +140,7 @@ contract HelperTest is FrontierV2Test {
         vm.stopPrank();
         vm.prank(userPk, userPk);
 
-        helper.borrowOnBehalf(IMarket(address(market)), maxBorrowAmount / 2, maxBorrowAmount, duration, block.timestamp, v, r, s);
+        helper.buyDbrAndBorrowOnBehalf(IMarket(address(market)), maxBorrowAmount / 2, maxBorrowAmount, duration, block.timestamp, v, r, s);
 
         assertEq(WETH.balanceOf(address(market.escrows(userPk))), wethTestAmount, "failed to deposit WETH");
         assertEq(WETH.balanceOf(userPk), 0, "failed to deposit WETH");
@@ -164,7 +161,7 @@ contract HelperTest is FrontierV2Test {
         vm.startPrank(userPk, userPk);
         DOLA.approve(address(helper), type(uint).max);
         dbr.approve(address(helper), type(uint).max);
-        helper.borrowOnBehalf(IMarket(address(market)), maxBorrowAmount / 2, maxBorrowAmount, duration, block.timestamp, v, r, s);
+        helper.buyDbrAndBorrowOnBehalf(IMarket(address(market)), maxBorrowAmount / 2, maxBorrowAmount, duration, block.timestamp, v, r, s);
         helper.sellDbrAndRepayOnBehalf(IMarket(address(market)), market.debts(userPk), dbr.balanceOf(userPk) / 100,dbr.balanceOf(userPk));
         vm.stopPrank();
 
@@ -187,7 +184,7 @@ contract HelperTest is FrontierV2Test {
         vm.startPrank(userPk, userPk);
         DOLA.approve(address(helper), type(uint).max);
         dbr.approve(address(helper), type(uint).max);
-        helper.borrowOnBehalf(IMarket(address(market)), maxBorrowAmount / 2, maxBorrowAmount, duration, block.timestamp, v, r, s);
+        helper.buyDbrAndBorrowOnBehalf(IMarket(address(market)), maxBorrowAmount / 2, maxBorrowAmount, duration, block.timestamp, v, r, s);
 
         bytes32 withdrawHash = getWithdrawHash(wethTestAmount, 1);
         (v, r, s) = vm.sign(1, withdrawHash);
@@ -220,7 +217,7 @@ contract HelperTest is FrontierV2Test {
         vm.startPrank(userPk, userPk);
         DOLA.approve(address(helper), type(uint).max);
         dbr.approve(address(helper), type(uint).max);
-        helper.borrowOnBehalf(IMarket(address(market)), maxBorrowAmount / 2, maxBorrowAmount, duration, block.timestamp, v, r, s);
+        helper.buyDbrAndBorrowOnBehalf(IMarket(address(market)), maxBorrowAmount / 2, maxBorrowAmount, duration, block.timestamp, v, r, s);
 
         bytes32 withdrawHash = getWithdrawHash(wethTestAmount, 1);
         (v, r, s) = vm.sign(1, withdrawHash);
@@ -264,6 +261,22 @@ contract HelperTest is FrontierV2Test {
         vm.stopPrank();
 
         assertEq(WETH.balanceOf(address(market.escrows(userPk))), wethTestAmount, "failed to deposit WETH");       
+    }
+
+    function testDepositNativeEthAndBorrowOnBehalf() public {
+        vm.startPrank(userPk, userPk);
+        WETH.withdraw(wethTestAmount);
+
+        assertEq(WETH.balanceOf(address(market.escrows(userPk))), 0);
+        assertEq(DOLA.balanceOf(userPk), 0);
+        borrowHash = getBorrowHash(maxBorrowAmount, 0);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, borrowHash);
+        helper.depositNativeEthAndBorrowOnBehalf{value:wethTestAmount}(IMarket(address(market)), maxBorrowAmount, block.timestamp, v, r, s);
+        vm.stopPrank();
+
+        assertEq(WETH.balanceOf(address(market.escrows(userPk))), wethTestAmount, "failed to deposit WETH");       
+        assertEq(DOLA.balanceOf(userPk), maxBorrowAmount, "failed to borrow");
+        assertEq(market.debts(userPk), DOLA.balanceOf(userPk), "Debt not equal borrow"); 
     }
 
     function getWithdrawHash(uint amount, uint nonce) public view returns(bytes32){
