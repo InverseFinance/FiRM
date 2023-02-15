@@ -77,6 +77,8 @@ contract Oracle {
             if(todaysLow == 0 || normalizedPrice < todaysLow) {
                 todaysLow = normalizedPrice;
             }
+            // if collateralFactorBps is 0, return normalizedPrice;
+            if(collateralFactorBps == 0) return normalizedPrice;
             // get yesterday's low
             uint yesterdaysLow = dailyLows[token][day - 1];
             // calculate new borrowing power based on collateral factor
@@ -109,6 +111,8 @@ contract Oracle {
                 todaysLow = normalizedPrice;
                 emit RecordDailyLow(token, normalizedPrice);
             }
+            // if collateralFactorBps is 0, return normalizedPrice;
+            if(collateralFactorBps == 0) return normalizedPrice;
             // get yesterday's low
             uint yesterdaysLow = dailyLows[token][day - 1];
             // calculate new borrowing power based on collateral factor

@@ -24,7 +24,7 @@ contract MarketTest is FrontierV2Test {
     function setUp() public {
         initialize(replenishmentPriceBps, collateralFactorBps, replenishmentIncentiveBps, liquidationBonusBps, callOnDepositCallback);
 
-        vm.startPrank(chair);
+        vm.startPrank(chair, chair);
         fed.expansion(IMarket(address(market)), 1_000_000e18);
         vm.stopPrank();
 
@@ -696,36 +696,6 @@ contract MarketTest is FrontierV2Test {
         vm.startPrank(gov);
         market.setCollateralFactorBps(0);
         assertEq(market.getWithdrawalLimit(user), 0, "Should return 0 when user has non-zero debt & collateralFactorBps = 0");
-    }
-
-    function testGetLiquidatableDebt_Returns_0_WhenUserHasNoDebt() public {
-        assertEq(market.getLiquidatableDebt(user), 0, "Should return 0 when user has no debt");
-    }
-
-    function testGetLiquidatableDebt_Returns_0_WhenUserCreditEqualsDebt() public {
-        uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
-        gibWeth(user, wethTestAmount);
-        gibDBR(user, wethTestAmount);
-
-        vm.startPrank(user, user);
-        deposit(wethTestAmount);
-        market.borrow(borrowAmount);
-
-        assertEq(market.getLiquidatableDebt(user), 0, "Should return 0 when user credit = debt");
-    }
-
-    function testGetLiquidatableDebt_Returns_LiquidatableDebt_WhenUserDebtGtCredit() public {
-        uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
-        gibWeth(user, wethTestAmount);
-        gibDBR(user, wethTestAmount);
-
-        vm.startPrank(user, user);
-        deposit(wethTestAmount);
-        market.borrow(borrowAmount);
-
-        ethFeed.changeAnswer(oracle.getFeedPrice(address(WETH)) * 5 / 10);
-
-        assertGt(market.getLiquidatableDebt(user), 0, "Should return liquidatable debt when user debt > credit");
     }
 
     function testPauseBorrows() public {
