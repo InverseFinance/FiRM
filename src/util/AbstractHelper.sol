@@ -273,6 +273,36 @@ abstract contract AbstractHelper {
     }
 
     /**
+    @notice Repays debt, and then withdraws native ETH
+    @dev The caller is unlikely to spend all of the DOLA they make available for the function call
+    @param market Market the user wishes to repay debt in
+    @param dolaAmount Amount of dola debt the user is willing to repay    
+    @param collateralAmount Amount of collateral to withdraw
+    @param deadline Deadline of the signature
+    @param v V parameter of the signature
+    @param r R parameter of the signature
+    @param s S parameter of the signature
+    */
+    function repayAndWithdrawNativeEthOnBehalf(
+        IMarket market, 
+        uint dolaAmount,                 
+        uint collateralAmount, 
+        uint deadline,
+        uint8 v, 
+        bytes32 r, 
+        bytes32 s) 
+        external 
+    {        
+        // Repay
+        DOLA.transferFrom(msg.sender, address(this), dolaAmount);        
+        DOLA.approve(address(market), dolaAmount);
+        market.repay(msg.sender, dolaAmount);
+
+        // Withdraw
+        withdrawNativeEthOnBehalf(market, collateralAmount, deadline, v, r, s);
+    }
+
+    /**
     @notice Helper function for depositing native eth to WETH markets
     @param market The WETH market to deposit to
     */
