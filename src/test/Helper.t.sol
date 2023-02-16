@@ -263,6 +263,35 @@ contract HelperTest is FrontierV2Test {
         assertEq(WETH.balanceOf(address(market.escrows(userPk))), wethTestAmount, "failed to deposit WETH");       
     }
 
+    function testRepayAndWithdrawNativeEthOnBehalf() public {
+        uint duration = 365 days;
+        gibDOLA(userPk, 10000 ether);
+
+        vm.startPrank(userPk, userPk);
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, borrowHash);
+        deposit(wethTestAmount);
+        vm.stopPrank();
+        vm.startPrank(userPk, userPk);
+        DOLA.approve(address(helper), type(uint).max);
+        helper.buyDbrAndBorrowOnBehalf(IMarket(address(market)), maxBorrowAmount / 2, maxBorrowAmount, duration, block.timestamp, v, r, s);
+
+        bytes32 withdrawHash = getWithdrawHash(wethTestAmount, 1);
+        (v, r, s) = vm.sign(1, withdrawHash);
+
+        helper.repayAndWithdrawNativeEthOnBehalf(
+            IMarket(address(market)),
+            market.debts(userPk),
+            wethTestAmount,
+            block.timestamp,
+            v, r, s);
+
+        assertEq(WETH.balanceOf(address(market.escrows(userPk))), 0, "failed to withdraw WETH");
+        assertEq(userPk.balance, wethTestAmount, "failed to withdraw WETH");
+        
+        assertEq(market.debts(userPk), 0, "Did not repay debt");        
+    }
+
     function testDepositNativeEthAndBorrowOnBehalf() public {
         vm.startPrank(userPk, userPk);
         WETH.withdraw(wethTestAmount);
