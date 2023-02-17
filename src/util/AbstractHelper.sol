@@ -44,11 +44,11 @@ abstract contract AbstractHelper {
 
     /**
     @notice Approximates the amount of additional DOLA and DBR needed to sustain dolaBorrowAmount over the period
-    @dev Increasing iterations will increase accuracy of the approximation but also the gas cost. Will always undershoot actual DBR amoutn needed.
+    @dev Larger number of iterations increases both accuracy of the approximation and gas cost. Will always undershoot actual DBR amount needed.
     @param dolaBorrowAmount The amount of DOLA the user wishes to borrow before covering DBR expenses
     @param period The amount of seconds the user wish to borrow the DOLA for
     @param iterations The amount of approximation iterations.
-    @return Tuple of (dolaNeeded, dbrNeeded) representing the total dola needed to pay for the DBR and pay out dolaBorrowAmoutn and the dbrNeeded to sustain the loan over the period
+    @return Tuple of (dolaNeeded, dbrNeeded) representing the total dola needed to pay for the DBR and pay out dolaBorrowAmount and the dbrNeeded to sustain the loan over the period
     */
     function approximateDolaAndDbrNeeded(uint dolaBorrowAmount, uint period, uint iterations) public view virtual returns(uint, uint);
 
@@ -58,6 +58,8 @@ abstract contract AbstractHelper {
     @param market Market the caller wishes to borrow from
     @param dolaAmount Amount the caller wants to end up with at their disposal
     @param maxDebt The max amount of debt the caller is willing to end up with
+     This is a sensitive parameter and should be reasonably low to prevent sandwhiching.
+     A good estimate can be calculated given the approximateDolaAndDbrNeeded function, though should be set slightly higher.
     @param duration The duration the caller wish to borrow for
     @param deadline Deadline of the signature
     @param v V parameter of the signature
@@ -101,6 +103,8 @@ abstract contract AbstractHelper {
     @param market Market the caller wish to deposit to and borrow from
     @param dolaAmount Amount the caller wants to end up with at their disposal
     @param maxDebt The max amount of debt the caller is willing to end up with
+     This is a sensitive parameter and should be reasonably low to prevent sandwhiching.
+     A good estimate can be calculated given the approximateDolaAndDbrNeeded function, though should be set slightly higher.
     @param duration The duration the caller wish to borrow for
     @param deadline Deadline of the signature
     @param v V parameter of the signature
@@ -137,6 +141,8 @@ abstract contract AbstractHelper {
     @param market Market the caller wish to deposit to and borrow from
     @param dolaAmount Amount the caller wants to end up with at their disposal
     @param maxDebt The max amount of debt the caller is willing to end up with
+     This is a sensitive parameter and should be reasonably low to prevent sandwhiching.
+     A good estimate can be calculated given the approximateDolaAndDbrNeeded function, though should be set slightly higher.
     @param duration The duration the caller wish to borrow for
     @param deadline Deadline of the signature
     @param v V parameter of the signature
@@ -171,7 +177,8 @@ abstract contract AbstractHelper {
     @dev The caller is unlikely to spend all of the DOLA they make available for the function call
     @param market The market the user wishes to repay debt in
     @param dolaAmount The maximum amount of dola debt the user is willing to repay
-    @param minDolaFromDbr The minimum amount of DOLA the caller expects to get in return for selling their DBR
+    @param minDolaFromDbr The minimum amount of DOLA the caller expects to get in return for selling their DBR.
+     This is a sensitive parameter and should be provided with reasonably low slippage to prevent sandwhiching.
     @param dbrAmountToSell The amount of DBR the caller wishes to sell
     */
     function sellDbrAndRepayOnBehalf(IMarket market, uint dolaAmount, uint minDolaFromDbr, uint dbrAmountToSell) public {
@@ -211,6 +218,7 @@ abstract contract AbstractHelper {
     @param market Market the user wishes to repay debt in
     @param dolaAmount Maximum amount of dola debt the user is willing to repay
     @param minDolaFromDbr Minimum amount of DOLA the caller expects to get in return for selling their DBR
+     This is a sensitive parameter and should be provided with reasonably low slippage to prevent sandwhiching.
     @param dbrAmountToSell Amount of DBR the caller wishes to sell
     @param collateralAmount Amount of collateral to withdraw
     @param deadline Deadline of the signature
@@ -246,6 +254,7 @@ abstract contract AbstractHelper {
     @param market Market the user wishes to repay debt in
     @param dolaAmount Maximum amount of dola debt the user is willing to repay
     @param minDolaFromDbr Minimum amount of DOLA the caller expects to get in return for selling their DBR
+     This is a sensitive parameter and should be provided with reasonably low slippage to prevent sandwhiching.
     @param dbrAmountToSell Amount of DBR the caller wishes to sell
     @param collateralAmount Amount of collateral to withdraw
     @param deadline Deadline of the signature

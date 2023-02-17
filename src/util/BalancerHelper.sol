@@ -112,11 +112,11 @@ contract BalancerHelper is AbstractHelper{
 
     /**
     @notice Approximates the amount of additional DOLA and DBR needed to sustain dolaBorrowAmount over the period
-    @dev Increasing iterations will increase accuracy of the approximation but also the gas cost. Will always undershoot actual DBR amoutn needed.
+    @dev Larger number of iterations increases both accuracy of the approximation and gas cost. Will always undershoot actual DBR amount needed..
     @param dolaBorrowAmount The amount of DOLA the user wishes to borrow before covering DBR expenses
     @param period The amount of seconds the user wish to borrow the DOLA for
     @param iterations The amount of approximation iterations.
-    @return dolaNeeded dbrNeeded Tuple of (dolaNeeded, dbrNeeded) representing the total dola needed to pay for the DBR and pay out dolaBorrowAmoutn and the dbrNeeded to sustain the loan over the period
+    @return dolaNeeded dbrNeeded Tuple of (dolaNeeded, dbrNeeded) representing the total dola needed to pay for the DBR and pay out dolaBorrowAmount and the dbrNeeded to sustain the loan over the period
     */
     function approximateDolaAndDbrNeeded(uint dolaBorrowAmount, uint period, uint iterations) override public view returns(uint dolaNeeded, uint dbrNeeded){
         (uint balanceIn, uint balanceOut) = _getTokenBalances(address(DOLA), address(DBR));
