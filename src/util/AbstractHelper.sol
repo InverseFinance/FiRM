@@ -195,7 +195,7 @@ abstract contract AbstractHelper {
 
         //If dolaBal is less than repayAmount, transfer remaining DOLA from user, otherwise transfer excess dola to user
         if(dolaBal < repayAmount){
-            DOLA.transferFrom(msg.sender, address(this), repayAmount - DOLA.balanceOf(address(this)));
+            DOLA.transferFrom(msg.sender, address(this), repayAmount - dolaBal);
         } else {
             DOLA.transfer(msg.sender, dolaBal - repayAmount);
         }
