@@ -10,10 +10,10 @@ contract BalancerHelper is AbstractHelper{
 
     IVault immutable vault;
     bytes32 immutable poolId;
-    BalancerPool balancerPool;
+    BalancerPool immutable balancerPool;
     IVault.FundManagement fundManangement;
 
-    constructor(address _dola, address _dbr, address _weth, bytes32 _poolId, address _vault) AbstractHelper(_dola, _dbr, _weth){
+    constructor(bytes32 _poolId, address _vault) {
         vault = IVault(_vault);
         poolId = _poolId;
         (address balancerPoolAddress,) = vault.getPool(_poolId);
@@ -22,8 +22,8 @@ contract BalancerHelper is AbstractHelper{
         fundManangement.fromInternalBalance = false;
         fundManangement.recipient = payable(address(this));
         fundManangement.toInternalBalance = false;
-        IERC20(_dola).approve(_vault, type(uint).max);
-        IERC20(_dbr).approve(_vault, type(uint).max);
+        DOLA.approve(_vault, type(uint).max);
+        DBR.approve(_vault, type(uint).max);
     }
 
     /**
@@ -42,7 +42,7 @@ contract BalancerHelper is AbstractHelper{
         swapStruct.amount = amount;
         //swapStruct.userData: User data can be left empty
 
-        vault.swap(swapStruct, fundManangement, minOut, block.timestamp+1);
+        vault.swap(swapStruct, fundManangement, minOut, block.timestamp);
     }
 
     /**
@@ -61,7 +61,7 @@ contract BalancerHelper is AbstractHelper{
         swapStruct.amount = amount;
         //swapStruct.userData: User data can be left empty
 
-        vault.swap(swapStruct, fundManangement, maxIn, block.timestamp+1);
+        vault.swap(swapStruct, fundManangement, maxIn, block.timestamp);
     }
     
     /**

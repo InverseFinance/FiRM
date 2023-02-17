@@ -14,15 +14,9 @@ interface IWETH is IERC20 {
 
 abstract contract AbstractHelper {
 
-    IERC20 DOLA;
-    IERC20 DBR;
-    IWETH WETH;
-
-    constructor(address _dola, address _dbr, address _weth){
-        DOLA = IERC20(_dola);
-        DBR = IERC20(_dbr);
-        WETH = IWETH(_weth);
-    }
+    IERC20 constant DOLA = IERC20(0x865377367054516e17014CcdED1e7d814EDC9ce4);
+    IERC20 constant DBR = IERC20(0xAD038Eb671c44b853887A7E32528FaB35dC5D710);
+    IWETH constant WETH = IWETH(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
     
     /**
     Virtual functions implemented by the AMM interfacing part of the Helper contract
@@ -89,7 +83,7 @@ abstract contract AbstractHelper {
 
         //Transfer remaining DBR and DOLA amount to user
         DOLA.transfer(msg.sender, dolaAmount);
-        DBR.transfer(msg.sender, DBR.balanceOf(address(this)));
+        DBR.transfer(msg.sender, dbrNeeded);
 
         //Repay what remains of max borrow
         uint dolaBalance = DOLA.balanceOf(address(this));
@@ -201,7 +195,6 @@ abstract contract AbstractHelper {
 
         //If dolaBal is less than repayAmount, transfer remaining DOLA from user, otherwise transfer excess dola to user
         if(dolaBal < repayAmount){
-            require(repayAmount <= dolaAmount + dolaBal, "Repay amount exceeds dola amount");
             DOLA.transferFrom(msg.sender, address(this), repayAmount - DOLA.balanceOf(address(this)));
         } else {
             DOLA.transfer(msg.sender, dolaBal - repayAmount);
@@ -368,7 +361,8 @@ abstract contract AbstractHelper {
         require(address(collateral) == address(WETH), "Not an ETH market");
         WETH.withdraw(collateralAmount);
 
-        payable(msg.sender).transfer(collateralAmount);      
+        (bool success,) = payable(msg.sender).call{value:collateralAmount}("");
+        require(success, "Failed to transfer ETH");
     }
     
     //Empty receive function for receiving the native eth sent by the WETH contract
