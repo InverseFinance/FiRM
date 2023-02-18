@@ -40,7 +40,8 @@ contract HelperTest is FrontierV2Test {
         dbr = DolaBorrowingRights(0xAD038Eb671c44b853887A7E32528FaB35dC5D710);
         address vault = 0xBA12222222228d8Ba445958a75a0704d566BF2C8;
         bytes32 poolId = 0x445494f823f3483ee62d854ebc9f58d5b9972a25000200000000000000000415;
-        helper = new BalancerHelper(poolId, vault); 
+        //helper = new BalancerHelper(poolId, vault); 
+        helper = BalancerHelper(payable(0x6c31147E995074eA6aaD2Fbe95060B0Aef7363E1));
         userPk = vm.addr(1);
         vm.startPrank(gov);
         borrowController = BorrowController(0x20C7349f6D6A746a25e66f7c235E96DAC880bc0D);
