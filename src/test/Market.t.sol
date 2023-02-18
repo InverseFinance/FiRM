@@ -24,7 +24,7 @@ contract MarketTest is FrontierV2Test {
     function setUp() public {
         initialize(replenishmentPriceBps, collateralFactorBps, replenishmentIncentiveBps, liquidationBonusBps, callOnDepositCallback);
 
-        vm.startPrank(chair);
+        vm.startPrank(chair, chair);
         fed.expansion(IMarket(address(market)), 1_000_000e18);
         vm.stopPrank();
 
