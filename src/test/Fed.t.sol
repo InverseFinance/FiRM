@@ -22,6 +22,7 @@ contract FedTest is FrontierV2Test {
     }
 
     function testExpansion(uint256 amount) public {
+        amount = bound(amount, 0, 1e50);
         uint startingDolaBal = DOLA.balanceOf(address(marketParameter));
 
         vm.startPrank(chair);
@@ -48,6 +49,7 @@ contract FedTest is FrontierV2Test {
     }
 
     function testContraction(uint256 amount) public {
+        amount = bound(amount, 0, 1e50);
         vm.startPrank(chair);
         fed.expansion(marketParameter, amount);
         assertEq(fed.supplies(marketParameter), amount, "expansion failed - fed accounting");
