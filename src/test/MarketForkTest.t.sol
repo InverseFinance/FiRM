@@ -273,10 +273,11 @@ contract MarketForkTest is FiRMForkTest {
 
         vm.startPrank(user, user);
         
+        uint borrowAmount = getMaxBorrowAmount(testAmount);
         deposit(testAmount);
 
         vm.expectRevert("SafeMath: subtraction underflow");
-        market.borrow(1 ether);
+        market.borrow(borrowAmount);
     }
     /**
     function testLiquidate_NoLiquidationFee(uint depositAmount, uint liqAmount, uint16 borrowMulti_) public {
@@ -528,12 +529,12 @@ contract MarketForkTest is FiRMForkTest {
 
     function testForceReplenish() public {
         gibWeth(user, testAmount);
-        gibDBR(user, testAmount / 14);
+        uint borrowAmount = getMaxBorrowAmount(testAmount);
+        gibDBR(user, borrowAmount / 365);
         uint initialReplenisherDola = DOLA.balanceOf(replenisher);
 
         vm.startPrank(user, user);
         deposit(testAmount);
-        uint borrowAmount = getMaxBorrowAmount(testAmount);
         market.borrow(borrowAmount);
         uint initialUserDebt = market.debts(user);
         uint initialMarketDola = DOLA.balanceOf(address(market));
@@ -553,12 +554,12 @@ contract MarketForkTest is FiRMForkTest {
 
     function testForceReplenish_Fails_When_UserHasNoDbrDeficit() public {
         gibWeth(user, testAmount);
+        uint borrowAmount = getMaxBorrowAmount(testAmount);
         gibDBR(user, testAmount * 100);
 
         vm.startPrank(user, user);
 
         deposit(testAmount);
-        uint borrowAmount = getMaxBorrowAmount(testAmount);
         market.borrow(borrowAmount);
         uint deficit = dbr.deficitOf(user);
 
@@ -571,11 +572,11 @@ contract MarketForkTest is FiRMForkTest {
 
     function testForceReplenish_Fails_When_NotEnoughDolaInMarket() public {
         gibWeth(user, testAmount);
-        gibDBR(user, testAmount / 14);
+        uint borrowAmount = getMaxBorrowAmount(testAmount);
+        gibDBR(user, borrowAmount / 365);
 
         vm.startPrank(user, user);
         deposit(testAmount);
-        uint borrowAmount = getMaxBorrowAmount(testAmount);
         market.borrow(borrowAmount);
 
         vm.warp(block.timestamp + 5 days);
@@ -747,6 +748,7 @@ contract MarketForkTest is FiRMForkTest {
 
     function testWithdraw_Fail_When_WithdrawingCollateralBelowCF() public {
         gibWeth(user, testAmount);
+        uint borrowAmount = getMaxBorrowAmount(testAmount);
         gibDBR(user, testAmount);
         vm.startPrank(user, user);
 
@@ -755,7 +757,7 @@ contract MarketForkTest is FiRMForkTest {
         assertEq(collateral.balanceOf(address(market.escrows(user))), testAmount, "failed to deposit collateral");
         assertEq(collateral.balanceOf(user), 0, "failed to deposit collateral");
 
-        market.borrow(1 ether);
+        market.borrow(borrowAmount);
 
         vm.expectRevert("Insufficient withdrawal limit");
         market.withdraw(testAmount);

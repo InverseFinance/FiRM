@@ -82,9 +82,10 @@ contract FiRMForkTest is Test {
         vm.startPrank(gov, gov);
         market.setBorrowController(IBorrowController(address(borrowController)));
         market.setCollateralFactorBps(7500);
-        borrowController.setDailyLimit(address(market), 250_000 ether);
+        borrowController.setDailyLimit(address(market), 250_000*1e18);
         dbr.addMarket(address(market));
         fed.changeMarketCeiling(IMarket(address(market)), type(uint).max);
+        fed.changeSupplyCeiling(type(uint).max);
         oracle.setFeed(address(collateral), feed, 18);
         vm.stopPrank();
 
@@ -99,12 +100,12 @@ contract FiRMForkTest is Test {
 
     function convertCollatToDola(uint amount) public view returns (uint) {
         (,int latestAnswer,,,) = feed.latestRoundData();
-        return amount * uint(latestAnswer) / 1e18;
+        return amount * uint(latestAnswer) / 10**feed.decimals();
     }
 
     function convertDolaToCollat(uint amount) public view returns (uint) {
         (,int latestAnswer,,,) = feed.latestRoundData();
-        return amount * 1e18 / uint(latestAnswer);
+        return amount * 10**feed.decimals() / uint(latestAnswer);
     }
 
     function getMaxBorrowAmount(uint amountCollat) public view returns (uint) {
