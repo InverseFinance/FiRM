@@ -28,7 +28,7 @@ contract FiRMForkTest is Test {
     address user = address(0x69);
     address user2 = address(0x70);
     address replenisher = address(0x71);
-    address collatHolder = address(0x168fa4917e7cD18f4eD3dc313c4975851cA9E5E7);
+    address collatHolder = address(0xD533a949740bb3306d119CC777fa900bA034cd52);
     address gov = address(0x926dF14a23BE491164dCF93f4c468A50ef659D5B);
     address chair = address(0x8F97cCA30Dbe80e7a8B462F1dD1a51C32accDfC8);
     address pauseGuardian = address(0xE3eD95e130ad9E15643f5A5f232a3daE980784cd);
@@ -58,12 +58,11 @@ contract FiRMForkTest is Test {
 
     function init() public {
         DOLA = IMintable(0x865377367054516e17014CcdED1e7d814EDC9ce4);
-        market = Market(0x7Cd3ab8354289BEF52c84c2BF0A54E3608e66b37);
-        feed = IChainlinkFeed(0xe893297a9d4310976424fD0B25f53aC2B6464fe3);
+        market = Market(0x63fAd99705a255fE2D500e498dbb3A9aE5AA1Ee8);
+        feed = IChainlinkFeed(0xCd627aA160A6fA45Eb793D19Ef54f5062F20f33f);
         borrowController = BorrowController(0x20C7349f6D6A746a25e66f7c235E96DAC880bc0D);
         dbr = DolaBorrowingRights(0xAD038Eb671c44b853887A7E32528FaB35dC5D710);
 
-        collateralFactorBps = market.collateralFactorBps();
         replenishmentIncentiveBps = market.replenishmentIncentiveBps();
         liquidationBonusBps = market.liquidationIncentiveBps();
         replenishmentPriceBps = dbr.replenishmentPriceBps();
@@ -80,15 +79,16 @@ contract FiRMForkTest is Test {
         //Warp forward 7 days since local chain timestamp is 0, will cause revert when calculating `days` in oracle.
         vm.warp(block.timestamp + 7 days);
 
-        //This is done to make DOLA live at a predetermined address so it does not need to be included in constructor
-
         vm.startPrank(gov, gov);
-        fed.changeMarketCeiling(IMarket(address(market)), type(uint).max);
         market.setBorrowController(IBorrowController(address(borrowController)));
-        borrowController.setDailyLimit(address(market), 100_000 ether);
+        market.setCollateralFactorBps(7500);
+        borrowController.setDailyLimit(address(market), 250_000 ether);
         dbr.addMarket(address(market));
+        fed.changeMarketCeiling(IMarket(address(market)), type(uint).max);
         oracle.setFeed(address(collateral), feed, 18);
         vm.stopPrank();
+
+        collateralFactorBps = market.collateralFactorBps();
     }
 
     //Helper functions
