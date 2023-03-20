@@ -25,8 +25,6 @@ interface ICvxCrvStakingWrapper{
     function rewardLength() external view returns(uint);
     //get reward address, reward group, reward integral and reward remaining
     function rewards(uint index) external view returns(address,uint8,uint128,uint128);
-    //get unclaimed rewards by rewardGroup
-    function userRewardBalance(address user, uint rewardGroup) external view returns(uint);
 }
 
 /**
