@@ -133,7 +133,6 @@ contract ConvexCurveEscrow {
     @dev Can be used to build contracts for auto-compounding cvxCrv, auto-buying DBR or auto-repaying loans
     */
     function allowClaimOnBehalf(address allowee) external onlyBeneficiary {
-        require(msg.sender == beneficiary, "ONLY BENEFICIARY");
         allowlist[allowee] = true;
     }
 
