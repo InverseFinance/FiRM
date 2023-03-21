@@ -39,6 +39,16 @@ contract ConvexCurveEscrow {
     address public beneficiary;
     mapping(address => bool) public allowlist;
 
+    modifier onlyBeneficiary {
+        require(msg.sender == beneficiary, "ONLY BENEFICIARY");
+        _; 
+    }
+
+    modifier onlyBeneficiaryOrAllowlist {
+        require(msg.sender == beneficiary || allowlist[msg.sender], "ONLY BENEFICIARY OR ALLOWED");
+        _; 
+    }
+
     /**
     @notice Initialize escrow with a token
     @dev Must be called right after proxy is created.
@@ -69,7 +79,7 @@ contract ConvexCurveEscrow {
     @return Uint representing the token balance of the contract + the staked balance
     */
     function balance() public view returns (uint) {
-        return token.balanceOf(address(this)) + rewardPool.balanceOf(address(this));
+        return rewardPool.balanceOf(address(this));
     }
 
     /**
@@ -84,8 +94,7 @@ contract ConvexCurveEscrow {
     @notice Sets the reward weight for staked cvxCrv tokens.
     @param threeCurveTokenBps The percentage amount of reward tokens to be paid out in 3CRV tokens, set in basis points.
     */
-    function setRewardWeight(uint threeCurveTokenBps) external {
-        require(msg.sender == beneficiary, "ONLY BENEFICIARY");
+    function setRewardWeight(uint threeCurveTokenBps) external onlyBeneficiaryOrAllowlist {
         require(threeCurveTokenBps <= 10000, "WEIGHT > 10000");
         rewardPool.setRewardWeight(threeCurveTokenBps);
     }
@@ -94,8 +103,7 @@ contract ConvexCurveEscrow {
     @notice Claims reward tokens to the specified address. Only callable by beneficiary and allowlisted addresses
     @param to Address to send claimed rewards to
     */
-    function claimTo(address to) public {
-        require(msg.sender == beneficiary || allowlist[msg.sender], "ONLY BENEFICIARY OR ALLOWED");
+    function claimTo(address to) public onlyBeneficiaryOrAllowlist{
         //Claim rewards
         rewardPool.getReward(address(this));
 
@@ -122,7 +130,7 @@ contract ConvexCurveEscrow {
     @param allowee Address that are allowed to claim on behalf of the beneficiary
     @dev Can be used to build contracts for auto-compounding cvxCrv, auto-buying DBR or auto-repaying loans
     */
-    function allowClaimOnBehalf(address allowee) external {
+    function allowClaimOnBehalf(address allowee) external onlyBeneficiary {
         require(msg.sender == beneficiary, "ONLY BENEFICIARY");
         allowlist[allowee] = true;
     }
@@ -131,8 +139,7 @@ contract ConvexCurveEscrow {
     @notice Disallow address to claim on behalf of the beneficiary to any address
     @param allowee Address that are disallowed to claim on behalf of the beneficiary
     */
-    function disallowClaimOnBehalf(address allowee) external {
-        require(msg.sender == beneficiary, "ONLY BENEFICIARY");
+    function disallowClaimOnBehalf(address allowee) external onlyBeneficiary {
         allowlist[allowee] = false;   
     }
 }

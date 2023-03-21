@@ -204,7 +204,7 @@ contract ConvexCurveEscrowForkTest is Test{
 
     function testSetRewardWeight_fails_whenCalledByNonBeneficiary() public {
         vm.prank(friend);
-        vm.expectRevert("ONLY BENEFICIARY");
+        vm.expectRevert("ONLY BENEFICIARY OR ALLOWED");
         escrow.setRewardWeight(10000);
     }
 
