@@ -16,7 +16,9 @@ interface ICvxCrvStakingWrapper{
     //withdraw to a convex tokenized deposit
     function withdraw(uint256 _amount) external;
     //claim rewards
-    function getReward(address to) external;
+    function getReward(address claimant) external;
+    //claim rewards and forward to address
+    function getReward(address claimant, address forwardTo) external;
     //stake convex curve
     function stake(uint256 _amount, address _to) external;
     //sets the weight of gov token to receive, can be set between 0 and 10000
@@ -105,7 +107,7 @@ contract ConvexCurveEscrow {
     */
     function claimTo(address to) public onlyBeneficiaryOrAllowlist{
         //Claim rewards
-        rewardPool.getReward(address(this));
+        rewardPool.getReward(address(this), to);
 
         //Send contract balance of rewards
         uint rewardLength = rewardPool.rewardLength();
