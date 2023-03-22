@@ -1,4 +1,4 @@
-#Test Coverage Report
+## Test Coverage Report
 
 | File                              | % Lines          | % Statements     | % Branches       | % Funcs          |
 |-----------------------------------|------------------|------------------|------------------|------------------|
