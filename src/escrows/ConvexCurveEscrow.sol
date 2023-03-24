@@ -23,6 +23,8 @@ interface ICvxCrvStakingWrapper{
     function stake(uint256 _amount, address _to) external;
     //sets the weight of gov token to receive, can be set between 0 and 10000
     function setRewardWeight(uint govTokenBps) external;
+    //get the reward weight of a specific address
+    function userRewardWeight(address user) external view returns(uint256);
     //get number of reward tokens
     function rewardLength() external view returns(uint);
     //get reward address, reward group, reward integral and reward remaining
@@ -62,6 +64,7 @@ contract ConvexCurveEscrow {
         market = msg.sender;
         token = _token;
         token.approve(address(rewardPool), type(uint).max);
+        rewardPool.setRewardWeight(rewardPool.userRewardWeight(_beneficiary));
         beneficiary = _beneficiary;
     }
 
