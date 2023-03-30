@@ -9,7 +9,7 @@ contract ConvexCurveEscrowForkTest is Test{
     address market = address(0xA);
     address beneficiary = address(0xB);
     address friend = address(0xC);
-    address holder = address(0xFBAcf517a8523a41C75C189FB9FCE7b536030e1A);
+    address holder = address(0x50BE13b54f3EeBBe415d20250598D81280e56772);
     IERC20 cvxCrv = IERC20(0x62B9c7356A2Dc64a1969e19C23e4f579F9810Aa7);
     IERC20 threeCrv = IERC20(0x6c3F90f043a72FA612cbac8115EE7e52BDe6E490);
     IERC20 cvx = IERC20(0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B);
