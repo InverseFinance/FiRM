@@ -81,7 +81,7 @@ contract ConvexCurveEscrow {
 
     /**
     @notice Get the token balance of the escrow
-    @return Uint representing the token balance of the contract + the staked balance
+    @return Uint representing the staked balance of the escrow
     */
     function balance() public view returns (uint) {
         return rewardPool.balanceOf(address(this));
