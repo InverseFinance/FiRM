@@ -60,14 +60,18 @@ contract FrontierV2Test is Test {
 
         //Warp forward 7 days since local chain timestamp is 0, will cause revert when calculating `days` in oracle.
         vm.warp(block.timestamp + 7 days);
-        vm.startPrank(gov);
 
         //This is done to make DOLA live at a predetermined address so it does not need to be included in constructor
         DOLA = new ERC20("DOLA", "DOLA", 18);
         bytes memory code = codeAt(address(DOLA));
         vm.etch(0x865377367054516e17014CcdED1e7d814EDC9ce4, code);
         DOLA = ERC20(0x865377367054516e17014CcdED1e7d814EDC9ce4);
+        vm.startPrank(DOLA.operator());
+        DOLA.setPendingOperator(gov);
+        vm.stopPrank();
 
+        vm.startPrank(gov, gov);
+        DOLA.claimOperator();
         WETH = new WETH9();
         wBTC = new WBTC();
 
@@ -86,9 +90,6 @@ contract FrontierV2Test is Test {
         dbr.addMarket(address(market));
         oracle.setFeed(address(WETH), IChainlinkFeed(address(ethFeed)), 18);
         oracle.setFeed(address(wBTC), IChainlinkFeed(address(wbtcFeed)), 8);
-        vm.stopPrank();
-
-        vm.startPrank(address(gov));
         DOLA.addMinter(address(fed));
         vm.stopPrank();
     }
