@@ -3,6 +3,7 @@ import "src/util/AbstractHelper.sol";
 
 interface ICurvePool {
     function coins(uint index) external view returns(uint);
+    function get_dy(uint i, uint j, uint dx) external view returns(uint);
     function exchange(uint i, uint j, uint dx, uint min_dy, bool use_eth) external payable returns(uint);
     function exchange(uint i, uint j, uint dx, uint min_dy, bool use_eth, address receiver) external payable returns(uint);
 }
@@ -51,45 +52,64 @@ contract CurveHelper is AbstractHelper{
     @param amountOut Amount of token desired to receive
     @param tradeFee The fee taking by LPs
     @return Amount of token to pay in
-    */
     function _getInGivenOut(uint balanceIn, uint balanceOut, uint amountOut) internal view returns(uint){
-        balances: uint256[N_COINS] = self.balances
-        price_scale: uint256[N_COINS-1] = self._unpack_prices(self.price_scale_packed)
-        A_gamma: uint256[2] = self._A_gamma()
-        precisions: uint256[N_COINS] = self._unpack(self.packed_precisions)
-        _D: uint256 = self._calc_D_ramp(balances, price_scale, A_gamma, precisions)
+        //balances: uint256[N_COINS] = self.balances
+        uint256[N_COINS] balances = 
+        uint256[1] price_scale = self._unpack_prices(self.price_scale_packed);
+        uint256[2] a_gamma = self._A_gamma();
+        uint256[N_COINS] precisions = self._unpack(self.packed_precisions);
+        uint256 _D = self._calc_D_ramp(balances, price_scale, A_gamma, precisions);
 
         uint x = 0;
-        uint dx = 0
-        _dy: uint256 = dy  # <------------ _dy will have less fee element than dy.
-        fee_dy: uint256 = 0  # <-------- the amount of fee removed from dy in each
+        uint dx = 0;
+        uint256 _dy = dy;  // <------------ _dy will have less fee element than dy.
+        uint256 fee_dy = 0;  // <-------- the amount of fee removed from dy in each
         #                                                               iteration.
-        _xp: uint256[N_COINS] = empty(uint256[N_COINS])
-        for k in range(20):
+        uint256[N_COINS] _xp = new uint256[N_COINS];
+        for(int k; k < 20; ++k){
 
-            _xp = balances  # <---------------------------------------- reset xp.
+            _xp = balances;  // <---------------------------------------- reset xp.
 
-            # Adjust xp with output dy. dy contains fee element, which needs to be
-            # iteratively sieved out:
-            _xp[j] -= _dy
-            _xp[0] *= precisions[0]
-            for l in range(N_COINS - 1):
-                _xp[l + 1] = _xp[l + 1] * price_scale[l] * precisions[l + 1] / PRECISION
+            // Adjust xp with output dy. dy contains fee element, which needs to be
+            // iteratively sieved out:
+            _xp[j] -= _dy;
+            _xp[0] *= precisions[0];
+            for(int l; l < N_COINS - 1;++l){
+                _xp[l + 1] = _xp[l + 1] * price_scale[l] * precisions[l + 1] / PRECISION;
+            }
 
-            # calculate x for given xp
-            x = MATH.get_y(A_gamma[0], A_gamma[1], _xp, _D, i)[0]
-            dx = x - _xp[i]
+            // calculate x for given xp
+            x = MATH.get_y(A_gamma[0], A_gamma[1], _xp, _D, i)[0];
+            dx = x - _xp[i];
 
-            if i > 0:
-                dx = dx * PRECISION / price_scale[i - 1]
-            dx /= precisions[i]
+            if( i > 0){
+                dx = dx * PRECISION / price_scale[i - 1];
+            }
+            dx /= precisions[i];
 
-            fee_dy = self._fee(_xp) * _dy / 10**10  # <----- Fee amount to remove.
-            _dy = dy + fee_dy  # <--------------------- Sieve out fee_dy from _dy.
+            fee_dy = self._fee(_xp) * _dy / 10**10;  // <----- Fee amount to remove.
+            _dy = dy + fee_dy;  // <--------------------- Sieve out fee_dy from _dy.
+        }
 
-    return dx
-
+        return dx
     }
+    */
+
+    function binaryApproximation(uint dolaBorrowAmount, uint period, uint iterations) public view returns(uint dolaNeeded, uint dbrNeeded){
+        uint amountIn = dolaBorrowAmount;
+        for(int i; i < iterations; ++i){
+            uint dbrNeeded = (amountIn + dolaBorrowAmount) * period / 365 days;
+            uint dbrReceived = get_dy(dolaIndex, dbrIndex, amountIn);
+            if(dbrReceived > dbrNeeded){
+                amountIn = amountIn / 2;
+            } else {
+                amountIn = amountIn + amountIn/2;
+            }
+        }
+        return (dolaBorrowAmount + amountIn, (dolaBorrowAmount + amountIn)*period / 365 days);
+    }
+
+
 
     /**
     @notice Approximates the amount of additional DOLA and DBR needed to sustain dolaBorrowAmount over the period
