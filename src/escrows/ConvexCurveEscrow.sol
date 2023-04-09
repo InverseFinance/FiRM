@@ -47,6 +47,8 @@ contract ConvexCurveEscrow {
         _; 
     }
 
+    event AllowClaim(address indexed allowedAddress, bool allowed);
+
     /**
     @notice Initialize escrow with a token
     @dev Must be called right after proxy is created.
@@ -132,6 +134,7 @@ contract ConvexCurveEscrow {
     */
     function allowClaimOnBehalf(address allowee) external onlyBeneficiary {
         allowlist[allowee] = true;
+        emit AllowClaim(allowee, true);
     }
 
     /**
@@ -140,5 +143,6 @@ contract ConvexCurveEscrow {
     */
     function disallowClaimOnBehalf(address allowee) external onlyBeneficiary {
         allowlist[allowee] = false;   
+        emit AllowClaim(allowee, false);
     }
 }
