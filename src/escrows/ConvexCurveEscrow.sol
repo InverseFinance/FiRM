@@ -1,13 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
-
-// Caution. We assume all failed transfers cause reverts and ignore the returned bool.
-interface IERC20 {
-    function transfer(address,uint) external returns (bool);
-    function transferFrom(address,address,uint) external returns (bool);
-    function balanceOf(address) external view returns (uint);
-    function approve(address spender, uint value) external returns (bool);
-}
+import "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 
 //sample convex reward contracts interface
 interface ICvxCrvStakingWrapper{
@@ -37,6 +30,7 @@ interface ICvxCrvStakingWrapper{
 @dev Caution: This is a proxy implementation. Follow proxy pattern best practices
 */
 contract ConvexCurveEscrow {
+    using SafeERC20 for IERC20;
     address public market;
     IERC20 public token;
     ICvxCrvStakingWrapper public constant rewardPool = ICvxCrvStakingWrapper(0xaa0C3f5F7DFD688C6E646F66CD2a6B66ACdbE434);
@@ -118,7 +112,8 @@ contract ConvexCurveEscrow {
             (address rewardToken,,,) = rewardPool.rewards(rewardIndex);
             uint rewardBal = IERC20(rewardToken).balanceOf(address(this));
             if(rewardBal > 0){
-                IERC20(rewardToken).transfer(to, rewardBal);
+                //Use safe transfer in case bad reward token is added
+                IERC20(rewardToken).safeTransfer(to, rewardBal);
             }
         }
     }
