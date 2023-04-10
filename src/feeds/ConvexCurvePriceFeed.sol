@@ -1,8 +1,8 @@
 pragma solidity ^0.8.13;
 
 interface IChainlinkFeed {
-    function decimals() external view returns (uint8);
-    function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80);
+    function decimals() external view returns (uint8 decimals);
+    function latestRoundData() external view returns (uint80 roundId, int256 crvUsdPrice, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound);
 }
 
 interface ICurvePool {
@@ -28,8 +28,9 @@ contract ConvexCurvePriceFeed is IChainlinkFeed {
             //1 CRV can always be traded for 1 CvxCrv, so price for CvxCrv should never be higher than the price of CRV
             return (roundId, crvUsdPrice, startedAt, updatedAt, answeredInRound);
         }
-        //If there's too big of a difference between the EMA price and last price
+        //If there's too big of a difference between the EMA price and last price revert
         require(crvPerCvxCrv * revertThreshold / 10000 <= cvxCrvCrvPool.last_price(), "BELOW REVERT THRESHOLD");
+        require(crvPerCvxCrv * (10000 + revertThreshold) / 10000 >= cvxCrvCrvPool.last_price(), "ABOVE REVERT THRESHOLD");
         //Divide by 10**8 as crvUsdPrice is 8 decimals
         int256 cvxCrvUsdPrice = crvUsdPrice * int256(crvPerCvxCrv) / 10**8;
         return (roundId, cvxCrvUsdPrice, startedAt, updatedAt, answeredInRound);
@@ -42,6 +43,6 @@ contract ConvexCurvePriceFeed is IChainlinkFeed {
 
     function setGov(address newGov) public {
         require(msg.sender == gov, "ONLY GOV");
-          gov = newGov;
+        gov = newGov;
     }
 }
