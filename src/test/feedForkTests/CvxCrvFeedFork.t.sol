@@ -6,11 +6,13 @@ import {ConvexCurvePriceFeed} from "../../feeds/ConvexCurvePriceFeed.sol";
 
 interface ICurvePool {
     function get_p() view external returns(uint);
+    function price_oracle() view external returns(uint);
     function exchange(int128 i, int128 j, uint256 _dx, uint256 _min_dy) external returns(uint);
 }
 
 interface IERC20 {
     function approve(address to, uint amount) external;
+    function balanceOf(address holder) external returns(uint);
 }
 
 contract CvxCrvFeedFork is Test {
@@ -23,9 +25,20 @@ contract CvxCrvFeedFork is Test {
         string memory url = vm.rpcUrl("mainnet");
         vm.createSelectFork(url);
     }
-
+    /**
     function testSwap7500000() public {
         swapXForY(cvxCrvHolder, 100_000 ether, 75);
+    }
+    */
+    function testEMA() public {
+        emit log_named_uint("Price before", curvePool.get_p());
+        emit log_named_uint("Swap amount", cvxCrv.balanceOf(cvxCrvHolder));
+        swapAllForY(cvxCrvHolder);
+        for(int secs; secs < 60*120; secs += 60){
+            vm.warp(block.timestamp + 60);
+            emit log_uint(curvePool.price_oracle());
+        }
+        emit log_named_uint("Price after", curvePool.get_p());
     }
 
     function swapXForY(address xHolder, uint amount, uint times) public {
@@ -36,6 +49,13 @@ contract CvxCrvFeedFork is Test {
             emit log_uint(curvePool.get_p());
         }
         vm.stopPrank();
+    }
+
+    function swapAllForY(address xHolder) public {
+        vm.startPrank(xHolder);
+        cvxCrv.approve(address(curvePool), type(uint).max);
+        curvePool.exchange(1, 0, cvxCrv.balanceOf(xHolder), 1);
+        vm.stopPrank();   
     }
 }
 
