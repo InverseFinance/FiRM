@@ -73,6 +73,18 @@ contract DbrDistributorTest is Test {
         assertEq(distributor.claimable(address(escrow)), 12 * distributor.rewardRate());
     }
 
+    function testStakeSmallRewardRate() external {
+        vm.prank(operator);
+        distributor.setRewardRate(10**10);
+        vm.prank(address(escrow));
+        uint stakeAmount = 10**18;
+        distributor.stake(stakeAmount);
+
+        assertEq(distributor.balanceOf(address(escrow)), stakeAmount);
+        vm.warp(block.timestamp + 12);
+        assertEq(distributor.claimable(address(escrow)), 12 * distributor.rewardRate());
+    }
+
     function testMultiStake() external {
         address user2 = address(0x1);
         INVEscrowMock escrow2 = market.createEscrow(user2);
