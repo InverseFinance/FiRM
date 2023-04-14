@@ -40,11 +40,11 @@ abstract contract OffchainAbstractHelper {
     @notice Approximates the amount of additional DOLA and DBR needed to sustain dolaBorrowAmount over the period
     @dev Larger number of iterations increases both accuracy of the approximation and gas cost. Will always undershoot actual DBR amount needed.
     @param dolaBorrowAmount The amount of DOLA the user wishes to borrow before covering DBR expenses
-    @param duration The amount of seconds the user wish to borrow the DOLA for
+    @param minDbr The amount of seconds the user wish to borrow the DOLA for
     @param iterations The amount of approximation iterations.
     @return Tuple of (dolaNeeded, dbrNeeded) representing the total dola needed to pay for the DBR and pay out dolaBorrowAmount and the dbrNeeded to sustain the loan over the period
     */
-    function approximateDolaAndDbrNeeded(uint dolaBorrowAmount, uint duration, uint iterations) public view virtual returns(uint, uint);
+    function approximateDolaAndDbrNeeded(uint dolaBorrowAmount, uint minDbr, uint iterations) public view virtual returns(uint, uint);
 
     /**
     @notice Borrows on behalf of the caller, buying the necessary DBR to pay for the loan over the period, by borrowing aditional funds to pay for the necessary DBR
@@ -54,7 +54,7 @@ abstract contract OffchainAbstractHelper {
     @param dolaForDbr The max amount of debt the caller is willing to end up with
      This is a sensitive parameter and should be reasonably low to prevent sandwhiching.
      A good estimate can be calculated given the approximateDolaAndDbrNeeded function, though should be set slightly higher.
-    @param duration The duration the caller wish to borrow for
+    @param minDbr The minDbr the caller wish to borrow for
     @param deadline Deadline of the signature
     @param v V parameter of the signature
     @param r R parameter of the signature
@@ -64,7 +64,7 @@ abstract contract OffchainAbstractHelper {
         IMarket market, 
         uint dolaAmount,
         uint dolaForDbr,
-        uint duration,
+        uint minDbr,
         uint deadline, 
         uint8 v, 
         bytes32 r, 
@@ -72,11 +72,11 @@ abstract contract OffchainAbstractHelper {
         public 
     {
         //Borrow Dola
-        uint totalBorrow = dolaAmount + dolaForDbr
+        uint totalBorrow = dolaAmount + dolaForDbr;
         market.borrowOnBehalf(msg.sender, totalBorrow, deadline, v, r, s);
         
         //Buy DBR
-        _buyDbr(dolaForDbr, totalBorrow * duration / 365 days, msg.sender);
+        _buyDbr(dolaForDbr, totalBorrow * minDbr / 365 days, msg.sender);
 
         //Transfer remaining DOLA amount to user
         DOLA.transfer(msg.sender, dolaAmount);
@@ -87,10 +87,10 @@ abstract contract OffchainAbstractHelper {
     @dev Has to borrow the dolaForDbr amount due to how the market's borrowOnBehalf functions, and repay the excess at the end of the call resulting in a weird repay event
     @param market Market the caller wish to deposit to and borrow from
     @param dolaAmount Amount the caller wants to end up with at their disposal
-    @param dolaForDbr The max amount of debt the caller is willing to end up with
+    @param dolaForDbr The max amount of debt the caller is willing to take on to buy dbr
      This is a sensitive parameter and should be reasonably low to prevent sandwhiching.
      A good estimate can be calculated given the approximateDolaAndDbrNeeded function, though should be set slightly higher.
-    @param duration The duration the caller wish to borrow for
+    @param minDbr The minDbr the caller wish to borrow for
     @param deadline Deadline of the signature
     @param v V parameter of the signature
     @param r R parameter of the signature
@@ -101,7 +101,7 @@ abstract contract OffchainAbstractHelper {
         uint collateralAmount, 
         uint dolaAmount,
         uint dolaForDbr,
-        uint duration,
+        uint minDbr,
         uint deadline, 
         uint8 v, 
         bytes32 r, 
@@ -116,7 +116,7 @@ abstract contract OffchainAbstractHelper {
         market.deposit(msg.sender, collateralAmount);
 
         //Borrow dola and buy dbr
-        buyDbrAndBorrowOnBehalf(market, dolaAmount, dolaForDbr, duration, deadline, v, r , s);
+        buyDbrAndBorrowOnBehalf(market, dolaAmount, dolaForDbr, minDbr, deadline, v, r , s);
     }
 
     /**
@@ -128,7 +128,7 @@ abstract contract OffchainAbstractHelper {
     @param dolaForDbr The max amount of debt the caller is willing to end up with
      This is a sensitive parameter and should be reasonably low to prevent sandwhiching.
      A good estimate can be calculated given the approximateDolaAndDbrNeeded function, though should be set slightly higher.
-    @param duration The duration the caller wish to borrow for
+    @param minDbr The minDbr the caller wish to borrow for
     @param deadline Deadline of the signature
     @param v V parameter of the signature
     @param r R parameter of the signature
@@ -138,7 +138,7 @@ abstract contract OffchainAbstractHelper {
         IMarket market, 
         uint dolaAmount,
         uint dolaForDbr,
-        uint duration,
+        uint minDbr,
         uint deadline, 
         uint8 v, 
         bytes32 r, 
@@ -154,7 +154,7 @@ abstract contract OffchainAbstractHelper {
         market.deposit(msg.sender, msg.value);
 
         //Borrow dola and buy dbr
-        buyDbrAndBorrowOnBehalf(market, dolaAmount, dolaForDbr, duration, deadline, v, r , s);
+        buyDbrAndBorrowOnBehalf(market, dolaAmount, dolaForDbr, minDbr, deadline, v, r , s);
     }
 
     /**
@@ -172,10 +172,10 @@ abstract contract OffchainAbstractHelper {
         //If user has less DBR than ordered, sell what's available
         if(dbrAmountToSell > dbrBal){
             DBR.transferFrom(msg.sender, address(this), dbrBal);
-            _sellExactDbr(dbrBal, minDolaFromDbr);
+            _sellDbr(dbrBal, minDolaFromDbr);
         } else {
             DBR.transferFrom(msg.sender, address(this), dbrAmountToSell);
-            _sellExactDbr(dbrAmountToSell, minDolaFromDbr);
+            _sellDbr(dbrAmountToSell, minDolaFromDbr);
         }
 
         uint debt = market.debts(msg.sender);
