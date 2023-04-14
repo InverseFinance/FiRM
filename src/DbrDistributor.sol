@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 interface IDBR {
     function markets(address) external view returns (bool);
-    function mint(address, uint) external view;
+    function mint(address, uint) external;
 }
 
 interface IINVEscrow {
@@ -20,6 +20,7 @@ contract DbrDistributor {
     IDBR public immutable dbr;
     address public gov;
     address public operator;
+    uint public constant mantissa = 10**18;
     uint public minRewardRate; // starts at 0
     uint public maxRewardRate = type(uint).max / 3652500 days; // 10,000 years
     uint public rewardRate; // starts at 0
@@ -35,7 +36,7 @@ contract DbrDistributor {
         uint deltaT = block.timestamp - lastUpdate;
         if(deltaT > 0) {
             if(rewardRate > 0 && totalSupply > 0) {
-                uint rewardsAccrued = deltaT * rewardRate;
+                uint rewardsAccrued = deltaT * rewardRate * mantissa;
                 rewardIndex += rewardsAccrued / totalSupply;
             }
             lastUpdate = block.timestamp;
@@ -107,16 +108,20 @@ contract DbrDistributor {
 
     function claimable(address user) public view returns(uint) {
         uint deltaT = block.timestamp - lastUpdate;
-        uint rewardsAccrued = deltaT * rewardRate;
-        uint _rewardIndex = rewardIndex + (rewardsAccrued / totalSupply);
+        uint rewardsAccrued = deltaT * rewardRate * mantissa;
+        uint _rewardIndex = totalSupply > 0 ? rewardIndex + (rewardsAccrued / totalSupply) : rewardIndex;
         uint deltaIndex = _rewardIndex - stakerIndex[user];
         uint bal = balanceOf[user];
         uint stakerDelta = bal * deltaIndex;
-        return accruedRewards[user] + stakerDelta;
+        return (accruedRewards[user] + stakerDelta) / mantissa;
+    }
+
+    function accrued(address user) public view returns(uint) {
+        return accruedRewards[user] / mantissa;
     }
 
     function claim(address to) public updateIndex onlyINVEscrow {
-        dbr.mint(to, accruedRewards[msg.sender]);
+        dbr.mint(to, accruedRewards[msg.sender] / mantissa);
         accruedRewards[msg.sender] = 0;
     }
 
