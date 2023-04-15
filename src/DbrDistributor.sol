@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 interface IDBR {
     function markets(address) external view returns (bool);
-    function mint(address, uint) external view;
+    function mint(address, uint) external;
 }
 
 interface IINVEscrow {
@@ -20,32 +20,33 @@ contract DbrDistributor {
     IDBR public immutable dbr;
     address public gov;
     address public operator;
+    uint public constant mantissa = 10**18;
     uint public minRewardRate; // starts at 0
     uint public maxRewardRate = type(uint).max / 3652500 days; // 10,000 years
     uint public rewardRate; // starts at 0
     uint public lastUpdate;
-    uint public rewardIndex;
+    uint public rewardIndexMantissa;
     uint public totalSupply;
     
     mapping (address => uint) public balanceOf;
-    mapping (address => uint) public stakerIndex;
+    mapping (address => uint) public stakerIndexMantissa;
     mapping (address => uint) public accruedRewards;
     
     modifier updateIndex() {
         uint deltaT = block.timestamp - lastUpdate;
         if(deltaT > 0) {
             if(rewardRate > 0 && totalSupply > 0) {
-                uint rewardsAccrued = deltaT * rewardRate;
-                rewardIndex += rewardsAccrued / totalSupply;
+                uint rewardsAccrued = deltaT * rewardRate * mantissa;
+                rewardIndexMantissa += rewardsAccrued / totalSupply;
             }
             lastUpdate = block.timestamp;
         }
 
-        uint deltaIndex = rewardIndex - stakerIndex[msg.sender];
+        uint deltaIndex = rewardIndexMantissa - stakerIndexMantissa[msg.sender];
         uint bal = balanceOf[msg.sender];
         uint stakerDelta = bal * deltaIndex;
-        stakerIndex[msg.sender] = rewardIndex;
-        accruedRewards[msg.sender] += stakerDelta;
+        stakerIndexMantissa[msg.sender] = rewardIndexMantissa;
+        accruedRewards[msg.sender] += stakerDelta / mantissa;
         _;
     }
 
@@ -107,12 +108,12 @@ contract DbrDistributor {
 
     function claimable(address user) public view returns(uint) {
         uint deltaT = block.timestamp - lastUpdate;
-        uint rewardsAccrued = deltaT * rewardRate;
-        uint _rewardIndex = rewardIndex + (rewardsAccrued / totalSupply);
-        uint deltaIndex = _rewardIndex - stakerIndex[user];
+        uint rewardsAccrued = deltaT * rewardRate * mantissa;
+        uint _rewardIndexMantissa = totalSupply > 0 ? rewardIndexMantissa + (rewardsAccrued / totalSupply) : rewardIndexMantissa;
+        uint deltaIndex = _rewardIndexMantissa - stakerIndexMantissa[user];
         uint bal = balanceOf[user];
-        uint stakerDelta = bal * deltaIndex;
-        return accruedRewards[user] + stakerDelta;
+        uint stakerDelta = bal * deltaIndex / mantissa;
+        return (accruedRewards[user] + stakerDelta);
     }
 
     function claim(address to) public updateIndex onlyINVEscrow {
