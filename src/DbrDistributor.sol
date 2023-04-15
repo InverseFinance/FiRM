@@ -25,11 +25,11 @@ contract DbrDistributor {
     uint public maxRewardRate = type(uint).max / 3652500 days; // 10,000 years
     uint public rewardRate; // starts at 0
     uint public lastUpdate;
-    uint public rewardIndex;
+    uint public rewardIndexMantissa;
     uint public totalSupply;
     
     mapping (address => uint) public balanceOf;
-    mapping (address => uint) public stakerIndex;
+    mapping (address => uint) public stakerIndexMantissa;
     mapping (address => uint) public accruedRewards;
     
     modifier updateIndex() {
@@ -37,16 +37,16 @@ contract DbrDistributor {
         if(deltaT > 0) {
             if(rewardRate > 0 && totalSupply > 0) {
                 uint rewardsAccrued = deltaT * rewardRate * mantissa;
-                rewardIndex += rewardsAccrued / totalSupply;
+                rewardIndexMantissa += rewardsAccrued / totalSupply;
             }
             lastUpdate = block.timestamp;
         }
 
-        uint deltaIndex = rewardIndex - stakerIndex[msg.sender];
+        uint deltaIndex = rewardIndexMantissa - stakerIndexMantissa[msg.sender];
         uint bal = balanceOf[msg.sender];
         uint stakerDelta = bal * deltaIndex;
-        stakerIndex[msg.sender] = rewardIndex;
-        accruedRewards[msg.sender] += stakerDelta;
+        stakerIndexMantissa[msg.sender] = rewardIndexMantissa;
+        accruedRewards[msg.sender] += stakerDelta / mantissa;
         _;
     }
 
@@ -109,19 +109,15 @@ contract DbrDistributor {
     function claimable(address user) public view returns(uint) {
         uint deltaT = block.timestamp - lastUpdate;
         uint rewardsAccrued = deltaT * rewardRate * mantissa;
-        uint _rewardIndex = totalSupply > 0 ? rewardIndex + (rewardsAccrued / totalSupply) : rewardIndex;
-        uint deltaIndex = _rewardIndex - stakerIndex[user];
+        uint _rewardIndexMantissa = totalSupply > 0 ? rewardIndexMantissa + (rewardsAccrued / totalSupply) : rewardIndexMantissa;
+        uint deltaIndex = _rewardIndexMantissa - stakerIndexMantissa[user];
         uint bal = balanceOf[user];
-        uint stakerDelta = bal * deltaIndex;
-        return (accruedRewards[user] + stakerDelta) / mantissa;
-    }
-
-    function accrued(address user) public view returns(uint) {
-        return accruedRewards[user] / mantissa;
+        uint stakerDelta = bal * deltaIndex / mantissa;
+        return (accruedRewards[user] + stakerDelta);
     }
 
     function claim(address to) public updateIndex onlyINVEscrow {
-        dbr.mint(to, accruedRewards[msg.sender] / mantissa);
+        dbr.mint(to, accruedRewards[msg.sender]);
         accruedRewards[msg.sender] = 0;
     }
 
