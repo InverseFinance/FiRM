@@ -1,4 +1,7 @@
 cache/
 out/
-
+broadcast/
+foundry.toml
 lcov.info
+.env
+*.sh
