@@ -27,21 +27,39 @@ contract CvxCrvFeedFork is Test {
         vm.createSelectFork(url);
         feed = new ConvexCurvePriceFeed();
     }
-    /**
-    function testSwap7500000() public {
-        swapXForY(cvxCrvHolder, 100_000 ether, 75);
+
+    function testNominalCase() public {
+        (uint80 clRoundId, int256 crvUsdPrice, uint clStartedAt, uint clUpdatedAt,  uint80 clAnsweredInRound) = feed.crvToUsd().latestRoundData();
+        (uint80 roundId, int256 cvxCrvUsdPrice, uint startedAt, uint updatedAt, uint80 answeredInRound) = feed.latestRoundData();
+
+        assertEq(clRoundId, roundId);
+        assertEq(clStartedAt, startedAt);
+        assertEq(clUpdatedAt, updatedAt);
+        assertEq(clAnsweredInRound, answeredInRound);
+
+        uint256 ema_price = curvePool.price_oracle();
+        assertEq(crvUsdPrice * int256(ema_price) / 10**8, cvxCrvUsdPrice);
+        assertGt(crvUsdPrice * 10**10, cvxCrvUsdPrice);
+        assertLt(crvUsdPrice, cvxCrvUsdPrice);
     }
-    function testEMA() public {
-        emit log_named_uint("Price before", curvePool.get_p());
-        emit log_named_uint("Swap amount", cvxCrv.balanceOf(cvxCrvHolder));
-        swapAllForY(cvxCrvHolder);
-        for(int secs; secs < 60*120; secs += 60){
-            vm.warp(block.timestamp + 60);
-            emit log_uint(curvePool.price_oracle());
-        }
-        emit log_named_uint("Price after", curvePool.get_p());
+
+    function testPriceFloorCase() public {
+        vm.prank(feed.gov());
+        feed.setMinCrvPerCvxCrvRatio(10**18-1);
+        (uint80 clRoundId, int256 crvUsdPrice, uint clStartedAt, uint clUpdatedAt,  uint80 clAnsweredInRound) = feed.crvToUsd().latestRoundData();
+        (uint80 roundId, int256 cvxCrvUsdPrice, uint startedAt, uint updatedAt, uint80 answeredInRound) = feed.latestRoundData();
+
+        assertEq(clRoundId, roundId);
+        assertEq(clStartedAt, startedAt);
+        assertEq(clUpdatedAt, updatedAt);
+        assertEq(clAnsweredInRound, answeredInRound);
+
+        uint256 ema_price = curvePool.price_oracle();
+        assertLt(crvUsdPrice * int256(ema_price) / 10**8, cvxCrvUsdPrice);
+        assertEq(crvUsdPrice * (10**18-1) / 10**8, cvxCrvUsdPrice);
+        assertGt(crvUsdPrice * 10**18, cvxCrvUsdPrice);
+        assertLt(crvUsdPrice, cvxCrvUsdPrice);
     }
-    */
 
     function testSetMinCrvPerCvxCrvRatio_accessControl() public {
         vm.prank(feed.gov());
@@ -87,23 +105,5 @@ contract CvxCrvFeedFork is Test {
         feed.setGov(address(0xA));
         assertEq(feed.gov(), address(0xA));
     }
-
-    function swapXForY(address xHolder, uint amount, uint times) public {
-        vm.startPrank(xHolder);
-        cvxCrv.approve(address(curvePool), type(uint).max);
-        for(uint i; i<times;i++){
-            curvePool.exchange(1, 0, amount, 1);
-            emit log_uint(curvePool.get_p());
-        }
-        vm.stopPrank();
-    }
-
-    function swapAllForY(address xHolder) public {
-        vm.startPrank(xHolder);
-        cvxCrv.approve(address(curvePool), type(uint).max);
-        curvePool.exchange(1, 0, cvxCrv.balanceOf(xHolder), 1);
-        vm.stopPrank();   
-    }
-
 }
 
