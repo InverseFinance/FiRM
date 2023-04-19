@@ -76,7 +76,7 @@ abstract contract OffchainAbstractHelper {
         market.borrowOnBehalf(msg.sender, totalBorrow, deadline, v, r, s);
         
         //Buy DBR
-        _buyDbr(dolaForDbr, totalBorrow * minDbr / 365 days, msg.sender);
+        _buyDbr(dolaForDbr, minDbr, msg.sender);
 
         //Transfer remaining DOLA amount to user
         DOLA.transfer(msg.sender, dolaAmount);

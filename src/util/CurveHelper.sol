@@ -55,9 +55,9 @@ contract CurveHelper is OffchainAbstractHelper{
     function approximateDolaAndDbrNeeded(uint dolaBorrowAmount, uint period, uint iterations) public view override returns(uint dolaForDbr, uint dbrNeeded){
         uint amountIn = dolaBorrowAmount;
         for(uint i; i < iterations; ++i){
-            uint dbrNeeded = (amountIn + dolaBorrowAmount) * period / 365 days;
+            uint dbrToBuy = (amountIn + dolaBorrowAmount) * period / 365 days;
             uint dbrReceived = curvePool.get_dy(dolaIndex, dbrIndex, amountIn);
-            if(dbrReceived > dbrNeeded){
+            if(dbrReceived > dbrToBuy){
                 amountIn = amountIn / 2;
             } else {
                 amountIn = amountIn + amountIn/2;
