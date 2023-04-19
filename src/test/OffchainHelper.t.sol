@@ -42,9 +42,8 @@ contract OffchainHelperTest is FrontierV2Test {
         vm.stopPrank();
         
         dbr = DolaBorrowingRights(0xAD038Eb671c44b853887A7E32528FaB35dC5D710);
-        bytes32 pool = 0x445494f823f3483ee62d854ebc9f58d5b9972a25000200000000000000000415;
+        address pool = 0x056ef502C1Fc5335172bc95EC4cAE16C2eB9b5b6;
         helper = new CurveHelper(pool); 
-        //helper = BalancerHelper(payable(0x6c31147E995074eA6aaD2Fbe95060B0Aef7363E1));
         userPk = vm.addr(1);
         vm.startPrank(gov);
         borrowController = BorrowController(0x20C7349f6D6A746a25e66f7c235E96DAC880bc0D);
