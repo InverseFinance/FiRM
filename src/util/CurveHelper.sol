@@ -47,7 +47,7 @@ contract CurveHelper is OffchainAbstractHelper{
     
     /**
     @notice Approximates the total amount of dola and dbr needed to borrow a dolaBorrowAmount while also borrowing enought to buy the DBR needed to cover for the borrowing period
-    @dev Uses a binary search to approximate the amounts needed. 
+    @dev Uses a binary search to approximate the amounts needed.
     @param dolaBorrowAmount Amount of dola the user wishes to end up with
     @param period Amount of time in seconds the loan will last
     @param iterations Number of approximation iterations. The higher the more precise the result

@@ -38,7 +38,7 @@ abstract contract OffchainAbstractHelper {
 
     /**
     @notice Approximates the amount of additional DOLA and DBR needed to sustain dolaBorrowAmount over the period
-    @dev Larger number of iterations increases both accuracy of the approximation and gas cost. Will always undershoot actual DBR amount needed.
+    @dev Larger number of iterations increases both accuracy of the approximation and gas cost. This method should not be called in smart contract code.
     @param dolaBorrowAmount The amount of DOLA the user wishes to borrow before covering DBR expenses
     @param minDbr The amount of seconds the user wish to borrow the DOLA for
     @param iterations The amount of approximation iterations.
