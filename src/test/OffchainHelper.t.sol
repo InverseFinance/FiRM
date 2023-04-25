@@ -74,6 +74,25 @@ contract OffchainHelperTest is FrontierV2Test {
         helper.depositBuyDbrAndBorrowOnBehalf(IMarket(address(market)), wethTestAmount, borrowAmount, dolaForDbr, dbrNeeded * 99 / 100, block.timestamp, v, r, s);
         vm.stopPrank();
 
+        assertLt(dbr.balanceOf(userPk), dbrNeeded * 1001 / 1000);
+        assertGt(dbr.balanceOf(userPk), dbrNeeded * 999 / 1000);
+        assertEq(weth.balanceOf(address(market.predictEscrow(userPk))), wethTestAmount, "failed to deposit weth");
+        assertEq(weth.balanceOf(userPk), 0, "failed to deposit weth");
+        assertEq(DOLA.balanceOf(userPk), borrowAmount, "failed to borrow DOLA");
+    }
+
+    function testDepositAndBorrowOnBehalfFuzz(uint borrowAmount) public {
+        vm.assume(borrowAmount > 1000_000_000);
+        borrowAmount = borrowAmount % (1000_000 ether > maxBorrowAmount ? maxBorrowAmount : 1000_000 ether );
+        (uint dolaForDbr, uint dbrNeeded) = helper.approximateDolaAndDbrNeeded(borrowAmount, 365 days, 20);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, getBorrowHash(borrowAmount + dolaForDbr, 0));
+
+        vm.startPrank(userPk, userPk);
+        helper.depositBuyDbrAndBorrowOnBehalf(IMarket(address(market)), wethTestAmount, borrowAmount, dolaForDbr, dbrNeeded * 99 / 100, block.timestamp, v, r, s);
+        vm.stopPrank();
+
+        assertLt(dbr.balanceOf(userPk), dbrNeeded * 1001 / 1000, "Overshoot by more than 1%");
+        assertGt(dbr.balanceOf(userPk), dbrNeeded * 999 / 1000, "Undershoot by more than 1%");
         assertEq(weth.balanceOf(address(market.predictEscrow(userPk))), wethTestAmount, "failed to deposit weth");
         assertEq(weth.balanceOf(userPk), 0, "failed to deposit weth");
         assertEq(DOLA.balanceOf(userPk), borrowAmount, "failed to borrow DOLA");
@@ -91,6 +110,8 @@ contract OffchainHelperTest is FrontierV2Test {
         helper.depositNativeEthBuyDbrAndBorrowOnBehalf{value:wethTestAmount}(IMarket(address(market)), borrowAmount, dolaForDbr, dbrNeeded * 99 / 100, block.timestamp, v, r, s);
         vm.stopPrank();
 
+        assertLt(dbr.balanceOf(userPk), dbrNeeded * 101 / 100);
+        assertGt(dbr.balanceOf(userPk), dbrNeeded * 99 / 100);
         assertEq(weth.balanceOf(address(market.predictEscrow(userPk))), wethTestAmount, "failed to deposit weth");
         assertEq(weth.balanceOf(userPk)-prevBal, 0, "failed to deposit weth");
         assertGt(duration, market.debts(userPk) * 365 days / dbr.balanceOf(userPk) - 1 days); 
