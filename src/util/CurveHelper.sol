@@ -55,13 +55,24 @@ contract CurveHelper is OffchainAbstractHelper{
     function approximateDolaAndDbrNeeded(uint dolaBorrowAmount, uint period, uint iterations) public view override returns(uint dolaForDbr, uint dbrNeeded){
         uint amountIn = dolaBorrowAmount;
         uint stepSize = amountIn / 2;
+        uint dbrReceived = curvePool.get_dy(dolaIndex, dbrIndex, amountIn);
+        uint dbrToBuy = (amountIn + dolaBorrowAmount) * period / 365 days;
+        uint dist = dbrReceived > dbrToBuy ? dbrReceived - dbrToBuy : dbrToBuy - dbrReceived;
         for(uint i; i < iterations; ++i){
-            uint dbrToBuy = (amountIn + dolaBorrowAmount) * period / 365 days;
-            uint dbrReceived = curvePool.get_dy(dolaIndex, dbrIndex, amountIn);
+            uint newAmountIn = amountIn;
             if(dbrReceived > dbrToBuy){
-                amountIn -= stepSize;
+                newAmountIn -= stepSize;
             } else {
-                amountIn += stepSize;
+                newAmountIn += stepSize;
+            }
+            uint newDbrReceived = curvePool.get_dy(dolaIndex, dbrIndex, newAmountIn);
+            uint newDbrToBuy = (newAmountIn + dolaBorrowAmount) * period / 365 days;
+            uint newDist = newDbrReceived > newDbrToBuy ? newDbrReceived - newDbrToBuy : newDbrToBuy - newDbrReceived;
+            if(newDist < dist){
+                dbrReceived = newDbrReceived;
+                dbrToBuy = newDbrToBuy;
+                dist = newDist;
+                amountIn = newAmountIn;
             }
             stepSize /= 2;
         }
