@@ -6,7 +6,7 @@ interface IERC20 {
     function transfer(address,uint) external returns (bool);
     function transferFrom(address,address,uint) external returns (bool);
     function balanceOf(address) external view returns (uint);
-    function approve(address, uint) external view returns (uint);
+    function approve(address, uint) external returns (bool);
     function delegate(address delegatee) external;
     function delegates(address delegator) external view returns (address delegatee);
 }
@@ -38,6 +38,7 @@ contract INVEscrow {
     address public beneficiary;
     IXINV public immutable xINV;
     IDbrDistributor public immutable distributor;
+    mapping(address => bool) public claimers;
 
     constructor(IXINV _xINV, IDbrDistributor _distributor) {
         xINV = _xINV; // TODO: Test whether an immutable variable will persist across proxies
@@ -78,14 +79,43 @@ contract INVEscrow {
         }
         token.transfer(recipient, amount);
     }
-
+    
+    /**
+     * @notice Allows the beneficiary to claim DBR tokens
+     * @dev Requires the caller to be the beneficiary
+     */
     function claimDBR() public {
         require(msg.sender == beneficiary, "ONLY BENEFICIARY");
         distributor.claim(msg.sender);
     }
 
+    /**
+     * @notice Allows the beneficiary or allowed claimers to claim DBR tokens on behalf of another address
+     * @param to The address to which the claimed tokens will be sent
+     * @dev Requires the caller to be the beneficiary or an allowed claimer
+     */
+    function claimDBRTo(address to) public {
+        require(msg.sender == beneficiary || claimers[msg.sender], "ONLY BENEFICIARY OR ALLOWED CLAIMERS");
+        distributor.claim(to);
+    }
+
+    /**
+     * @notice Returns the amount of claimable DBR tokens for the contract
+     * @return The amount of claimable tokens
+     */
     function claimable() public view returns (uint) {
         return distributor.claimable(address(this));
+    }
+
+    /**
+     * @notice Sets or unsets an address as an allowed claimer
+     * @param claimer The address of the claimer to set or unset
+     * @param allowed A boolean value to determine if the claimer is allowed or not
+     * @dev Requires the caller to be the beneficiary
+     */
+    function setClaimer(address claimer, bool allowed) public {
+        require(msg.sender == beneficiary, "ONLY BENEFICIARY");
+        claimers[claimer] = allowed;
     }
 
     /**
@@ -97,6 +127,7 @@ contract INVEscrow {
         uint invBalanceInXInv = xINV.balanceOf(address(this)) * xINV.exchangeRateStored() / 1 ether;
         return invBalance + invBalanceInXInv;
     }
+    
     /**
     @notice Function called by market on deposit. Will deposit INV into xINV 
     @dev This function should remain callable by anyone to handle direct inbound transfers.
