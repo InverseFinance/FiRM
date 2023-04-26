@@ -75,8 +75,14 @@ contract DbrDistributor {
         lastUpdate = block.timestamp;
     }
 
-    function setOperator(address _operator) public onlyGov { operator = _operator; }
-    function setGov(address _gov) public onlyGov { gov = _gov; }
+    function setOperator(address _operator) public onlyGov {
+        operator = _operator;
+        emit newOperator(_operator);
+    }
+    function setGov(address _gov) public onlyGov {
+        gov = _gov;
+        emit newGov(_gov);
+    }
 
     function setRewardRateConstraints(uint _min, uint _max) public onlyGov updateIndex {
         require(_max < type(uint).max / 3652500 days); // cannot overflow and revert within 10,000 years
@@ -120,5 +126,8 @@ contract DbrDistributor {
         dbr.mint(to, accruedRewards[msg.sender]);
         accruedRewards[msg.sender] = 0;
     }
+
+    event newOperator(address newOperator);
+    event newGov(address newGov);
 
 }
