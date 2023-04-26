@@ -6,7 +6,7 @@ interface IERC20 {
     function transfer(address,uint) external returns (bool);
     function transferFrom(address,address,uint) external returns (bool);
     function balanceOf(address) external view returns (uint);
-    function approve(address, uint) external view returns (uint);
+    function approve(address, uint) external returns (bool);
     function delegate(address delegatee) external;
     function delegates(address delegator) external view returns (address delegatee);
 }
@@ -93,7 +93,7 @@ contract INVEscrow {
      * @param to The address to which the claimed tokens will be sent
      * @dev Requires the caller to be the beneficiary or an allowed claimer
      */
-    function claimDbrTo(address to) public {
+    function claimDBRTo(address to) public {
         require(msg.sender == beneficiary || claimers[msg.sender], "ONLY BENEFICIARY OR ALLOWED CLAIMERS");
         distributor.claim(to);
     }
