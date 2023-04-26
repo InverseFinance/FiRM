@@ -10,7 +10,7 @@ interface ICurvePool {
 
 contract CurveHelper is OffchainAbstractHelper{
 
-    ICurvePool immutable curvePool;
+    ICurvePool public immutable curvePool;
     uint dbrIndex;
     uint dolaIndex;
 
@@ -33,7 +33,9 @@ contract CurveHelper is OffchainAbstractHelper{
     @param minOut minimum amount of DOLA to receive
     */
     function _sellDbr(uint amount, uint minOut) internal override {
-        curvePool.exchange(dbrIndex, dolaIndex, amount, minOut, false);
+        if(amount > 0){
+            curvePool.exchange(dbrIndex, dolaIndex, amount, minOut, false);
+        }
     }
 
     /**
@@ -42,12 +44,14 @@ contract CurveHelper is OffchainAbstractHelper{
     @param minOut minimum amount of DBR out
     */
     function _buyDbr(uint amount, uint minOut, address receiver) internal override {
-        curvePool.exchange(dolaIndex, dbrIndex, amount, minOut, false, receiver);
+        if(amount > 0) {
+            curvePool.exchange(dolaIndex, dbrIndex, amount, minOut, false, receiver);
+        }
     }
     
     /**
-    @notice Approximates the total amount of dola and dbr needed to borrow a dolaBorrowAmount while also borrowing enought to buy the DBR needed to cover for the borrowing period
-    @dev Uses a binary search to approximate the amounts needed.
+    @notice Approximates the total amount of dola and dbr needed to borrow a dolaBorrowAmount while also borrowing enough to buy the DBR needed to cover for the borrowing period
+    @dev Uses a binary search to approximate the amounts needed. Should only be called as part of generating transaction parameters.
     @param dolaBorrowAmount Amount of dola the user wishes to end up with
     @param period Amount of time in seconds the loan will last
     @param iterations Number of approximation iterations. The higher the more precise the result
