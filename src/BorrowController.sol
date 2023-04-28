@@ -1,12 +1,27 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
+interface IChainlinkFeed {
+    function decimals() external view returns (uint8);
+    function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80);
+}
+
+interface IOracle {
+    function feeds(address token) external view returns(IChainlinkFeed, uint8);
+}
+
+interface IMarket {
+    function collateral() external view returns(address);
+    function oracle() external view returns(IOracle);
+}
+
 /**
 @title Borrow Controller
 @notice Contract for limiting the contracts that are allowed to interact with markets
 */
 contract BorrowController {
     
+    uint stalenessThreshold;
     address public operator;
     mapping(address => bool) public contractAllowlist;
     mapping(address => uint) public dailyLimits;
@@ -45,6 +60,13 @@ contract BorrowController {
     @param limit The daily borrow limit amount
     */
     function setDailyLimit(address market, uint limit) public onlyOperator { dailyLimits[market] = limit; }
+    
+    /**
+    @notice Sets the staleness threshold for Chainlink feeds
+    @param newStalenessThreshold The new staleness threshold denominated in seconds
+    @dev Only callable by operator
+    */
+    function setStalenessThreshold(uint newStalenessThreshold) public onlyOperator { stalenessThreshold = newStalenessThreshold; }
 
     /**
     @notice Checks if a borrow is allowed
@@ -66,6 +88,7 @@ contract BorrowController {
                 }
             }
         }
+        if(isPriceStale(msg.sender)) return false;
         if(msgSender == tx.origin) return true;
         return contractAllowlist[msgSender];
     }
@@ -85,5 +108,18 @@ contract BorrowController {
                 dailyBorrows[msg.sender][day] -= amount;
             }
         }
+    }
+
+    /**
+     * @notice Checks if the price for the given market is stale.
+     * @dev This function makes use of the Chainlink Oracle system to determine the price staleness.
+     * @param market The address of the market for which the price staleness is to be checked.
+     * @return bool Returns true if the price is stale, false otherwise.
+     */
+    function isPriceStale(address market) public view returns(bool){
+        IOracle oracle = IMarket(market).oracle();
+        (IChainlinkFeed feed,) = oracle.feeds(IMarket(market).collateral());
+        (,,,uint updatedAt,) = feed.latestRoundData();
+        return block.timestamp - updatedAt > stalenessThreshold;
     }
 }
