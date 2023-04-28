@@ -13,6 +13,7 @@ interface IOracle {
 interface IMarket {
     function collateral() external view returns(address);
     function oracle() external view returns(IOracle);
+    function debts(address) external view returns(uint);
 }
 
 /**
@@ -23,6 +24,7 @@ contract BorrowController {
     
     uint stalenessThreshold;
     address public operator;
+    uint public minDebt;
     mapping(address => bool) public contractAllowlist;
     mapping(address => uint) public dailyLimits;
     mapping(address => mapping(uint => uint)) public dailyBorrows;
@@ -67,15 +69,23 @@ contract BorrowController {
     @dev Only callable by operator
     */
     function setStalenessThreshold(uint newStalenessThreshold) public onlyOperator { stalenessThreshold = newStalenessThreshold; }
+    
+    /**
+    @notice sets the minimum amount a debt a borrower needs to take on.
+    @param newMinDebt The new minimum amount of debt
+    @dev This is to mitigate the creation of positions which are uneconomical to liquidate. Only callable by operator.
+    */
+    function setMinDebt(uint newMinDebt) public onlyOperator {minDebt = newMinDebt; }
 
     /**
     @notice Checks if a borrow is allowed
     @dev Currently the borrowController checks if contracts are part of an allow list and enforces a daily limit
     @param msgSender The message sender trying to borrow
+    @param borrower The address being borrowed on behalf of
     @param amount The amount to be borrowed
     @return A boolean that is true if borrowing is allowed and false if not.
     */
-    function borrowAllowed(address msgSender, address, uint amount) public returns (bool) {
+    function borrowAllowed(address msgSender, address borrower, uint amount) public returns (bool) {
         uint day = block.timestamp / 1 days;
         uint dailyLimit = dailyLimits[msg.sender];
         if(dailyLimit > 0) {
@@ -88,6 +98,9 @@ contract BorrowController {
                 }
             }
         }
+        //If the debt is below the minimum debt threshold, deny borrow
+        if(isBelowMinDebt(msg.sender, borrower, amount)) return false;
+        //If the chainlink oracle price feed is stale, deny borrow
         if(isPriceStale(msg.sender)) return false;
         if(msgSender == tx.origin) return true;
         return contractAllowlist[msgSender];
@@ -112,7 +125,6 @@ contract BorrowController {
 
     /**
      * @notice Checks if the price for the given market is stale.
-     * @dev This function makes use of the Chainlink Oracle system to determine the price staleness.
      * @param market The address of the market for which the price staleness is to be checked.
      * @return bool Returns true if the price is stale, false otherwise.
      */
@@ -121,5 +133,16 @@ contract BorrowController {
         (IChainlinkFeed feed,) = oracle.feeds(IMarket(market).collateral());
         (,,,uint updatedAt,) = feed.latestRoundData();
         return block.timestamp - updatedAt > stalenessThreshold;
+    }
+
+    /**
+     * @notice Checks if the borrower's debt in the given market is below the minimum debt after adding the specified amount.
+     * @param market The address of the market for which the borrower's debt is to be checked.
+     * @param borrower The address of the borrower whose debt is to be checked.
+     * @param amount The amount to be added to the borrower's current debt before checking against the minimum debt.
+     * @return bool Returns true if the borrower's debt after adding the amount is below the minimum debt, false otherwise.
+     */
+    function isBelowMinDebt(address market, address borrower, uint amount) public view returns(bool){
+        return IMarket(market).debts(borrower) + amount < minDebt;
     }
 }

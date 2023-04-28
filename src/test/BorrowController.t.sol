@@ -68,6 +68,17 @@ contract BorrowControllerTest is FrontierV2Test {
         vm.stopPrank();
     }
 
+    function test_BorrowAllowed_False_Where_DebtIsBelowMininimum() public {
+        vm.startPrank(gov);
+        borrowController.setMinDebt(1 ether);
+        vm.stopPrank();
+        
+        vm.startPrank(address(market), user);
+        assertEq(borrowController.isBelowMinDebt(address(market), user, 0.5 ether), true);
+        assertEq(borrowController.borrowAllowed(user, address(0), 0.5 ether), false, "Allowed contract not allowed to borrow");
+        vm.stopPrank();
+    }
+
     function test_Allow_Successfully_AddsAddressToAllowlist() public {
         bool allowed = borrowController.contractAllowlist(address(borrowContract));
         assertEq(allowed, false, "Contract was allowed before call to allow");
