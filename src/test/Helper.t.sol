@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 import "../interfaces/IMarket.sol";
 import "forge-std/Test.sol"; 
 import {FrontierV2Test} from "./FrontierV2Test.sol"; 
-import "../BorrowController.sol"; 
+import {BorrowController} from "../BorrowController.sol"; 
 import "../DBR.sol"; 
 import "../Fed.sol"; 
 import {SimpleERC20Escrow} from "../escrows/SimpleERC20Escrow.sol"; 
@@ -189,6 +189,7 @@ contract HelperTest is FrontierV2Test {
 
         vm.startPrank(userPk, userPk);
         deposit(wethTestAmount);
+        uint ethBalAfterDeposit = userPk.balance;
         helper.buyDbrAndBorrowOnBehalf(IMarket(address(market)), maxBorrowAmount / 2, maxBorrowAmount, duration, block.timestamp, v, r, s);
 
         bytes32 withdrawHash = getWithdrawHash(wethTestAmount, 1);
@@ -205,7 +206,7 @@ contract HelperTest is FrontierV2Test {
         vm.stopPrank();
 
         assertEq(weth.balanceOf(address(market.predictEscrow(userPk))), 0, "failed to withdraw weth");
-        assertEq(userPk.balance, wethTestAmount, "failed to withdraw weth");
+        assertEq(userPk.balance, wethTestAmount + ethBalAfterDeposit, "failed to withdraw weth");
         assertEq(market.debts(userPk), 0, "Did not repay debt"); 
         assertEq(dbr.balanceOf(userPk), 0, "Did not sell DBR"); 
     }
@@ -216,11 +217,12 @@ contract HelperTest is FrontierV2Test {
 
         vm.startPrank(userPk, userPk);
         deposit(wethTestAmount);
+        uint ethBalAfterDeposit = userPk.balance;
         helper.withdrawNativeEthOnBehalf(IMarket(address(market)), wethTestAmount, block.timestamp, v, r, s);
         vm.stopPrank();
 
         assertEq(weth.balanceOf(address(market.predictEscrow(userPk))), 0, "failed to withdraw weth");
-        assertEq(payable(userPk).balance, wethTestAmount, "failed to withdraw weth");
+        assertEq(payable(userPk).balance, wethTestAmount + ethBalAfterDeposit, "failed to withdraw weth");
     }
 
     function testDepositNativeEthOnBehalf() public {
@@ -241,6 +243,7 @@ contract HelperTest is FrontierV2Test {
 
         vm.startPrank(userPk, userPk);
         deposit(wethTestAmount);
+        uint ethBalAfterDeposit = userPk.balance;
         helper.buyDbrAndBorrowOnBehalf(IMarket(address(market)), maxBorrowAmount / 2, maxBorrowAmount, duration, block.timestamp, v, r, s);
 
         bytes32 withdrawHash = getWithdrawHash(wethTestAmount, 1);
@@ -255,7 +258,7 @@ contract HelperTest is FrontierV2Test {
         vm.stopPrank();
 
         assertEq(weth.balanceOf(address(market.predictEscrow(userPk))), 0, "failed to withdraw weth");
-        assertEq(userPk.balance, wethTestAmount, "failed to withdraw weth");
+        assertEq(userPk.balance, wethTestAmount + ethBalAfterDeposit, "failed to withdraw weth");
         assertEq(market.debts(userPk), 0, "Did not repay debt");        
     }
 

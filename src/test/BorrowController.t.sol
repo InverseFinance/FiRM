@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "../BorrowController.sol";
+import {BorrowController} from "../BorrowController.sol";
 import "./mocks/BorrowContract.sol";
 import "./FrontierV2Test.sol";
 import "../Market.sol";
@@ -31,15 +31,19 @@ contract BorrowControllerTest is FrontierV2Test {
         initialize(replenishmentPriceBps, collateralFactorBps, replenishmentIncentiveBps, liquidationBonusBps, callOnDepositCallback);
 
         borrowContract = new BorrowContract(address(market), payable(address(WETH)));
+        gibWeth(address(borrowContract), 1 ether);
+        vm.prank(gov);
+        borrowController.setStalenessThreshold(10);
         require(address(market.borrowController()) != address(0), "Borrow controller not set");
     }
 
     function test_BorrowAllowed_True_Where_UserIsEOA() public {
-        vm.startPrank(user, user);
+        vm.startPrank(address(market), user);
         assertEq(borrowController.borrowAllowed(user, address(0), 0), true, "EOA not allowed to borrow");
     }
 
     function test_BorrowAllowed_False_Where_UserIsUnallowedContract() public {
+        vm.prank(address(market), user);
         assertEq(borrowController.borrowAllowed(address(borrowContract),address(0), 0), false, "Unallowed contract allowed to borrow");
     }
 
@@ -47,8 +51,21 @@ contract BorrowControllerTest is FrontierV2Test {
         vm.startPrank(gov);
         borrowController.allow(address(borrowContract));
         vm.stopPrank();
-
+        
+        vm.prank(address(market), user);
         assertEq(borrowController.borrowAllowed(address(borrowContract), address(0), 0), true, "Allowed contract not allowed to borrow");
+    }
+
+    function test_BorrowAllowed_False_Where_PriceIsStale() public {
+        vm.startPrank(gov);
+        borrowController.allow(address(borrowContract));
+        vm.stopPrank();
+        vm.warp(block.timestamp + 1000);
+        
+        vm.startPrank(address(market), user);
+        assertEq(borrowController.isPriceStale(address(market)), true);
+        assertEq(borrowController.borrowAllowed(user, address(0), 0), false, "Allowed contract not allowed to borrow");
+        vm.stopPrank();
     }
 
     function test_Allow_Successfully_AddsAddressToAllowlist() public {

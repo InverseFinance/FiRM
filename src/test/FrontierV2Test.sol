@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "../BorrowController.sol";
+import {BorrowController} from "../BorrowController.sol";
 import "../DBR.sol";
 import "../Fed.sol";
 import {SimpleERC20Escrow} from "../escrows/SimpleERC20Escrow.sol";
@@ -80,6 +80,7 @@ contract FrontierV2Test is Test {
 
         oracle = new Oracle(gov);
         borrowController = new BorrowController(gov);
+        borrowController.setStalenessThreshold(3600);
         escrowImplementation = new SimpleERC20Escrow();
         dbr = new DolaBorrowingRights(replenishmentPriceBps_, "DOLA Borrowing Rights", "DBR", gov);
         fed = new Fed(IDBR(address(dbr)), IDola(address(DOLA)), gov, chair, type(uint).max);
@@ -92,6 +93,8 @@ contract FrontierV2Test is Test {
         oracle.setFeed(address(wBTC), IChainlinkFeed(address(wbtcFeed)), 8);
         DOLA.addMinter(address(fed));
         vm.stopPrank();
+        vm.prank(chair);
+        fed.expansion(IMarket(address(market)), 1 ether);
     }
 
     //Helper functions

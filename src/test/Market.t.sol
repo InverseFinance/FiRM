@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 import "./FrontierV2Test.sol";
-import "../BorrowController.sol";
+import {BorrowController} from "../BorrowController.sol";
 import "../DBR.sol";
 import "../Fed.sol";
 import {SimpleERC20Escrow} from "../escrows/SimpleERC20Escrow.sol";
@@ -77,6 +77,7 @@ contract MarketTest is FrontierV2Test {
 
         uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
         vm.warp(1_000_000);
+        ethFeed.changeUpdatedAt(block.timestamp);
         uint dbrBal = dbr.balanceOf(user);
         market.borrow(borrowAmount);
         assertEq(dbrBal, wethTestAmount, "DBR balance burned immediately after borrow");
