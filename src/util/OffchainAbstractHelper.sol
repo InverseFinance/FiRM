@@ -23,7 +23,6 @@ abstract contract OffchainAbstractHelper {
         _;
     }
 
-   
     /**
     Virtual functions implemented by the AMM interfacing part of the Helper contract
     */
@@ -323,6 +322,7 @@ abstract contract OffchainAbstractHelper {
     @param r R parameter of the signature
     @param s S parameter of the signature
     */
+    
     function depositNativeEthAndBorrowOnBehalf(IMarket market, uint borrowAmount, uint deadline, uint8 v, bytes32 r, bytes32 s) public payable onlyEOA {
         require(address(market.collateral()) == address(WETH), "Not an ETH market");
 

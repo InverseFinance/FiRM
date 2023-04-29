@@ -6,7 +6,7 @@ interface IERC20 {
     function transfer(address,uint) external returns (bool);
     function transferFrom(address,address,uint) external returns (bool);
     function balanceOf(address) external view returns (uint);
-    function approve(address, uint) external view returns (uint);
+    function approve(address, uint) external returns (bool);
     function delegate(address delegatee) external;
     function delegates(address delegator) external view returns (address delegatee);
 }
@@ -17,6 +17,13 @@ interface IXINV {
     function mint(uint mintAmount) external returns (uint);
     function redeemUnderlying(uint redeemAmount) external returns (uint);
     function syncDelegate(address user) external;
+}
+
+interface IDbrDistributor {
+    function stake(uint amount) external;
+    function unstake(uint amount) external;
+    function claim(address to) external;
+    function claimable(address user) external view returns(uint);
 }
 
 /**
@@ -30,9 +37,12 @@ contract INVEscrow {
     IERC20 public token;
     address public beneficiary;
     IXINV public immutable xINV;
+    IDbrDistributor public immutable distributor;
+    mapping(address => bool) public claimers;
 
-    constructor(IXINV _xINV) {
+    constructor(IXINV _xINV, IDbrDistributor _distributor) {
         xINV = _xINV; // TODO: Test whether an immutable variable will persist across proxies
+        distributor = _distributor;
     }
 
     /**
@@ -59,8 +69,53 @@ contract INVEscrow {
     function pay(address recipient, uint amount) public {
         require(msg.sender == market, "ONLY MARKET");
         uint invBalance = token.balanceOf(address(this));
-        if(invBalance < amount) xINV.redeemUnderlying(amount - invBalance); // we do not check return value because next call will fail if this fails anyway
+        if(invBalance < amount) {
+            unchecked {
+                uint stakedInv = amount - invBalance;
+                uint xinvBal = xINV.balanceOf(address(this));
+                xINV.redeemUnderlying(stakedInv); // we do not check return value because transfer call will fail if this fails anyway
+                distributor.unstake(xinvBal - xINV.balanceOf(address(this)));
+            }
+        }
         token.transfer(recipient, amount);
+    }
+    
+    /**
+     * @notice Allows the beneficiary to claim DBR tokens
+     * @dev Requires the caller to be the beneficiary
+     */
+    function claimDBR() public {
+        require(msg.sender == beneficiary, "ONLY BENEFICIARY");
+        distributor.claim(msg.sender);
+    }
+
+    /**
+     * @notice Allows the beneficiary or allowed claimers to claim DBR tokens on behalf of another address
+     * @param to The address to which the claimed tokens will be sent
+     * @dev Requires the caller to be the beneficiary or an allowed claimer
+     */
+    function claimDBRTo(address to) public {
+        require(msg.sender == beneficiary || claimers[msg.sender], "ONLY BENEFICIARY OR ALLOWED CLAIMERS");
+        distributor.claim(to);
+    }
+
+    /**
+     * @notice Returns the amount of claimable DBR tokens for the contract
+     * @return The amount of claimable tokens
+     */
+    function claimable() public view returns (uint) {
+        return distributor.claimable(address(this));
+    }
+
+    /**
+     * @notice Sets or unsets an address as an allowed claimer
+     * @param claimer The address of the claimer to set or unset
+     * @param allowed A boolean value to determine if the claimer is allowed or not
+     * @dev Requires the caller to be the beneficiary
+     */
+    function setClaimer(address claimer, bool allowed) public {
+        require(msg.sender == beneficiary, "ONLY BENEFICIARY");
+        claimers[claimer] = allowed;
     }
 
     /**
@@ -72,6 +127,7 @@ contract INVEscrow {
         uint invBalanceInXInv = xINV.balanceOf(address(this)) * xINV.exchangeRateStored() / 1 ether;
         return invBalance + invBalanceInXInv;
     }
+    
     /**
     @notice Function called by market on deposit. Will deposit INV into xINV 
     @dev This function should remain callable by anyone to handle direct inbound transfers.
@@ -79,7 +135,9 @@ contract INVEscrow {
     function onDeposit() public {
         uint invBalance = token.balanceOf(address(this));
         if(invBalance > 0) {
+            uint xinvBal = xINV.balanceOf(address(this));
             xINV.mint(invBalance); // we do not check return value because we don't want errors to block this call
+            distributor.stake(xINV.balanceOf(address(this)) - xinvBal);
         }
     }
 
