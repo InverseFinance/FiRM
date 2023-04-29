@@ -33,6 +33,7 @@ contract ConvexCurveEscrow {
     using SafeERC20 for IERC20;
     address public market;
     IERC20 public token;
+    uint public stakedBalance;
     ICvxCrvStakingWrapper public constant rewardPool = ICvxCrvStakingWrapper(0xaa0C3f5F7DFD688C6E646F66CD2a6B66ACdbE434);
     address public beneficiary;
     mapping(address => bool) public allowlist;
@@ -71,6 +72,7 @@ contract ConvexCurveEscrow {
     */
     function pay(address recipient, uint amount) public {
         require(msg.sender == market, "ONLY MARKET");
+        stakedBalance -= amount;
         rewardPool.withdraw(amount);
         token.transfer(recipient, amount);
     }
@@ -80,7 +82,7 @@ contract ConvexCurveEscrow {
     @return Uint representing the staked balance of the escrow
     */
     function balance() public view returns (uint) {
-        return rewardPool.balanceOf(address(this));
+        return stakedBalance;
     }
 
     /**
@@ -89,7 +91,9 @@ contract ConvexCurveEscrow {
     */
     function onDeposit() public {
         //Stake cvxCRV
-        rewardPool.stake(token.balanceOf(address(this)), address(this));
+        uint tokenBal = token.balanceOf(address(this));
+        stakedBalance += tokenBal;
+        rewardPool.stake(tokenBal, address(this));
     }
     /**
     @notice Sets the reward weight for staked cvxCrv tokens.
