@@ -22,6 +22,11 @@ abstract contract AbstractHelper {
     Virtual functions implemented by the AMM interfacing part of the Helper contract
     */
 
+    modifier onlyEOA() {
+        require(msg.sender == tx.origin, "ONLY EOA ADDRESSES");
+        _;
+    }
+
     /**
     @notice Buys an exact amount of DBR for DOLA
     @param amount Amount of DBR to receive
@@ -70,6 +75,7 @@ abstract contract AbstractHelper {
         bytes32 r, 
         bytes32 s) 
         public 
+        onlyEOA
     {
         //Calculate DOLA needed to pay out dolaAmount + buying enough DBR to approximately sustain loan for the duration
         (uint dolaToBorrow, uint dbrNeeded) = approximateDolaAndDbrNeeded(dolaAmount, duration, 8);
@@ -153,6 +159,7 @@ abstract contract AbstractHelper {
         bytes32 r, 
         bytes32 s) 
         public payable
+        onlyEOA
     {
         IERC20 collateral = IERC20(market.collateral());
         require(address(collateral) == address(WETH), "Market is not an ETH market");
@@ -324,7 +331,16 @@ abstract contract AbstractHelper {
     @param r R parameter of the signature
     @param s S parameter of the signature
     */
-    function depositNativeEthAndBorrowOnBehalf(IMarket market, uint borrowAmount, uint deadline, uint8 v, bytes32 r, bytes32 s) public payable {
+    function depositNativeEthAndBorrowOnBehalf(
+        IMarket market,
+        uint borrowAmount,
+        uint deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s) 
+        public payable 
+        onlyEOA
+    {
         require(address(market.collateral()) == address(WETH), "Not an ETH market");
 
         //Deposit native eth

@@ -17,7 +17,13 @@ abstract contract OffchainAbstractHelper {
     IERC20 constant DOLA = IERC20(0x865377367054516e17014CcdED1e7d814EDC9ce4);
     IERC20 constant DBR = IERC20(0xAD038Eb671c44b853887A7E32528FaB35dC5D710);
     IWETH constant WETH = IWETH(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
-    
+ 
+    modifier onlyEOA() {
+        require(msg.sender == tx.origin, "ONLY EOA ADDRESSES");
+        _;
+    }
+
+   
     /**
     Virtual functions implemented by the AMM interfacing part of the Helper contract
     */
@@ -69,7 +75,8 @@ abstract contract OffchainAbstractHelper {
         uint8 v, 
         bytes32 r, 
         bytes32 s) 
-        public 
+        public
+        onlyEOA
     {
         //Borrow Dola
         uint totalBorrow = dolaAmount + dolaForDbr;
@@ -144,6 +151,7 @@ abstract contract OffchainAbstractHelper {
         bytes32 r, 
         bytes32 s) 
         public payable
+        onlyEOA
     {
         IERC20 collateral = IERC20(market.collateral());
         require(address(collateral) == address(WETH), "Market is not an ETH market");
@@ -315,7 +323,7 @@ abstract contract OffchainAbstractHelper {
     @param r R parameter of the signature
     @param s S parameter of the signature
     */
-    function depositNativeEthAndBorrowOnBehalf(IMarket market, uint borrowAmount, uint deadline, uint8 v, bytes32 r, bytes32 s) public payable {
+    function depositNativeEthAndBorrowOnBehalf(IMarket market, uint borrowAmount, uint deadline, uint8 v, bytes32 r, bytes32 s) public payable onlyEOA {
         require(address(market.collateral()) == address(WETH), "Not an ETH market");
 
         //Deposit native eth
