@@ -37,7 +37,7 @@ contract INVEscrow {
     address public market;
     IERC20 public token;
     address public beneficiary;
-    uint stakedXINV;
+    uint public stakedXINV;
     IXINV public immutable xINV;
     IDbrDistributor public immutable distributor;
     mapping(address => bool) public claimers;
