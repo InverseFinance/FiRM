@@ -38,7 +38,7 @@ contract Fed {
     }
 
     /**
-    @notice Change the governance of the Fed contact. Only callable by governance.
+    @notice Change the governance of the Fed contract. Only callable by governance.
     @param _gov The address of the new governance contract
     */
     function changeGov(address _gov) public {
