@@ -91,8 +91,8 @@ contract DbrDistributor {
     }
 
     function setRewardRate(uint _rewardRate) public onlyOperator updateIndex {
-        require(_rewardRate >= minRewardRate);
-        require(_rewardRate <= maxRewardRate);
+        require(_rewardRate >= minRewardRate, "REWARD RATE BELOW MIN");
+        require(_rewardRate <= maxRewardRate, "REWARD RATE ABOVE MIN");
         rewardRate = _rewardRate;
     }
 

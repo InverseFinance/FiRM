@@ -96,8 +96,8 @@ contract Fed {
         dola.mint(address(market), amount);
         supplies[market] += amount;
         globalSupply += amount;
-        require(globalSupply <= supplyCeiling);
-        require(supplies[market] <= ceilings[market]);
+        require(globalSupply <= supplyCeiling, "GLOBAL SUPPLY ABOVE CEILING");
+        require(supplies[market] <= ceilings[market], "MARKET SUPPLY ABOVE CEILING");
         emit Expansion(market, amount);
     }
 
@@ -142,7 +142,6 @@ contract Fed {
             dola.transfer(gov, profit);
         }
     }
-
 
     event Expansion(IMarket indexed market, uint amount);
     event Contraction(IMarket indexed market, uint amount);
