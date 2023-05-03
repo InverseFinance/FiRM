@@ -17,13 +17,10 @@ contract INVEscrowMock is IINVEscrow {
 contract DBRMock is IDBR {
     address market;
     mapping (address => uint) balances;
+    mapping (address => bool) public markets;
 
-    constructor(address _market){
-        market = _market;
-    }
-    
-    function markets(address _market) external view returns(bool){
-        return _market == market;
+    function allowMarket(address _market) external {
+        markets[_market] = true;
     }
 
     function balanceOf(address holder) external view returns(uint){
@@ -37,11 +34,16 @@ contract DBRMock is IDBR {
 
 contract MarketMock is IMarket {
     mapping(address => address) public escrows;
+    IERC20 public collateral = IERC20(0x41D5D79431A913C4aE7d69a668ecdfE5fF9DFB68);
     
     function createEscrow(address beneficiary) external returns(INVEscrowMock){
         INVEscrowMock escrow = new INVEscrowMock(address(this), beneficiary);
         escrows[beneficiary] = address(escrow);
         return escrow;
+    }
+
+    function changeCollateral(address newCollateral) external {
+        collateral = IERC20(newCollateral);
     }
 }
 
@@ -56,7 +58,8 @@ contract DbrDistributorTest is Test {
 
     function setUp() public {
         market = new MarketMock();
-        dbr = new DBRMock(address(market));
+        dbr = new DBRMock();
+        dbr.allowMarket(address(market));
         escrow = market.createEscrow(user);
         distributor = new DbrDistributor(IDBR(dbr), gov, operator);
         vm.prank(operator);
@@ -134,4 +137,29 @@ contract DbrDistributorTest is Test {
         assertEq(dbr.balanceOf(user), 12 * distributor.rewardRate());
         assertEq(distributor.claimable(address(escrow)), 0);
     }
+
+    function testFailNotAllowedMarket() external {
+        MarketMock evilMarket = new MarketMock(); 
+        INVEscrowMock evilEscrow = market.createEscrow(user);
+        vm.prank(address(evilEscrow));
+        uint stakeAmount = 10**18;
+
+        vm.expectRevert("UNSUPPORTED MARKET");
+        distributor.stake(stakeAmount);
+    }
+
+    function testFailNotAllowedCollateral() external {
+        MarketMock evilMarket = new MarketMock(); 
+        evilMarket.changeCollateral(address(0xb));
+        INVEscrowMock evilEscrow = market.createEscrow(user);
+        dbr.allowMarket(address(evilMarket));
+        vm.prank(address(evilEscrow));
+        uint stakeAmount = 10**18;
+
+        vm.expectRevert("UNSUPPORTED MARKET");
+        distributor.stake(stakeAmount);
+    }
+
+
+
 }

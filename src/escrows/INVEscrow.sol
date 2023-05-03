@@ -1,16 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
+import "../interfaces/IERC20.sol";
 
 // @dev Caution: We assume all failed transfers cause reverts and ignore the returned bool.
-interface IERC20 {
-    function transfer(address,uint) external returns (bool);
-    function transferFrom(address,address,uint) external returns (bool);
-    function balanceOf(address) external view returns (uint);
-    function approve(address, uint) external returns (bool);
-    function delegate(address delegatee) external;
-    function delegates(address delegator) external view returns (address delegatee);
-}
-
 interface IXINV {
     function balanceOf(address) external view returns (uint);
     function exchangeRateStored() external view returns (uint);
@@ -34,7 +26,7 @@ interface IDbrDistributor {
 */
 contract INVEscrow {
     address public market;
-    IERC20 public token;
+    IDelegateableERC20 public token;
     address public beneficiary;
     IXINV public immutable xINV;
     IDbrDistributor public immutable distributor;
@@ -51,7 +43,7 @@ contract INVEscrow {
     @param _token The IERC20 token representing the INV governance token
     @param _beneficiary The beneficiary who may delegate token voting power
     */
-    function initialize(IERC20 _token, address _beneficiary) public {
+    function initialize(IDelegateableERC20 _token, address _beneficiary) public {
         require(market == address(0), "ALREADY INITIALIZED");
         market = msg.sender;
         token = _token;
