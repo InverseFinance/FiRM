@@ -93,11 +93,11 @@ contract ConvexCurveEscrow {
     }
     /**
     @notice Sets the reward weight for staked cvxCrv tokens.
-    @param threeCurveTokenBps The percentage amount of reward tokens to be paid out in 3CRV tokens, set in basis points.
+    @param rewardWeightBps The percentage amount of reward tokens to be paid out in 3CRV tokens, set in basis points.
     */
-    function setRewardWeight(uint threeCurveTokenBps) external onlyBeneficiaryOrAllowlist {
-        require(threeCurveTokenBps <= 10000, "WEIGHT > 10000");
-        rewardPool.setRewardWeight(threeCurveTokenBps);
+    function setRewardWeight(uint rewardWeightBps) external onlyBeneficiaryOrAllowlist {
+        require(rewardWeightBps <= 10000, "WEIGHT > 10000");
+        rewardPool.setRewardWeight(rewardWeightBps);
     }
 
     /**
