@@ -27,9 +27,8 @@ contract CvxCrvMarketForkTest is MarketForkTest {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
         vm.createSelectFork(url);
-        ConvexCurveEscrow escrow = new ConvexCurveEscrow();
-        ConvexCurvePriceFeed cvxCrvFeed = new ConvexCurvePriceFeed(); 
-        Market cvxCrvMarket = new Market(gov, lender, pauseGuardian, address(escrow), IDolaBorrowingRights(address(dbr)), cvxCrv, IOracle(address(oracle)), 5000, 5000, 1000, true);
+        ConvexCurvePriceFeed cvxCrvFeed = ConvexCurvePriceFeed(0x0266445Ea652F8467cbaA344Fcf531FF8f3d6462); 
+        Market cvxCrvMarket = Market(0x3474ad0e3a9775c9F68B415A7a9880B0CAB9397a);//new Market(gov, lender, pauseGuardian, address(escrow), IDolaBorrowingRights(address(dbr)), cvxCrv, IOracle(address(oracle)), 5000, 5000, 1000, true);
         init(address(cvxCrvMarket), address(cvxCrvFeed));
         vm.startPrank(chair, chair);
         fed.expansion(IMarket(address(market)), 100_000e18);
