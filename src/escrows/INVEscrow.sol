@@ -1,19 +1,12 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
+import "../interfaces/IERC20.sol";
 
 // @dev Caution: We assume all failed transfers cause reverts and ignore the returned bool.
-interface IERC20 {
-    function transfer(address,uint) external returns (bool);
-    function transferFrom(address,address,uint) external returns (bool);
-    function balanceOf(address) external view returns (uint);
-    function approve(address, uint) external returns (bool);
-    function delegate(address delegatee) external;
-    function delegates(address delegator) external view returns (address delegatee);
-}
-
 interface IXINV {
     function balanceOf(address) external view returns (uint);
     function exchangeRateStored() external view returns (uint);
+    function exchangeRateCurrent() external returns (uint);
     function mint(uint mintAmount) external returns (uint);
     function redeemUnderlying(uint redeemAmount) external returns (uint);
     function syncDelegate(address user) external;
@@ -34,8 +27,9 @@ interface IDbrDistributor {
 */
 contract INVEscrow {
     address public market;
-    IERC20 public token;
+    IDelegateableERC20 public token;
     address public beneficiary;
+    uint public stakedXINV;
     IXINV public immutable xINV;
     IDbrDistributor public immutable distributor;
     mapping(address => bool) public claimers;
@@ -51,7 +45,7 @@ contract INVEscrow {
     @param _token The IERC20 token representing the INV governance token
     @param _beneficiary The beneficiary who may delegate token voting power
     */
-    function initialize(IERC20 _token, address _beneficiary) public {
+    function initialize(IDelegateableERC20 _token, address _beneficiary) public {
         require(market == address(0), "ALREADY INITIALIZED");
         market = msg.sender;
         token = _token;
@@ -60,7 +54,7 @@ contract INVEscrow {
         _token.approve(address(xINV), type(uint).max);
         xINV.syncDelegate(address(this));
     }
-
+    
     /**
     @notice Transfers the associated ERC20 token to a recipient.
     @param recipient The address to receive payment from the escrow
@@ -70,12 +64,11 @@ contract INVEscrow {
         require(msg.sender == market, "ONLY MARKET");
         uint invBalance = token.balanceOf(address(this));
         if(invBalance < amount) {
-            unchecked {
-                uint stakedInv = amount - invBalance;
-                uint xinvBal = xINV.balanceOf(address(this));
-                xINV.redeemUnderlying(stakedInv); // we do not check return value because transfer call will fail if this fails anyway
-                distributor.unstake(xinvBal - xINV.balanceOf(address(this)));
-            }
+            uint invNeeded = amount - invBalance;
+            uint xInvToUnstake = invNeeded * 1 ether / xINV.exchangeRateCurrent();
+            stakedXINV -= xInvToUnstake;
+            distributor.unstake(xInvToUnstake);
+            xINV.redeemUnderlying(invNeeded); // we do not check return value because transfer call will fail if this fails anyway
         }
         token.transfer(recipient, amount);
     }
@@ -124,7 +117,7 @@ contract INVEscrow {
     */
     function balance() public view returns (uint) {
         uint invBalance = token.balanceOf(address(this));
-        uint invBalanceInXInv = xINV.balanceOf(address(this)) * xINV.exchangeRateStored() / 1 ether;
+        uint invBalanceInXInv = stakedXINV * xINV.exchangeRateStored() / 1 ether;
         return invBalance + invBalanceInXInv;
     }
     
@@ -137,7 +130,8 @@ contract INVEscrow {
         if(invBalance > 0) {
             uint xinvBal = xINV.balanceOf(address(this));
             xINV.mint(invBalance); // we do not check return value because we don't want errors to block this call
-            distributor.stake(xINV.balanceOf(address(this)) - xinvBal);
+            stakedXINV += xINV.balanceOf(address(this)) - xinvBal;
+            distributor.stake(stakedXINV - xinvBal);
         }
     }
 

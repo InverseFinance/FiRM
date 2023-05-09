@@ -2,12 +2,14 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "../../escrows/INVEscrow.sol";
+import "../../interfaces/IERC20.sol";
+import {INVEscrow, IXINV, IDbrDistributor} from "../../escrows/INVEscrow.sol";
 import "../../DBR.sol";
-import "../../DbrDistributor.sol";
+import {DbrDistributor, IMarket, IDBR} from "../../DbrDistributor.sol";
 
 contract MockMarket is IMarket {
     mapping(address => address) public escrows;
+    IERC20 public collateral = IERC20(0x41D5D79431A913C4aE7d69a668ecdfE5fF9DFB68);
     function addEscrow(address owner, address escrow) external {
         escrows[owner] = escrow;
     }
@@ -19,7 +21,7 @@ contract INVEscrowForkTest is Test{
     address claimant = address(0xC);
     address holder = address(0x926dF14a23BE491164dCF93f4c468A50ef659D5B);
     address gov = address(0x926dF14a23BE491164dCF93f4c468A50ef659D5B);
-    IERC20 INV = IERC20(0x41D5D79431A913C4aE7d69a668ecdfE5fF9DFB68);
+    IDelegateableERC20 INV = IDelegateableERC20(0x41D5D79431A913C4aE7d69a668ecdfE5fF9DFB68);
     IXINV xINV = IXINV(0x1637e4e9941D55703a7A5E7807d6aDA3f7DCD61B);
     DolaBorrowingRights DBR = DolaBorrowingRights(0xAD038Eb671c44b853887A7E32528FaB35dC5D710);
     DbrDistributor distributor;
@@ -59,13 +61,13 @@ contract INVEscrowForkTest is Test{
         uint min = (balanceBefore + 1 ether) * (1 ether - 100) / 1 ether;
         withinSpan(escrow.balance(), max, min);
         assertGt(xINV.balanceOf(address(escrow)), stakedBalanceBefore);
+        assertEq(xINV.balanceOf(address(escrow)), escrow.stakedXINV());
     }
 
     function testPay_successful_whenContractHasStakedINV() public {
         vm.prank(holder, holder);
         INV.transfer(address(escrow), 1 ether);
         escrow.onDeposit();
-        uint balanceBefore = escrow.balance();
         uint beneficiaryBalanceBefore = INV.balanceOf(beneficiary);
 
         vm.prank(address(market), address(market));
@@ -75,6 +77,26 @@ contract INVEscrowForkTest is Test{
         assertEq(escrow.balance(), 0);
         assertEq(xINV.balanceOf(address(escrow)), 0);
         assertEq(INV.balanceOf(beneficiary), beneficiaryBalanceBefore + 1 ether);
+        assertEq(xINV.balanceOf(address(escrow)), escrow.stakedXINV());
+    }
+
+    function testPay_successful_whenContractHasStakedINVFuzz(uint walletAmount) public {
+        vm.assume(walletAmount > 1000);
+        vm.startPrank(holder, holder);
+        uint payAmount = walletAmount % INV.balanceOf(holder);
+        INV.transfer(address(escrow), payAmount);
+        escrow.onDeposit();
+        uint beneficiaryBalanceBefore = INV.balanceOf(beneficiary);
+        vm.stopPrank();
+
+        vm.prank(address(market), address(market));
+        escrow.pay(beneficiary, payAmount);
+
+
+        assertEq(escrow.balance(), 0);
+        assertEq(xINV.balanceOf(address(escrow)), 0);
+        assertEq(INV.balanceOf(beneficiary), beneficiaryBalanceBefore + payAmount);
+        assertEq(xINV.balanceOf(address(escrow)), escrow.stakedXINV());
     }
 
     function testPay_failWithONLYMARKET_whenCalledByNonMarket() public {
