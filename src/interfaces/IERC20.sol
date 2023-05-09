@@ -7,3 +7,8 @@ interface IERC20 {
     function balanceOf(address) external view returns (uint);
 }
 
+interface IDelegateableERC20 is IERC20 {
+    function delegate(address delegatee) external;
+    function delegates(address delegator) external view returns (address delegatee);
+}
+

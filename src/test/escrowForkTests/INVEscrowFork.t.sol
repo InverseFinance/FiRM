@@ -2,12 +2,14 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "../../escrows/INVEscrow.sol";
+import "../../interfaces/IERC20.sol";
+import {INVEscrow, IXINV, IDbrDistributor} from "../../escrows/INVEscrow.sol";
 import "../../DBR.sol";
-import "../../DbrDistributor.sol";
+import {DbrDistributor, IMarket, IDBR} from "../../DbrDistributor.sol";
 
 contract MockMarket is IMarket {
     mapping(address => address) public escrows;
+    IERC20 public collateral = IERC20(0x41D5D79431A913C4aE7d69a668ecdfE5fF9DFB68);
     function addEscrow(address owner, address escrow) external {
         escrows[owner] = escrow;
     }
@@ -19,7 +21,7 @@ contract INVEscrowForkTest is Test{
     address claimant = address(0xC);
     address holder = address(0x926dF14a23BE491164dCF93f4c468A50ef659D5B);
     address gov = address(0x926dF14a23BE491164dCF93f4c468A50ef659D5B);
-    IERC20 INV = IERC20(0x41D5D79431A913C4aE7d69a668ecdfE5fF9DFB68);
+    IDelegateableERC20 INV = IDelegateableERC20(0x41D5D79431A913C4aE7d69a668ecdfE5fF9DFB68);
     IXINV xINV = IXINV(0x1637e4e9941D55703a7A5E7807d6aDA3f7DCD61B);
     DolaBorrowingRights DBR = DolaBorrowingRights(0xAD038Eb671c44b853887A7E32528FaB35dC5D710);
     DbrDistributor distributor;
