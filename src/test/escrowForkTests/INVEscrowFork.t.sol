@@ -61,13 +61,13 @@ contract INVEscrowForkTest is Test{
         uint min = (balanceBefore + 1 ether) * (1 ether - 100) / 1 ether;
         withinSpan(escrow.balance(), max, min);
         assertGt(xINV.balanceOf(address(escrow)), stakedBalanceBefore);
+        assertEq(xINV.balanceOf(address(escrow)), escrow.stakedXINV());
     }
 
     function testPay_successful_whenContractHasStakedINV() public {
         vm.prank(holder, holder);
         INV.transfer(address(escrow), 1 ether);
         escrow.onDeposit();
-        uint balanceBefore = escrow.balance();
         uint beneficiaryBalanceBefore = INV.balanceOf(beneficiary);
 
         vm.prank(address(market), address(market));
@@ -77,6 +77,26 @@ contract INVEscrowForkTest is Test{
         assertEq(escrow.balance(), 0);
         assertEq(xINV.balanceOf(address(escrow)), 0);
         assertEq(INV.balanceOf(beneficiary), beneficiaryBalanceBefore + 1 ether);
+        assertEq(xINV.balanceOf(address(escrow)), escrow.stakedXINV());
+    }
+
+    function testPay_successful_whenContractHasStakedINVFuzz(uint walletAmount) public {
+        vm.assume(walletAmount > 1000);
+        vm.startPrank(holder, holder);
+        uint payAmount = walletAmount % INV.balanceOf(holder);
+        INV.transfer(address(escrow), payAmount);
+        escrow.onDeposit();
+        uint beneficiaryBalanceBefore = INV.balanceOf(beneficiary);
+        vm.stopPrank();
+
+        vm.prank(address(market), address(market));
+        escrow.pay(beneficiary, payAmount);
+
+
+        assertEq(escrow.balance(), 0);
+        assertEq(xINV.balanceOf(address(escrow)), 0);
+        assertEq(INV.balanceOf(beneficiary), beneficiaryBalanceBefore + payAmount);
+        assertEq(xINV.balanceOf(address(escrow)), escrow.stakedXINV());
     }
 
     function testPay_failWithONLYMARKET_whenCalledByNonMarket() public {

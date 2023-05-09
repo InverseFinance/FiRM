@@ -6,6 +6,7 @@ import "../interfaces/IERC20.sol";
 interface IXINV {
     function balanceOf(address) external view returns (uint);
     function exchangeRateStored() external view returns (uint);
+    function exchangeRateCurrent() external returns (uint);
     function mint(uint mintAmount) external returns (uint);
     function redeemUnderlying(uint redeemAmount) external returns (uint);
     function syncDelegate(address user) external;
@@ -28,6 +29,7 @@ contract INVEscrow {
     address public market;
     IDelegateableERC20 public token;
     address public beneficiary;
+    uint public stakedXINV;
     IXINV public immutable xINV;
     IDbrDistributor public immutable distributor;
     mapping(address => bool) public claimers;
@@ -52,7 +54,7 @@ contract INVEscrow {
         _token.approve(address(xINV), type(uint).max);
         xINV.syncDelegate(address(this));
     }
-
+    
     /**
     @notice Transfers the associated ERC20 token to a recipient.
     @param recipient The address to receive payment from the escrow
@@ -62,12 +64,11 @@ contract INVEscrow {
         require(msg.sender == market, "ONLY MARKET");
         uint invBalance = token.balanceOf(address(this));
         if(invBalance < amount) {
-            unchecked {
-                uint stakedInv = amount - invBalance;
-                uint xinvBal = xINV.balanceOf(address(this));
-                xINV.redeemUnderlying(stakedInv); // we do not check return value because transfer call will fail if this fails anyway
-                distributor.unstake(xinvBal - xINV.balanceOf(address(this)));
-            }
+            uint invNeeded = amount - invBalance;
+            uint xInvToUnstake = invNeeded * 1 ether / xINV.exchangeRateCurrent();
+            stakedXINV -= xInvToUnstake;
+            distributor.unstake(xInvToUnstake);
+            xINV.redeemUnderlying(invNeeded); // we do not check return value because transfer call will fail if this fails anyway
         }
         token.transfer(recipient, amount);
     }
@@ -116,7 +117,7 @@ contract INVEscrow {
     */
     function balance() public view returns (uint) {
         uint invBalance = token.balanceOf(address(this));
-        uint invBalanceInXInv = xINV.balanceOf(address(this)) * xINV.exchangeRateStored() / 1 ether;
+        uint invBalanceInXInv = stakedXINV * xINV.exchangeRateStored() / 1 ether;
         return invBalance + invBalanceInXInv;
     }
     
@@ -129,7 +130,8 @@ contract INVEscrow {
         if(invBalance > 0) {
             uint xinvBal = xINV.balanceOf(address(this));
             xINV.mint(invBalance); // we do not check return value because we don't want errors to block this call
-            distributor.stake(xINV.balanceOf(address(this)) - xinvBal);
+            stakedXINV += xINV.balanceOf(address(this)) - xinvBal;
+            distributor.stake(stakedXINV - xinvBal);
         }
     }
 
