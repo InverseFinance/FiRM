@@ -129,6 +129,7 @@ contract BorrowController {
      * @return bool Returns true if the price is stale, false otherwise.
      */
     function isPriceStale(address market) public view returns(bool){
+        if(stalenessThreshold == 0) return false;
         IOracle oracle = IMarket(market).oracle();
         (IChainlinkFeed feed,) = oracle.feeds(IMarket(market).collateral());
         (,,,uint updatedAt,) = feed.latestRoundData();
