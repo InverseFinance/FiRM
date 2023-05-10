@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 import "../../BorrowController.sol";
 import "../../DBR.sol";
-import "../../Fed.sol";
+import {Fed, IMarket} from "../../Fed.sol";
 import "../../Market.sol";
 import "../../Oracle.sol";
 
@@ -108,8 +108,7 @@ contract MarketForkTest is Test {
     }
 
     function gibCollateral(address _address, uint _amount) internal {
-        vm.prank(collatHolder);
-        collateral.transfer(_address, _amount);
+        deal(address(collateral), _address, _amount, true);
     }
 
     function gibDBR(address _address, uint _amount) internal {

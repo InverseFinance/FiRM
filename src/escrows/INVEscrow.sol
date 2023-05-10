@@ -35,7 +35,7 @@ contract INVEscrow {
     mapping(address => bool) public claimers;
 
     constructor(IXINV _xINV, IDbrDistributor _distributor) {
-        xINV = _xINV; // TODO: Test whether an immutable variable will persist across proxies
+        xINV = _xINV;
         distributor = _distributor;
     }
 
@@ -139,7 +139,7 @@ contract INVEscrow {
     @notice Delegates voting power of the underlying xINV.
     @param delegatee The address to be delegated voting power
     */
-    function delegate(address delegatee) public {
+    function syncDelegate(address delegatee) public {
         require(msg.sender == beneficiary, "ONLY BENEFICIARY");
         token.delegate(delegatee);
         xINV.syncDelegate(address(this));
