@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 import "../interfaces/IERC20.sol";
+import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 
 // @dev Caution: We assume all failed transfers cause reverts and ignore the returned bool.
 interface IXINV {
@@ -10,6 +11,10 @@ interface IXINV {
     function mint(uint mintAmount) external returns (uint);
     function redeemUnderlying(uint redeemAmount) external returns (uint);
     function syncDelegate(address user) external;
+    function accrualBlockNumber() external view returns (uint);
+    function getCash() external view returns (uint);
+    function totalSupply() external view returns (uint);
+    function rewardPerBlock() external view returns (uint);
 }
 
 interface IDbrDistributor {
@@ -26,6 +31,8 @@ interface IDbrDistributor {
 @dev Caution: This is a proxy implementation. Follow proxy pattern best practices
 */
 contract INVEscrow {
+    using FixedPointMathLib for uint256;
+
     address public market;
     IDelegateableERC20 public token;
     address public beneficiary;
@@ -65,7 +72,7 @@ contract INVEscrow {
         uint invBalance = token.balanceOf(address(this));
         if(invBalance < amount) {
             uint invNeeded = amount - invBalance;
-            uint xInvToUnstake = invNeeded * 1 ether / xINV.exchangeRateCurrent();
+            uint xInvToUnstake = invNeeded * 1 ether / viewExchangeRate();
             stakedXINV -= xInvToUnstake;
             distributor.unstake(xInvToUnstake);
             xINV.redeemUnderlying(invNeeded); // we do not check return value because transfer call will fail if this fails anyway
@@ -117,7 +124,7 @@ contract INVEscrow {
     */
     function balance() public view returns (uint) {
         uint invBalance = token.balanceOf(address(this));
-        uint invBalanceInXInv = stakedXINV * xINV.exchangeRateStored() / 1 ether;
+        uint invBalanceInXInv = stakedXINV * viewExchangeRate() / 1 ether;
         return invBalance + invBalanceInXInv;
     }
     
@@ -143,5 +150,22 @@ contract INVEscrow {
         require(msg.sender == beneficiary, "ONLY BENEFICIARY");
         token.delegate(delegatee);
         xINV.syncDelegate(address(this));
+    }
+
+    /**
+    @notice View function to calculate exact exchangerate for current block
+    */
+    function viewExchangeRate() internal view returns (uint256) {
+        uint256 accrualBlockNumberPrior = xINV.accrualBlockNumber();
+
+        if (accrualBlockNumberPrior == block.number) return xINV.exchangeRateStored();
+
+        uint256 totalCash = xINV.getCash();
+        uint blockDelta = block.number - accrualBlockNumberPrior;
+        uint rewardsPerBlock = xINV.rewardPerBlock();
+        uint256 totalSupply = xINV.totalSupply();
+
+        // Reverts if totalSupply == 0
+        return (totalCash + rewardsPerBlock * blockDelta).divWadDown(totalSupply);
     }
 }

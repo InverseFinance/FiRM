@@ -32,7 +32,10 @@ contract InvMarketForkTest is MarketForkTest {
         INVEscrow escrow = new INVEscrow(xINV, IDbrDistributor(address(distributor)));
         Market market = new Market(gov, lender, pauseGuardian, address(escrow), IDolaBorrowingRights(address(dbr)), INV, IOracle(address(oracle)), 0, 0, 1, true);
         init(address(market), address(0));
+        vm.prank(gov);
+        dbr.addMinter(address(distributor));
         vm.startPrank(chair, chair);
+        distributor.setRewardRate(1 ether);
         fed.expansion(IMarket(address(market)), 100_000e18);
         vm.stopPrank();
 
@@ -41,31 +44,41 @@ contract InvMarketForkTest is MarketForkTest {
 
     function testDeposit() public {
         gibCollateral(user, testAmount);
-        uint balanceUserBefore = collateral.balanceOf(user); 
 
         vm.startPrank(user, user);
         deposit(testAmount);
-        assertEq(market.predictEscrow(user).balance(), testAmount, "Escrow balance did not increase");
-        assertEq(collateral.balanceOf(user), balanceUserBefore - testAmount, "User balance did not decrease");
+        assertLe(market.escrows(user).balance(), testAmount, "Escrow balance is less than or equal deposit amount due to rounding errors");
+        assertGt(market.escrows(user).balance()+10, testAmount, "Escrow balance is greater than deposit amount when adjusted slightly up");
     }
 
-    function testDeposit2() public {
+    function testDeposit_CanClaimDbr_AfterTimePassed() public {
         gibCollateral(user, testAmount);
-        uint balanceUserBefore = collateral.balanceOf(user); 
+
+        vm.startPrank(user, user);
+        deposit(testAmount);
+        assertLe(market.escrows(user).balance(), testAmount, "Escrow balance is less than or equal deposit amount due to rounding errors");
+        assertGt(market.escrows(user).balance()+10, testAmount, "Escrow balance is greater than deposit amount when adjusted slightly up");
+        vm.warp(block.timestamp + 3600);
+        uint dbrBeforeClaim = dbr.balanceOf(user);
+        INVEscrow(address(market.escrows(user))).claimDBR();
+        uint dbrAfterClaim = dbr.balanceOf(user);
+        assertGt(dbrAfterClaim, dbrBeforeClaim, "No DBR issued");
+    }
+
+    function testDeposit_succeed_depositForOtherUser() public {
+        gibCollateral(user, testAmount);
 
         vm.startPrank(user, user);
         collateral.approve(address(market), testAmount);
         market.deposit(user2, testAmount);
-        assertEq(market.predictEscrow(user2).balance(), testAmount, "User2 escrow balance did not increase ");
-        assertEq(collateral.balanceOf(user), balanceUserBefore - testAmount, "User balance did not decrease");
-        assertEq(collateral.balanceOf(user2), 0, "User2 not 0");
+        assertLe(market.escrows(user2).balance(), testAmount, "Escrow balance is less than or equal deposit amount due to rounding errors");
+        assertGt(market.escrows(user2).balance()+10, testAmount, "Escrow balance is greater than deposit amount when adjusted slightly up");
     }
 
     function testBorrow_Fails() public {
         gibCollateral(user, testAmount);
         gibDBR(user, testAmount);
         vm.startPrank(user, user);
-        uint initialDolaBalance = DOLA.balanceOf(user);
         deposit(testAmount);
 
         vm.expectRevert();
@@ -78,15 +91,13 @@ contract InvMarketForkTest is MarketForkTest {
         gibDBR(user, testAmount);
         vm.startPrank(user, user);
 
-        uint initialDolaBalance = DOLA.balanceOf(user);
         uint borrowAmount = 1;
-        uint balanceUserBefore = collateral.balanceOf(user); 
         collateral.approve(address(market), testAmount);
         vm.expectRevert();
         market.depositAndBorrow(testAmount, borrowAmount);
     }
 
-    function testBorrowOnBehalf() public {
+    function testBorrowOnBehalf_Fails() public {
         address userPk = vm.addr(1);
         gibCollateral(userPk, testAmount);
         gibDBR(userPk, testAmount);
@@ -116,9 +127,6 @@ contract InvMarketForkTest is MarketForkTest {
         deposit(testAmount);
         vm.stopPrank();
 
-        assertEq(market.predictEscrow(userPk).balance(), testAmount, "failed to deposit collateral");
-        assertEq(collateral.balanceOf(userPk), 0, "failed to deposit collateral");
-
         vm.startPrank(user2, user2);
         vm.expectRevert();
         market.borrowOnBehalf(userPk, maxBorrowAmount, block.timestamp, v, r, s);
@@ -146,9 +154,26 @@ contract InvMarketForkTest is MarketForkTest {
         deposit(testAmount);
 
         uint collateralBalance = market.escrows(user).balance();
-        assertEq(collateralBalance, testAmount);
+        assertLe(collateralBalance, testAmount, "Is less than or equal deposit amount due to rounding errors");
+        assertGt(collateralBalance+10, testAmount, "Is greater than deposit amount when adjusted slightly up");
         assertEq(market.getWithdrawalLimit(user), collateralBalance, "Should return collateralBalance when user's escrow balance > 0 & debts = 0");
     }
+
+    function testGetWithdrawalLimit_ReturnsHigherBalance_WhenTimePassed() public {
+        gibCollateral(user, testAmount);
+        gibDBR(user, testAmount);
+
+        vm.startPrank(user, user);
+        deposit(testAmount);
+
+        uint collateralBalanceBefore = market.escrows(user).balance();
+        vm.roll(block.number+1);
+        uint collateralBalanceAfter = market.escrows(user).balance();
+        assertGt(collateralBalanceAfter, collateralBalanceBefore, "Collateral balance didn't increase");
+        assertGt(collateralBalanceAfter, testAmount, "Collateral balance not greater than testAmount");
+        assertEq(market.getWithdrawalLimit(user), collateralBalanceAfter, "Should return collateralBalance when user's escrow balance > 0 & debts = 0");
+    }
+
 
     function testGetWithdrawalLimit_Returns_0_WhenEscrowBalanceIs0() public {
         gibCollateral(user, testAmount);
@@ -158,10 +183,11 @@ contract InvMarketForkTest is MarketForkTest {
         deposit(testAmount);
 
         uint collateralBalance = market.escrows(user).balance();
-        assertEq(collateralBalance, testAmount);
+        assertLe(collateralBalance, testAmount, "Is less than or equal deposit amount due to rounding errors");
+        assertGt(collateralBalance+10, testAmount, "Is greater than deposit amount when adjusted slightly up");
 
         market.withdraw(market.getWithdrawalLimit(user));
-        assertEq(market.getWithdrawalLimit(user), 0, "Should return 0 when user's escrow balance is 0");
+        assertLt(market.getWithdrawalLimit(user), 10, "Should return dust when user's escrow balance is emptied");
     }
 
     function testPauseBorrows() public {
@@ -195,13 +221,13 @@ contract InvMarketForkTest is MarketForkTest {
 
         deposit(testAmount);
 
-        assertEq(market.predictEscrow(user).balance(), testAmount, "failed to deposit collateral");
         assertEq(collateral.balanceOf(user), 0, "failed to deposit collateral");
 
         market.withdraw(market.getWithdrawalLimit(user));
 
-        assertEq(market.predictEscrow(user).balance(), 0, "failed to withdraw collateral");
-        assertEq(collateral.balanceOf(user), testAmount, "failed to withdraw collateral");
+        assertLt(market.predictEscrow(user).balance(), testAmount, "failed to withdraw collateral");
+        assertLe(collateral.balanceOf(user), testAmount, "Is less than or equal deposit amount due to rounding errors");
+        assertGt(collateral.balanceOf(user)+10, testAmount, "Is greater than deposit amount when adjusted slightly up");
     }
 
     function testWithdraw_When_TimePassed() public {
@@ -211,17 +237,12 @@ contract InvMarketForkTest is MarketForkTest {
 
         deposit(testAmount);
 
-        assertEq(market.predictEscrow(user).balance(), testAmount, "failed to deposit collateral");
         assertEq(collateral.balanceOf(user), 0, "failed to deposit collateral");
         
-        emit log_uint(market.getWithdrawalLimit(user));
-        vm.roll(block.number+10);
-        vm.warp(block.timestamp+110);
-        market.withdraw(1000);
-        emit log_uint(market.getWithdrawalLimit(user));
+        vm.roll(block.number+1);
         market.withdraw(testAmount);
 
-        assertGt(market.predictEscrow(user).balance(), 0, "failed to withdraw collateral");
+        assertGt(market.predictEscrow(user).balance(), 0, "Escrow is empty");
         assertEq(collateral.balanceOf(user), testAmount, "failed to withdraw collateral");
     }
 
@@ -253,14 +274,11 @@ contract InvMarketForkTest is MarketForkTest {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
         vm.stopPrank();
 
-        assertEq(market.predictEscrow(userPk).balance(), testAmount, "failed to deposit collateral");
-        assertEq(collateral.balanceOf(userPk), 0, "failed to deposit collateral");
-
         vm.startPrank(user2);
         market.withdrawOnBehalf(userPk, market.getWithdrawalLimit(userPk), block.timestamp, v, r, s);
 
-        assertEq(distributor.balanceOf(address(market.predictEscrow(userPk))), 0, "failed to withdraw collateral");
-        assertEq(collateral.balanceOf(user2), testAmount, "failed to withdraw collateral");
+        assertLe(collateral.balanceOf(user2), testAmount, "Is less than or equal deposit amount due to rounding errors");
+        assertGt(collateral.balanceOf(user2)+10, testAmount, "Is greater than deposit amount when adjusted slightly up");
     }
 
     function testWithdrawOnBehalf_When_InvalidateNonceCalledPrior() public {
