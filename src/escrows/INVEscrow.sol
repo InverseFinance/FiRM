@@ -146,7 +146,7 @@ contract INVEscrow {
     @notice Delegates voting power of the underlying xINV.
     @param delegatee The address to be delegated voting power
     */
-    function syncDelegate(address delegatee) public {
+    function delegate(address delegatee) public {
         require(msg.sender == beneficiary, "ONLY BENEFICIARY");
         token.delegate(delegatee);
         xINV.syncDelegate(address(this));
