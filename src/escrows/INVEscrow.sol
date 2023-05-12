@@ -32,7 +32,7 @@ interface IDbrDistributor {
 @dev Caution: This is a proxy implementation. Follow proxy pattern best practices
 */
 contract INVEscrow {
-    using FixedPointMathLib for uint256;
+    using FixedPointMathLib for uint;
 
     address public market;
     IDelegateableERC20 public token;
@@ -156,19 +156,19 @@ contract INVEscrow {
     /**
     @notice View function to calculate exact exchangerate for current block
     */
-    function viewExchangeRate() internal view returns (uint256) {
-        uint256 accrualBlockNumberPrior = xINV.accrualBlockNumber();
+    function viewExchangeRate() internal view returns (uint) {
+        uint accrualBlockNumberPrior = xINV.accrualBlockNumber();
 
         if (accrualBlockNumberPrior == block.number) return xINV.exchangeRateStored();
 
-        uint256 totalCash = xINV.getCash();
+        uint totalCash = xINV.getCash();
         uint blockDelta = block.number - accrualBlockNumberPrior;
         uint rewardsPerBlock = xINV.rewardPerBlock();
         uint rewardsAccrued = rewardsPerBlock * blockDelta;
         uint treasuryInvBalance = token.balanceOf(xINV.rewardTreasury());
         uint treasuryxInvAllowance = token.allowance(xINV.rewardTreasury(), address(xINV));
 
-        uint256 totalSupply = xINV.totalSupply();
+        uint totalSupply = xINV.totalSupply();
 
         if( treasuryInvBalance <= rewardsAccrued || treasuryxInvAllowance <= rewardsAccrued){
             return (totalCash).divWadDown(totalSupply);
