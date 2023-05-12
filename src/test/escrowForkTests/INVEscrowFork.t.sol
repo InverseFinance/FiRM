@@ -80,6 +80,25 @@ contract INVEscrowForkTest is Test{
         assertEq(xINV.balanceOf(address(escrow)), escrow.stakedXINV());
     }
 
+    function testPay_successful_whenEscrowHasStakedINV_AfterRewardsRunOut() public {
+        vm.prank(holder, holder);
+        INV.transfer(address(escrow), 1 ether);
+        escrow.onDeposit();
+        uint beneficiaryBalanceBefore = INV.balanceOf(beneficiary);
+
+        vm.startPrank(address(market), address(market));
+        vm.roll(block.number + 36500 days / 12);
+        escrow.pay(beneficiary, escrow.balance());
+        vm.stopPrank();
+
+
+        assertLt(escrow.balance(), 10);
+        assertLt(xINV.balanceOf(address(escrow)), 10);
+        assertLe(INV.balanceOf(beneficiary), beneficiaryBalanceBefore + 1 ether);
+        assertGt(INV.balanceOf(beneficiary), beneficiaryBalanceBefore + 1 ether-10);
+        assertEq(xINV.balanceOf(address(escrow)), escrow.stakedXINV());
+    }
+
     function testPay_successful_whenContractHasStakedINVFuzz(uint walletAmount) public {
         vm.assume(walletAmount > 1000);
         vm.startPrank(holder, holder);
