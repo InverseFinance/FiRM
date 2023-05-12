@@ -26,11 +26,11 @@ interface IDbrDistributor {
 }
 
 /**
-@title INV Escrow
-@notice Collateral is stored in unique escrow contracts for every user and every market.
- This escrow allows user to deposit INV collateral directly into the xINV contract, earning APY and allowing them to delegate votes on behalf of the xINV collateral
-@dev Caution: This is a proxy implementation. Follow proxy pattern best practices
-*/
+ * @title INV Escrow
+ * @notice Collateral is stored in unique escrow contracts for every user and every market.
+ * This escrow allows user to deposit INV collateral directly into the xINV contract, earning APY and allowing them to delegate votes on behalf of the xINV collateral
+ * @dev Caution: This is a proxy implementation. Follow proxy pattern best practices
+ */
 contract INVEscrow {
     using FixedPointMathLib for uint;
 
@@ -48,11 +48,11 @@ contract INVEscrow {
     }
 
     /**
-    @notice Initialize escrow with a token
-    @dev Must be called right after proxy is created.
-    @param _token The IERC20 token representing the INV governance token
-    @param _beneficiary The beneficiary who may delegate token voting power
-    */
+     * @notice Initialize escrow with a token
+     * @dev Must be called right after proxy is created.
+     * @param _token The IERC20 token representing the INV governance token
+     * @param _beneficiary The beneficiary who may delegate token voting power
+     */
     function initialize(IDelegateableERC20 _token, address _beneficiary) public {
         require(market == address(0), "ALREADY INITIALIZED");
         market = msg.sender;
@@ -64,10 +64,10 @@ contract INVEscrow {
     }
     
     /**
-    @notice Transfers the associated ERC20 token to a recipient.
-    @param recipient The address to receive payment from the escrow
-    @param amount The amount of ERC20 token to be transferred.
-    */
+     * @notice Transfers the associated ERC20 token to a recipient.
+     * @param recipient The address to receive payment from the escrow
+     * @param amount The amount of ERC20 token to be transferred.
+     */
     function pay(address recipient, uint amount) public {
         require(msg.sender == market, "ONLY MARKET");
         uint invBalance = token.balanceOf(address(this));
@@ -120,8 +120,8 @@ contract INVEscrow {
     }
 
     /**
-    @notice Get the token balance of the escrow
-    @return Uint representing the INV token balance of the escrow including the additional INV accrued from xINV
+    * @notice Get the token balance of the escrow
+    * @return Uint representing the INV token balance of the escrow including the additional INV accrued from xINV
     */
     function balance() public view returns (uint) {
         uint invBalance = token.balanceOf(address(this));
@@ -130,9 +130,9 @@ contract INVEscrow {
     }
     
     /**
-    @notice Function called by market on deposit. Will deposit INV into xINV 
-    @dev This function should remain callable by anyone to handle direct inbound transfers.
-    */
+     * @notice Function called by market on deposit. Will deposit INV into xINV 
+     * @dev This function should remain callable by anyone to handle direct inbound transfers.
+     */
     function onDeposit() public {
         uint invBalance = token.balanceOf(address(this));
         if(invBalance > 0) {
@@ -144,9 +144,9 @@ contract INVEscrow {
     }
 
     /**
-    @notice Delegates voting power of the underlying xINV.
-    @param delegatee The address to be delegated voting power
-    */
+     * @notice Delegates voting power of the underlying xINV.
+     * @param delegatee The address to be delegated voting power
+     */
     function delegate(address delegatee) public {
         require(msg.sender == beneficiary, "ONLY BENEFICIARY");
         token.delegate(delegatee);
@@ -154,26 +154,17 @@ contract INVEscrow {
     }
 
     /**
-    @notice View function to calculate exact exchangerate for current block
-    */
+     * @notice View function to calculate exact exchangerate for current block
+     */
     function viewExchangeRate() internal view returns (uint) {
         uint accrualBlockNumberPrior = xINV.accrualBlockNumber();
-
         if (accrualBlockNumberPrior == block.number) return xINV.exchangeRateStored();
-
-        uint totalCash = xINV.getCash();
         uint blockDelta = block.number - accrualBlockNumberPrior;
-        uint rewardsPerBlock = xINV.rewardPerBlock();
-        uint rewardsAccrued = rewardsPerBlock * blockDelta;
+        uint rewardsAccrued = xINV.rewardPerBlock() * blockDelta;
         uint treasuryInvBalance = token.balanceOf(xINV.rewardTreasury());
         uint treasuryxInvAllowance = token.allowance(xINV.rewardTreasury(), address(xINV));
-
-        uint totalSupply = xINV.totalSupply();
-
-        if( treasuryInvBalance <= rewardsAccrued || treasuryxInvAllowance <= rewardsAccrued){
-            return (totalCash).divWadDown(totalSupply);
-        } else {
-            return (totalCash + rewardsAccrued).divWadDown(totalSupply);
-        }
+        if( treasuryInvBalance <= rewardsAccrued || treasuryxInvAllowance <= rewardsAccrued) return xINV.exchangeRateStored();
+        return (xINV.getCash() + rewardsAccrued).divWadDown(xINV.totalSupply());
     }
+
 }
