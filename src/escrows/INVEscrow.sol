@@ -5,6 +5,7 @@ import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 
 // @dev Caution: We assume all failed transfers cause reverts and ignore the returned bool.
 interface IXINV {
+    function rewardTreasury() external view returns(address);
     function balanceOf(address) external view returns (uint);
     function exchangeRateStored() external view returns (uint);
     function exchangeRateCurrent() external returns (uint);
@@ -163,9 +164,16 @@ contract INVEscrow {
         uint256 totalCash = xINV.getCash();
         uint blockDelta = block.number - accrualBlockNumberPrior;
         uint rewardsPerBlock = xINV.rewardPerBlock();
+        uint rewardsAccrued = rewardsPerBlock * blockDelta;
+        uint treasuryInvBalance = token.balanceOf(xINV.rewardTreasury());
+        uint treasuryxInvAllowance = token.allowance(xINV.rewardTreasury(), address(xINV));
+
         uint256 totalSupply = xINV.totalSupply();
 
-        // Reverts if totalSupply == 0
-        return (totalCash + rewardsPerBlock * blockDelta).divWadDown(totalSupply);
+        if( treasuryInvBalance <= rewardsAccrued || treasuryxInvAllowance <= rewardsAccrued){
+            return (totalCash).divWadDown(totalSupply);
+        } else {
+            return (totalCash + rewardsAccrued).divWadDown(totalSupply);
+        }
     }
 }
