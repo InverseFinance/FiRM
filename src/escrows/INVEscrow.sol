@@ -1,15 +1,21 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 import "../interfaces/IERC20.sol";
+import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 
 // @dev Caution: We assume all failed transfers cause reverts and ignore the returned bool.
 interface IXINV {
+    function rewardTreasury() external view returns(address);
     function balanceOf(address) external view returns (uint);
     function exchangeRateStored() external view returns (uint);
     function exchangeRateCurrent() external returns (uint);
     function mint(uint mintAmount) external returns (uint);
     function redeemUnderlying(uint redeemAmount) external returns (uint);
     function syncDelegate(address user) external;
+    function accrualBlockNumber() external view returns (uint);
+    function getCash() external view returns (uint);
+    function totalSupply() external view returns (uint);
+    function rewardPerBlock() external view returns (uint);
 }
 
 interface IDbrDistributor {
@@ -20,12 +26,14 @@ interface IDbrDistributor {
 }
 
 /**
-@title INV Escrow
-@notice Collateral is stored in unique escrow contracts for every user and every market.
- This escrow allows user to deposit INV collateral directly into the xINV contract, earning APY and allowing them to delegate votes on behalf of the xINV collateral
-@dev Caution: This is a proxy implementation. Follow proxy pattern best practices
-*/
+ * @title INV Escrow
+ * @notice Collateral is stored in unique escrow contracts for every user and every market.
+ * This escrow allows user to deposit INV collateral directly into the xINV contract, earning APY and allowing them to delegate votes on behalf of the xINV collateral
+ * @dev Caution: This is a proxy implementation. Follow proxy pattern best practices
+ */
 contract INVEscrow {
+    using FixedPointMathLib for uint;
+
     address public market;
     IDelegateableERC20 public token;
     address public beneficiary;
@@ -35,16 +43,16 @@ contract INVEscrow {
     mapping(address => bool) public claimers;
 
     constructor(IXINV _xINV, IDbrDistributor _distributor) {
-        xINV = _xINV; // TODO: Test whether an immutable variable will persist across proxies
+        xINV = _xINV;
         distributor = _distributor;
     }
 
     /**
-    @notice Initialize escrow with a token
-    @dev Must be called right after proxy is created.
-    @param _token The IERC20 token representing the INV governance token
-    @param _beneficiary The beneficiary who may delegate token voting power
-    */
+     * @notice Initialize escrow with a token
+     * @dev Must be called right after proxy is created.
+     * @param _token The IERC20 token representing the INV governance token
+     * @param _beneficiary The beneficiary who may delegate token voting power
+     */
     function initialize(IDelegateableERC20 _token, address _beneficiary) public {
         require(market == address(0), "ALREADY INITIALIZED");
         market = msg.sender;
@@ -56,16 +64,16 @@ contract INVEscrow {
     }
     
     /**
-    @notice Transfers the associated ERC20 token to a recipient.
-    @param recipient The address to receive payment from the escrow
-    @param amount The amount of ERC20 token to be transferred.
-    */
+     * @notice Transfers the associated ERC20 token to a recipient.
+     * @param recipient The address to receive payment from the escrow
+     * @param amount The amount of ERC20 token to be transferred.
+     */
     function pay(address recipient, uint amount) public {
         require(msg.sender == market, "ONLY MARKET");
         uint invBalance = token.balanceOf(address(this));
         if(invBalance < amount) {
             uint invNeeded = amount - invBalance;
-            uint xInvToUnstake = invNeeded * 1 ether / xINV.exchangeRateCurrent();
+            uint xInvToUnstake = invNeeded * 1 ether / viewExchangeRate();
             stakedXINV -= xInvToUnstake;
             distributor.unstake(xInvToUnstake);
             xINV.redeemUnderlying(invNeeded); // we do not check return value because transfer call will fail if this fails anyway
@@ -112,19 +120,19 @@ contract INVEscrow {
     }
 
     /**
-    @notice Get the token balance of the escrow
-    @return Uint representing the INV token balance of the escrow including the additional INV accrued from xINV
+    * @notice Get the token balance of the escrow
+    * @return Uint representing the INV token balance of the escrow including the additional INV accrued from xINV
     */
     function balance() public view returns (uint) {
         uint invBalance = token.balanceOf(address(this));
-        uint invBalanceInXInv = stakedXINV * xINV.exchangeRateStored() / 1 ether;
+        uint invBalanceInXInv = stakedXINV * viewExchangeRate() / 1 ether;
         return invBalance + invBalanceInXInv;
     }
     
     /**
-    @notice Function called by market on deposit. Will deposit INV into xINV 
-    @dev This function should remain callable by anyone to handle direct inbound transfers.
-    */
+     * @notice Function called by market on deposit. Will deposit INV into xINV 
+     * @dev This function should remain callable by anyone to handle direct inbound transfers.
+     */
     function onDeposit() public {
         uint invBalance = token.balanceOf(address(this));
         if(invBalance > 0) {
@@ -136,12 +144,27 @@ contract INVEscrow {
     }
 
     /**
-    @notice Delegates voting power of the underlying xINV.
-    @param delegatee The address to be delegated voting power
-    */
+     * @notice Delegates voting power of the underlying xINV.
+     * @param delegatee The address to be delegated voting power
+     */
     function delegate(address delegatee) public {
         require(msg.sender == beneficiary, "ONLY BENEFICIARY");
         token.delegate(delegatee);
         xINV.syncDelegate(address(this));
     }
+
+    /**
+     * @notice View function to calculate exact exchangerate for current block
+     */
+    function viewExchangeRate() internal view returns (uint) {
+        uint accrualBlockNumberPrior = xINV.accrualBlockNumber();
+        if (accrualBlockNumberPrior == block.number) return xINV.exchangeRateStored();
+        uint blockDelta = block.number - accrualBlockNumberPrior;
+        uint rewardsAccrued = xINV.rewardPerBlock() * blockDelta;
+        uint treasuryInvBalance = token.balanceOf(xINV.rewardTreasury());
+        uint treasuryxInvAllowance = token.allowance(xINV.rewardTreasury(), address(xINV));
+        if( treasuryInvBalance <= rewardsAccrued || treasuryxInvAllowance <= rewardsAccrued) return xINV.exchangeRateStored();
+        return (xINV.getCash() + rewardsAccrued).divWadDown(xINV.totalSupply());
+    }
+
 }
