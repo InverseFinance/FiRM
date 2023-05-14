@@ -739,6 +739,42 @@ contract MarketTest is FrontierV2Test {
         assertEq(WETH.balanceOf(user), wethTestAmount, "failed to withdraw WETH");
     }
 
+    function testWithdrawMax_WithdrawAll_WhenNoDebt() public {
+        gibWeth(user, wethTestAmount);
+        gibDBR(user, wethTestAmount);
+        vm.startPrank(user, user);
+
+        deposit(wethTestAmount);
+
+        assertEq(WETH.balanceOf(address(market.escrows(user))), wethTestAmount, "failed to deposit WETH");
+        assertEq(WETH.balanceOf(user), 0, "failed to deposit WETH");
+
+        market.withdrawMax();
+
+        assertEq(WETH.balanceOf(address(market.escrows(user))), 0, "failed to withdraw WETH");
+        assertEq(WETH.balanceOf(user), wethTestAmount, "failed to withdraw WETH");
+    }
+
+    function testWithdrawMax_WithdrawWithdrawalLimit_WhenDebt() public {
+        gibWeth(user, wethTestAmount);
+        gibDBR(user, wethTestAmount);
+        vm.startPrank(user, user);
+
+        deposit(wethTestAmount);
+
+        assertEq(WETH.balanceOf(address(market.escrows(user))), wethTestAmount, "failed to deposit WETH");
+        assertEq(WETH.balanceOf(user), 0, "failed to deposit WETH");
+
+        uint borrowAmount = getMaxBorrowAmount(wethTestAmount)/2;
+        market.borrow(borrowAmount);
+        uint withdrawalLimit = market.getWithdrawalLimit(user);
+        market.withdrawMax();
+
+        assertEq(WETH.balanceOf(address(market.escrows(user))), wethTestAmount/2, "failed to withdraw WETH");
+        assertEq(WETH.balanceOf(user), wethTestAmount/2, "failed to withdraw WETH");
+        assertEq(WETH.balanceOf(user), withdrawalLimit, "failed to withdraw WETH");
+    }
+
     function testWithdraw_Fail_When_WithdrawingCollateralBelowCF() public {
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount);
@@ -793,8 +829,90 @@ contract MarketTest is FrontierV2Test {
         vm.startPrank(user2);
         market.withdrawOnBehalf(userPk, wethTestAmount, block.timestamp, v, r, s);
 
+        assertEq(WETH.balanceOf(address(market.escrows(userPk))), 0, "userPk has WETH in escrow");
+        assertEq(WETH.balanceOf(user2), wethTestAmount, "user2 didn't receive WETH");
+    }
+
+    function testWithdrawMaxOnBehalf() public {
+        address userPk = vm.addr(1);
+        gibWeth(userPk, wethTestAmount);
+        gibDBR(userPk, wethTestAmount);
+        
+        vm.startPrank(userPk);
+        bytes32 hash = keccak256(
+                    abi.encodePacked(
+                        "\x19\x01",
+                        market.DOMAIN_SEPARATOR(),
+                        keccak256(
+                            abi.encode(
+                                keccak256(
+                                    "WithdrawOnBehalf(address caller,address from,uint256 nonce,uint256 deadline)"
+                                ),
+                                user2,
+                                userPk,
+                                0,
+                                block.timestamp
+                            )
+                        )
+                    )
+                );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
+
+        deposit(wethTestAmount);
+        vm.stopPrank();
+
+        assertEq(WETH.balanceOf(address(market.escrows(userPk))), wethTestAmount, "failed to deposit WETH");
+        assertEq(WETH.balanceOf(userPk), 0, "failed to deposit WETH");
+
+        vm.startPrank(user2);
+        market.withdrawMaxOnBehalf(userPk, block.timestamp, v, r, s);
+
         assertEq(WETH.balanceOf(address(market.escrows(userPk))), 0, "failed to withdraw WETH");
         assertEq(WETH.balanceOf(user2), wethTestAmount, "failed to withdraw WETH");
+    }
+
+    function testWithdrawMaxOnBehalf_WithdrawHalf_WhenHalfBorrowLimitUsed() public {
+        address userPk = vm.addr(1);
+        gibWeth(userPk, wethTestAmount);
+        gibDBR(userPk, wethTestAmount);
+        
+        vm.startPrank(userPk, userPk);
+        bytes32 hash = keccak256(
+                    abi.encodePacked(
+                        "\x19\x01",
+                        market.DOMAIN_SEPARATOR(),
+                        keccak256(
+                            abi.encode(
+                                keccak256(
+                                    "WithdrawOnBehalf(address caller,address from,uint256 nonce,uint256 deadline)"
+                                ),
+                                user2,
+                                userPk,
+                                0,
+                                block.timestamp
+                            )
+                        )
+                    )
+                );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
+
+        deposit(wethTestAmount);
+
+        assertEq(WETH.balanceOf(address(market.escrows(userPk))), wethTestAmount, "failed to deposit WETH");
+        assertEq(WETH.balanceOf(userPk), 0, "failed to deposit WETH");
+
+                
+        uint borrowAmount = getMaxBorrowAmount(wethTestAmount)/2;
+        market.borrow(borrowAmount);
+        uint withdrawalLimit = market.getWithdrawalLimit(userPk);
+        vm.stopPrank();
+
+        vm.startPrank(user2);
+        market.withdrawMaxOnBehalf(userPk, block.timestamp, v, r, s);
+
+        assertEq(WETH.balanceOf(address(market.escrows(userPk))), wethTestAmount/2, "Incorrect amount left in userPk escrow");
+        assertEq(WETH.balanceOf(user2), wethTestAmount/2, "failed to withdraw max");
+        assertEq(WETH.balanceOf(user2), withdrawalLimit, "failed to withdraw max to user2");
     }
 
     function testWithdrawOnBehalf_When_InvalidateNonceCalledPrior() public {
