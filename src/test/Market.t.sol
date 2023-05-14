@@ -846,7 +846,7 @@ contract MarketTest is FrontierV2Test {
                         keccak256(
                             abi.encode(
                                 keccak256(
-                                    "WithdrawOnBehalf(address caller,address from,uint256 nonce,uint256 deadline)"
+                                    "WithdrawMaxOnBehalf(address caller,address from,uint256 nonce,uint256 deadline)"
                                 ),
                                 user2,
                                 userPk,
@@ -884,7 +884,7 @@ contract MarketTest is FrontierV2Test {
                         keccak256(
                             abi.encode(
                                 keccak256(
-                                    "WithdrawOnBehalf(address caller,address from,uint256 nonce,uint256 deadline)"
+                                    "WithdrawMaxOnBehalf(address caller,address from,uint256 nonce,uint256 deadline)"
                                 ),
                                 user2,
                                 userPk,
@@ -928,7 +928,7 @@ contract MarketTest is FrontierV2Test {
                         keccak256(
                             abi.encode(
                                 keccak256(
-                                    "WithdrawOnBehalf(address caller,address from,uint256 amount,uint256 nonce,uint256 deadline)"
+                                    "WithdrawMaxOnBehalf(address caller,address from,uint256 amount,uint256 nonce,uint256 deadline)"
                                 ),
                                 user2,
                                 userPk,
