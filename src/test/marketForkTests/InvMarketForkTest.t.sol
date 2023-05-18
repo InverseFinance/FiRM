@@ -36,10 +36,12 @@ contract InvMarketForkTest is MarketForkTest {
         vm.startPrank(gov);
         dbr.addMinter(address(distributor));
         market.pauseBorrows(true);
+        distributor.setRewardRateConstraints(126839167935058000,317097919837646000);
+        distributor.setRewardRateConstraints(0,317097919837646000);
         vm.stopPrank();
-        vm.startPrank(chair, chair);
-        distributor.setRewardRate(1 ether);
-        vm.stopPrank();
+        //vm.startPrank(chair, chair);
+        //distributor.setRewardRate(1 ether);
+        //vm.stopPrank();
 
         borrowContract = new BorrowContract(address(market), payable(address(collateral)));
     }
