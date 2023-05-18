@@ -1,11 +1,6 @@
 pragma solidity ^0.8.13;
-import "../interfaces/IMarket.sol";
-interface IERC20 {
-    function transfer(address to, uint amount) external;
-    function transferFrom(address from, address to, uint amount) external;
-    function approve(address to, uint amount) external;
-    function balanceOf(address user) external view returns(uint);
-}
+import "src/interfaces/IMarket.sol";
+import "src/interfaces/IERC20.sol";
 
 interface IWETH is IERC20 {
     function withdraw(uint wad) external;

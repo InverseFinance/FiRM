@@ -1,38 +1,11 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
-
+import "src/interfaces/IERC20.sol";
+import "src/interfaces/IDolaBorrowingRights.sol";
+import "src/interfaces/IBorrowController.sol";
+import "src/interfaces/IOracle.sol";
+import "src/interfaces/IEscrow.sol";
 // Caution. We assume all failed transfers cause reverts and ignore the returned bool.
-interface IERC20 {
-    function transfer(address,uint) external returns (bool);
-    function transferFrom(address,address,uint) external returns (bool);
-    function balanceOf(address) external view returns (uint);
-}
-
-interface IOracle {
-    function getPrice(address,uint) external returns (uint);
-    function viewPrice(address,uint) external view returns (uint);
-}
-
-interface IEscrow {
-    function initialize(IERC20 _token, address beneficiary) external;
-    function onDeposit() external;
-    function pay(address recipient, uint amount) external;
-    function balance() external view returns (uint);
-}
-
-interface IDolaBorrowingRights {
-    function onBorrow(address user, uint additionalDebt) external;
-    function onRepay(address user, uint repaidDebt) external;
-    function onForceReplenish(address user, address replenisher, uint amount, uint replenisherReward) external;
-    function balanceOf(address user) external view returns (uint);
-    function deficitOf(address user) external view returns (uint);
-    function replenishmentPriceBps() external view returns (uint);
-}
-
-interface IBorrowController {
-    function borrowAllowed(address msgSender, address borrower, uint amount) external returns (bool);
-    function onRepay(uint amount) external;
-}
 
 contract Market {
 

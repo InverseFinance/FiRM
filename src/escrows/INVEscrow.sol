@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 import "../interfaces/IERC20.sol";
+import "src/interfaces/IDbrDistributor.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 
 // @dev Caution: We assume all failed transfers cause reverts and ignore the returned bool.
@@ -16,13 +17,6 @@ interface IXINV {
     function getCash() external view returns (uint);
     function totalSupply() external view returns (uint);
     function rewardPerBlock() external view returns (uint);
-}
-
-interface IDbrDistributor {
-    function stake(uint amount) external;
-    function unstake(uint amount) external;
-    function claim(address to) external;
-    function claimable(address user) external view returns(uint);
 }
 
 /**

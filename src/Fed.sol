@@ -1,17 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 import "src/interfaces/IMarket.sol";
-
-interface IDola {
-    function mint(address to, uint amount) external;
-    function burn(uint amount) external;
-    function balanceOf(address user) external view returns (uint);
-    function transfer(address to, uint amount) external returns (bool);
-}
-
-interface IDBR {
-    function markets(address) external view returns (bool);
-}
+import "src/interfaces/IERC20.sol";
+import "src/interfaces/IDolaBorrowingRights.sol";
 
 /**
 @title The Market Fed
@@ -20,8 +11,8 @@ interface IDBR {
 */
 contract Fed {
 
-    IDBR public immutable dbr;
-    IDola public immutable dola;
+    IDolaBorrowingRights public immutable dbr;
+    IMintableERC20 public immutable dola;
     address public gov;
     address public chair;
     uint public supplyCeiling;
@@ -29,7 +20,7 @@ contract Fed {
     mapping (IMarket => uint) public supplies;
     mapping (IMarket => uint) public ceilings;
 
-    constructor (IDBR _dbr, IDola _dola, address _gov, address _chair, uint _supplyCeiling) {
+    constructor (IDolaBorrowingRights _dbr, IMintableERC20 _dola, address _gov, address _chair, uint _supplyCeiling) {
         dbr = _dbr;
         dola = _dola;
         gov = _gov;

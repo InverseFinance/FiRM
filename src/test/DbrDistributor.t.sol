@@ -2,9 +2,11 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "../DbrDistributor.sol";
+import "src/DbrDistributor.sol";
+import "src/interfaces/IDolaBorrowingRights.sol";
+import "src/interfaces/IERC20.sol";
 
-contract INVEscrowMock is IINVEscrow {
+contract INVEscrowMock {
     address public market;
     address public beneficiary;
     
@@ -14,7 +16,7 @@ contract INVEscrowMock is IINVEscrow {
     }
 }
 
-contract DBRMock is IDBR {
+contract DBRMock {
     address market;
     mapping (address => uint) balances;
     mapping (address => bool) public markets;
@@ -32,7 +34,7 @@ contract DBRMock is IDBR {
     }
 }
 
-contract MarketMock is IMarket {
+contract MarketMock {
     mapping(address => address) public escrows;
     IERC20 public collateral = IERC20(0x41D5D79431A913C4aE7d69a668ecdfE5fF9DFB68);
     
@@ -48,8 +50,10 @@ contract MarketMock is IMarket {
 }
 
 contract DbrDistributorTest is Test {
-    MarketMock market;
-    DBRMock dbr;
+    MarketMock marketMock;
+    DBRMock dbrMock;
+    IMarket market;
+    IDolaBorrowingRights dbr;
     INVEscrowMock escrow;
     DbrDistributor distributor;
     address user = address(0xA);
@@ -57,11 +61,13 @@ contract DbrDistributorTest is Test {
     address operator = address(0xC);
 
     function setUp() public {
-        market = new MarketMock();
-        dbr = new DBRMock();
+        marketMock = new MarketMock();
+        dbrMock = new DBRMock();
+        market = IMarket(address(marketMock));
+        dbr = IDolaBorrowingRights(address(dbrMock));
         dbr.allowMarket(address(market));
-        escrow = market.createEscrow(user);
-        distributor = new DbrDistributor(IDBR(dbr), gov, operator);
+        escrow = marketMock.createEscrow(user);
+        distributor = new DbrDistributor(IDolaBorrowingRights(dbr), gov, operator);
         vm.prank(operator);
         distributor.setRewardRate(10**18);
     }
@@ -90,7 +96,7 @@ contract DbrDistributorTest is Test {
 
     function testMultiStake() external {
         address user2 = address(0x1);
-        INVEscrowMock escrow2 = market.createEscrow(user2);
+        INVEscrowMock escrow2 = marketMock.createEscrow(user2);
 
         vm.prank(address(escrow));
         uint stakeAmount = 10**18;
@@ -138,9 +144,9 @@ contract DbrDistributorTest is Test {
         assertEq(distributor.claimable(address(escrow)), 0);
     }
 
-    function testFailNotAllowedMarket() external {
+    function test_Fail_NotAllowedMarket() external {
         MarketMock evilMarket = new MarketMock(); 
-        INVEscrowMock evilEscrow = market.createEscrow(user);
+        INVEscrowMock evilEscrow = evilMarket.createEscrow(user);
         vm.prank(address(evilEscrow));
         uint stakeAmount = 10**18;
 
@@ -148,15 +154,15 @@ contract DbrDistributorTest is Test {
         distributor.stake(stakeAmount);
     }
 
-    function testFailNotAllowedCollateral() external {
+    function test_Fail_NotAllowedCollateral() external {
         MarketMock evilMarket = new MarketMock(); 
         evilMarket.changeCollateral(address(0xb));
-        INVEscrowMock evilEscrow = market.createEscrow(user);
+        INVEscrowMock evilEscrow = evilMarket.createEscrow(user);
         dbr.allowMarket(address(evilMarket));
         vm.prank(address(evilEscrow));
         uint stakeAmount = 10**18;
 
-        vm.expectRevert("UNSUPPORTED MARKET");
+        vm.expectRevert("UNSUPPORTED TOKEN");
         distributor.stake(stakeAmount);
     }
 
