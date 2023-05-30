@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "src/interfaces/IMarket.sol";
 import "forge-std/Test.sol";
-import "../../BorrowController.sol";
-import "../../DBR.sol";
-import {Fed, IMarket} from "../../Fed.sol";
-import "../../Market.sol";
-import "../../Oracle.sol";
+import "src/interfaces/IMarket.sol";
+import "src/BorrowController.sol";
+import "src/DBR.sol";
+import "src/Fed.sol";
+import "src/Market.sol";
+import "src/Oracle.sol";
+import "src/test/mocks/MockFeed.sol";
 
 contract MarketForkTest is Test {
     //Market deployment:
@@ -87,13 +88,13 @@ contract MarketForkTest is Test {
     }
 
     function convertCollatToDola(uint amount) public view returns (uint) {
-        (,int latestAnswer,,,) = feed.latestRoundData();
-        return amount * uint(latestAnswer) / 10**feed.decimals();
+        uint latestAnswer = oracle.getFeedPrice(address(collateral));
+        return amount * latestAnswer / 10**feed.decimals();
     }
 
     function convertDolaToCollat(uint amount) public view returns (uint) {
-        (,int latestAnswer,,,) = feed.latestRoundData();
-        return amount * 10**feed.decimals() / uint(latestAnswer);
+        uint latestAnswer = oracle.getFeedPrice(address(collateral));
+        return amount * 10**feed.decimals() / latestAnswer;
     }
 
     function getMaxBorrowAmount(uint amountCollat) public view returns (uint) {
@@ -113,6 +114,14 @@ contract MarketForkTest is Test {
     function gibDOLA(address _address, uint _amount) internal {
         vm.startPrank(gov);
         DOLA.mint(_address, _amount);
+        vm.stopPrank();
+    }
+
+    function setFeedPrice(address token, uint8 decimals, uint price) internal {
+        MockFeed mockFeed = new MockFeed(decimals);
+        mockFeed.setPrice(price);
+        vm.startPrank(gov);
+        oracle.setFeed(token, IChainlinkFeed(address(mockFeed)), decimals);
         vm.stopPrank();
     }
 

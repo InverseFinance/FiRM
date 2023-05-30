@@ -286,106 +286,78 @@ contract CvxCrvMarketForkTest is MarketForkTest {
         vm.expectRevert("SafeMath: subtraction underflow");
         market.borrow(borrowAmount);
     }
-    /**
-    function testLiquidate_NoLiquidationFee(uint depositAmount, uint liqAmount, uint16 borrowMulti_) public {
-        depositAmount = bound(depositAmount, 1e18, 100_000e18);
-        liqAmount = bound(liqAmount, 500e18, 200_000_000e18);
-        uint borrowMulti = bound(borrowMulti_, 0, 100);
 
-        uint maxBorrowAmount = convertCollatToDola(depositAmount) * market.collateralFactorBps() / 10_000;
-        uint borrowAmount = maxBorrowAmount * borrowMulti / 100;
+    function testLiquidate_Succeeds_WhenPriceFallBelowBorrowValuee() public {
+        uint maxBorrowAmount = getMaxBorrowAmount(testAmount);
 
-        gibCollateral(user, depositAmount);
-        gibDBR(user, depositAmount);
+        gibCollateral(user, testAmount);
+        gibDBR(user, maxBorrowAmount);
 
         vm.startPrank(chair);
-        fed.expansion(IMarket(address(market)), convertCollatToDola(depositAmount));
+        fed.expansion(IMarket(address(market)), maxBorrowAmount);
         vm.stopPrank();
 
         vm.startPrank(user, user);
-        deposit(depositAmount);
-        market.borrow(borrowAmount);
+        deposit(testAmount);
+        market.borrow(maxBorrowAmount);
         vm.stopPrank();
 
-        feed.changeAnswer(oracle.getFeedPrice(address(collateral)) * 9 / 10);
+        setFeedPrice(address(market.collateral()), 18, oracle.getFeedPrice(address(collateral)) * 9 / 10);
 
+        gibDOLA(user2, maxBorrowAmount);
         vm.startPrank(user2);
-        gibDOLA(user2, liqAmount);
         DOLA.approve(address(market), type(uint).max);
 
         uint marketDolaBal = DOLA.balanceOf(address(market));
         uint govDolaBal = DOLA.balanceOf(gov);
         uint repayAmount = market.debts(user) * market.liquidationFactorBps() / 10_000;
-
-        if (market.debts(user) <= market.getCreditLimit(user)) {
-            vm.expectRevert("User debt is healthy");
-            market.liquidate(user, liqAmount);
-        } else if (repayAmount < liqAmount) {
-            vm.expectRevert("Exceeded liquidation factor");
-            market.liquidate(user, liqAmount);
-        } else {
-            //Successful liquidation
-            market.liquidate(user, liqAmount);
-
-            uint expectedReward = convertDolaToCollat(liqAmount);
-            expectedReward += expectedReward * market.liquidationIncentiveBps() / 10_000;
-            assertEq(expectedReward, collateral.balanceOf(user2), "user2 didn't receive proper liquidation reward");
-            assertEq(DOLA.balanceOf(address(market)), marketDolaBal + liqAmount, "market didn't receive repaid DOLA");
-            assertEq(DOLA.balanceOf(gov), govDolaBal, "gov should not receive liquidation fee when it's set to 0");
-        }
-    }
-    function testLiquidate_WithLiquidationFee(uint depositAmount, uint liqAmount, uint256 liquidationFeeBps, uint16 borrowMulti_) public {
-        depositAmount = bound(depositAmount, 1e18, 100_000e18);
-        liqAmount = bound(liqAmount, 500e18, 200_000_000e18);
-        uint borrowMulti = bound(borrowMulti_, 0, 100);
-
-        gibCollateral(user, depositAmount);
-        gibDBR(user, depositAmount);
-
-        vm.startPrank(chair);
-        fed.expansion(IMarket(address(market)), convertCollatToDola(depositAmount));
+        
+        market.liquidate(user, repayAmount);
         vm.stopPrank();
 
-        vm.startPrank(gov);
-        liquidationFeeBps = bound(liquidationFeeBps, 1, 10_000);
-        vm.assume(liquidationFeeBps > 0 && liquidationFeeBps + market.liquidationIncentiveBps() < 10000);
-        market.setLiquidationFeeBps(liquidationFeeBps);
+        uint expectedReward = convertDolaToCollat(repayAmount);
+        expectedReward += expectedReward * market.liquidationIncentiveBps() / 10_000;
+        assertEq(expectedReward, collateral.balanceOf(user2), "user2 didn't receive proper liquidation reward");
+        assertEq(DOLA.balanceOf(address(market)), marketDolaBal + repayAmount, "market didn't receive repaid DOLA");
+        assertEq(DOLA.balanceOf(gov), govDolaBal, "gov should not receive liquidation fee when it's set to 0");
+    }
+
+    function testLiquidate_WithLiquidationFee() public {
+        uint maxBorrowAmount = getMaxBorrowAmount(testAmount);
+
+        gibCollateral(user, testAmount);
+        gibDBR(user, maxBorrowAmount);
+
+        vm.startPrank(chair);
+        fed.expansion(IMarket(address(market)), maxBorrowAmount);
         vm.stopPrank();
 
         vm.startPrank(user, user);
-        deposit(depositAmount);
-        uint maxBorrowAmount = convertCollatToDola(depositAmount) * market.collateralFactorBps() / 10_000;
-        uint borrowAmount = maxBorrowAmount * borrowMulti / 100;
-        market.borrow(borrowAmount);
+        deposit(testAmount);
+        market.borrow(maxBorrowAmount);
         vm.stopPrank();
 
-        feed.changeAnswer(oracle.getFeedPrice(address(collateral)) * 9 / 10);
+        setFeedPrice(address(collateral), 18, oracle.getFeedPrice(address(collateral)) * 9 / 10);
 
+        gibDOLA(user2, maxBorrowAmount);
         vm.startPrank(user2);
-        gibDOLA(user2, liqAmount);
         DOLA.approve(address(market), type(uint).max);
 
         uint marketDolaBal = DOLA.balanceOf(address(market));
-        uint govWethBal = collateral.balanceOf(gov);
+        uint govDolaBal = DOLA.balanceOf(gov);
         uint repayAmount = market.debts(user) * market.liquidationFactorBps() / 10_000;
+        uint govCollateralBal = collateral.balanceOf(gov);
+        
+        market.liquidate(user, repayAmount);
+        vm.stopPrank();
 
-        if (market.debts(user) <= market.getCreditLimit(user)) {
-            vm.expectRevert("User debt is healthy");
-            market.liquidate(user, liqAmount);
-        } else if (repayAmount < liqAmount) {
-            vm.expectRevert("Exceeded liquidation factor");
-            market.liquidate(user, liqAmount);
-        } else {
-            //Successful liquidation
-            market.liquidate(user, liqAmount);
 
-            uint expectedReward = convertDolaToCollat(liqAmount);
-            expectedReward += expectedReward * market.liquidationIncentiveBps() / 10_000;
-            uint expectedLiquidationFee = convertDolaToCollat(liqAmount) * market.liquidationFeeBps() / 10_000;
-            assertEq(expectedReward, collateral.balanceOf(user2), "user2 didn't receive proper liquidation reward");
-            assertEq(DOLA.balanceOf(address(market)), marketDolaBal + liqAmount, "market didn't receive repaid DOLA");
-            assertEq(collateral.balanceOf(gov), govWethBal + expectedLiquidationFee, "gov didn't receive proper liquidation fee");
-        }
+        uint expectedReward = convertDolaToCollat(repayAmount);
+        expectedReward += expectedReward * market.liquidationIncentiveBps() / 10_000;
+        uint expectedLiquidationFee = convertDolaToCollat(repayAmount) * market.liquidationFeeBps() / 10_000;
+        assertEq(expectedReward, collateral.balanceOf(user2), "user2 didn't receive proper liquidation reward");
+        assertEq(DOLA.balanceOf(address(market)), marketDolaBal + repayAmount, "market didn't receive repaid DOLA");
+        assertEq(collateral.balanceOf(gov), govCollateralBal + expectedLiquidationFee, "gov didn't receive proper liquidation fee");
     }
 
     function testLiquidate_Fails_When_repaidDebtIs0() public {
@@ -400,9 +372,8 @@ contract CvxCrvMarketForkTest is MarketForkTest {
 
         vm.stopPrank();
 
-        feed.changeAnswer(oracle.getFeedPrice(address(collateral)) * 9 / 10);
+        setFeedPrice(address(collateral), 18, oracle.getFeedPrice(address(collateral)) * 9 / 10);
 
-        vm.startPrank(user2);
         gibDOLA(user2, 5_000 ether);
         DOLA.approve(address(market), type(uint).max);
         vm.expectRevert("Must repay positive debt");
@@ -421,7 +392,7 @@ contract CvxCrvMarketForkTest is MarketForkTest {
 
         vm.stopPrank();
 
-        feed.changeAnswer(oracle.getFeedPrice(address(collateral)) * 9 / 10);
+        setFeedPrice(address(collateral), 18, oracle.getFeedPrice(address(collateral)) * 9 / 10);
 
         gibDOLA(user2, 5_000 ether);
         vm.startPrank(user2);
@@ -431,7 +402,6 @@ contract CvxCrvMarketForkTest is MarketForkTest {
         vm.expectRevert("Exceeded liquidation factor");
         market.liquidate(user, liquidationAmount);
     }
-    */
 
     function testLiquidate_Fails_When_UserDebtIsHealthy() public {
         gibCollateral(user, testAmount);
