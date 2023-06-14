@@ -1,14 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
-
+import "src/interfaces/IERC20.sol";
 // Caution. We assume all failed transfers cause reverts and ignore the returned bool.
-interface IERC20 {
-    function transfer(address,uint) external returns (bool);
-    function transferFrom(address,address,uint) external returns (bool);
-    function balanceOf(address) external view returns (uint);
-    function delegate(address delegatee) external;
-    function delegates(address delegator) external view returns (address delegatee);
-}
 
 /**
 @title Gov Token Escrow
@@ -18,16 +11,16 @@ interface IERC20 {
 */
 contract GovTokenEscrow {
     address public market;
-    IERC20 public token;
+    IDelegateableERC20 public token;
     address public beneficiary;
 
     /**
     @notice Initialize escrow with a token
     @dev Must be called right after proxy is created.
-    @param _token The IERC20 token representing the governance token
+    @param _token The IDelegateableERC20 token representing the governance token
     @param _beneficiary The beneficiary who may delegate token voting power
     */
-    function initialize(IERC20 _token, address _beneficiary) public {
+    function initialize(IDelegateableERC20 _token, address _beneficiary) public {
         require(market == address(0), "ALREADY INITIALIZED");
         market = msg.sender;
         token = _token;

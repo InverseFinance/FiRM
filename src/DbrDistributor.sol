@@ -1,25 +1,13 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 import "src/interfaces/IERC20.sol";
-
-interface IDBR {
-    function markets(address) external view returns (bool);
-    function mint(address, uint) external;
-}
-
-interface IINVEscrow {
-    function market() external view returns (address);
-    function beneficiary() external view returns (address);
-}
-
-interface IMarket {
-    function escrows(address) external view returns (address);
-    function collateral() external view returns (IERC20);
-}
+import "src/interfaces/IEscrow.sol";
+import "src/interfaces/IMarket.sol";
+import "src/interfaces/IDolaBorrowingRights.sol";
 
 contract DbrDistributor {
 
-    IDBR public immutable dbr;
+    IDolaBorrowingRights public immutable dbr;
     address public gov;
     address public operator;
     address public constant INV = 0x41D5D79431A913C4aE7d69a668ecdfE5fF9DFB68;
@@ -65,14 +53,14 @@ contract DbrDistributor {
 
     modifier onlyINVEscrow() { // We don't check if escrow's market is INV and assume all calling markets to be INV markets
         _; // we break checks-effects-interactions to guard against re-entrancy below
-        IMarket market = IMarket(IINVEscrow(msg.sender).market());
-        address beneficiary = IINVEscrow(msg.sender).beneficiary();
+        IMarket market = IMarket(IEscrow(msg.sender).market());
+        address beneficiary = IEscrow(msg.sender).beneficiary();
         require(dbr.markets(address(market)), "UNSUPPORTED MARKET");
         require(address(market.collateral()) == address(INV), "UNSUPPORTED TOKEN");
         require(market.escrows(beneficiary) == msg.sender, "MSG SENDER NOT A VALID ESCROW");
     }
 
-    constructor (IDBR _dbr, address _gov, address _operator) {
+    constructor (IDolaBorrowingRights _dbr, address _gov, address _operator) {
         dbr = _dbr;
         gov = _gov;
         operator = _operator;
@@ -124,5 +112,4 @@ contract DbrDistributor {
         dbr.mint(to, accruedRewards[msg.sender]);
         accruedRewards[msg.sender] = 0;
     }
-
 }

@@ -2,19 +2,13 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "../../BorrowController.sol";
-import "../../DBR.sol";
-import {Fed, IMarket} from "../../Fed.sol";
-import "../../Market.sol";
-import "../../Oracle.sol";
-
-interface IErc20 is IERC20 {
-    function approve(address beneficiary, uint amount) external;
-}
-
-interface IMintable is IErc20 {
-    function mint(address receiver, uint amount) external;
-}
+import "src/interfaces/IMarket.sol";
+import "src/BorrowController.sol";
+import "src/DBR.sol";
+import "src/Fed.sol";
+import "src/Market.sol";
+import "src/Oracle.sol";
+import "src/test/mocks/MockFeed.sol";
 
 contract MarketForkTest is Test {
     //Market deployment:
@@ -33,8 +27,8 @@ contract MarketForkTest is Test {
     address pauseGuardian = address(0xE3eD95e130ad9E15643f5A5f232a3daE980784cd);
 
     //ERC-20s
-    IMintable DOLA;
-    IErc20 collateral;
+    IMintableERC20 DOLA;
+    IERC20 collateral;
 
     //FiRM
     Oracle oracle = Oracle(0xaBe146CF570FD27ddD985895ce9B138a7110cce8);
@@ -56,7 +50,7 @@ contract MarketForkTest is Test {
     bytes onlyOperator = "ONLY OPERATOR";
 
     function init(address _market, address _feed) public {
-        DOLA = IMintable(0x865377367054516e17014CcdED1e7d814EDC9ce4);
+        DOLA = IMintableERC20(0x865377367054516e17014CcdED1e7d814EDC9ce4);
         market = Market(_market);
         feed = IChainlinkFeed(_feed);
         borrowController = BorrowController(0x20C7349f6D6A746a25e66f7c235E96DAC880bc0D);
@@ -67,7 +61,7 @@ contract MarketForkTest is Test {
         //FiRM
         escrowImplementation = IEscrow(market.escrowImplementation());
         fed = Fed(market.lender());
-        collateral = IErc20(address(market.collateral()));
+        collateral = IERC20(address(market.collateral()));
 
         vm.label(user, "user");
         vm.label(user2, "user2");
@@ -94,13 +88,13 @@ contract MarketForkTest is Test {
     }
 
     function convertCollatToDola(uint amount) public view returns (uint) {
-        (,int latestAnswer,,,) = feed.latestRoundData();
-        return amount * uint(latestAnswer) / 10**feed.decimals();
+        uint latestAnswer = oracle.getFeedPrice(address(collateral));
+        return amount * latestAnswer / 10**feed.decimals();
     }
 
     function convertDolaToCollat(uint amount) public view returns (uint) {
-        (,int latestAnswer,,,) = feed.latestRoundData();
-        return amount * 10**feed.decimals() / uint(latestAnswer);
+        uint latestAnswer = oracle.getFeedPrice(address(collateral));
+        return amount * 10**feed.decimals() / latestAnswer;
     }
 
     function getMaxBorrowAmount(uint amountCollat) public view returns (uint) {
@@ -120,6 +114,14 @@ contract MarketForkTest is Test {
     function gibDOLA(address _address, uint _amount) internal {
         vm.startPrank(gov);
         DOLA.mint(_address, _amount);
+        vm.stopPrank();
+    }
+
+    function setFeedPrice(address token, uint8 decimals, uint price) internal {
+        MockFeed mockFeed = new MockFeed(decimals);
+        mockFeed.setPrice(price);
+        vm.startPrank(gov);
+        oracle.setFeed(token, IChainlinkFeed(address(mockFeed)), decimals);
         vm.stopPrank();
     }
 

@@ -17,7 +17,6 @@ import "./mocks/BorrowContract.sol";
 import {EthFeed} from "./mocks/EthFeed.sol"; 
 
 interface IWeth is IERC20 {
-    function approve(address, uint) external;
     function withdraw(uint wad) external;
     function deposit() payable external;
 }

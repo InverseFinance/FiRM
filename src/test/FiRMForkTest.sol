@@ -8,14 +8,7 @@ import "../Fed.sol";
 import {SimpleERC20Escrow} from "../escrows/SimpleERC20Escrow.sol";
 import "../Market.sol";
 import "../Oracle.sol";
-
-interface IErc20 is IERC20 {
-    function approve(address beneficiary, uint amount) external;
-}
-
-interface IMintable is IErc20 {
-    function mint(address receiver, uint amount) external;
-}
+import "src/interfaces/IERC20.sol";
 
 contract FiRMForkTest is Test {
     //Market deployment:
@@ -34,8 +27,8 @@ contract FiRMForkTest is Test {
     address pauseGuardian = address(0xE3eD95e130ad9E15643f5A5f232a3daE980784cd);
 
     //ERC-20s
-    IMintable DOLA;
-    IErc20 collateral;
+    IMintableERC20 DOLA;
+    IERC20 collateral;
 
     //FiRM
     Oracle oracle;
@@ -57,7 +50,7 @@ contract FiRMForkTest is Test {
     bytes onlyOperator = "ONLY OPERATOR";
 
     function init() public {
-        DOLA = IMintable(0x865377367054516e17014CcdED1e7d814EDC9ce4);
+        DOLA = IMintableERC20(0x865377367054516e17014CcdED1e7d814EDC9ce4);
         market = Market(0x63fAd99705a255fE2D500e498dbb3A9aE5AA1Ee8);
         feed = IChainlinkFeed(0xCd627aA160A6fA45Eb793D19Ef54f5062F20f33f);
         borrowController = BorrowController(0x20C7349f6D6A746a25e66f7c235E96DAC880bc0D);
@@ -71,7 +64,7 @@ contract FiRMForkTest is Test {
         oracle = Oracle(address(market.oracle()));
         escrowImplementation = IEscrow(market.escrowImplementation());
         fed = Fed(market.lender());
-        collateral = IErc20(address(market.collateral()));
+        collateral = IERC20(address(market.collateral()));
 
         vm.label(user, "user");
         vm.label(user2, "user2");

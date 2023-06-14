@@ -2,16 +2,17 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "../../interfaces/IERC20.sol";
-import {INVEscrow, IXINV, IDbrDistributor} from "../../escrows/INVEscrow.sol";
-import "../../DBR.sol";
-import {DbrDistributor, IMarket, IDBR} from "../../DbrDistributor.sol";
+import "src/interfaces/IERC20.sol";
+import "src/interfaces/IDbrDistributor.sol";
+import "src/escrows/INVEscrow.sol";
+import "src/DBR.sol";
+import "src/DbrDistributor.sol";
 
-contract MockMarket is IMarket {
-    mapping(address => address) public escrows;
+contract MockMarket {
+    mapping(address => IEscrow) public escrows;
     IERC20 public collateral = IERC20(0x41D5D79431A913C4aE7d69a668ecdfE5fF9DFB68);
     function addEscrow(address owner, address escrow) external {
-        escrows[owner] = escrow;
+        escrows[owner] = IEscrow(escrow);
     }
 }
 
@@ -34,8 +35,8 @@ contract INVEscrowForkTest is Test{
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
         vm.createSelectFork(url);
-        distributor = new DbrDistributor(IDBR(address(DBR)), gov, gov);
-        market = new MockMarket();
+        distributor = new DbrDistributor(IDolaBorrowingRights(address(DBR)), gov, gov);
+        market = IMarket(address(new MockMarket()));
         vm.startPrank(gov);
         DBR.addMinter(address(distributor));
         DBR.addMarket(address(market));
