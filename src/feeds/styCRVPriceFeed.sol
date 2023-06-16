@@ -1,0 +1,93 @@
+pragma solidity ^0.8.13;
+
+interface IChainlinkFeed {
+    function decimals() external view returns (uint8 decimals);
+    function latestRoundData() external view returns (uint80 roundId, int256 crvUsdPrice, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound);
+}
+
+interface ICurvePool {
+    function price_oracle() external view returns (uint256);
+    function last_price() external view returns (uint256);
+}
+
+interface I4626 {
+    function pricePerShare() external view returns (uint256);
+    function decimals() external view returns (uint256);
+}
+
+contract styCRVPriceFeed is IChainlinkFeed {
+    
+    IChainlinkFeed public crvToUsd = IChainlinkFeed(0xCd627aA160A6fA45Eb793D19Ef54f5062F20f33f);
+    ICurvePool public yCrvCrvPool = ICurvePool(0x453D92C7d4263201C69aACfaf589Ed14202d83a4);
+    I4626 public styCRV = I4626(0x27B5739e22ad9033bcBf192059122d163b60349D);
+    address public gov = 0x926dF14a23BE491164dCF93f4c468A50ef659D5B;
+    address public guardian = 0xE3eD95e130ad9E15643f5A5f232a3daE980784cd;
+    uint public minCrvPerstyCrvRatio = 10**18 / 2;
+
+    event NewMinCrvPeryCrvRatio(uint newMinRatio);
+
+    function decimals() external view returns (uint8){
+        return 18;
+    }
+
+    /**
+     * @notice Retrieves the latest round data for the styCrv token price feed
+     * @dev This function calculates the styCrv price in USD by combining the CRV to USD price from a Chainlink oracle and the yCrv to CRV ratio from a Curve pool,
+      before multiplying by the price per share from the styCrv vault
+     * @return roundId The round ID of the Chainlink price feed for CRV to USD
+     * @return styCrvUsdPrice The latest styCrv price in USD
+     * @return startedAt The timestamp when the latest round of Chainlink price feed started
+     * @return updatedAt The timestamp when the latest round of Chainlink price feed was updated
+     * @return answeredInRound The round ID in which the answer was computed
+     */
+    function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80){
+        (uint80 roundId,int256 crvUsdPrice,uint startedAt,uint updatedAt,uint80 answeredInRound) = crvToUsd.latestRoundData();
+        uint crvPeryCrv = yCrvCrvPool.price_oracle();
+        if(crvPeryCrv > 10 ** 18){
+            //1 CRV can always be traded for 1 yCrv, so price for yCrv should never be higher than the price of CRV
+            crvPeryCrv = 10**18;
+        } else if (minCrvPerstyCrvRatio > crvPeryCrv) {
+            //If price of yCrv falls below a certain ratio, we assume something might have gone wrong with the EMA oracle
+            //NOTE: This ratio floor is only meant as an intermediate protection, and should be removed as the EMA oracle gains lindy
+            crvPeryCrv = minCrvPerstyCrvRatio;
+        }
+        //Account for accumulating yCrv in styCrv
+        uint crvPerstyCrv = crvPeryCrv * styCRV.pricePerShare() / styCRV.decimals();
+        
+        //Divide by 10**8 as crvUsdPrice is 8 decimals
+        int256 styCrvUsdPrice = crvUsdPrice * int256(crvPerstyCrv) / 10**8;
+        return (roundId, styCrvUsdPrice, startedAt, updatedAt, answeredInRound);
+    }
+
+    /**
+     * @notice Sets a new minimum CRV per yCrv ratio
+     * @dev Can only be called by the gov or guardian addresses
+     * @param newMinRatio The new minimum CRV per yCrv ratio
+     */
+    function setMinCrvPerstyCrvRatio(uint newMinRatio) external {
+        require(msg.sender == gov || msg.sender == guardian, "ONLY GOV OR GUARDIAN");
+        require(newMinRatio <= 10**18, "RATIO CAN'T EXCEED 1");
+        minCrvPerstyCrvRatio = newMinRatio;
+        emit NewMinCrvPeryCrvRatio(newMinRatio);
+    }
+
+    /**
+     * @notice Sets a new guardian address
+     * @dev Can only be called by the gov address
+     * @param newGuardian The new guardian address
+     */
+    function setGuardian(address newGuardian) external {
+        require(msg.sender == gov, "ONLY GOV");
+        guardian = newGuardian;
+    }
+
+    /**
+     * @notice Sets a new gov address
+     * @dev Can only be called by the current gov address
+     * @param newGov The new gov address
+     */
+    function setGov(address newGov) external {
+        require(msg.sender == gov, "ONLY GOV");
+        gov = newGov;
+    }
+}
