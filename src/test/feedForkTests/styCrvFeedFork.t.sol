@@ -17,7 +17,7 @@ interface IERC20 is I4626{
 
 contract styCrvFeedFork is Test {
 
-    ICurvePool curvePool = ICurvePool(0x453D92C7d4263201C69aACfaf589Ed14202d83a4);
+    ICurvePool curvePool = ICurvePool(0x99f5aCc8EC2Da2BC0771c32814EFF52b712de1E5);
     IERC20 styCrv = IERC20(0x27B5739e22ad9033bcBf192059122d163b60349D);
     address styCrvHolder = 0x3Fe65692bfCD0e6CF84cB1E7d24108E434A7587e;
     styCRVPriceFeed feed;
@@ -40,14 +40,15 @@ contract styCrvFeedFork is Test {
 
         uint256 ema_price = curvePool.price_oracle();
         uint ema_pps_adjusted = ema_price * styCrv.pricePerShare() / 10**18;
-        assertEq(crvUsdPrice * int256(ema_pps_adjusted) / 10**8, styCrvUsdPrice);
-        assertGt(crvUsdPrice * 10**10, styCrvUsdPrice * 10**18 / int(styCrv.pricePerShare()));
-        assertLt(crvUsdPrice, styCrvUsdPrice);
+
+        assertEq(crvUsdPrice * int256(ema_pps_adjusted) / 10**8, styCrvUsdPrice, "Price not equal");
+        assertGt(crvUsdPrice * 10**10, styCrvUsdPrice * 10**18 / int(styCrv.pricePerShare()), "crv price not higher than ycrv price");
+        assertLt(crvUsdPrice, styCrvUsdPrice, "crvUsdPrice not less than styCrvUsdPrice");
     }
 
     function testPriceFloorCase() public {
         vm.prank(feed.gov());
-        feed.setMinCrvPerstyCrvRatio(10**18-1);
+        feed.setMinCrvPeryCrv(10**18-1);
         (uint80 clRoundId, int256 crvUsdPrice, uint clStartedAt, uint clUpdatedAt,  uint80 clAnsweredInRound) = feed.crvToUsd().latestRoundData();
         (uint80 roundId, int256 styCrvUsdPrice, uint startedAt, uint updatedAt, uint80 answeredInRound) = feed.latestRoundData();
 
@@ -58,7 +59,8 @@ contract styCrvFeedFork is Test {
 
         uint256 ema_price = curvePool.price_oracle();
         assertLt(crvUsdPrice * int256(ema_price) / 10**8, styCrvUsdPrice);
-        assertEq(crvUsdPrice * (10**18-1) / 10**8, styCrvUsdPrice);
+        assertGe(crvUsdPrice * (10**18) * int(styCrv.pricePerShare()) / 10**26, styCrvUsdPrice);
+        assertLe(crvUsdPrice * (10**18-2) * int(styCrv.pricePerShare()) / 10**26, styCrvUsdPrice);
         assertGt(crvUsdPrice * 10**18, styCrvUsdPrice);
         assertLt(crvUsdPrice, styCrvUsdPrice);
     }
@@ -66,18 +68,18 @@ contract styCrvFeedFork is Test {
     function testSetMinCrvPerstyCRVRatio_accessControl() public {
         vm.prank(feed.gov());
         uint newRatio = 10**18 - 10**17;
-        feed.setMinCrvPerstyCrvRatio(newRatio);
-        assertEq(feed.minCrvPerstyCrvRatio(), newRatio);
+        feed.setMinCrvPeryCrv(newRatio);
+        assertEq(feed.minCrvPeryCrv(), newRatio);
 
         vm.prank(feed.guardian());
         newRatio = 10**18 - 10**17*2;
-        feed.setMinCrvPerstyCrvRatio(newRatio);
-        assertEq(feed.minCrvPerstyCrvRatio(), newRatio);
+        feed.setMinCrvPeryCrv(newRatio);
+        assertEq(feed.minCrvPeryCrv(), newRatio);
 
         vm.prank(address(0xA));
         vm.expectRevert("ONLY GOV OR GUARDIAN");
         newRatio = 10**18 - 10**17*3;
-        feed.setMinCrvPerstyCrvRatio(newRatio);
+        feed.setMinCrvPeryCrv(newRatio);
     }
 
     function testSetGuardian_accessControl() public {

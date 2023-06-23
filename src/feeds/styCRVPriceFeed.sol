@@ -18,11 +18,11 @@ interface I4626 {
 contract styCRVPriceFeed is IChainlinkFeed {
     
     IChainlinkFeed public crvToUsd = IChainlinkFeed(0xCd627aA160A6fA45Eb793D19Ef54f5062F20f33f);
-    ICurvePool public yCrvCrvPool = ICurvePool(0x453D92C7d4263201C69aACfaf589Ed14202d83a4);
+    ICurvePool public yCrvCrvPool = ICurvePool(0x99f5aCc8EC2Da2BC0771c32814EFF52b712de1E5);
     I4626 public styCRV = I4626(0x27B5739e22ad9033bcBf192059122d163b60349D);
     address public gov = 0x926dF14a23BE491164dCF93f4c468A50ef659D5B;
     address public guardian = 0xE3eD95e130ad9E15643f5A5f232a3daE980784cd;
-    uint public minCrvPerstyCrvRatio = 10**18 / 2;
+    uint public minCrvPeryCrv = 10**18 / 2;
 
     event NewMinCrvPeryCrvRatio(uint newMinRatio);
 
@@ -46,14 +46,13 @@ contract styCRVPriceFeed is IChainlinkFeed {
         if(crvPeryCrv > 10 ** 18){
             //1 CRV can always be traded for 1 yCrv, so price for yCrv should never be higher than the price of CRV
             crvPeryCrv = 10**18;
-        } else if (minCrvPerstyCrvRatio > crvPeryCrv) {
+        } else if (minCrvPeryCrv > crvPeryCrv) {
             //If price of yCrv falls below a certain ratio, we assume something might have gone wrong with the EMA oracle
             //NOTE: This ratio floor is only meant as an intermediate protection, and should be removed as the EMA oracle gains lindy
-            crvPeryCrv = minCrvPerstyCrvRatio;
+            crvPeryCrv = minCrvPeryCrv;
         }
         //Account for accumulating yCrv in styCrv
-        uint crvPerstyCrv = crvPeryCrv * styCRV.pricePerShare() / styCRV.decimals();
-        
+        uint crvPerstyCrv = crvPeryCrv * styCRV.pricePerShare() / 10**18;
         //Divide by 10**8 as crvUsdPrice is 8 decimals
         int256 styCrvUsdPrice = crvUsdPrice * int256(crvPerstyCrv) / 10**8;
         return (roundId, styCrvUsdPrice, startedAt, updatedAt, answeredInRound);
@@ -64,10 +63,10 @@ contract styCRVPriceFeed is IChainlinkFeed {
      * @dev Can only be called by the gov or guardian addresses
      * @param newMinRatio The new minimum CRV per yCrv ratio
      */
-    function setMinCrvPerstyCrvRatio(uint newMinRatio) external {
+    function setMinCrvPeryCrv(uint newMinRatio) external {
         require(msg.sender == gov || msg.sender == guardian, "ONLY GOV OR GUARDIAN");
         require(newMinRatio <= 10**18, "RATIO CAN'T EXCEED 1");
-        minCrvPerstyCrvRatio = newMinRatio;
+        minCrvPeryCrv = newMinRatio;
         emit NewMinCrvPeryCrvRatio(newMinRatio);
     }
 
