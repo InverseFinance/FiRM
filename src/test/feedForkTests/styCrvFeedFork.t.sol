@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13; 
  
 import "forge-std/Test.sol"; 
-import {styCRVPriceFeed, I4626} from "src/feeds/styCRVPriceFeed.sol"; 
+import {StyCRVPriceFeed, I4626} from "src/feeds/styCRVPriceFeed.sol"; 
 
 interface ICurvePool {
     function get_p() view external returns(uint);
@@ -20,12 +20,12 @@ contract styCrvFeedFork is Test {
     ICurvePool curvePool = ICurvePool(0x99f5aCc8EC2Da2BC0771c32814EFF52b712de1E5);
     IERC20 styCrv = IERC20(0x27B5739e22ad9033bcBf192059122d163b60349D);
     address styCrvHolder = 0x3Fe65692bfCD0e6CF84cB1E7d24108E434A7587e;
-    styCRVPriceFeed feed;
+    StyCRVPriceFeed feed;
 
     function setUp() public {
         string memory url = vm.rpcUrl("mainnet");
         vm.createSelectFork(url);
-        feed = new styCRVPriceFeed();
+        feed = new StyCRVPriceFeed();
         deal(styCrvHolder, address(styCrv), 1000 ether);
     }
 

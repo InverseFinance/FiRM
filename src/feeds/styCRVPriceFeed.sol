@@ -15,33 +15,38 @@ interface I4626 {
     function decimals() external view returns (uint256);
 }
 
-contract styCRVPriceFeed is IChainlinkFeed {
+contract StyCRVPriceFeed is IChainlinkFeed {
     
-    IChainlinkFeed public crvToUsd = IChainlinkFeed(0xCd627aA160A6fA45Eb793D19Ef54f5062F20f33f);
-    ICurvePool public yCrvCrvPool = ICurvePool(0x99f5aCc8EC2Da2BC0771c32814EFF52b712de1E5);
-    I4626 public styCRV = I4626(0x27B5739e22ad9033bcBf192059122d163b60349D);
+    IChainlinkFeed public constant crvToUsd = IChainlinkFeed(0xCd627aA160A6fA45Eb793D19Ef54f5062F20f33f);
+    ICurvePool public constant yCrvCrvPool = ICurvePool(0x99f5aCc8EC2Da2BC0771c32814EFF52b712de1E5);
+    I4626 public constant styCRV = I4626(0x27B5739e22ad9033bcBf192059122d163b60349D);
     address public gov = 0x926dF14a23BE491164dCF93f4c468A50ef659D5B;
     address public guardian = 0xE3eD95e130ad9E15643f5A5f232a3daE980784cd;
     uint public minCrvPeryCrv = 10**18 / 2;
+    uint8 public constant decimals = 18;
 
     event NewMinCrvPeryCrvRatio(uint newMinRatio);
-
-    function decimals() external view returns (uint8){
-        return 18;
-    }
 
     /**
      * @notice Retrieves the latest round data for the styCrv token price feed
      * @dev This function calculates the styCrv price in USD by combining the CRV to USD price from a Chainlink oracle and the yCrv to CRV ratio from a Curve pool,
-      before multiplying by the price per share from the styCrv vault
+     before multiplying by the price per share from the styCrv vault.
+     WARNING: DO NOT USE THIS FEED FOR LENDING PROTOCOLS WHERE THE st-yCRV IS BORROWABLE
      * @return roundId The round ID of the Chainlink price feed for CRV to USD
-     * @return styCrvUsdPrice The latest styCrv price in USD
+     * @return answer The latest styCrv price in USD
      * @return startedAt The timestamp when the latest round of Chainlink price feed started
      * @return updatedAt The timestamp when the latest round of Chainlink price feed was updated
      * @return answeredInRound The round ID in which the answer was computed
      */
-    function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80){
-        (uint80 roundId,int256 crvUsdPrice,uint startedAt,uint updatedAt,uint80 answeredInRound) = crvToUsd.latestRoundData();
+    function latestRoundData() external view returns
+    (uint80 roundId,
+     int256 answer,
+     uint256 startedAt,
+     uint256 updatedAt,
+     uint80 answeredInRound
+    ){
+        int crvUsdPrice;
+        (roundId, crvUsdPrice, startedAt, updatedAt, answeredInRound) = crvToUsd.latestRoundData();
         uint crvPeryCrv = yCrvCrvPool.price_oracle();
         if(crvPeryCrv > 10 ** 18){
             //1 CRV can always be traded for 1 yCrv, so price for yCrv should never be higher than the price of CRV
