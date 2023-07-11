@@ -15,6 +15,7 @@ interface IErc20 is IERC20 {
 
 interface IMintable is IErc20 {
     function mint(address receiver, uint amount) external;
+    function addMinter(address minter) external;
 }
 
 contract FiRMForkTest is Test {

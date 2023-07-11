@@ -7,10 +7,10 @@ import "src/interfaces/IDola.sol";
 import "src/interfaces/ITransformHelper.sol";
 import {Ownable} from "lib/openzeppelin-contracts/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "lib/openzeppelin-contracts/contracts/security/ReentrancyGuard.sol";
+
 // Accelerated leverage engine
 contract ALE is Ownable, ReentrancyGuard {
-
-    error TargetNotExchangeProxy(address target);
+    error CollateralNotSet();
     error MarketNotSetForCollateral(address collateral);
     error SwapFailed();
     error DOLAInvalidBorrow();
@@ -19,7 +19,7 @@ contract ALE is Ownable, ReentrancyGuard {
 
     // 0x ExchangeProxy address.
     // See https://docs.0x.org/developer-resources/contract-addresses
-    address public exchangeProxy;
+    address payable public exchangeProxy;
 
     IDola public immutable dola;
 
@@ -29,31 +29,47 @@ contract ALE is Ownable, ReentrancyGuard {
         address collateral;
     }
 
+    struct Permit {
+        uint256 deadline;
+        uint8 v;
+        bytes32 r;
+        bytes32 s;
+    }
+
     // Mapping of sellToken/buyToken to Market structs
-    // NOTE: in normal cases sellToken/buyToken is the collateral token, 
+    // NOTE: in normal cases sellToken/buyToken is the collateral token,
     // in other cases it could be different (eg. st-yCRV is collateral, yCRV is the token to be swapped from/to DOLA)
     // That's why we need to keep track of collateral in market struct
     mapping(address => Market) public markets;
 
-    constructor(address _dola, address _exchangeProxy) Ownable(msg.sender){
+    constructor(address _dola, address _exchangeProxy) Ownable(msg.sender) {
         dola = IDola(_dola);
-        exchangeProxy = _exchangeProxy;
+        exchangeProxy = payable(address(_exchangeProxy));
     }
 
     function setExchangeProxy(address _exchangeProxy) external onlyOwner {
-        if(_exchangeProxy == address(0)) revert InvalidProxyAddress();
-        exchangeProxy = _exchangeProxy;
+        if (_exchangeProxy == address(0)) revert InvalidProxyAddress();
+        exchangeProxy = payable(_exchangeProxy);
     }
 
-    function setMarket(address _market, address _buySelltoken) external onlyOwner {
+    function setMarket(
+        address _market,
+        address _buySelltoken
+    ) external onlyOwner {
         markets[_buySelltoken].market = _market;
     }
 
-    function setMarketHelper(address _helper, address _buySelltoken) external onlyOwner {
+    function setMarketHelper(
+        address _helper,
+        address _buySelltoken
+    ) external onlyOwner {
         markets[_buySelltoken].helper = _helper;
     }
 
-    function setMarketCollateral(address _collateral, address _buySelltoken) external onlyOwner {
+    function setMarketCollateral(
+        address _collateral,
+        address _buySelltoken
+    ) external onlyOwner {
         markets[_buySelltoken].collateral = _collateral;
     }
 
@@ -64,25 +80,18 @@ contract ALE is Ownable, ReentrancyGuard {
         address _buyTokenAddress,
         // The `allowanceTarget` field from the API response.
         address _spender,
-        // The `to` field from the API response.
-        address payable _swapTarget,
         // The `data` field from the API response.
         bytes calldata _swapCallData,
-        // Deadline for permit borrow on behalt
-        uint256 _deadline,
-        // Signature for permit borrow on behalt
-        uint8 _v,
-        bytes32 _r,
-        bytes32 _s,
+        // Permit data
+        Permit calldata _permit,
         // Optional helper data in case the collateral needs to be transformed
         bytes calldata _helperData
-    ) external nonReentrant payable {
-        // Checks that the swapTarget is actually the address of 0x ExchangeProxy
-        if(_swapTarget != exchangeProxy) revert TargetNotExchangeProxy(_swapTarget);
-        if(markets[_buyTokenAddress].market == address(0)) revert MarketNotSetForCollateral(_buyTokenAddress);
-        
+    ) external payable nonReentrant {
+        if (markets[_buyTokenAddress].market == address(0))
+            revert MarketNotSetForCollateral(_buyTokenAddress);
+
         IMarket market = IMarket(markets[_buyTokenAddress].market);
-    
+
         // Mint and approve
         dola.mint(address(this), _value);
         dola.approve(_spender, _value);
@@ -91,25 +100,29 @@ contract ALE is Ownable, ReentrancyGuard {
         uint256 collateralBalBefore = buyToken.balanceOf(address(this));
         // Call the encoded swap function call on the contract at `swapTarget`,
         // passing along any ETH attached to this function call to cover protocol fees.
-        (bool success, ) = _swapTarget.call{value: msg.value}(_swapCallData);
-        if(!success) revert SwapFailed();
-
-        uint256 collateralBalanceAfter = buyToken.balanceOf(
-            address(this)
-        );
+        (bool success, ) = exchangeProxy.call{value: msg.value}(_swapCallData);
+        if (!success) revert SwapFailed();
 
         // Actual collateral/buyToken bought
-        uint256 collateralAmount = collateralBalanceAfter -
-            collateralBalBefore;
+        uint256 collateralAmount = buyToken.balanceOf(address(this))
+        - collateralBalBefore;
 
         // If there's an helper contract, the buyToken has to be transformed
-        if(markets[_buyTokenAddress].helper != address(0)) {
+        if (markets[_buyTokenAddress].helper != address(0)) {
             // Approve collateral to be transformed
-            buyToken.approve(markets[_buyTokenAddress].helper, collateralAmount);
+            buyToken.approve(
+                markets[_buyTokenAddress].helper,
+                collateralAmount
+            );
             // Collateral amount is now transformed
-            collateralAmount = ITransformHelper(markets[_buyTokenAddress].helper).transformToCollateral(collateralAmount, _helperData);
+            collateralAmount = ITransformHelper(
+                markets[_buyTokenAddress].helper
+            ).transformToCollateral(collateralAmount, _helperData);
             // Approve market to spend transformed collateral
-            IERC20(markets[_buyTokenAddress].collateral).approve(address(market), collateralAmount);
+            IERC20(markets[_buyTokenAddress].collateral).approve(
+                address(market),
+                collateralAmount
+            );
         } else {
             // If there's no helper it means we already bought the collateral token so we can deposit
             // Approve market to spend collateral
@@ -123,14 +136,14 @@ contract ALE is Ownable, ReentrancyGuard {
         market.borrowOnBehalf(
             msg.sender,
             _value,
-            _deadline,
-            _v,
-            _r,
-            _s
+            _permit.deadline,
+            _permit.v,
+            _permit.r,
+            _permit.s
         );
 
-        if(dola.balanceOf(address(this)) < _value) revert DOLAInvalidBorrow();
-    
+        if (dola.balanceOf(address(this)) < _value) revert DOLAInvalidBorrow();
+
         // Burn the dola minted previously
         dola.burn(_value);
 
@@ -148,45 +161,52 @@ contract ALE is Ownable, ReentrancyGuard {
         // The `allowanceTarget` field from the API response.
         address _spender,
         // The `to` field from the API response.
-        address payable _swapTarget,
-        // The `data` field from the API response.
         bytes calldata _swapCallData,
-        // Deadline for permit withdraw on behalf
-        uint256 _deadline,
-        // Signature for permit withdraw on behalf
-        uint8 _v,
-        bytes32 _r,
-        bytes32 _s,
+        // Permit data
+        Permit calldata _permit,
         // Optional helper data in case collateral needs to be transformed
         bytes calldata _helperData
-    ) external nonReentrant payable {
-        // Checks that the swapTarget is actually the address of 0x ExchangeProxy
-        if(_swapTarget != exchangeProxy) revert TargetNotExchangeProxy(_swapTarget);
-        if(markets[_sellTokenAddress].market == address(0)) revert MarketNotSetForCollateral(_sellTokenAddress);
+    ) external payable nonReentrant {
+        if (markets[_sellTokenAddress].market == address(0))
+            revert MarketNotSetForCollateral(_sellTokenAddress);
 
         IMarket market = IMarket(markets[_sellTokenAddress].market);
         IERC20 collateral = IERC20(markets[_sellTokenAddress].collateral);
-
+        
         dola.mint(address(this), _value);
+        dola.approve(address(market), _value);
 
         market.repay(msg.sender, _value);
-       
+
         // withdraw amount from ZERO EX quote
-        market.withdrawOnBehalf(msg.sender, _collateralAmount, _deadline, _v, _r, _s);
-        
+        market.withdrawOnBehalf(
+            msg.sender,
+            _collateralAmount,
+            _permit.deadline,
+            _permit.v,
+            _permit.r,
+            _permit.s
+        );
+
         // If there's an helper contract, the collateral has to be transformed
-        if(markets[_sellTokenAddress].helper != address(0)) {
+        if (markets[_sellTokenAddress].helper != address(0)) {
             //Approve collateral to be transformed to sellToken
-             collateral.approve(markets[_sellTokenAddress].helper, _collateralAmount);
+            collateral.approve(
+                markets[_sellTokenAddress].helper,
+                _collateralAmount
+            );
             // Collateral amount is now transformed into sellToken
-            _collateralAmount = ITransformHelper(markets[_sellTokenAddress].helper).transformFromCollateral(_collateralAmount, _helperData);
+            _collateralAmount = ITransformHelper(
+                markets[_sellTokenAddress].helper
+            ).transformFromCollateral(_collateralAmount, _helperData);
             // Approve sellToken for spender
             IERC20(_sellTokenAddress).approve(_spender, _collateralAmount);
         } else {
             // If there's no helper the withdrawn collateral is the sellToken
+            if (address(collateral) == address(0)) revert CollateralNotSet();
             // Approve collateral to be swapped
             collateral.approve(_spender, 0); // in some cases like USDT we need to first set it to zero and the approve (TODO review this)
-            collateral.approve(_spender, _collateralAmount); 
+            collateral.approve(_spender, _collateralAmount);
         }
 
         uint256 dolaBalBefore = dola.balanceOf(address(this));
@@ -194,14 +214,17 @@ contract ALE is Ownable, ReentrancyGuard {
         // Call the encoded swap function call on the contract at `swapTarget`,
         // passing along any ETH attached to this function call to cover protocol fees.
         // NOTE: This will swap the collateral or helperCollateral for DOLA
-        (bool success, ) = _swapTarget.call{value: msg.value}(_swapCallData);
-        if(!success) revert SwapFailed();
-        
-        uint256 dolaBalAfter = dola.balanceOf(address(this));
+        (bool success, ) = exchangeProxy.call{value: msg.value}(_swapCallData);
+        if (!success) revert SwapFailed();
 
-        if(dolaBalAfter - dolaBalBefore < _value) revert DOLAInvalidRepay();
+        uint256 dolaBalAfter = dola.balanceOf(address(this));
+       
+        if (dolaBalAfter - dolaBalBefore < _value) revert DOLAInvalidRepay();
 
         dola.burn(_value);
+
+        // Send any DOLA leftover to the sender after burning (in case the collateral withdrawn and swapped exceeds the value to burn)
+        dola.transfer(msg.sender, dola.balanceOf(address(this))); 
 
         // Refund any unspent protocol fees to the sender.
         payable(msg.sender).transfer(address(this).balance);
