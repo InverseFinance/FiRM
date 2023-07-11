@@ -13,7 +13,7 @@ interface ICurvePool {
 contract ConvexFraxSharePriceFeed is IChainlinkFeed {
     
     IChainlinkFeed public constant fxsToUsd = IChainlinkFeed(0x6Ebc52C8C1089be9eB3945C4350B68B8E4C2233f);
-    ICurvePool public constant cvxFxsCrvPool = ICurvePool(0xc629a01eC23AB04E1050500A3717A2a5c0701497);
+    ICurvePool public constant cvxFxsCrvPool = ICurvePool(0x6a9014FB802dCC5efE3b97Fd40aAa632585636D0);
     address public gov = 0x926dF14a23BE491164dCF93f4c468A50ef659D5B;
     address public guardian = 0xE3eD95e130ad9E15643f5A5f232a3daE980784cd;
     uint public minFxsPerCvxFxsRatio = 10**18 / 2;

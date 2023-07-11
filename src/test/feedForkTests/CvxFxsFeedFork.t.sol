@@ -17,7 +17,7 @@ interface IERC20 {
 
 contract CvxFxsFeedFork is Test {
 
-    ICurvePool curvePool = ICurvePool(0xc629a01eC23AB04E1050500A3717A2a5c0701497);
+    ICurvePool curvePool = ICurvePool(0x6a9014FB802dCC5efE3b97Fd40aAa632585636D0);
     IERC20 cvxFxs = IERC20(0xFEEf77d3f69374f66429C91d732A244f074bdf74);
     ConvexFraxSharePriceFeed feed;
 

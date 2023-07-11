@@ -13,15 +13,11 @@ interface ICvxFxsStakingWrapper{
     //claim rewards and forward to address
     function getReward(address claimant, address forwardTo) external;
     //stake convex frax
-    function stake(uint256 _amount, address _to) external;
-    //sets the weight of gov token to receive, can be set between 0 and 10000
-    function setRewardWeight(uint govTokenBps) external;
-    //get the reward weight of a specific address
-    function userRewardWeight(address user) external view returns(uint256);
+    function stakeFor(address _to, uint256 _amount) external;
     //get number of reward tokens
-    function rewardLength() external view returns(uint);
+    function rewardTokenLength() external view returns(uint);
     //get reward address, reward group, reward integral and reward remaining
-    function rewards(uint index) external view returns(address,uint8,uint128,uint128);
+    function rewardTokens(uint index) external view returns(address);
 }
 
 /**
@@ -61,7 +57,6 @@ contract ConvexFraxShareEscrow {
         market = msg.sender;
         token = _token;
         token.approve(address(rewardPool), type(uint).max);
-        rewardPool.setRewardWeight(rewardPool.userRewardWeight(_beneficiary));
         beneficiary = _beneficiary;
     }
 
@@ -93,15 +88,7 @@ contract ConvexFraxShareEscrow {
         //Stake cvxCRV
         uint tokenBal = token.balanceOf(address(this));
         stakedBalance += tokenBal;
-        rewardPool.stake(tokenBal, address(this));
-    }
-    /**
-    @notice Sets the reward weight for staked cvxFxs tokens.
-    @param rewardWeightBps The percentage amount of reward tokens to be paid out in 3CRV tokens, set in basis points.
-    */
-    function setRewardWeight(uint rewardWeightBps) external onlyBeneficiaryOrAllowlist {
-        require(rewardWeightBps <= 10000, "WEIGHT > 10000");
-        rewardPool.setRewardWeight(rewardWeightBps);
+        rewardPool.stakeFor(address(this), tokenBal);
     }
 
     /**
@@ -113,9 +100,9 @@ contract ConvexFraxShareEscrow {
         rewardPool.getReward(address(this), to);
 
         //Send contract balance of rewards
-        uint rewardLength = rewardPool.rewardLength();
-        for(uint rewardIndex; rewardIndex < rewardLength; ++rewardIndex){
-            (address rewardToken,,,) = rewardPool.rewards(rewardIndex);
+        uint rewardTokenLength = rewardPool.rewardTokenLength();
+        for(uint rewardIndex; rewardIndex < rewardTokenLength; ++rewardIndex){
+            address rewardToken = rewardPool.rewardTokens(rewardIndex);
             uint rewardBal = IERC20(rewardToken).balanceOf(address(this));
             if(rewardBal > 0){
                 //Use safe transfer in case bad reward token is added
