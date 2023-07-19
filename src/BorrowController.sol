@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
+import "src/DBR.sol";
 
 interface IChainlinkFeed {
     function decimals() external view returns (uint8);
@@ -22,15 +23,17 @@ interface IMarket {
 */
 contract BorrowController {
     
-    uint stalenessThreshold;
+    uint public stalenessThreshold;
     address public operator;
-    uint public minDebt;
+    DolaBorrowingRights public immutable DBR;
+    mapping(address => uint) public minDebts;
     mapping(address => bool) public contractAllowlist;
     mapping(address => uint) public dailyLimits;
     mapping(address => mapping(uint => uint)) public dailyBorrows;
 
-    constructor(address _operator) {
+    constructor(address _operator, address _DBR) {
         operator = _operator;
+        DBR = DolaBorrowingRights(_DBR);
     }
 
     modifier onlyOperator {
@@ -71,12 +74,13 @@ contract BorrowController {
     function setStalenessThreshold(uint newStalenessThreshold) public onlyOperator { stalenessThreshold = newStalenessThreshold; }
     
     /**
-    @notice sets the minimum amount a debt a borrower needs to take on.
-    @param newMinDebt The new minimum amount of debt
+    @notice sets the market specific minimum amount a debt a borrower needs to take on.
+    @param market The market to set the minimum debt for.
+    @param newMinDebt The new minimum amount of debt.
     @dev This is to mitigate the creation of positions which are uneconomical to liquidate. Only callable by operator.
     */
-    function setMinDebt(uint newMinDebt) public onlyOperator {minDebt = newMinDebt; }
-
+    function setMinDebt(address market, uint newMinDebt) public onlyOperator {minDebts[market] = newMinDebt; }
+    event log_uint(uint);
     /**
     @notice Checks if a borrow is allowed
     @dev Currently the borrowController checks if contracts are part of an allow list and enforces a daily limit
@@ -86,9 +90,10 @@ contract BorrowController {
     @return A boolean that is true if borrowing is allowed and false if not.
     */
     function borrowAllowed(address msgSender, address borrower, uint amount) public returns (bool) {
-        uint day = block.timestamp / 1 days;
         uint dailyLimit = dailyLimits[msg.sender];
+        //Check if market exceeds daily limit
         if(dailyLimit > 0) {
+            uint day = block.timestamp / 1 days;
             if(dailyBorrows[msg.sender][day] + amount > dailyLimit) {
                 return false;
             } else {
@@ -98,10 +103,23 @@ contract BorrowController {
                 }
             }
         }
+        uint lastUpdated = DBR.lastUpdated(borrower);
+        uint debts = DBR.debts(borrower);
+        //Check to prevent effects of edge case bug
+        if(lastUpdated > 0 && debts == 0 && lastUpdated != block.timestamp){
+            //Important check, otherwise a user could repeatedly mint themsevles DBR
+            require(DBR.markets(msg.sender), "Message sender is not a market");
+            uint deficit = (block.timestamp - lastUpdated) * amount / 365 days;
+            //If the contract is not a DBR minter, it should disallow borrowing for edgecase users
+            if(!DBR.minters(address(this))) return false;
+            //Mint user deficit caused by edge case bug
+            DBR.mint(borrower, deficit);
+        }
         //If the debt is below the minimum debt threshold, deny borrow
         if(isBelowMinDebt(msg.sender, borrower, amount)) return false;
         //If the chainlink oracle price feed is stale, deny borrow
         if(isPriceStale(msg.sender)) return false;
+        //If the message sender is not a contract, then there's no need check allowlist
         if(msgSender == tx.origin) return true;
         return contractAllowlist[msgSender];
     }
@@ -144,6 +162,10 @@ contract BorrowController {
      * @return bool Returns true if the borrower's debt after adding the amount is below the minimum debt, false otherwise.
      */
     function isBelowMinDebt(address market, address borrower, uint amount) public view returns(bool){
+        //Optimization to check if borrow amount itself is higher than the minimum
+        //This avoids an expensive lookup in the market
+        uint minDebt = minDebts[market];
+        if(amount >= minDebt) return false;
         return IMarket(market).debts(borrower) + amount < minDebt;
     }
 }

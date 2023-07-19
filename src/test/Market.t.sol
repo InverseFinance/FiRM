@@ -68,6 +68,28 @@ contract MarketTest is FrontierV2Test {
         assertEq(DOLA.balanceOf(user), initialDolaBalance + borrowAmount, "User balance did not increase by borrowAmount");
     }
 
+    function testBorrow_Successful_WhenBorrowingASecondTime() public {
+        gibWeth(user, wethTestAmount);
+        gibDBR(user, wethTestAmount);
+        uint dbrBalBefore = dbr.balanceOf(user);
+        vm.prank(gov);
+        dbr.addMinter(address(borrowController));
+        
+        vm.startPrank(user, user);
+        deposit(wethTestAmount);
+        uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
+        gibDOLA(address(market), borrowAmount);
+        uint marketDolaBal = DOLA.balanceOf(address(market));
+        
+        market.borrow(borrowAmount);
+        market.repay(user, market.debts(user));
+        assertEq(DOLA.balanceOf(address(market)), marketDolaBal, "Market balance did not return");
+
+        vm.warp(block.timestamp + 2000);
+        market.borrow(borrowAmount);
+        assertEq(dbrBalBefore, dbr.balanceOf(user), "DBR bal changed despite no time passing");
+    }
+
     function testBorrow_BurnsCorrectAmountOfDBR_WhenTimePasses() public {
         gibWeth(user, wethTestAmount);
         gibDBR(user, wethTestAmount);
