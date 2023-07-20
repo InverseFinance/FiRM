@@ -10,5 +10,6 @@ interface IMarket {
     function recall(uint amount) external;
     function totalDebt() external view returns (uint);
     function borrowPaused() external view returns (bool);
+    function oracle() external view returns (address);
 }
 

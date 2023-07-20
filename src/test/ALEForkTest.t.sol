@@ -83,8 +83,8 @@ contract ALEForkTest is FiRMForkTest {
         vm.prank(gov);
         DOLA.addMinter(address(ale));
 
-        ale.setMarket(address(market), address(market.collateral()));
-        ale.setMarketCollateral(address(market.collateral()), address(market.collateral()));
+        ale.setMarket(address(market.collateral()),IMarket(address(market)), address(market.collateral()), address(0));
+       // ale.setMarketCollateral(address(market.collateral()), address(market.collateral()));
 
         // Allow contract
         vm.prank(gov);
@@ -92,6 +92,7 @@ contract ALEForkTest is FiRMForkTest {
     }
 
     function test_leveragePosition() public {
+      
         // We are going to deposit some CRV, then leverage the position
         uint crvTestAmount = 1 ether;
         address userPk = vm.addr(1);
