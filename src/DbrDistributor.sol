@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
+import "src/interfaces/IERC20.sol";
 
 interface IDBR {
     function markets(address) external view returns (bool);
@@ -13,6 +14,7 @@ interface IINVEscrow {
 
 interface IMarket {
     function escrows(address) external view returns (address);
+    function collateral() external view returns (IERC20);
 }
 
 contract DbrDistributor {
@@ -20,6 +22,7 @@ contract DbrDistributor {
     IDBR public immutable dbr;
     address public gov;
     address public operator;
+    address public constant INV = 0x41D5D79431A913C4aE7d69a668ecdfE5fF9DFB68;
     uint public constant mantissa = 10**18;
     uint public minRewardRate; // starts at 0
     uint public maxRewardRate = type(uint).max / 3652500 days; // 10,000 years
@@ -65,6 +68,7 @@ contract DbrDistributor {
         IMarket market = IMarket(IINVEscrow(msg.sender).market());
         address beneficiary = IINVEscrow(msg.sender).beneficiary();
         require(dbr.markets(address(market)), "UNSUPPORTED MARKET");
+        require(address(market.collateral()) == address(INV), "UNSUPPORTED TOKEN");
         require(market.escrows(beneficiary) == msg.sender, "MSG SENDER NOT A VALID ESCROW");
     }
 
@@ -91,8 +95,8 @@ contract DbrDistributor {
     }
 
     function setRewardRate(uint _rewardRate) public onlyOperator updateIndex {
-        require(_rewardRate >= minRewardRate);
-        require(_rewardRate <= maxRewardRate);
+        require(_rewardRate >= minRewardRate, "REWARD RATE BELOW MIN");
+        require(_rewardRate <= maxRewardRate, "REWARD RATE ABOVE MIN");
         rewardRate = _rewardRate;
     }
 

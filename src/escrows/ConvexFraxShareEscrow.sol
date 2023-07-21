@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 import "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 
 //sample convex reward contracts interface
-interface ICvxCrvStakingWrapper{
+interface ICvxFxsStakingWrapper{
     //get balance of an address
     function balanceOf(address _account) external view returns(uint256);
     //withdraw to a convex tokenized deposit
@@ -12,29 +12,25 @@ interface ICvxCrvStakingWrapper{
     function getReward(address claimant) external;
     //claim rewards and forward to address
     function getReward(address claimant, address forwardTo) external;
-    //stake convex curve
-    function stake(uint256 _amount, address _to) external;
-    //sets the weight of gov token to receive, can be set between 0 and 10000
-    function setRewardWeight(uint govTokenBps) external;
-    //get the reward weight of a specific address
-    function userRewardWeight(address user) external view returns(uint256);
+    //stake convex frax
+    function stakeFor(address _to, uint256 _amount) external;
     //get number of reward tokens
-    function rewardLength() external view returns(uint);
+    function rewardTokenLength() external view returns(uint);
     //get reward address, reward group, reward integral and reward remaining
-    function rewards(uint index) external view returns(address,uint8,uint128,uint128);
+    function rewardTokens(uint index) external view returns(address);
 }
 
 /**
-@title Convex Curve Escrow
+@title Convex FraxShare Escrow
 @notice Collateral is stored in unique escrow contracts for every user and every market.
 @dev Caution: This is a proxy implementation. Follow proxy pattern best practices
 */
-contract ConvexCurveEscrow {
+contract ConvexFraxShareEscrow {
     using SafeERC20 for IERC20;
     address public market;
     IERC20 public token;
     uint public stakedBalance;
-    ICvxCrvStakingWrapper public constant rewardPool = ICvxCrvStakingWrapper(0xaa0C3f5F7DFD688C6E646F66CD2a6B66ACdbE434);
+    ICvxFxsStakingWrapper public constant rewardPool = ICvxFxsStakingWrapper(0x49b4d1dF40442f0C31b1BbAEA3EDE7c38e37E31a);
     address public beneficiary;
     mapping(address => bool) public allowlist;
 
@@ -61,7 +57,6 @@ contract ConvexCurveEscrow {
         market = msg.sender;
         token = _token;
         token.approve(address(rewardPool), type(uint).max);
-        rewardPool.setRewardWeight(rewardPool.userRewardWeight(_beneficiary));
         beneficiary = _beneficiary;
     }
 
@@ -93,15 +88,7 @@ contract ConvexCurveEscrow {
         //Stake cvxCRV
         uint tokenBal = token.balanceOf(address(this));
         stakedBalance += tokenBal;
-        rewardPool.stake(tokenBal, address(this));
-    }
-    /**
-    @notice Sets the reward weight for staked cvxCrv tokens.
-    @param rewardWeightBps The percentage amount of reward tokens to be paid out in 3CRV tokens, set in basis points.
-    */
-    function setRewardWeight(uint rewardWeightBps) external onlyBeneficiaryOrAllowlist {
-        require(rewardWeightBps <= 10000, "WEIGHT > 10000");
-        rewardPool.setRewardWeight(rewardWeightBps);
+        rewardPool.stakeFor(address(this), tokenBal);
     }
 
     /**
@@ -113,9 +100,9 @@ contract ConvexCurveEscrow {
         rewardPool.getReward(address(this), to);
 
         //Send contract balance of rewards
-        uint rewardLength = rewardPool.rewardLength();
-        for(uint rewardIndex; rewardIndex < rewardLength; ++rewardIndex){
-            (address rewardToken,,,) = rewardPool.rewards(rewardIndex);
+        uint rewardTokenLength = rewardPool.rewardTokenLength();
+        for(uint rewardIndex; rewardIndex < rewardTokenLength; ++rewardIndex){
+            address rewardToken = rewardPool.rewardTokens(rewardIndex);
             uint rewardBal = IERC20(rewardToken).balanceOf(address(this));
             if(rewardBal > 0){
                 //Use safe transfer in case bad reward token is added
@@ -134,7 +121,7 @@ contract ConvexCurveEscrow {
     /**
     @notice Allow address to claim on behalf of the beneficiary to any address
     @param allowee Address that are allowed to claim on behalf of the beneficiary
-    @dev Can be used to build contracts for auto-compounding cvxCrv, auto-buying DBR or auto-repaying loans
+    @dev Can be used to build contracts for auto-compounding cvxFxs, auto-buying DBR or auto-repaying loans
     */
     function allowClaimOnBehalf(address allowee) external onlyBeneficiary {
         allowlist[allowee] = true;

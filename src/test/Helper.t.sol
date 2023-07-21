@@ -184,6 +184,7 @@ contract HelperTest is FrontierV2Test {
 
     function testSellDbrRepayAndWithdrawNativeEthOnBehalf() public {
         uint duration = 365 days;
+        uint balBefore = userPk.balance;
         gibDOLA(userPk, 10000 ether);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, borrowHash);
 
@@ -212,6 +213,7 @@ contract HelperTest is FrontierV2Test {
     }
 
     function testWithdrawNativeEthOnBehalf() public {
+        uint balBefore = userPk.balance;
         bytes32 withdrawHash = getWithdrawHash(wethTestAmount, 0);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, withdrawHash);
 
@@ -238,6 +240,7 @@ contract HelperTest is FrontierV2Test {
 
     function testRepayAndWithdrawNativeEthOnBehalf() public {
         uint duration = 365 days;
+        uint balBefore = userPk.balance;
         gibDOLA(userPk, 10000 ether);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, borrowHash);
 
@@ -259,6 +262,7 @@ contract HelperTest is FrontierV2Test {
 
         assertEq(weth.balanceOf(address(market.predictEscrow(userPk))), 0, "failed to withdraw weth");
         assertEq(userPk.balance, wethTestAmount + ethBalAfterDeposit, "failed to withdraw weth");
+        assertEq(userPk.balance, wethTestAmount+balBefore, "failed to withdraw weth");
         assertEq(market.debts(userPk), 0, "Did not repay debt");        
     }
 

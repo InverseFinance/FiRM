@@ -38,7 +38,7 @@ contract Fed {
     }
 
     /**
-    @notice Change the governance of the Fed contact. Only callable by governance.
+    @notice Change the governance of the Fed contract. Only callable by governance.
     @param _gov The address of the new governance contract
     */
     function changeGov(address _gov) public {
@@ -96,8 +96,8 @@ contract Fed {
         dola.mint(address(market), amount);
         supplies[market] += amount;
         globalSupply += amount;
-        require(globalSupply <= supplyCeiling);
-        require(supplies[market] <= ceilings[market]);
+        require(globalSupply <= supplyCeiling, "GLOBAL SUPPLY ABOVE CEILING");
+        require(supplies[market] <= ceilings[market], "MARKET SUPPLY ABOVE CEILING");
         emit Expansion(market, amount);
     }
 
@@ -142,7 +142,6 @@ contract Fed {
             dola.transfer(gov, profit);
         }
     }
-
 
     event Expansion(IMarket indexed market, uint amount);
     event Contraction(IMarket indexed market, uint amount);

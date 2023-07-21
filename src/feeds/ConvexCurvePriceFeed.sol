@@ -40,7 +40,7 @@ contract ConvexCurvePriceFeed is IChainlinkFeed {
             //1 CRV can always be traded for 1 CvxCrv, so price for CvxCrv should never be higher than the price of CRV
             crvPerCvxCrv = 10**18;
         } else if (minCrvPerCvxCrvRatio > crvPerCvxCrv) {
-            //If price of cvxCrv falls below a certain raio, we assume something might have gone wrong with the EMA oracle
+            //If price of cvxCrv falls below a certain ratio, we assume something might have gone wrong with the EMA oracle
             //NOTE: This ratio floor is only meant as an intermediate protection, and should be removed as the EMA oracle gains lindy
             crvPerCvxCrv = minCrvPerCvxCrvRatio;
         }
