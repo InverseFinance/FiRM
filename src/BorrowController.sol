@@ -80,7 +80,7 @@ contract BorrowController {
     @dev This is to mitigate the creation of positions which are uneconomical to liquidate. Only callable by operator.
     */
     function setMinDebt(address market, uint newMinDebt) public onlyOperator {minDebts[market] = newMinDebt; }
-    event log_uint(uint);
+
     /**
     @notice Checks if a borrow is allowed
     @dev Currently the borrowController checks if contracts are part of an allow list and enforces a daily limit
