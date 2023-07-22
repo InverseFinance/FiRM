@@ -66,7 +66,7 @@ contract GovTokenEscrow {
     @param delegatee The address to be delegated voting power
     */
     function delegate(address delegatee) public {
-        require(msg.sender == beneficiary);
+        require(msg.sender == beneficiary, "ONLY BENEFICIARY");
         token.delegate(delegatee);
     }
 }

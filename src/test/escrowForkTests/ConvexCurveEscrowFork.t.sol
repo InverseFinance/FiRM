@@ -100,9 +100,9 @@ contract ConvexCurveEscrowForkTest is Test{
         escrow.claim();
         vm.stopPrank();
 
-        assertGt(crv.balanceOf(beneficiary), crvBalanceBefore);
-        assertGt(cvx.balanceOf(beneficiary), cvxBalanceBefore);
-        assertGt(threeCrv.balanceOf(beneficiary), threeCrvBalanceBefore);
+        assertGt(crv.balanceOf(beneficiary), crvBalanceBefore, "Crv balance did not increase");
+        assertGt(cvx.balanceOf(beneficiary), cvxBalanceBefore, "Cvx balance did not increase");
+        assertGt(threeCrv.balanceOf(beneficiary), threeCrvBalanceBefore, "Three curve balance did not increase");
     }
 
     function testClaim_successful_whenRewardWeightSetTo10000() public {
@@ -121,7 +121,7 @@ contract ConvexCurveEscrowForkTest is Test{
 
         assertEq(crv.balanceOf(beneficiary), crvBalanceBefore);
         assertEq(cvx.balanceOf(beneficiary), cvxBalanceBefore);
-        assertGt(threeCrv.balanceOf(beneficiary), threeCrvBalanceBefore);
+        assertGt(threeCrv.balanceOf(beneficiary), threeCrvBalanceBefore, "Three curve balance did not increase");
     }
 
     function testClaimTo_successful_whenCalledByBeneficiary() public {
@@ -213,6 +213,4 @@ contract ConvexCurveEscrowForkTest is Test{
         vm.expectRevert("WEIGHT > 10000");
         escrow.setRewardWeight(10001);
     }
-
-
 }

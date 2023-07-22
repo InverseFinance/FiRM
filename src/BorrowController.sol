@@ -55,13 +55,13 @@ contract BorrowController {
 
     /**
     @notice Denies a contract to use the associated market
-    @param deniedContract The addres of the denied contract
+    @param deniedContract The address of the denied contract
     */
     function deny(address deniedContract) public onlyOperator { contractAllowlist[deniedContract] = false; }
 
     /**
     @notice Sets the daily borrow limit for a specific market
-    @param market The addres of the market contract
+    @param market The address of the market contract
     @param limit The daily borrow limit amount
     */
     function setDailyLimit(address market, uint limit) public onlyOperator { dailyLimits[market] = limit; }
