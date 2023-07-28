@@ -33,7 +33,6 @@ contract MockExchangeProxy {
         uint256 collateralAmount = (dolaAmount * 1e18) /
             oracle.viewPrice(address(collateral), 0);
         collateral.transfer(msg.sender, collateralAmount);
-
         success = true;
     }
 
@@ -45,7 +44,6 @@ contract MockExchangeProxy {
         uint256 dolaAmount = (collateralAmount *
             oracle.viewPrice(address(collateral), 0)) / 1e18;
         dola.transfer(msg.sender, dolaAmount);
-
         success = true;
     }
 }
@@ -102,7 +100,7 @@ contract ALEForkTest is FiRMForkTest {
             address(DOLA)
         );
 
-        ale = new ALE(address(DOLA), address(exchangeProxy));
+        ale = new ALE(address(exchangeProxy), curvePool);
         // ALE setup
         vm.prank(gov);
         DOLA.addMinter(address(ale));
@@ -152,6 +150,7 @@ contract ALEForkTest is FiRMForkTest {
             IChainlinkFeed(address(feedSTYCRV)),
             18
         );
+        // Set feed for yCRV so we can use it when mocking the 0x API swap
         oracle.setFeed(address(yCRV), IChainlinkFeed(address(feedSTYCRV)), 18);
         vm.stopPrank();
     }
@@ -164,6 +163,18 @@ contract ALEForkTest is FiRMForkTest {
     function _convertDolaToCollat(uint amount) internal view returns (uint) {
         (, int latestAnswer, , , ) = feedSTYCRV.latestRoundData();
         return (amount * 10 ** feedSTYCRV.decimals()) / uint(latestAnswer);
+    }
+
+    function _convertDolaToUnderlying(
+        uint amount
+    ) internal view returns (uint) {
+        return (amount * 1e18) / oracle.viewPrice(yCRV, 0);
+    }
+
+    function _convertUnderlyingToDola(
+        uint amount
+    ) internal view returns (uint) {
+        return (amount * oracle.viewPrice(yCRV, 0)) / 1e18;
     }
 
     function _getMaxBorrowAmount(
@@ -227,13 +238,16 @@ contract ALEForkTest is FiRMForkTest {
             maxBorrowAmount
         );
 
+        ALE.DBRHelper memory dbrData;
+
         ale.leveragePosition(
             maxBorrowAmount,
             yCRV,
             address(exchangeProxy),
             swapData,
             permit,
-            bytes("")
+            bytes(""),
+            dbrData
         );
 
         // Balance in escrow is equal to the collateral deposited + the extra collateral swapped from the leverage
@@ -242,15 +256,102 @@ contract ALEForkTest is FiRMForkTest {
                 address(styCRVmarket.predictEscrow(userPk))
             ),
             styCRVAmount +
-                helper.assetToCollateral(_convertDolaToCollat(maxBorrowAmount)),
+                helper.assetToCollateral(
+                    _convertDolaToUnderlying(maxBorrowAmount)
+                ),
             1
         );
 
         assertEq(DOLA.balanceOf(userPk), 0);
     }
 
+    function test_leveragePosition_buyDBR() public {
+        // We are going to deposit some st-yCRV, then leverage the position
+        uint styCRVAmount = 1 ether;
+        address userPk = vm.addr(1);
+        vm.prank(styCRVHolder);
+        IERC20(styCRV).transfer(userPk, styCRVAmount);
+
+        uint maxBorrowAmount = _getMaxBorrowAmount(styCRVAmount);
+
+        uint256 yCRVAmount = helper.collateralToAsset(
+            _convertDolaToCollat(maxBorrowAmount)
+        );
+
+        // recharge mocked proxy for swap, we need to swap DOLA to unwrapped collateral
+        vm.prank(yCRVHolder);
+        IERC20(yCRV).transfer(address(exchangeProxy), yCRVAmount);
+
+        vm.startPrank(userPk, userPk);
+        // Initial st-yCRV deposit
+        IErc20(styCRV).approve(address(styCRVmarket), styCRVAmount);
+        styCRVmarket.deposit(styCRVAmount);
+
+        // Calculate the amount of DOLA needed to borrow to buy the DBR needed to cover for the borrowing period
+        (uint256 dolaForDBR, uint256 dbrAmount) = ale
+            .approximateDolaAndDbrNeeded(maxBorrowAmount, 365 days, 8);
+
+        // Sign Message for borrow on behalf
+        bytes32 hash = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                styCRVmarket.DOMAIN_SEPARATOR(),
+                keccak256(
+                    abi.encode(
+                        keccak256(
+                            "BorrowOnBehalf(address caller,address from,uint256 amount,uint256 nonce,uint256 deadline)"
+                        ),
+                        address(ale),
+                        userPk,
+                        maxBorrowAmount + dolaForDBR,
+                        0,
+                        block.timestamp
+                    )
+                )
+            )
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
+
+        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+
+        bytes memory swapData = abi.encodeWithSelector(
+            MockExchangeProxy.swapDolaIn.selector,
+            yCRV,
+            maxBorrowAmount
+        );
+
+        ALE.DBRHelper memory dbrData = ALE.DBRHelper(
+            dolaForDBR,
+            (dbrAmount * 97) / 100
+        );
+
+        ale.leveragePosition(
+            maxBorrowAmount,
+            yCRV,
+            address(exchangeProxy),
+            swapData,
+            permit,
+            bytes(""),
+            dbrData
+        );
+
+        // Balance in escrow is equal to the collateral deposited + the extra collateral swapped from the leverage
+        // assertApproxEqAbs(
+        //     IErc20(styCRV).balanceOf(
+        //         address(styCRVmarket.predictEscrow(userPk))
+        //     ),
+        //     styCRVAmount +
+        //         helper.assetToCollateral(_convertDolaToCollat(maxBorrowAmount)),
+        //     1
+        // );
+
+        assertEq(DOLA.balanceOf(userPk), 0);
+
+        assertGt(dbr.balanceOf(userPk), (dbrAmount * 97) / 100);
+    }
+
     function test_deleveragePosition() public {
-        // We are going to deposit some CRV, then leverage the position
+        // We are going to deposit some st-yCRV, then borrow and then deleverage the position
         uint styCRVAmount = 1 ether;
         address userPk = vm.addr(1);
         vm.prank(styCRVHolder);
@@ -258,39 +359,14 @@ contract ALEForkTest is FiRMForkTest {
 
         gibDBR(userPk, styCRVAmount);
 
-        uint borrowAmount = _getMaxBorrowAmount(styCRVAmount) / 2;
-
-        //uint256 yCRVAmount = helper.collateralToAsset(_convertDolaToCollat(borrowAmount));
-
-        // recharge mocked proxy for swap, we need to swap DOLA to unwrapped collateral
-        // vm.prank(yCRVHolder);
-        // IERC20(yCRV).transfer(address(exchangeProxy), 10 ether);
-
-        vm.startPrank(gov);
-        DOLA.mint(address(exchangeProxy), _convertDolaToCollat(borrowAmount));
-        vm.stopPrank();
-
-        // We are going to deposit some CRV, then fully leverage the position
-
-        // uint crvTestAmount = 1 ether;
-        // address userPk = vm.addr(1);
-        // gibWeth(userPk, crvTestAmount);
-        // gibDBR(userPk, crvTestAmount);
-
-        // // Max Amount borrowable is the one available from collateral amount +
-        // // the extra borrow amount from the max borrow amount swapped and re-deposited as collateral
-        // uint borrowAmount = getMaxBorrowAmount(crvTestAmount)/2;
-
-        // // recharge mocked proxy for swap, we need to swap collateral to DOLA
-        // vm.startPrank(gov);
-        // DOLA.mint(address(exchangeProxy), convertCollatToDola(crvTestAmount/10));
-        // vm.stopPrank();
+        uint borrowAmount = _getMaxBorrowAmount(styCRVAmount);
 
         vm.startPrank(userPk, userPk);
         // Initial styCRV deposit
         IErc20(styCRV).approve(address(styCRVmarket), styCRVAmount);
         styCRVmarket.deposit(styCRVAmount);
         styCRVmarket.borrow(borrowAmount);
+        vm.stopPrank();
 
         assertEq(
             IERC20(styCRV).balanceOf(
@@ -304,6 +380,15 @@ contract ALEForkTest is FiRMForkTest {
         uint256 amountToWithdraw = IERC20(styCRV).balanceOf(
             address(styCRVmarket.predictEscrow(userPk))
         ) / 10;
+
+        uint256 dolaAmountForSwap = _convertUnderlyingToDola(
+            helper.collateralToAsset(amountToWithdraw)
+        );
+
+        // recharge mocked proxy for swap, we need to swap DOLA to unwrapped collateral
+        vm.startPrank(gov);
+        DOLA.mint(address(exchangeProxy), dolaAmountForSwap);
+        vm.stopPrank();
 
         bytes32 hash = keccak256(
             abi.encodePacked(
@@ -327,12 +412,15 @@ contract ALEForkTest is FiRMForkTest {
 
         ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
 
+        ALE.DBRHelper memory dbrData; // NO DBR sell
+
         bytes memory swapData = abi.encodeWithSelector(
             MockExchangeProxy.swapDolaOut.selector,
             yCRV,
             amountToWithdraw
         );
 
+        vm.startPrank(userPk, userPk);
         ale.deleveragePosition(
             _convertCollatToDola(amountToWithdraw),
             yCRV,
@@ -340,7 +428,8 @@ contract ALEForkTest is FiRMForkTest {
             address(exchangeProxy),
             swapData,
             permit,
-            bytes("")
+            bytes(""),
+            dbrData
         );
 
         // Some collateral has been withdrawn
@@ -352,5 +441,103 @@ contract ALEForkTest is FiRMForkTest {
         );
         // User still has dola but has some debt repaid
         assertEq(DOLA.balanceOf(userPk), borrowAmount);
+    }
+
+    function test_deleveragePosition_sellDBR() public {
+        // We are going to deposit some st-yCRV, then borrow and then deleverage the position
+        uint styCRVAmount = 1 ether;
+        address userPk = vm.addr(1);
+        vm.prank(styCRVHolder);
+        IERC20(styCRV).transfer(userPk, styCRVAmount);
+
+        gibDBR(userPk, styCRVAmount);
+
+        uint borrowAmount = _getMaxBorrowAmount(styCRVAmount);
+
+        vm.startPrank(userPk, userPk);
+        // Initial styCRV deposit
+        IErc20(styCRV).approve(address(styCRVmarket), styCRVAmount);
+        styCRVmarket.deposit(styCRVAmount);
+        styCRVmarket.borrow(borrowAmount);
+        vm.stopPrank();
+
+        assertEq(
+            IERC20(styCRV).balanceOf(
+                address(styCRVmarket.predictEscrow(userPk))
+            ),
+            styCRVAmount
+        );
+        assertEq(DOLA.balanceOf(userPk), borrowAmount);
+
+        // We are going to withdraw only 1/10 of the collateral to deleverage
+        uint256 amountToWithdraw = IERC20(styCRV).balanceOf(
+            address(styCRVmarket.predictEscrow(userPk))
+        ) / 10;
+
+        uint256 dolaAmountForSwap = _convertUnderlyingToDola(
+            helper.collateralToAsset(amountToWithdraw)
+        );
+
+        // recharge mocked proxy for swap, we need to swap DOLA to unwrapped collateral
+        vm.startPrank(gov);
+        DOLA.mint(address(exchangeProxy), dolaAmountForSwap);
+        vm.stopPrank();
+
+        bytes32 hash = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                styCRVmarket.DOMAIN_SEPARATOR(),
+                keccak256(
+                    abi.encode(
+                        keccak256(
+                            "WithdrawOnBehalf(address caller,address from,uint256 amount,uint256 nonce,uint256 deadline)"
+                        ),
+                        address(ale),
+                        userPk,
+                        amountToWithdraw,
+                        0,
+                        block.timestamp
+                    )
+                )
+            )
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
+
+        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+
+        ALE.DBRHelper memory dbrData = ALE.DBRHelper(dbr.balanceOf(userPk), 0); // sell all DBR
+
+        bytes memory swapData = abi.encodeWithSelector(
+            MockExchangeProxy.swapDolaOut.selector,
+            yCRV,
+            amountToWithdraw
+        );
+
+        vm.startPrank(userPk, userPk);
+        dbr.approve(address(ale), type(uint).max);
+
+        ale.deleveragePosition(
+            _convertCollatToDola(amountToWithdraw),
+            yCRV,
+            amountToWithdraw,
+            address(exchangeProxy),
+            swapData,
+            permit,
+            bytes(""),
+            dbrData
+        );
+
+        // Some collateral has been withdrawn
+        assertEq(
+            IERC20(styCRV).balanceOf(
+                address(styCRVmarket.predictEscrow(userPk))
+            ),
+            styCRVAmount - amountToWithdraw
+        );
+
+        // User still has dola and actually he has more bc he sold his DBRs
+        assertGt(DOLA.balanceOf(userPk), borrowAmount);
+
+        assertEq(dbr.balanceOf(userPk), 0);
     }
 }

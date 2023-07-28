@@ -3,13 +3,13 @@ pragma solidity ^0.8.0;
 
 import "src/interfaces/IMarket.sol";
 import "src/interfaces/IERC20.sol";
-import "src/interfaces/IDola.sol";
 import "src/interfaces/ITransformHelper.sol";
+import "src/util/CurveDBRHelper.sol";
 import {Ownable} from "lib/openzeppelin-contracts/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "lib/openzeppelin-contracts/contracts/security/ReentrancyGuard.sol";
 
 // Accelerated leverage engine
-contract ALE is Ownable, ReentrancyGuard {
+contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
     error CollateralNotSet();
     error MarketNotSetForCollateral(address collateral);
     error SwapFailed();
@@ -20,8 +20,6 @@ contract ALE is Ownable, ReentrancyGuard {
     // 0x ExchangeProxy address.
     // See https://docs.0x.org/developer-resources/contract-addresses
     address payable public exchangeProxy;
-
-    IDola public immutable dola;
 
     struct Market {
         IMarket market;
@@ -36,14 +34,20 @@ contract ALE is Ownable, ReentrancyGuard {
         bytes32 s;
     }
 
+    struct DBRHelper {
+        uint256 amountIn; // DOLA or DBR
+        uint256 minOut; // DOLA or DBR
+    }
+
     // Mapping of sellToken/buyToken to Market structs
     // NOTE: in normal cases sellToken/buyToken is the collateral token,
     // in other cases it could be different (eg. st-yCRV is collateral, yCRV is the token to be swapped from/to DOLA)
-    // That's why we need to keep track of collateral in market struct
     mapping(address => Market) public markets;
 
-    constructor(address _dola, address _exchangeProxy) Ownable(msg.sender) {
-        dola = IDola(_dola);
+    constructor(
+        address _exchangeProxy,
+        address _pool
+    ) Ownable(msg.sender) CurveDBRHelper(_pool) {
         exchangeProxy = payable(address(_exchangeProxy));
     }
 
@@ -67,7 +71,7 @@ contract ALE is Ownable, ReentrancyGuard {
         markets[_buySelltoken].collateral = IERC20(_collateral);
         IERC20(_buySelltoken).approve(address(_market), type(uint256).max);
 
-        if(_buySelltoken != _collateral){
+        if (_buySelltoken != _collateral) {
             IERC20(_collateral).approve(address(_market), type(uint256).max);
         }
 
@@ -103,7 +107,8 @@ contract ALE is Ownable, ReentrancyGuard {
         address _spender,
         bytes calldata _swapCallData,
         Permit calldata _permit,
-        bytes calldata _helperData
+        bytes calldata _helperData,
+        DBRHelper calldata _dbrData
     ) external payable nonReentrant {
         if (address(markets[_buyTokenAddress].market) == address(0))
             revert MarketNotSetForCollateral(_buyTokenAddress);
@@ -116,19 +121,17 @@ contract ALE is Ownable, ReentrancyGuard {
 
         IERC20 buyToken = IERC20(_buyTokenAddress);
 
-        uint256 collateralBalBefore = buyToken.balanceOf(address(this));
         // Call the encoded swap function call on the contract at `swapTarget`,
         // passing along any ETH attached to this function call to cover protocol fees.
         (bool success, ) = exchangeProxy.call{value: msg.value}(_swapCallData);
         if (!success) revert SwapFailed();
 
         // Actual collateral/buyToken bought
-        uint256 collateralAmount = buyToken.balanceOf(address(this)) -
-            collateralBalBefore;
+        uint256 collateralAmount = buyToken.balanceOf(address(this));
 
         // If there's an helper contract, the buyToken has to be transformed
         if (address(markets[_buyTokenAddress].helper) != address(0)) {
-        // Collateral amount is now transformed
+            // Collateral amount is now transformed
             collateralAmount = markets[_buyTokenAddress]
                 .helper
                 .transformToCollateral(collateralAmount, _helperData);
@@ -137,10 +140,15 @@ contract ALE is Ownable, ReentrancyGuard {
         // Deposit and borrow on behalf
         market.deposit(msg.sender, collateralAmount);
 
+        uint256 dolaToBorrow = _value;
+
+        if (_dbrData.amountIn != 0) {
+            dolaToBorrow += _dbrData.amountIn;
+        }
         // We borrow the amount of DOLA we minted before
         market.borrowOnBehalf(
             msg.sender,
-            _value,
+            dolaToBorrow,
             _permit.deadline,
             _permit.v,
             _permit.r,
@@ -151,6 +159,10 @@ contract ALE is Ownable, ReentrancyGuard {
 
         // Burn the dola minted previously
         dola.burn(_value);
+
+        if (_dbrData.amountIn != 0) {
+            _buyDbr(_dbrData.amountIn, _dbrData.minOut, msg.sender);
+        }
 
         // Refund any possible unspent 0x protocol fees to the sender.
         if (address(this).balance > 0)
@@ -173,7 +185,8 @@ contract ALE is Ownable, ReentrancyGuard {
         address _spender,
         bytes calldata _swapCallData,
         Permit calldata _permit,
-        bytes calldata _helperData
+        bytes calldata _helperData,
+        DBRHelper calldata _dbrData
     ) external payable nonReentrant {
         if (address(markets[_sellTokenAddress].market) == address(0))
             revert MarketNotSetForCollateral(_sellTokenAddress);
@@ -201,8 +214,8 @@ contract ALE is Ownable, ReentrancyGuard {
             _collateralAmount = markets[_sellTokenAddress]
                 .helper
                 .transformFromCollateral(_collateralAmount, _helperData);
-         } 
-        
+        }
+
         // Approve sellToken for spender
         IERC20(_sellTokenAddress).approve(_spender, 0);
         IERC20(_sellTokenAddress).approve(_spender, _collateralAmount);
@@ -223,6 +236,11 @@ contract ALE is Ownable, ReentrancyGuard {
 
         // Send any DOLA leftover to the sender after burning (in case the collateral withdrawn and swapped exceeds the value to burn)
         dola.transfer(msg.sender, dola.balanceOf(address(this)));
+
+        if (_dbrData.amountIn != 0) {
+            dbr.transferFrom(msg.sender, address(this), _dbrData.amountIn);
+            _sellDbr(_dbrData.amountIn, _dbrData.minOut, msg.sender);
+        }
 
         // Refund any unspent protocol fees to the sender.
         if (address(this).balance > 0)

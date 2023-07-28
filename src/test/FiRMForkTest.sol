@@ -15,6 +15,7 @@ interface IErc20 is IERC20 {
 
 interface IMintable is IErc20 {
     function mint(address receiver, uint amount) external;
+
     function addMinter(address minter) external;
 }
 
@@ -33,6 +34,7 @@ contract FiRMForkTest is Test {
     address gov = address(0x926dF14a23BE491164dCF93f4c468A50ef659D5B);
     address chair = address(0x8F97cCA30Dbe80e7a8B462F1dD1a51C32accDfC8);
     address pauseGuardian = address(0xE3eD95e130ad9E15643f5A5f232a3daE980784cd);
+    address curvePool = address(0x056ef502C1Fc5335172bc95EC4cAE16C2eB9b5b6); // DBR/DOLA pool
 
     //ERC-20s
     IMintable DOLA;
@@ -61,7 +63,9 @@ contract FiRMForkTest is Test {
         DOLA = IMintable(0x865377367054516e17014CcdED1e7d814EDC9ce4);
         market = Market(0x63fAd99705a255fE2D500e498dbb3A9aE5AA1Ee8);
         feed = IChainlinkFeed(0xCd627aA160A6fA45Eb793D19Ef54f5062F20f33f);
-        borrowController = BorrowController(0x20C7349f6D6A746a25e66f7c235E96DAC880bc0D);
+        borrowController = BorrowController(
+            0x20C7349f6D6A746a25e66f7c235E96DAC880bc0D
+        );
         dbr = DolaBorrowingRights(0xAD038Eb671c44b853887A7E32528FaB35dC5D710);
 
         replenishmentIncentiveBps = market.replenishmentIncentiveBps();
@@ -81,9 +85,11 @@ contract FiRMForkTest is Test {
         vm.warp(block.timestamp + 7 days);
 
         vm.startPrank(gov, gov);
-        market.setBorrowController(IBorrowController(address(borrowController)));
+        market.setBorrowController(
+            IBorrowController(address(borrowController))
+        );
         market.setCollateralFactorBps(7500);
-        borrowController.setDailyLimit(address(market), 250_000*1e18);
+        borrowController.setDailyLimit(address(market), 250_000 * 1e18);
         dbr.addMarket(address(market));
         fed.changeMarketCeiling(IMarket(address(market)), type(uint).max);
         fed.changeSupplyCeiling(type(uint).max);
@@ -100,17 +106,19 @@ contract FiRMForkTest is Test {
     }
 
     function convertCollatToDola(uint amount) public view returns (uint) {
-        (,int latestAnswer,,,) = feed.latestRoundData();
-        return amount * uint(latestAnswer) / 10**feed.decimals();
+        (, int latestAnswer, , , ) = feed.latestRoundData();
+        return (amount * uint(latestAnswer)) / 10 ** feed.decimals();
     }
 
     function convertDolaToCollat(uint amount) public view returns (uint) {
-        (,int latestAnswer,,,) = feed.latestRoundData();
-        return amount * 10**feed.decimals() / uint(latestAnswer);
+        (, int latestAnswer, , , ) = feed.latestRoundData();
+        return (amount * 10 ** feed.decimals()) / uint(latestAnswer);
     }
 
     function getMaxBorrowAmount(uint amountCollat) public view returns (uint) {
-        return convertCollatToDola(amountCollat) * market.collateralFactorBps() / 10_000;
+        return
+            (convertCollatToDola(amountCollat) * market.collateralFactorBps()) /
+            10_000;
     }
 
     function gibWeth(address _address, uint _amount) internal {
@@ -139,7 +147,10 @@ contract FiRMForkTest is Test {
             // by using o_code = new bytes(size)
             o_code := mload(0x40)
             // new "memory end" including padding
-            mstore(0x40, add(o_code, and(add(add(size, 0x20), 0x1f), not(0x1f))))
+            mstore(
+                0x40,
+                add(o_code, and(add(add(size, 0x20), 0x1f), not(0x1f)))
+            )
             // store length in memory
             mstore(o_code, size)
             // actually retrieve the code, this needs assembly

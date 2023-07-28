@@ -11,13 +11,15 @@ import {ReentrancyGuard} from "lib/openzeppelin-contracts/contracts/security/Ree
 
 // st-yCRV helper
 contract STYCRVHelper is Ownable, ReentrancyGuard {
-    
     error NotEnoughShares();
 
     uint256 public constant scale = 1e18;
-    ISTYCRV public constant vault = ISTYCRV(0x27B5739e22ad9033bcBf192059122d163b60349D); // st-yCRV
-    uint256 public maxLoss = 1; // 0.01% [BPS] 
-    IERC20 public constant underlying = IERC20(0xFCc5c47bE19d06BF83eB04298b026F81069ff65b); //yCRV
+    ISTYCRV public constant vault =
+        ISTYCRV(0x27B5739e22ad9033bcBf192059122d163b60349D); // st-yCRV
+    uint256 public maxLoss = 1; // 0.01% [BPS]
+    IERC20 public constant underlying =
+        IERC20(0xFCc5c47bE19d06BF83eB04298b026F81069ff65b); // yCRV
+
     constructor() Ownable(msg.sender) {
         underlying.approve(address(vault), type(uint256).max);
     }
@@ -25,9 +27,10 @@ contract STYCRVHelper is Ownable, ReentrancyGuard {
     function setMaxLoss(uint256 _maxLoss) external onlyOwner {
         maxLoss = _maxLoss;
     }
+
     // TODO: add transformToCollateralAndDeposit
     // TODO: add withdrawAndTransformFromCollateral
-    
+
     /// @notice Transforms underlying to collateral
     /// @param _value Amount of underlying to transform
     /// @param _helperData Optional helper data in case the collateral needs to be transformed
@@ -62,7 +65,7 @@ contract STYCRVHelper is Ownable, ReentrancyGuard {
     function assetToCollateral(
         uint assetAmount
     ) external view returns (uint collateralAmount) {
-        return assetAmount * scale / vault.pricePerShare();
+        return (assetAmount * scale) / vault.pricePerShare();
     }
 
     /// @notice View function to calculate asset amount from collateral amount
@@ -71,11 +74,11 @@ contract STYCRVHelper is Ownable, ReentrancyGuard {
     function collateralToAsset(
         uint collateralAmount
     ) external view returns (uint assetAmount) {
-        return collateralAmount * vault.pricePerShare() / scale;
+        return (collateralAmount * vault.pricePerShare()) / scale;
     }
 
     /// @notice View function for the exchange rate between asset and collateral
-    /// @return ratio Amount of asset per share of collateral 
+    /// @return ratio Amount of asset per share of collateral
     function assetToCollateralRatio() external view returns (uint ratio) {
         return vault.pricePerShare();
     }
