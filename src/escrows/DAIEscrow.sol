@@ -7,6 +7,7 @@ interface DSR {
     function daiBalance(address usr) external returns (uint wad);
     function join(address dst, uint wad) external;
     function exit(address dst, uint wad) external;
+    function exitAll(address dst) external;
     function pot() external view returns (address);
 }
 
@@ -51,10 +52,12 @@ contract DAIEscrow {
      */
     function pay(address recipient, uint amount) public {
         require(msg.sender == market, "ONLY MARKET");
-        //If trying to pay full balance, update DSR amount and pay full amount
-        //This avoids dust being left over
-        if(balance() == amount) amount = DSR_MANAGER.daiBalance(address(this));
-        DSR_MANAGER.exit(recipient, amount);
+        if(balance() == amount){
+            //If trying to pay full balance, use exitAll to avoid dust being left over
+            DSR_MANAGER.exitAll(recipient);
+        } else {
+            DSR_MANAGER.exit(recipient, amount);
+        }
     }
 
     /**
