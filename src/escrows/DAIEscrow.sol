@@ -1,34 +1,40 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 import "../interfaces/IERC20.sol";
-import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 
 // @dev Caution: We assume all failed transfers cause reverts and ignore the returned bool.
 interface DSR {
-    function daiBalance(address usr) public returns (uint wad);
-    function join(address dst, uint wad) public;
-    function exit(address dst, uint wad) public;
+    function daiBalance(address usr) external returns (uint wad);
+    function join(address dst, uint wad) external;
+    function exit(address dst, uint wad) external;
+    function pot() external view returns (address);
+}
+
+interface Pot {
+    function chi() external view returns (uint);
+    function drip() external;
+    function pie(address) external view returns (uint slice);
 }
 
 /**
  * @title DAI Escrow
  * @notice Collateral is stored in unique escrow contracts for every user and every market.
- * This escrow allows user to deposit DAI collateral directly into the xDAI contract, earning APY and allowing them to delegate votes on behalf of the xDAI collateral
+ * This escrow allows user to deposit DAI collateral directly into the DSR contract, earning DAI yyield
  * @dev Caution: This is a proxy implementation. Follow proxy pattern best practices
  */
 contract DAIEscrow {
-    using FixedPointMathLib for uint;
 
     address public market;
     IDelegateableERC20 public token;
     DSR public constant DSR_MANAGER = DSR(0x373238337Bfe1146fb49989fc222523f83081dDb);
+    Pot public constant POT = Pot(0x197E90f9FAD81970bA7976f33CbD77088E5D7cf7);
     address public beneficiary;
 
     /**
      * @notice Initialize escrow with a token
      * @dev Must be called right after proxy is created.
      * @param _token The IERC20 token representing DAI
-     * @param _beneficiary The beneficiary who may delegate token voting power
+     * @param _beneficiary The beneficiary
      */
     function initialize(IDelegateableERC20 _token, address _beneficiary) public {
         require(market == address(0), "ALREADY INITIALIZED");
@@ -45,15 +51,18 @@ contract DAIEscrow {
      */
     function pay(address recipient, uint amount) public {
         require(msg.sender == market, "ONLY MARKET");
+        //If trying to pay full balance, update DSR amount and pay full amount
+        //This avoids dust being left over
+        if(balance() == amount) amount = DSR_MANAGER.daiBalance(address(this));
         DSR_MANAGER.exit(recipient, amount);
     }
 
     /**
     * @notice Get the token balance of the escrow
-    * @return Uint representing the DAI token balance of the escrow including the additional DAI accrued from DAI
+    * @return The balance accrued in the DSR up until the last `drip` function call
     */
     function balance() public view returns (uint) {
-        return DSR_MANAGER.daiBalance(address(this));
+        return rmul(POT.chi(), POT.pie(address(this)));
     }
     
     /**
@@ -65,5 +74,11 @@ contract DAIEscrow {
         if(daiBalance > 0) {
             DSR_MANAGER.join(address(this), daiBalance);
         }
+    }
+
+    function rmul(uint x, uint y) internal pure returns(uint){
+        uint256 RAY = 10 ** 27;
+        // always rounds down
+        return x * y / RAY;
     }
 }
