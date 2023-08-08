@@ -23,12 +23,12 @@ interface IMarket {
 */
 contract BorrowController {
     
-    uint public stalenessThreshold;
     address public operator;
     DolaBorrowingRights public immutable DBR;
     mapping(address => uint) public minDebts;
     mapping(address => bool) public contractAllowlist;
     mapping(address => uint) public dailyLimits;
+    mapping(address => uint) public stalenessThreshold;
     mapping(address => mapping(uint => uint)) public dailyBorrows;
 
     constructor(address _operator, address _DBR) {
@@ -71,7 +71,7 @@ contract BorrowController {
     @param newStalenessThreshold The new staleness threshold denominated in seconds
     @dev Only callable by operator
     */
-    function setStalenessThreshold(uint newStalenessThreshold) public onlyOperator { stalenessThreshold = newStalenessThreshold; }
+    function setStalenessThreshold(address market, uint newStalenessThreshold) public onlyOperator { stalenessThreshold[market] = newStalenessThreshold; }
     
     /**
     @notice sets the market specific minimum amount a debt a borrower needs to take on.
@@ -147,11 +147,12 @@ contract BorrowController {
      * @return bool Returns true if the price is stale, false otherwise.
      */
     function isPriceStale(address market) public view returns(bool){
-        if(stalenessThreshold == 0) return false;
+        uint marketStalenessThreshold = stalenessThreshold[market];
+        if(marketStalenessThreshold == 0) return false;
         IOracle oracle = IMarket(market).oracle();
         (IChainlinkFeed feed,) = oracle.feeds(IMarket(market).collateral());
         (,,,uint updatedAt,) = feed.latestRoundData();
-        return block.timestamp - updatedAt > stalenessThreshold;
+        return block.timestamp - updatedAt > marketStalenessThreshold;
     }
 
     /**

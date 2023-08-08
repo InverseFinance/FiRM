@@ -81,9 +81,9 @@ contract FrontierV2Test is Test {
         escrowImplementation = new SimpleERC20Escrow();
         dbr = new DolaBorrowingRights(replenishmentPriceBps_, "DOLA Borrowing Rights", "DBR", gov);
         borrowController = new BorrowController(gov, address(dbr));
-        borrowController.setStalenessThreshold(3600);
         fed = new Fed(IDBR(address(dbr)), IDola(address(DOLA)), gov, chair, type(uint).max);
         market = new Market(gov, address(fed), pauseGuardian, address(escrowImplementation), IDolaBorrowingRights(address(dbr)), IERC20(address(WETH)), IOracle(address(oracle)), collateralFactorBps_, replenishmentIncentiveBps_, liquidationBonusBps_, callOnDepositCallback_);
+        borrowController.setStalenessThreshold(address(market), 3600);
         fed.changeMarketCeiling(IMarket(address(market)), type(uint).max);
         market.setBorrowController(IBorrowController(address(borrowController)));
 

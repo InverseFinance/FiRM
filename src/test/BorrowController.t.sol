@@ -33,7 +33,7 @@ contract BorrowControllerTest is FrontierV2Test {
         borrowContract = new BorrowContract(address(market), payable(address(WETH)));
         gibWeth(address(borrowContract), 1 ether);
         vm.prank(gov);
-        borrowController.setStalenessThreshold(10);
+        borrowController.setStalenessThreshold(address(market), 10);
         require(address(market.borrowController()) != address(0), "Borrow controller not set");
     }
 
@@ -175,11 +175,11 @@ contract BorrowControllerTest is FrontierV2Test {
 
     function test_accessControl_setStalenessThresshold() public {
         vm.prank(gov);
-        borrowController.setStalenessThreshold(1);
-        assertEq(borrowController.stalenessThreshold(), 1);
+        borrowController.setStalenessThreshold(address(market), 1);
+        assertEq(borrowController.stalenessThreshold(address(market)), 1);
         
         vm.expectRevert(onlyOperatorLowercase);
-        borrowController.setStalenessThreshold(2);
+        borrowController.setStalenessThreshold(address(market), 2);
     }
 
     function test_accessControl_setMinDebtThresshold() public {
