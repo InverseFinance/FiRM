@@ -7,12 +7,16 @@ import "src/DBR.sol";
 interface IBorrowController {
     function setDailyLimit(address market, uint newLimit) external;
     function dailyLimits(address market) external returns(uint);
+    function allow(address market) external;
+    function setOperator(address gov) external;
 }
 
 
 contract borrowControllerSetup is Script {
-    IBorrowController oldBorrowController;
-    IBorrowController newBorrowController;
+    address gov = 0x926dF14a23BE491164dCF93f4c468A50ef659D5B;
+    address deployerAddress = 0x11EC78492D53c9276dD7a184B1dbfB34E50B710D;
+    IBorrowController oldBorrowController = IBorrowController(0x20C7349f6D6A746a25e66f7c235E96DAC880bc0D);
+    BorrowController newBorrowController; // = BorrowController(0x81ff13c46f363D13fC25FB801a4335c6097B7862);
     DolaBorrowingRights DBR = DolaBorrowingRights(0xAD038Eb671c44b853887A7E32528FaB35dC5D710);
     address[] markets = 
         [
@@ -26,17 +30,10 @@ contract borrowControllerSetup is Script {
             0x27b6c301Fd441f3345d61B7a4245E1F823c3F9c4  //stycrv
         ];
     
-    constructor(address _oldBorrowController, address _newBorrowController){
-        oldBorrowController = IBorrowController(_oldBorrowController);
-        newBorrowController = IBorrowController(_newBorrowController);
-    }
-
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
-        if(address(newBorrowController) == address(0)){
-            vm.broadcast(deployerPrivateKey);
-            newBorrowController = new BorrowController(deployerAddress, DBR);
-        }
+        vm.broadcast(deployerPrivateKey); 
+        newBorrowController = new BorrowController(deployerAddress, address(DBR));
 
         for(uint i; i < markets.length; ++i){
             address market = markets[i];
@@ -45,5 +42,13 @@ contract borrowControllerSetup is Script {
             vm.broadcast(deployerPrivateKey);
             newBorrowController.setDailyLimit(market, oldLimit);
         }
+
+        //Add helper contract to allowList
+        vm.broadcast(deployerPrivateKey);
+        newBorrowController.allow(0xae8165f37FC453408Fb1cd1064973df3E6499a76);
+
+        //Transfer ownership to gov
+        vm.broadcast(deployerPrivateKey);
+        newBorrowController.setOperator(gov);
     }
 }

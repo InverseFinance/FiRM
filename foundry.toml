@@ -5,5 +5,7 @@ libs = ['lib']
 solc = "0.8.13"
 [rpc_endpoints]
 mainnet = "${RPC_MAINNET}"
+[etherscan]
+mainnet = {key = "${ETHERSCAN_API_KEY}"}
 
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config
