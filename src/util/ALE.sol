@@ -16,7 +16,11 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
     error DOLAInvalidBorrow();
     error DOLAInvalidRepay();
     error InvalidProxyAddress();
-
+    error InvalidHelperAddress();
+    error NothingToDeposit();
+    error DepositFailed();
+    error WithdrawFailed();
+    
     // 0x ExchangeProxy address.
     // See https://docs.0x.org/developer-resources/contract-addresses
     address payable public exchangeProxy;
@@ -89,6 +93,7 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         address _helper,
         address _buySelltoken
     ) external onlyOwner {
+        if(_helper == address(0)) revert InvalidHelperAddress();
         markets[_buySelltoken].helper = ITransformHelper(_helper);
         IERC20(_buySelltoken).approve(_helper, type(uint256).max);
     }
@@ -108,65 +113,34 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         bytes calldata _swapCallData,
         Permit calldata _permit,
         bytes calldata _helperData,
+        DBRHelper calldata _dbrData) external payable nonReentrant {
+        _leveragePosition(_value, _buyTokenAddress, _spender, _swapCallData, _permit, _helperData, _dbrData);
+    }
+
+
+    /// @notice Deposit collateral and instantly leverage user position by minting DOLA, buying collateral, deposting into the user escrow and borrow DOLA on behalf to repay the minted DOLA
+    /// @dev Requires user to sign message to permit the contract to borrow DOLA on behalf
+    /// @param _initialDeposit Amount of collateral to deposit
+    /// @param _value Amount of DOLA to borrow
+    /// @param _buyTokenAddress The `buyTokenAddress` field from the API response.
+    /// @param _spender The `allowanceTarget` field from the API response.
+    /// @param _swapCallData The `data` field from the API response.
+    /// @param _permit Permit data
+    /// @param _helperData Optional helper data in case the collateral needs to be transformed
+    function depositAndLeveragePosition(
+        uint256 _initialDeposit,
+        uint256 _value,
+        address _buyTokenAddress,
+        address _spender,
+        bytes calldata _swapCallData,
+        Permit calldata _permit,
+        bytes calldata _helperData,
         DBRHelper calldata _dbrData
     ) external payable nonReentrant {
-        if (address(markets[_buyTokenAddress].market) == address(0))
-            revert MarketNotSetForCollateral(_buyTokenAddress);
-
-        IMarket market = markets[_buyTokenAddress].market;
-
-        // Mint and approve
-        dola.mint(address(this), _value);
-        dola.approve(_spender, _value);
-
+        if(_initialDeposit == 0) revert NothingToDeposit();
         IERC20 buyToken = IERC20(_buyTokenAddress);
-
-        // Call the encoded swap function call on the contract at `swapTarget`,
-        // passing along any ETH attached to this function call to cover protocol fees.
-        (bool success, ) = exchangeProxy.call{value: msg.value}(_swapCallData);
-        if (!success) revert SwapFailed();
-
-        // Actual collateral/buyToken bought
-        uint256 collateralAmount = buyToken.balanceOf(address(this));
-
-        // If there's an helper contract, the buyToken has to be transformed
-        if (address(markets[_buyTokenAddress].helper) != address(0)) {
-            // Collateral amount is now transformed
-            collateralAmount = markets[_buyTokenAddress]
-                .helper
-                .transformToCollateral(collateralAmount, _helperData);
-        }
-
-        // Deposit and borrow on behalf
-        market.deposit(msg.sender, collateralAmount);
-
-        uint256 dolaToBorrow = _value;
-
-        if (_dbrData.amountIn != 0) {
-            dolaToBorrow += _dbrData.amountIn;
-        }
-        // We borrow the amount of DOLA we minted before
-        market.borrowOnBehalf(
-            msg.sender,
-            dolaToBorrow,
-            _permit.deadline,
-            _permit.v,
-            _permit.r,
-            _permit.s
-        );
-
-        if (dola.balanceOf(address(this)) < _value) revert DOLAInvalidBorrow();
-
-        // Burn the dola minted previously
-        dola.burn(_value);
-
-        if (_dbrData.amountIn != 0) {
-            _buyDbr(_dbrData.amountIn, _dbrData.minOut, msg.sender);
-        }
-
-        // Refund any possible unspent 0x protocol fees to the sender.
-        if (address(this).balance > 0)
-            payable(msg.sender).transfer(address(this).balance);
+        buyToken.transferFrom(msg.sender, address(this), _initialDeposit);
+        _leveragePosition(_value, _buyTokenAddress, _spender, _swapCallData, _permit, _helperData, _dbrData);
     }
 
     /// @notice Repay a DOLA loan and withdraw collateral from the escrow
@@ -210,10 +184,14 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
 
         // If there's an helper contract, the collateral has to be transformed
         if (address(markets[_sellTokenAddress].helper) != address(0)) {
+            uint256 estimateAmount = markets[_sellTokenAddress].helper.collateralToAsset(_collateralAmount);
+   
             // Collateral amount is now transformed into sellToken
             _collateralAmount = markets[_sellTokenAddress]
                 .helper
                 .transformFromCollateral(_collateralAmount, _helperData);
+    
+            if(_collateralAmount + 1 < estimateAmount) revert WithdrawFailed();
         }
 
         // Approve sellToken for spender
@@ -246,6 +224,80 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         if (address(this).balance > 0)
             payable(msg.sender).transfer(address(this).balance);
     }
+
+    function _leveragePosition(
+        uint256 _value,
+        address _buyTokenAddress,
+        address _spender,
+        bytes calldata _swapCallData,
+        Permit calldata _permit,
+        bytes calldata _helperData,
+        DBRHelper calldata _dbrData
+    ) internal {
+        if (address(markets[_buyTokenAddress].market) == address(0))
+            revert MarketNotSetForCollateral(_buyTokenAddress);
+
+        IMarket market = markets[_buyTokenAddress].market;
+
+        // Mint and approve
+        dola.mint(address(this), _value);
+        dola.approve(_spender, _value);
+
+        IERC20 buyToken = IERC20(_buyTokenAddress);
+
+        // Call the encoded swap function call on the contract at `swapTarget`,
+        // passing along any ETH attached to this function call to cover protocol fees.
+        (bool success, ) = exchangeProxy.call{value: msg.value}(_swapCallData);
+        if (!success) revert SwapFailed();
+
+        // Actual collateral/buyToken bought
+        uint256 collateralAmount = buyToken.balanceOf(address(this));
+
+        // If there's an helper contract, the buyToken has to be transformed
+        if (address(markets[_buyTokenAddress].helper) != address(0)) {
+            uint256 estimateAmount = markets[_buyTokenAddress].helper.assetToCollateral(collateralAmount);
+            
+            // Collateral amount is now transformed
+            collateralAmount = markets[_buyTokenAddress]
+                .helper
+                .transformToCollateral(collateralAmount, _helperData);
+     
+            if(collateralAmount + 1 < estimateAmount) revert DepositFailed();
+        }
+
+        // Deposit and borrow on behalf
+        market.deposit(msg.sender, collateralAmount);
+
+        uint256 dolaToBorrow = _value;
+
+        if (_dbrData.amountIn != 0) {
+            dolaToBorrow += _dbrData.amountIn;
+        }
+        // We borrow the amount of DOLA we minted before plus the amount for buying DBR if any
+        market.borrowOnBehalf(
+            msg.sender,
+            dolaToBorrow,
+            _permit.deadline,
+            _permit.v,
+            _permit.r,
+            _permit.s
+        );
+
+        if (dola.balanceOf(address(this)) < dolaToBorrow)
+            revert DOLAInvalidBorrow();
+
+        // Burn the dola minted previously
+        dola.burn(_value);
+
+        if (_dbrData.amountIn != 0) {
+            _buyDbr(_dbrData.amountIn, _dbrData.minOut, msg.sender);
+        }
+
+        // Refund any possible unspent 0x protocol fees to the sender.
+        if (address(this).balance > 0)
+            payable(msg.sender).transfer(address(this).balance);
+    }
+
 
     // solhint-disable-next-line no-empty-blocks
     receive() external payable {}

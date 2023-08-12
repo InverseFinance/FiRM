@@ -20,6 +20,16 @@ contract STYCRVHelper is Ownable, ReentrancyGuard {
     IERC20 public constant underlying =
         IERC20(0xFCc5c47bE19d06BF83eB04298b026F81069ff65b); // yCRV
 
+    IMarket public constant market =
+        IMarket(0x7fC77b5c7614E1533320Ea6DDc2Eb61fa00A9714); // DOLA market
+
+    struct Permit {
+        uint256 deadline;
+        uint8 v;
+        bytes32 r;
+        bytes32 s;
+    }
+
     constructor() Ownable(msg.sender) {
         underlying.approve(address(vault), type(uint256).max);
     }
@@ -27,9 +37,6 @@ contract STYCRVHelper is Ownable, ReentrancyGuard {
     function setMaxLoss(uint256 _maxLoss) external onlyOwner {
         maxLoss = _maxLoss;
     }
-
-    // TODO: add transformToCollateralAndDeposit
-    // TODO: add withdrawAndTransformFromCollateral
 
     /// @notice Transforms underlying to collateral
     /// @param _value Amount of underlying to transform
@@ -83,18 +90,40 @@ contract STYCRVHelper is Ownable, ReentrancyGuard {
         return vault.pricePerShare();
     }
 
-    // function transformToCollateralAndDeposit(
-    //     uint amount,
-    //     address user,
-    //     bytes calldata data
-    // ) public;
+    /// @notice Transforms underlying to collateral and deposits it into the market
+    /// @param amount Amount of underlying to transform
+    /// @param data Optional helper data in case the collateral needs to be transformed
+    function transformToCollateralAndDeposit(
+        uint amount,
+        bytes calldata data
+    ) external returns (uint256 collateralAmount) {
+        underlying.transferFrom(msg.sender, address(this), amount);
 
-    // function withdrawAndTransformFromCollateral(
-    //     uint amount,
-    //     address user,
-    //     bytes calldata data,
-    //     uint v,
-    //     uint r,
-    //     uint8 s
-    // ) public;
+        collateralAmount = vault.deposit(amount, address(this));
+
+        market.deposit(msg.sender, collateralAmount);
+    }
+
+    /// @notice Withdraws collateral from the market and transforms it to underlying
+    /// @param amount Amount of collateral to transform
+    /// @param data Optional helper data in case the collateral needs to be transformed
+    function withdrawAndTransformFromCollateral(
+        uint amount,
+        Permit calldata permit,
+        bytes calldata data
+    ) external returns (uint256 underlyingAmount) {
+        if (amount > vault.maxAvailableShares()) revert NotEnoughShares();
+
+        market.withdrawOnBehalf(
+            msg.sender,
+            amount,
+            permit.deadline,
+            permit.v,
+            permit.r,
+            permit.s
+        );
+
+        uint256 shares = IERC20(address(vault)).balanceOf(address(this));
+        return vault.withdraw(shares, msg.sender, maxLoss);
+    }
 }

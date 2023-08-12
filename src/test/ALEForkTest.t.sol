@@ -51,6 +51,8 @@ contract ALEForkTest is FiRMForkTest {
     bytes exceededLimit = "Exceeded credit limit";
     bytes repaymentGtThanDebt = "Repayment greater than debt";
 
+    error NothingToDeposit();
+
     BorrowContract borrowContract;
     IERC20 WETH;
     MockExchangeProxy exchangeProxy;
@@ -107,6 +109,153 @@ contract ALEForkTest is FiRMForkTest {
             totalDola += dolaAmount;
         }
         return totalDola;
+    }
+
+    function test_depositAndLeveragePosition_buyDBR() public {
+        // We are going to deposit and leverage the position
+        uint crvTestAmount = 1 ether;
+        address userPk = vm.addr(1);
+        gibWeth(userPk, crvTestAmount);
+
+        uint maxBorrowAmount = getMaxBorrowAmount(crvTestAmount) / 10; // we want to borrow only 10% of the max amount to exchange
+
+        // recharge mocked proxy for swap, we need to swap DOLA to collateral
+        gibWeth(address(exchangeProxy), convertDolaToCollat(maxBorrowAmount));
+
+        vm.startPrank(userPk, userPk);
+
+        // Calculate the amount of DOLA needed to borrow to buy the DBR needed to cover for the borrowing period
+        (uint256 dolaForDBR, uint256 dbrAmount) = ale
+            .approximateDolaAndDbrNeeded(maxBorrowAmount, 365 days, 8);
+
+        // Sign Message for borrow on behalf
+        bytes32 hash = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                market.DOMAIN_SEPARATOR(),
+                keccak256(
+                    abi.encode(
+                        keccak256(
+                            "BorrowOnBehalf(address caller,address from,uint256 amount,uint256 nonce,uint256 deadline)"
+                        ),
+                        address(ale),
+                        userPk,
+                        maxBorrowAmount + dolaForDBR,
+                        0,
+                        block.timestamp
+                    )
+                )
+            )
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
+
+        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+
+        ALE.DBRHelper memory dbrData = ALE.DBRHelper(
+            dolaForDBR,
+            (dbrAmount * 97) / 100
+        ); // DBR buy
+
+        bytes memory swapData = abi.encodeWithSelector(
+            MockExchangeProxy.swapDolaIn.selector,
+            collateral,
+            maxBorrowAmount
+        );
+
+        assertEq(dbr.balanceOf(userPk), 0);
+
+        collateral.approve(address(ale), crvTestAmount);
+
+        // We set crvTestAmount as initial deposit
+        ale.depositAndLeveragePosition(
+            crvTestAmount,
+            maxBorrowAmount,
+            address(market.collateral()),
+            address(exchangeProxy),
+            swapData,
+            permit,
+            bytes(""),
+            dbrData
+        );
+
+        // Balance in escrow is equal to the collateral deposited + the extra collateral swapped from the leverage
+        assertEq(
+            collateral.balanceOf(address(market.predictEscrow(userPk))),
+            crvTestAmount + convertDolaToCollat(maxBorrowAmount)
+        );
+        assertEq(DOLA.balanceOf(userPk), 0);
+
+        assertGt(dbr.balanceOf(userPk), (dbrAmount * 97) / 100);
+    }
+
+    function test_fail_depositAndLeveragePosition_buyDBR_with_ZERO_deposit() public {
+        // We are going to deposit and leverage the position
+        uint crvTestAmount = 1 ether;
+        address userPk = vm.addr(1);
+        gibWeth(userPk, crvTestAmount);
+
+        uint maxBorrowAmount = getMaxBorrowAmount(crvTestAmount) / 10; // we want to borrow only 10% of the max amount to exchange
+
+        // recharge mocked proxy for swap, we need to swap DOLA to collateral
+        gibWeth(address(exchangeProxy), convertDolaToCollat(maxBorrowAmount));
+
+        vm.startPrank(userPk, userPk);
+
+        // Calculate the amount of DOLA needed to borrow to buy the DBR needed to cover for the borrowing period
+        (uint256 dolaForDBR, uint256 dbrAmount) = ale
+            .approximateDolaAndDbrNeeded(maxBorrowAmount, 365 days, 8);
+
+        // Sign Message for borrow on behalf
+        bytes32 hash = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                market.DOMAIN_SEPARATOR(),
+                keccak256(
+                    abi.encode(
+                        keccak256(
+                            "BorrowOnBehalf(address caller,address from,uint256 amount,uint256 nonce,uint256 deadline)"
+                        ),
+                        address(ale),
+                        userPk,
+                        maxBorrowAmount + dolaForDBR,
+                        0,
+                        block.timestamp
+                    )
+                )
+            )
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
+
+        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+
+        ALE.DBRHelper memory dbrData = ALE.DBRHelper(
+            dolaForDBR,
+            (dbrAmount * 97) / 100
+        ); // DBR buy
+
+        bytes memory swapData = abi.encodeWithSelector(
+            MockExchangeProxy.swapDolaIn.selector,
+            collateral,
+            maxBorrowAmount
+        );
+
+        assertEq(dbr.balanceOf(userPk), 0);
+
+        collateral.approve(address(ale), crvTestAmount);
+
+
+        // We try to set 0 as initial deposit, reverts
+        vm.expectRevert(NothingToDeposit.selector);
+        ale.depositAndLeveragePosition(
+            0,
+            maxBorrowAmount,
+            address(collateral),
+            address(exchangeProxy),
+            swapData,
+            permit,
+            bytes(""),
+            dbrData
+        );
     }
 
     function test_leveragePosition_buyDBR() public {
@@ -265,6 +414,95 @@ contract ALEForkTest is FiRMForkTest {
         assertEq(
             collateral.balanceOf(address(market.predictEscrow(userPk))),
             crvTestAmount - amountToWithdraw
+        );
+
+        // User still has dola and actually he has more bc he sold his DBRs
+        assertGt(DOLA.balanceOf(userPk), borrowAmount);
+
+        assertEq(dbr.balanceOf(userPk), 0);
+    }
+
+    function test_deleveragePosition_withdrawALL_sellDBR() public {
+        uint crvTestAmount = 1 ether;
+        address userPk = vm.addr(1);
+        gibWeth(userPk, crvTestAmount);
+        gibDBR(userPk, crvTestAmount);
+
+        // Max Amount borrowable is the one available from collateral amount +
+        // the extra borrow amount from the max borrow amount swapped and re-deposited as collateral
+        uint borrowAmount = getMaxBorrowAmount(crvTestAmount) / 2;
+
+        // recharge mocked proxy for swap, we need to swap collateral to DOLA
+        vm.startPrank(gov);
+        DOLA.mint(
+            address(exchangeProxy),
+            convertCollatToDola(crvTestAmount)
+        );
+        vm.stopPrank();
+
+        vm.startPrank(userPk, userPk);
+        // CRV deposit and DOLA borrow
+        deposit(crvTestAmount);
+        market.borrow(borrowAmount);
+
+        assertEq(
+            collateral.balanceOf(address(market.predictEscrow(userPk))),
+            crvTestAmount
+        );
+        assertEq(DOLA.balanceOf(userPk), borrowAmount);
+
+        // We are going to withdraw ALL the collateral to deleverage
+        uint256 amountToWithdraw = collateral.balanceOf(
+            address(market.predictEscrow(userPk))
+        );
+
+        bytes32 hash = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                market.DOMAIN_SEPARATOR(),
+                keccak256(
+                    abi.encode(
+                        keccak256(
+                            "WithdrawOnBehalf(address caller,address from,uint256 amount,uint256 nonce,uint256 deadline)"
+                        ),
+                        address(ale),
+                        userPk,
+                        amountToWithdraw,
+                        0,
+                        block.timestamp
+                    )
+                )
+            )
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
+
+        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+
+        ALE.DBRHelper memory dbrData = ALE.DBRHelper(dbr.balanceOf(userPk), 0); // Sell DBR
+
+        bytes memory swapData = abi.encodeWithSelector(
+            MockExchangeProxy.swapDolaOut.selector,
+            collateral,
+            amountToWithdraw
+        );
+
+        dbr.approve(address(ale), dbr.balanceOf(userPk));
+
+        ale.deleveragePosition(
+            borrowAmount,
+            address(market.collateral()),
+            amountToWithdraw,
+            address(exchangeProxy),
+            swapData,
+            permit,
+            bytes(""),
+            dbrData
+        );
+
+        // No collateral left in the escrow
+        assertEq(
+            collateral.balanceOf(address(market.predictEscrow(userPk))),
+            0
         );
 
         // User still has dola and actually he has more bc he sold his DBRs

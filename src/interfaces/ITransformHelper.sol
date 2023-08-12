@@ -2,26 +2,44 @@
 pragma solidity ^0.8.0;
 
 interface ITransformHelper {
-    function transformToCollateral(uint amount, bytes calldata data) external returns (uint);
+    
+    struct Permit {
+        uint256 deadline;
+        uint8 v;
+        bytes32 r;
+        bytes32 s;
+    }
 
-    function transformToCollateralAndDeposit(
+    function transformToCollateral(
         uint amount,
-        address user,
         bytes calldata data
     ) external returns (uint);
 
-    function transformFromCollateral(uint amount, bytes calldata data) external returns (uint);
+    function transformToCollateralAndDeposit(
+        uint amount,
+        bytes calldata data
+    ) external returns (uint256 collateralAmount);
+
+    function transformFromCollateral(
+        uint amount,
+        bytes calldata data
+    ) external returns (uint);
 
     function withdrawAndTransformFromCollateral(
         uint amount,
-        address user,
-        bytes calldata data,
-        uint v,
-        uint r,
-        uint8 s
-    ) external returns (uint);
+        Permit calldata permit,
+        bytes calldata data
+    ) external returns (uint256 underlyingAmount);
 
     function assetToCollateralRatio(
         uint assetAmount
     ) external view returns (uint collateralAmount);
+
+    function assetToCollateral(
+        uint assetAmount
+    ) external view returns (uint collateralAmount);
+    
+    function collateralToAsset(
+        uint collateralAmount
+    ) external view returns (uint assetAmount);
 }
