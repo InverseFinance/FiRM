@@ -21,7 +21,7 @@ contract STYCRVHelper is Ownable, ReentrancyGuard {
         IERC20(0xFCc5c47bE19d06BF83eB04298b026F81069ff65b); // yCRV
 
     IMarket public constant market =
-        IMarket(0x7fC77b5c7614E1533320Ea6DDc2Eb61fa00A9714); // DOLA market
+        IMarket(0x27b6c301Fd441f3345d61B7a4245E1F823c3F9c4); // DOLA market
 
     struct Permit {
         uint256 deadline;
@@ -32,6 +32,7 @@ contract STYCRVHelper is Ownable, ReentrancyGuard {
 
     constructor() Ownable(msg.sender) {
         underlying.approve(address(vault), type(uint256).max);
+        IERC20(address(vault)).approve(address(market), type(uint256).max);
     }
 
     function setMaxLoss(uint256 _maxLoss) external onlyOwner {

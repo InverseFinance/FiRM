@@ -13,7 +13,6 @@ import "./mocks/BorrowContract.sol";
 import {ALE} from "../util/ALE.sol";
 import {STYCRVHelper} from "../util/STYCRVHelper.sol";
 import {STYCRVFeed} from "./mocks/STYCRVFeed.sol";
-import {console} from "forge-std/console.sol";
 import {ITransformHelper} from "../interfaces/ITransformHelper.sol";
 
 contract MockExchangeProxy {
@@ -183,6 +182,74 @@ contract ALEForkTest is FiRMForkTest {
         return
             (_convertCollatToDola(amountCollat) *
                 styCRVmarket.collateralFactorBps()) / 10_000;
+    }
+
+    function test_transformToCollateralAndDeposit() public  {
+        uint256 yCRVAmount = 1 ether;
+        address userPk = vm.addr(1);
+        vm.prank(yCRVHolder);
+        IERC20(yCRV).transfer(userPk, yCRVAmount);
+
+        vm.startPrank(userPk, userPk);
+        IErc20(yCRV).approve(address(helper), yCRVAmount);
+        helper.transformToCollateralAndDeposit(yCRVAmount,"");
+
+        assertEq(IERC20(yCRV).balanceOf(userPk),0);
+        Market market = Market(address(helper.market())); // actual Mainnet market for helper contract
+
+        assertApproxEqAbs(
+            IErc20(styCRV).balanceOf(address(market.predictEscrow(userPk))),
+            helper.assetToCollateral(yCRVAmount),
+            1
+        );
+    }
+
+
+    function test_withdrawAndTransformFromCollateral() public  {
+        uint256 yCRVAmount = 1 ether;
+         address userPk = vm.addr(1);
+        vm.prank(yCRVHolder);
+        IERC20(yCRV).transfer(userPk, yCRVAmount);
+
+        vm.startPrank(userPk, userPk);
+        IErc20(yCRV).approve(address(helper), yCRVAmount);
+        helper.transformToCollateralAndDeposit(yCRVAmount,"");
+
+        Market market = Market(address(helper.market())); // actual Mainnet market for helper contract
+        uint256 amountToWithdraw = IErc20(styCRV).balanceOf(address(market.predictEscrow(userPk))) / 10;
+
+          bytes32 hash = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                market.DOMAIN_SEPARATOR(),
+                keccak256(
+                    abi.encode(
+                        keccak256(
+                            "WithdrawOnBehalf(address caller,address from,uint256 amount,uint256 nonce,uint256 deadline)"
+                        ),
+                        address(helper),
+                        userPk,
+                        amountToWithdraw,
+                        0,
+                        block.timestamp
+                    )
+                )
+            )
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
+
+        STYCRVHelper.Permit memory permit = STYCRVHelper.Permit(block.timestamp, v, r, s);
+
+        assertEq(IERC20(yCRV).balanceOf(userPk),0);
+        
+        helper.withdrawAndTransformFromCollateral(amountToWithdraw, permit, "");
+
+        assertApproxEqAbs(
+            IERC20(yCRV).balanceOf(userPk),
+            helper.collateralToAsset(amountToWithdraw),
+            1
+        );
+
     }
 
     function test_leveragePosition() public {
