@@ -198,17 +198,18 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         IERC20(_sellTokenAddress).approve(_spender, 0);
         IERC20(_sellTokenAddress).approve(_spender, _collateralAmount);
 
-        uint256 dolaBalBefore = dola.balanceOf(address(this));
-
         // Call the encoded swap function call on the contract at `swapTarget`,
         // passing along any ETH attached to this function call to cover protocol fees.
         // NOTE: This will swap the collateral or helperCollateral for DOLA
         (bool success, ) = exchangeProxy.call{value: msg.value}(_swapCallData);
         if (!success) revert SwapFailed();
 
-        uint256 dolaBalAfter = dola.balanceOf(address(this));
+        uint256 collateralAvailable = markets[_sellTokenAddress].collateral.balanceOf(address(this));
+        if(collateralAvailable != 0){
+            markets[_sellTokenAddress].collateral.transfer(msg.sender, collateralAvailable);
+        }
 
-        if (dolaBalAfter - dolaBalBefore < _value) revert DOLAInvalidRepay();
+        if (dola.balanceOf(address(this)) < _value) revert DOLAInvalidRepay();
 
         dola.burn(_value);
 

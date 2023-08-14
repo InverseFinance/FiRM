@@ -483,10 +483,12 @@ contract ALEForkTest is FiRMForkTest {
         bytes memory swapData = abi.encodeWithSelector(
             MockExchangeProxy.swapDolaOut.selector,
             collateral,
-            amountToWithdraw
+            amountToWithdraw/2
         );
 
         dbr.approve(address(ale), dbr.balanceOf(userPk));
+
+        assertEq(collateral.balanceOf(userPk), 0);
 
         ale.deleveragePosition(
             borrowAmount,
@@ -509,6 +511,8 @@ contract ALEForkTest is FiRMForkTest {
         assertGt(DOLA.balanceOf(userPk), borrowAmount);
 
         assertEq(dbr.balanceOf(userPk), 0);
+
+        assertEq(collateral.balanceOf(userPk), amountToWithdraw /2);
     }
 
     function test_max_leveragePosition() public {
