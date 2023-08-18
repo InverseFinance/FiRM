@@ -128,7 +128,7 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
 
     /// @notice Deposit collateral and instantly leverage user position by minting DOLA, buying collateral, deposting into the user escrow and borrow DOLA on behalf to repay the minted DOLA
     /// @dev Requires user to sign message to permit the contract to borrow DOLA on behalf
-    /// @param _initialDeposit Amount of collateral to deposit
+    /// @param _initialDeposit Amount of collateral or underlying (in case of helper) to deposit
     /// @param _value Amount of DOLA to borrow
     /// @param _buyTokenAddress The `buyTokenAddress` field from the API response.
     /// @param _spender The `allowanceTarget` field from the API response.
