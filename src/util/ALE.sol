@@ -211,11 +211,11 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
 
             if (
                 _collateralAmount + 1 < estimateAmount &&
-                markets[_sellTokenAddress].collateral.balanceOf(address(this)) <
+                IERC20(_sellTokenAddress).balanceOf(address(this)) <
                 _collateralAmount
             ) revert WithdrawFailed();
         }
-        
+
         // Approve sellToken for spender
         IERC20(_sellTokenAddress).approve(_spender, 0);
         IERC20(_sellTokenAddress).approve(_spender, _collateralAmount);
