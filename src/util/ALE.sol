@@ -20,7 +20,7 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
     error NothingToDeposit();
     error DepositFailed();
     error WithdrawFailed();
-    
+
     // 0x ExchangeProxy address.
     // See https://docs.0x.org/developer-resources/contract-addresses
     address payable public exchangeProxy;
@@ -93,7 +93,7 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         address _helper,
         address _buySelltoken
     ) external onlyOwner {
-        if(_helper == address(0)) revert InvalidHelperAddress();
+        if (_helper == address(0)) revert InvalidHelperAddress();
         markets[_buySelltoken].helper = ITransformHelper(_helper);
         IERC20(_buySelltoken).approve(_helper, type(uint256).max);
     }
@@ -113,10 +113,18 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         bytes calldata _swapCallData,
         Permit calldata _permit,
         bytes calldata _helperData,
-        DBRHelper calldata _dbrData) external payable nonReentrant {
-        _leveragePosition(_value, _buyTokenAddress, _spender, _swapCallData, _permit, _helperData, _dbrData);
+        DBRHelper calldata _dbrData
+    ) external payable nonReentrant {
+        _leveragePosition(
+            _value,
+            _buyTokenAddress,
+            _spender,
+            _swapCallData,
+            _permit,
+            _helperData,
+            _dbrData
+        );
     }
-
 
     /// @notice Deposit collateral and instantly leverage user position by minting DOLA, buying collateral, deposting into the user escrow and borrow DOLA on behalf to repay the minted DOLA
     /// @dev Requires user to sign message to permit the contract to borrow DOLA on behalf
@@ -137,10 +145,18 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         bytes calldata _helperData,
         DBRHelper calldata _dbrData
     ) external payable nonReentrant {
-        if(_initialDeposit == 0) revert NothingToDeposit();
+        if (_initialDeposit == 0) revert NothingToDeposit();
         IERC20 buyToken = IERC20(_buyTokenAddress);
         buyToken.transferFrom(msg.sender, address(this), _initialDeposit);
-        _leveragePosition(_value, _buyTokenAddress, _spender, _swapCallData, _permit, _helperData, _dbrData);
+        _leveragePosition(
+            _value,
+            _buyTokenAddress,
+            _spender,
+            _swapCallData,
+            _permit,
+            _helperData,
+            _dbrData
+        );
     }
 
     /// @notice Repay a DOLA loan and withdraw collateral from the escrow
@@ -184,16 +200,22 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
 
         // If there's an helper contract, the collateral has to be transformed
         if (address(markets[_sellTokenAddress].helper) != address(0)) {
-            uint256 estimateAmount = markets[_sellTokenAddress].helper.collateralToAsset(_collateralAmount);
-   
+            uint256 estimateAmount = markets[_sellTokenAddress]
+                .helper
+                .collateralToAsset(_collateralAmount);
+
             // Collateral amount is now transformed into sellToken
             _collateralAmount = markets[_sellTokenAddress]
                 .helper
                 .transformFromCollateral(_collateralAmount, _helperData);
-    
-            if(_collateralAmount + 1 < estimateAmount) revert WithdrawFailed();
-        }
 
+            if (
+                _collateralAmount + 1 < estimateAmount &&
+                markets[_sellTokenAddress].collateral.balanceOf(address(this)) <
+                _collateralAmount
+            ) revert WithdrawFailed();
+        }
+        
         // Approve sellToken for spender
         IERC20(_sellTokenAddress).approve(_spender, 0);
         IERC20(_sellTokenAddress).approve(_spender, _collateralAmount);
@@ -204,9 +226,14 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         (bool success, ) = exchangeProxy.call{value: msg.value}(_swapCallData);
         if (!success) revert SwapFailed();
 
-        uint256 collateralAvailable = markets[_sellTokenAddress].collateral.balanceOf(address(this));
-        if(collateralAvailable != 0){
-            markets[_sellTokenAddress].collateral.transfer(msg.sender, collateralAvailable);
+        uint256 collateralAvailable = markets[_sellTokenAddress]
+            .collateral
+            .balanceOf(address(this));
+        if (collateralAvailable != 0) {
+            markets[_sellTokenAddress].collateral.transfer(
+                msg.sender,
+                collateralAvailable
+            );
         }
 
         if (dola.balanceOf(address(this)) < _value) revert DOLAInvalidRepay();
@@ -256,14 +283,20 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
 
         // If there's an helper contract, the buyToken has to be transformed
         if (address(markets[_buyTokenAddress].helper) != address(0)) {
-            uint256 estimateAmount = markets[_buyTokenAddress].helper.assetToCollateral(collateralAmount);
-            
+            uint256 estimateAmount = markets[_buyTokenAddress]
+                .helper
+                .assetToCollateral(collateralAmount);
+
             // Collateral amount is now transformed
             collateralAmount = markets[_buyTokenAddress]
                 .helper
                 .transformToCollateral(collateralAmount, _helperData);
-     
-            if(collateralAmount + 1 < estimateAmount) revert DepositFailed();
+
+            if (
+                collateralAmount + 1 < estimateAmount &&
+                markets[_buyTokenAddress].collateral.balanceOf(address(this)) <
+                collateralAmount
+            ) revert DepositFailed();
         }
 
         // Deposit and borrow on behalf
@@ -298,7 +331,6 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         if (address(this).balance > 0)
             payable(msg.sender).transfer(address(this).balance);
     }
-
 
     // solhint-disable-next-line no-empty-blocks
     receive() external payable {}
