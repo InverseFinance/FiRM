@@ -236,6 +236,15 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
             );
         }
 
+        uint256 sellTokenBal = IERC20(_sellTokenAddress).balanceOf(address(this));
+        // Send any leftover sellToken to the sender
+        if (sellTokenBal != 0 ) {
+            IERC20(_sellTokenAddress).transfer(
+                msg.sender,
+                sellTokenBal
+            );
+        }
+
         if (dola.balanceOf(address(this)) < _value) revert DOLAInvalidRepay();
 
         dola.burn(_value);
