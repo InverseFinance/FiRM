@@ -48,7 +48,7 @@ contract MockExchangeProxy {
     }
 }
 
-contract ALEForkTest is FiRMForkTest {
+contract ALEHelperTest is FiRMForkTest {
     bytes onlyGovUnpause = "Only governance can unpause";
     bytes onlyPauseGuardianOrGov =
         "Only pause guardian or governance can pause";
@@ -158,15 +158,11 @@ contract ALEForkTest is FiRMForkTest {
     function _convertCollatToDola(uint amount) internal view returns (uint) {
         uint256 underlying = helper.collateralToAsset(amount);
         return _convertUnderlyingToDola(underlying);
-       // (, int latestAnswer, , , ) = feedSTYCRV.latestRoundData();
-       // return (amount * uint(latestAnswer)) / 10 ** feedSTYCRV.decimals();
     }
 
     function _convertDolaToCollat(uint amount) internal view returns (uint) {
         uint256 underlying = _convertDolaToUnderlying(amount);
         return helper.assetToCollateral(underlying);
-       // (, int latestAnswer, , , ) = feedSTYCRV.latestRoundData();
-       // return (amount * 10 ** feedSTYCRV.decimals()) / uint(latestAnswer);
     }
 
     function _convertDolaToUnderlying(
@@ -272,7 +268,7 @@ contract ALEForkTest is FiRMForkTest {
         );
         // recharge mocked proxy for swap, we need to swap DOLA to unwrapped collateral
         vm.prank(yCRVHolder);
-        IERC20(yCRV).transfer(address(exchangeProxy), yCRVAmount + 1);
+        IERC20(yCRV).transfer(address(exchangeProxy), yCRVAmount + 2);
 
         vm.startPrank(userPk, userPk);
         // Initial CRV deposit
@@ -350,7 +346,7 @@ contract ALEForkTest is FiRMForkTest {
 
         // recharge mocked proxy for swap, we need to swap DOLA to unwrapped collateral
         vm.prank(yCRVHolder);
-        IERC20(yCRV).transfer(address(exchangeProxy), yCRVAmount +1);
+        IERC20(yCRV).transfer(address(exchangeProxy), yCRVAmount + 2);
 
         vm.startPrank(userPk, userPk);
         // Initial st-yCRV deposit

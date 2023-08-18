@@ -7,7 +7,7 @@ interface IChainlinkFeed {
 
 contract YCRVFeed is IChainlinkFeed {
     uint8 decimals_ = 18;
-    uint price_ = 0.75e18;
+    uint price_ = 0.50e18;
 
     function decimals() external view returns (uint8) {
         return decimals_;
