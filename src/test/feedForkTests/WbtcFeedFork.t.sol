@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED 
-pragma solidity ^0.8.13; 
+pragma solidity ^0.8.20; 
  
 import "forge-std/Test.sol"; 
 import "../../feeds/WbtcPriceFeed.sol"; 
@@ -35,6 +35,62 @@ contract WbtcFeedFork is Test {
         assertEq(btcToUsdPrice * 10**8 / wbtcToBtcPrice, wbtcUsdPrice);
         if(wbtcToBtcPrice > 10**8) assertGt(btcToUsdPrice, wbtcUsdPrice);
         if(wbtcToBtcPrice < 10**8) assertGt(wbtcUsdPrice, btcToUsdPrice);
+    }
+
+    function testWillReturnFallbackWhenOutOfMaxBounds() public {
+        (uint80 clRoundId1, int256 btcToUsdPrice, uint clStartedAt1, uint clUpdatedAt1,  uint80 clAnsweredInRound1) = feed.btcToUsd().latestRoundData();
+        (uint80 clRoundId2, int256 wbtcToBtcPrice, uint clStartedAt2, uint clUpdatedAt2,  uint80 clAnsweredInRound2) = feed.wbtcToBtc().latestRoundData();
+        vm.mockCall(
+            address(feed.wbtcToBtc()),
+            abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
+            abi.encode(clRoundId2, 10000000000, clStartedAt2, clUpdatedAt2, clAnsweredInRound2)
+        );
+        (uint80 roundId, int256 wbtcUsdPrice, uint startedAt, uint updatedAt, uint80 answeredInRound) = feed.latestRoundData();
+
+
+        if(clUpdatedAt1 < clUpdatedAt2){
+            assertEq(clRoundId1, roundId);
+            assertEq(clStartedAt1, startedAt);
+            assertEq(clUpdatedAt1, updatedAt);
+            assertEq(clAnsweredInRound1, answeredInRound);
+        } else {
+            assertEq(clRoundId2, roundId);
+            assertEq(clStartedAt2, startedAt);
+            assertEq(clUpdatedAt2, updatedAt);
+            assertEq(clAnsweredInRound2, answeredInRound);
+        }
+       
+        assertLt(wbtcUsdPrice, 10**18, "Wbtc usd price greater than 10**18"); 
+        assertGt(wbtcUsdPrice, 10**8, "Wbtc usd price less than 10**8"); 
+        assertEq(feed.wbtcToUsdFallback(), wbtcUsdPrice, "Did not return fallback price");
+    }
+
+    function testWillReturnFallbackWhenOutOfMinBounds() public {
+        (uint80 clRoundId1, int256 btcToUsdPrice, uint clStartedAt1, uint clUpdatedAt1,  uint80 clAnsweredInRound1) = feed.btcToUsd().latestRoundData();
+        (uint80 clRoundId2, int256 wbtcToBtcPrice, uint clStartedAt2, uint clUpdatedAt2,  uint80 clAnsweredInRound2) = feed.wbtcToBtc().latestRoundData();
+        vm.mockCall(
+            address(feed.wbtcToBtc()),
+            abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
+            abi.encode(clRoundId2, 100000, clStartedAt2, clUpdatedAt2, clAnsweredInRound2)
+        );
+        (uint80 roundId, int256 wbtcUsdPrice, uint startedAt, uint updatedAt, uint80 answeredInRound) = feed.latestRoundData();
+
+
+        if(clUpdatedAt1 < clUpdatedAt2){
+            assertEq(clRoundId1, roundId);
+            assertEq(clStartedAt1, startedAt);
+            assertEq(clUpdatedAt1, updatedAt);
+            assertEq(clAnsweredInRound1, answeredInRound);
+        } else {
+            assertEq(clRoundId2, roundId);
+            assertEq(clStartedAt2, startedAt);
+            assertEq(clUpdatedAt2, updatedAt);
+            assertEq(clAnsweredInRound2, answeredInRound);
+        }
+       
+        assertLt(wbtcUsdPrice, 10**18, "Wbtc usd price greater than 10**18"); 
+        assertGt(wbtcUsdPrice, 10**8, "Wbtc usd price less than 10**8"); 
+        assertEq(feed.wbtcToUsdFallback(), wbtcUsdPrice, "Did not return fallback price");
     }
 }
 
