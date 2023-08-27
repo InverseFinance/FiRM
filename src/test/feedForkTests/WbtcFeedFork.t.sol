@@ -62,7 +62,7 @@ contract WbtcFeedFork is Test {
        
         assertLt(wbtcUsdPrice, 10**18, "Wbtc usd price greater than 10**18"); 
         assertGt(wbtcUsdPrice, 10**8, "Wbtc usd price less than 10**8"); 
-        assertEq(feed.wbtcToUsdFallback(), wbtcUsdPrice, "Did not return fallback price");
+        assertEq(feed.wbtcToUsdFallbackOracle(), wbtcUsdPrice, "Did not return fallback price");
     }
 
     function testWillReturnFallbackWhenOutOfMinBounds() public {
@@ -90,7 +90,7 @@ contract WbtcFeedFork is Test {
        
         assertLt(wbtcUsdPrice, 10**18, "Wbtc usd price greater than 10**18"); 
         assertGt(wbtcUsdPrice, 10**8, "Wbtc usd price less than 10**8"); 
-        assertEq(feed.wbtcToUsdFallback(), wbtcUsdPrice, "Did not return fallback price");
+        assertEq(feed.wbtcToUsdFallbackOracle(), wbtcUsdPrice, "Did not return fallback price");
     }
 }
 

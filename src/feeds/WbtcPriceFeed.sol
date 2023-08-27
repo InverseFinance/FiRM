@@ -38,7 +38,7 @@ contract WbtcPriceFeed {
         (uint80 btcUsdRoundId,int256 btcUsdPrice,uint btcUsdStartedAt,uint btcUsdUpdatedAt,uint80 btcUsdAnsweredInRound) = btcToUsd.latestRoundData();
         int wbtcUsdPrice = btcUsdPrice * 10**8 / wbtcBtcPrice;
         if(isPriceOutOfBounds(wbtcBtcPrice, wbtcToBtc)){
-            wbtcUsdPrice = wbtcToUsdFallback();
+            wbtcUsdPrice = wbtcToUsdFallbackOracle();
         }
         if(wbtcBtcUpdatedAt < btcUsdUpdatedAt){
             return (wbtcBtcRoundId, wbtcUsdPrice, wbtcBtcStartedAt, wbtcBtcUpdatedAt, wbtcBtcAnsweredInRound);
@@ -65,7 +65,7 @@ contract WbtcPriceFeed {
      * @dev The function assumes that the `price_oracle` returns the price with 18 decimals, and it adjusts to 8 decimals for compatibility with Chainlink oracles.
      * @return int Returns the WBTC price in USD format with reduced decimals.
      */
-    function wbtcToUsdFallback() public view returns (int){
+    function wbtcToUsdFallbackOracle() public view returns (int){
         //0 index is wbtc usdt price
         //Reduce to 8 decimals to be in line with chainlink oracles
         return int(tricrypto.price_oracle(0) / 10**10);
