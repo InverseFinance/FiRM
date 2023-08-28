@@ -18,7 +18,7 @@ interface IChainlinkFeed {
 }
 
 interface ICurvePool {
-    function price_oracle(uint k) external view returns (uint256);
+    function price_oracle(uint256 k) external view returns (uint256);
 }
 
 contract InvPriceFeed is IChainlinkFeed {
@@ -49,6 +49,7 @@ contract InvPriceFeed is IChainlinkFeed {
         invDollarPrice =
             (invDollarPrice * usdcUsdPrice * int(10 ** 10)) /
             int(10 ** decimals());
+            
         return (roundId, invDollarPrice, startedAt, updatedAt, answeredInRound);
     }
 

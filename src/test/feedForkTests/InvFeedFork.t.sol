@@ -4,10 +4,6 @@ pragma solidity ^0.8.19;
 import "forge-std/Test.sol"; 
 import "src/feeds/InvPriceFeed.sol"; 
 
-interface ICurvePool2 {
-    function fee() external view returns (uint256);
-}
-
 contract InvFeedFork is Test {
 
     InvPriceFeed feed;
@@ -20,7 +16,6 @@ contract InvFeedFork is Test {
 
     function test_decimals() public {
        assertEq(feed.decimals(), 18);
-    
     }
 
     function test_latestRoundData() public {
@@ -29,6 +24,11 @@ contract InvFeedFork is Test {
         assertEq(roundId, clRoundId);
         assertEq(startedAt, clStartedAt);
         assertEq(updatedAt, clUpdatedAt);
-        assertEq(answeredInRound, clAnsweredInRound);
+        assertEq(answeredInRound, clAnsweredInRound);       
+
+        uint256 invUSDCPrice = feed.tricrypto().price_oracle(1);
+        uint256 estimatedInvUSDPrice = (invUSDCPrice * uint256(clInvUsdPrice) * 10 ** 10) / 10 ** 18;
+        
+        assertEq(uint256(invUsdPrice), estimatedInvUSDPrice);
     }
 }
