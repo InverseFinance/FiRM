@@ -4,6 +4,7 @@ interface IChainlinkFeed {
     function aggregator() external view returns(address aggregator);
     function decimals() external view returns (uint8 decimals);
     function latestRoundData() external view returns (uint80 roundId, int256 crvUsdPrice, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound);
+    function latestAnswer() external view returns (int256 price);
 }
 interface IAggregator {
     function maxAnswer() external view returns(int192);
@@ -18,6 +19,8 @@ contract WbtcPriceFeed {
     
     IChainlinkFeed public btcToUsd = IChainlinkFeed(0xF4030086522a5bEEa4988F8cA5B36dbC97BeE88c);
     IChainlinkFeed public wbtcToBtc = IChainlinkFeed(0xfdFD9C85aD200c506Cf9e21F1FD8dd01932FBB23);
+    IChainlinkFeed public usdtToEth = IChainlinkFeed(0xEe9F2375b4bdF6387aa8265dD4FB8F16512A1d46);
+    IChainlinkFeed public ethToUsd = IChainlinkFeed(0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419);
     ICurvePool public tricrypto = ICurvePool(0xf5f5B97624542D72A9E06f04804Bf81baA15e2B4);
 
     function decimals() external view returns (uint8){
@@ -68,6 +71,11 @@ contract WbtcPriceFeed {
     function wbtcToUsdFallbackOracle() public view returns (int){
         //0 index is wbtc usdt price
         //Reduce to 8 decimals to be in line with chainlink oracles
-        return int(tricrypto.price_oracle(0) / 10**10);
+        int crvWbtcToUsdt = int(tricrypto.price_oracle(0));
+        (,int usdtToEth,,,) = usdtToEth.latestRoundData();
+        (,int ethToUsd,,,) = ethToUsd.latestRoundData();
+        int usdtToUsd = usdtToEth * ethToUsd / 10**18;
+        return crvWbtcToUsdt * usdtToUsd / 10**18;
+        
     }
 }

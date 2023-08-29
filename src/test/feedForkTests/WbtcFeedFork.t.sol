@@ -59,9 +59,8 @@ contract WbtcFeedFork is Test {
             assertEq(clUpdatedAt2, updatedAt);
             assertEq(clAnsweredInRound2, answeredInRound);
         }
-       
-        assertLt(wbtcUsdPrice, 10**18, "Wbtc usd price greater than 10**18"); 
-        assertGt(wbtcUsdPrice, 10**8, "Wbtc usd price less than 10**8"); 
+         assertLt(wbtcUsdPrice, feed.btcToUsd().latestAnswer() * 110 / 100, "Fallback price more than 10% higher than oracle"); 
+        assertGt(wbtcUsdPrice, feed.btcToUsd().latestAnswer() * 90 / 100, "Wbtc more than 10% lower than oracle"); 
         assertEq(feed.wbtcToUsdFallbackOracle(), wbtcUsdPrice, "Did not return fallback price");
     }
 
@@ -88,8 +87,8 @@ contract WbtcFeedFork is Test {
             assertEq(clAnsweredInRound2, answeredInRound);
         }
        
-        assertLt(wbtcUsdPrice, 10**18, "Wbtc usd price greater than 10**18"); 
-        assertGt(wbtcUsdPrice, 10**8, "Wbtc usd price less than 10**8"); 
+        assertLt(wbtcUsdPrice, feed.btcToUsd().latestAnswer() * 110 / 100, "Fallback price more than 10% higher than oracle"); 
+        assertGt(wbtcUsdPrice, feed.btcToUsd().latestAnswer() * 90 / 100, "Wbtc more than 10% lower than oracle"); 
         assertEq(feed.wbtcToUsdFallbackOracle(), wbtcUsdPrice, "Did not return fallback price");
     }
 }
