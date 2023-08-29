@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
-import "../interfaces/IERC20.sol";
+import "src/interfaces/IERC20.sol";
 
 // @dev Caution: We assume all failed transfers cause reverts and ignore the returned bool.
-interface DSR {
+interface IDSR {
     function daiBalance(address usr) external returns (uint wad);
+    function pieOf(address usr) external view returns (uint wad);
     function join(address dst, uint wad) external;
     function exit(address dst, uint wad) external;
     function exitAll(address dst) external;
     function pot() external view returns (address);
 }
 
-interface Pot {
+interface IPot {
     function chi() external view returns (uint);
     function drip() external;
     function pie(address) external view returns (uint slice);
@@ -26,9 +27,9 @@ interface Pot {
 contract DAIEscrow {
 
     address public market;
-    IDelegateableERC20 public token;
-    DSR public constant DSR_MANAGER = DSR(0x373238337Bfe1146fb49989fc222523f83081dDb);
-    Pot public constant POT = Pot(0x197E90f9FAD81970bA7976f33CbD77088E5D7cf7);
+    IERC20 public token;
+    IDSR public constant DSR_MANAGER = IDSR(0x373238337Bfe1146fb49989fc222523f83081dDb);
+    IPot public constant POT = IPot(0x197E90f9FAD81970bA7976f33CbD77088E5D7cf7);
     address public beneficiary;
 
     /**
@@ -37,7 +38,7 @@ contract DAIEscrow {
      * @param _token The IERC20 token representing DAI
      * @param _beneficiary The beneficiary
      */
-    function initialize(IDelegateableERC20 _token, address _beneficiary) public {
+    function initialize(IERC20 _token, address _beneficiary) public {
         require(market == address(0), "ALREADY INITIALIZED");
         market = msg.sender;
         token = _token;
@@ -65,7 +66,7 @@ contract DAIEscrow {
     * @return The balance accrued in the DSR up until the last `drip` function call
     */
     function balance() public view returns (uint) {
-        return rmul(POT.chi(), POT.pie(address(this)));
+        return rmul(POT.chi(), DSR_MANAGER.pieOf(address(this)));
     }
     
     /**
