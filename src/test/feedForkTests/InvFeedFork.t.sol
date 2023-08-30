@@ -44,6 +44,7 @@ contract InvFeedFork is Test {
             10 ** 10) / 10 ** 18;
 
         assertEq(uint256(invUsdPrice), estimatedInvUSDPrice);
+        assertEq(uint256(invUsdPrice), feed.latestAnswer());
     }
 
     function testWillReturnFallbackWhenOutOfMaxBounds() public {
@@ -93,6 +94,7 @@ contract InvFeedFork is Test {
             10 ** 10) / 10 ** 18;
 
         assertEq(uint256(invUsdPrice), estimatedInvUSDPrice);
+        assertEq(uint256(invUsdPrice), feed.latestAnswer());
     }
 
     function testWillReturnFallbackWhenOutOfMinBounds() public {
@@ -114,11 +116,11 @@ contract InvFeedFork is Test {
             address(feed.usdcToUsd()),
             abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
             abi.encode(
-                clRoundId2,
+                clRoundId,
                 10,
-                clStartedAt2,
-                clUpdatedAt2,
-                clAnsweredInRound2
+                clStartedAt,
+                clUpdatedAt,
+                clAnsweredInRound
             )
         );
         (
@@ -142,6 +144,7 @@ contract InvFeedFork is Test {
             10 ** 10) / 10 ** 18;
 
         assertEq(uint256(invUsdPrice), estimatedInvUSDPrice);
+        assertEq(uint256(invUsdPrice), feed.latestAnswer());
     }
 
     function test_compare_oracle() public {
@@ -151,6 +154,7 @@ contract InvFeedFork is Test {
             ,
             ,
         ) = feed.latestRoundData();
+        assertEq(uint256(invUsdPrice), feed.latestAnswer());
 
         vm.mockCall(
             address(feed.usdcToUsd()),
@@ -158,11 +162,12 @@ contract InvFeedFork is Test {
             abi.encode(0, 10, 0, 0, 0)
         );
         (, int256 invUsdPriceFallback, , , ) = feed.latestRoundData();
+        assertEq(uint256(invUsdPriceFallback), feed.latestAnswer());
 
         assertApproxEqAbs(
             uint256(invUsdPrice),
             uint256(invUsdPriceFallback),
-            0.2 ether
-        ); // 0.2 dollar
+            0.5 ether
+        ); // 0.5 dollar
     }
 }

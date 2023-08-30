@@ -2,7 +2,6 @@
 
 pragma solidity ^0.8.4;
 
-
 interface IChainlinkFeed {
     function aggregator() external view returns (address aggregator);
 
@@ -57,30 +56,16 @@ contract InvPriceFeed {
         view
         returns (uint80, int256, uint256, uint256, uint80)
     {
-        (
-            uint80 roundId,
-            int256 usdcUsdPrice,
-            uint startedAt,
-            uint updatedAt,
-            uint80 answeredInRound
-        ) = usdcToUsd.latestRoundData();
+        return _latestRoundData();
+    }
 
-        if (isPriceOutOfBounds(usdcUsdPrice, usdcToUsd)) {
-            (
-                roundId,
-                usdcUsdPrice,
-                startedAt,
-                updatedAt,
-                answeredInRound
-            ) = usdcToUsdFallbackOracle();
-        }
-        int256 invDollarPrice = int256(tricrypto.price_oracle(invK));
-
-        invDollarPrice =
-            (invDollarPrice * usdcUsdPrice * int(10 ** 10)) /
-            int(10 ** decimals());
-
-        return (roundId, invDollarPrice, startedAt, updatedAt, answeredInRound);
+    /** 
+    @notice Retrieves the latest price for the INV token
+    @return price The latest price for the INV token
+    */
+    function latestAnswer() external view returns (uint256) {
+        (, int256 price, , , ) = _latestRoundData();
+        return uint(price);
     }
 
     /**
@@ -136,5 +121,36 @@ contract InvPriceFeed {
             10 ** 10;
 
         return (roundId, usdcToUsdPrice, startedAt, updatedAt, answeredInRound);
+    }
+
+    function _latestRoundData()
+        internal
+        view
+        returns (uint80, int256, uint256, uint256, uint80)
+    {
+        (
+            uint80 roundId,
+            int256 usdcUsdPrice,
+            uint startedAt,
+            uint updatedAt,
+            uint80 answeredInRound
+        ) = usdcToUsd.latestRoundData();
+
+        if (isPriceOutOfBounds(usdcUsdPrice, usdcToUsd)) {
+            (
+                roundId,
+                usdcUsdPrice,
+                startedAt,
+                updatedAt,
+                answeredInRound
+            ) = usdcToUsdFallbackOracle();
+        }
+        int256 invDollarPrice = int256(tricrypto.price_oracle(invK));
+
+        invDollarPrice =
+            (invDollarPrice * usdcUsdPrice * int(10 ** 10)) /
+            int(10 ** decimals());
+
+        return (roundId, invDollarPrice, startedAt, updatedAt, answeredInRound);
     }
 }
