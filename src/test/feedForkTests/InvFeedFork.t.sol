@@ -152,7 +152,6 @@ contract InvFeedFork is Test {
             ,
         ) = feed.latestRoundData();
 
-        (, int256 ethToUsdPrice, , , ) = feed.ethToUsd().latestRoundData();
         vm.mockCall(
             address(feed.usdcToUsd()),
             abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),

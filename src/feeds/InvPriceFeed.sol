@@ -2,7 +2,6 @@
 
 pragma solidity ^0.8.4;
 
-import {console} from "forge-std/console.sol";
 
 interface IChainlinkFeed {
     function aggregator() external view returns (address aggregator);
