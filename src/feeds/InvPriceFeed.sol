@@ -43,8 +43,6 @@ contract InvPriceFeed {
     uint256 public constant ethK = 0;
     uint256 public constant invK = 1;
 
-    uint public minUsdcToUsdRatio = 10 ** 18 / 2;
-
     /**
      * @notice Retrieves the latest round data for the INV token price feed
      * @dev This function calculates the INV price in USD by combining the USDC to USD price from a Chainlink oracle and the INV to USDC ratio from the tricrypto pool
