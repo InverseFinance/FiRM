@@ -63,9 +63,9 @@ contract InvPriceFeed {
     @notice Retrieves the latest price for the INV token
     @return price The latest price for the INV token
     */
-    function latestAnswer() external view returns (uint256) {
+    function latestAnswer() external view returns (int256) {
         (, int256 price, , , ) = _latestRoundData();
-        return uint(price);
+        return price;
     }
 
     /**

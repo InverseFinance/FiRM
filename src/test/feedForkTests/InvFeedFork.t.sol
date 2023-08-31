@@ -44,7 +44,7 @@ contract InvFeedFork is Test {
             10 ** 10) / 10 ** 18;
 
         assertEq(uint256(invUsdPrice), estimatedInvUSDPrice);
-        assertEq(uint256(invUsdPrice), feed.latestAnswer());
+        assertEq(uint256(invUsdPrice), uint(feed.latestAnswer()));
     }
 
     function testWillReturnFallbackWhenOutOfMaxBounds() public {
@@ -94,7 +94,7 @@ contract InvFeedFork is Test {
             10 ** 10) / 10 ** 18;
 
         assertEq(uint256(invUsdPrice), estimatedInvUSDPrice);
-        assertEq(uint256(invUsdPrice), feed.latestAnswer());
+        assertEq(uint256(invUsdPrice), uint(feed.latestAnswer()));
     }
 
     function testWillReturnFallbackWhenOutOfMinBounds() public {
@@ -144,7 +144,7 @@ contract InvFeedFork is Test {
             10 ** 10) / 10 ** 18;
 
         assertEq(uint256(invUsdPrice), estimatedInvUSDPrice);
-        assertEq(uint256(invUsdPrice), feed.latestAnswer());
+        assertEq(uint256(invUsdPrice), uint(feed.latestAnswer()));
     }
 
     function test_compare_oracle() public {
@@ -154,7 +154,7 @@ contract InvFeedFork is Test {
             ,
             ,
         ) = feed.latestRoundData();
-        assertEq(uint256(invUsdPrice), feed.latestAnswer());
+        assertEq(uint256(invUsdPrice), uint(feed.latestAnswer()));
 
         vm.mockCall(
             address(feed.usdcToUsd()),
@@ -162,7 +162,7 @@ contract InvFeedFork is Test {
             abi.encode(0, 10, 0, 0, 0)
         );
         (, int256 invUsdPriceFallback, , , ) = feed.latestRoundData();
-        assertEq(uint256(invUsdPriceFallback), feed.latestAnswer());
+        assertEq(uint256(invUsdPriceFallback), uint(feed.latestAnswer()));
 
         assertApproxEqAbs(
             uint256(invUsdPrice),
