@@ -30,7 +30,6 @@ contract DAIEscrow {
     IERC20 public constant token = IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
     IDSR public constant DSR_MANAGER = IDSR(0x373238337Bfe1146fb49989fc222523f83081dDb);
     IPot public constant POT = IPot(0x197E90f9FAD81970bA7976f33CbD77088E5D7cf7);
-    address public beneficiary;
 
     /**
      * @notice Initialize escrow with a token
