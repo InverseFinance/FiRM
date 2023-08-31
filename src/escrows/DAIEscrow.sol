@@ -27,23 +27,19 @@ interface IPot {
 contract DAIEscrow {
 
     address public market;
-    IERC20 public token;
+    IERC20 public constant token = IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
     IDSR public constant DSR_MANAGER = IDSR(0x373238337Bfe1146fb49989fc222523f83081dDb);
     IPot public constant POT = IPot(0x197E90f9FAD81970bA7976f33CbD77088E5D7cf7);
     address public beneficiary;
 
     /**
      * @notice Initialize escrow with a token
-     * @dev Must be called right after proxy is created.
-     * @param _token The IERC20 token representing DAI
-     * @param _beneficiary The beneficiary
+     * @dev Must be called right after proxy is created. Unecessary to set both token and beneficiary, as escrow only works with DAI
      */
-    function initialize(IERC20 _token, address _beneficiary) public {
+    function initialize(IERC20, address) public {
         require(market == address(0), "ALREADY INITIALIZED");
         market = msg.sender;
-        token = _token;
-        beneficiary = _beneficiary;
-        _token.approve(address(DSR_MANAGER), type(uint).max);
+        token.approve(address(DSR_MANAGER), type(uint).max);
     }
     
     /**
