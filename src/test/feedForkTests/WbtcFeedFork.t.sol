@@ -14,7 +14,7 @@ contract WbtcFeedFork is Test {
         feed = new WbtcPriceFeed();
     }
 
-    function testNominalCaseWithinBounds() public {
+    function test_latestRoundData_NominalCaseWithinBounds() public {
         (uint80 clRoundId1, int256 btcToUsdPrice, uint clStartedAt1, uint clUpdatedAt1,  uint80 clAnsweredInRound1) = feed.btcToUsd().latestRoundData();
         (uint80 clRoundId2, int256 wbtcToBtcPrice, uint clStartedAt2, uint clUpdatedAt2,  uint80 clAnsweredInRound2) = feed.wbtcToBtc().latestRoundData();
         (uint80 roundId, int256 wbtcUsdPrice, uint startedAt, uint updatedAt, uint80 answeredInRound) = feed.latestRoundData();
@@ -37,7 +37,7 @@ contract WbtcFeedFork is Test {
         if(wbtcToBtcPrice < 10**8) assertGt(wbtcUsdPrice, btcToUsdPrice);
     }
 
-    function testWillReturnFallbackWhenOutOfMaxBounds() public {
+    function test_latestRoundData_WillReturnFallbackWhenOutOfMaxBounds() public {
         (uint80 clRoundId1, int256 btcToUsdPrice, uint clStartedAt1, uint clUpdatedAt1,  uint80 clAnsweredInRound1) = feed.btcToUsd().latestRoundData();
         (uint80 clRoundId2, int256 wbtcToBtcPrice, uint clStartedAt2, uint clUpdatedAt2,  uint80 clAnsweredInRound2) = feed.wbtcToBtc().latestRoundData();
         vm.mockCall(
@@ -64,7 +64,7 @@ contract WbtcFeedFork is Test {
         assertEq(feed.wbtcToUsdFallbackOracle(), wbtcUsdPrice, "Did not return fallback price");
     }
 
-    function testWillReturnFallbackWhenOutOfMinBounds() public {
+    function test_latestRoundData_WillReturnFallbackWhenOutOfMinBounds() public {
         (uint80 clRoundId1, int256 btcToUsdPrice, uint clStartedAt1, uint clUpdatedAt1,  uint80 clAnsweredInRound1) = feed.btcToUsd().latestRoundData();
         (uint80 clRoundId2, int256 wbtcToBtcPrice, uint clStartedAt2, uint clUpdatedAt2,  uint80 clAnsweredInRound2) = feed.wbtcToBtc().latestRoundData();
         vm.mockCall(
@@ -90,6 +90,13 @@ contract WbtcFeedFork is Test {
         assertLt(wbtcUsdPrice, feed.btcToUsd().latestAnswer() * 110 / 100, "Fallback price more than 10% higher than oracle"); 
         assertGt(wbtcUsdPrice, feed.btcToUsd().latestAnswer() * 90 / 100, "Wbtc more than 10% lower than oracle"); 
         assertEq(feed.wbtcToUsdFallbackOracle(), wbtcUsdPrice, "Did not return fallback price");
+    }
+
+    function test_latestAnswer_ReturnSameAsLatestRoundData() public {
+        (,int btcLRD,,,) = feed.wbtcToBtc().latestRoundData();
+        int btcLA = feed.wbtcToBtc().latestAnswer();
+
+        assertEq(btcLRD, btcLA);
     }
 }
 

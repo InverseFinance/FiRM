@@ -36,7 +36,7 @@ contract WbtcPriceFeed {
      * @return updatedAt The lowest timestamp when either of the latest round of Chainlink price feed was updated
      * @return answeredInRound The round ID in which the answer was computed of the lowest updatedAt feed
      */
-    function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80){
+    function latestRoundData() public view returns (uint80, int256, uint256, uint256, uint80){
         (uint80 wbtcBtcRoundId,int256 wbtcBtcPrice,uint wbtcBtcStartedAt,uint wbtcBtcUpdatedAt,uint80 wbtcBtcAnsweredInRound) = wbtcToBtc.latestRoundData();
         (uint80 btcUsdRoundId,int256 btcUsdPrice,uint btcUsdStartedAt,uint btcUsdUpdatedAt,uint80 btcUsdAnsweredInRound) = btcToUsd.latestRoundData();
         int wbtcUsdPrice = btcUsdPrice * 10**8 / wbtcBtcPrice;
@@ -48,6 +48,15 @@ contract WbtcPriceFeed {
         } else {
             return (btcUsdRoundId, wbtcUsdPrice, btcUsdStartedAt, btcUsdUpdatedAt, btcUsdAnsweredInRound);
         }
+    }
+    /**
+     * @notice Returns the latest price only
+     * @dev Unlike chainlink oracles, the latestAnswer will always be the same as in the latestRoundData
+     * @return int256 Returns the last finalized price of the chainlink oracle
+     */
+    function latestAnswer() external view returns (int256){
+        (,int256 latestPrice,,,) = latestRoundData();
+        return latestPrice;
     }
 
     /**
@@ -72,9 +81,9 @@ contract WbtcPriceFeed {
         //0 index is wbtc usdt price
         //Reduce to 8 decimals to be in line with chainlink oracles
         int crvWbtcToUsdt = int(tricrypto.price_oracle(0));
-        (,int usdtToEth,,,) = usdtToEth.latestRoundData();
-        (,int ethToUsd,,,) = ethToUsd.latestRoundData();
-        int usdtToUsd = usdtToEth * ethToUsd / 10**18;
+        (,int usdtEth,,,) = usdtToEth.latestRoundData();
+        (,int ethUsd,,,) = ethToUsd.latestRoundData();
+        int usdtToUsd = usdtEth * ethUsd / 10**18;
         return crvWbtcToUsdt * usdtToUsd / 10**18;
         
     }
