@@ -11,9 +11,7 @@ contract RewardDistributor is Governable {
 
     //Market -> Debt, address(0) is global debt
     mapping(address => uint) public marketDebt;
-    //Token addresses of active global rewards
-    address[] public activeGlobalRewards;
-    //Market -> Array of active reward tokens
+    //Market -> Array of active reward tokens, address(0) is global rewards
     mapping(address => address[]) public activeMarketRewards;
     //Market -> (Reward Token -> RewardState of Token) - Market will be address(0) if global reward
     mapping(address => mapping(address => RewardState)) public rewardStates;
@@ -38,13 +36,16 @@ contract RewardDistributor is Governable {
         uint maxRatePerDebt;
         uint lastUpdate;
         uint rewardIndexMantissa;
+        uint surplus;
         mapping(address => uint) borrowerIndexMantissa;
     }
 
     modifier updateIndexes(address borrower) {
-        for(uint i; i < activeGlobalRewards.length;++i){
-            _updateBorrowerIndex(borrower, activeGlobalRewards[i], address(0));
+        //Update indexes of global rewards
+        for(uint i; i < activeMarketRewards[address(0)].length;++i){
+            _updateBorrowerIndex(borrower, activeMarketRewards[address(0)][i], address(0));
         }
+        //Update indexes of market specific rewards
         for(uint i; i < activeMarketRewards[msg.sender].length;++i){
             _updateBorrowerIndex(borrower, activeMarketRewards[msg.sender][i], msg.sender);
         }
@@ -64,6 +65,11 @@ contract RewardDistributor is Governable {
                 uint rewardsAccrued = deltaT * state.rewardRate * MANTISSA;
                 uint maxAccrued = deltaT * state.maxRatePerDebt * marketDebt[market];
                 if(rewardsAccrued > maxAccrued) rewardsAccrued = maxAccrued;
+                if(rewardsAccrued > state.surplus){
+                    rewardsAccrued = state.surplus;
+                    rewardStates[market][token].surplus = 0;
+                    _inactivateReward(token, market);
+                }
                 rewardStates[market][token].rewardIndexMantissa += rewardsAccrued / marketDebt[market];
             }
             rewardStates[market][token].lastUpdate = block.timestamp; 
@@ -94,6 +100,14 @@ contract RewardDistributor is Governable {
         marketBorrowerDebt[address(0)][borrower] -= debtReduction;
         marketDebt[msg.sender] -= debtReduction;
         marketDebt[address(0)] -= debtReduction;
+    }
+
+    function claimable(address borrower, address token, address[] calldata markets) external view returns(uint) {
+        uint totalClaimable;
+        for(uint i; i < markets.length; ++i){
+            totalClaimable = claimable(borrower, token, markets[i]);
+        }
+        return totalClaimable;
     }
 
     function claimable(address borrower, address token, address market) public view returns(uint) {
@@ -140,54 +154,39 @@ contract RewardDistributor is Governable {
     {
         if(maxRatePerDebt == 0 || rewardRate == 0) revert ActiveRateCantBeZero();
         if(isTokenActive(token, market)) revert TokenAlreadyActive(market);
-        if(market == address(0)){
-            activeGlobalRewards.push(token);
-        } else {
-            activeMarketRewards[market].push(token);
-        }
+        activeMarketRewards[market].push(token);
         rewardStates[market][token].lastUpdate = block.timestamp;
         rewardStates[market][token].rewardRate = rewardRate;
         rewardStates[market][token].maxRatePerDebt = maxRatePerDebt;
     }
 
-    function inactivateReward(
+    function inactivateReward( address token, address market) external onlyGov {
+        _updateRewardIndex(token, market);
+        _inactivateReward(token, market);
+    }
+
+    function _inactivateReward(
         address token,
-        address market) external onlyGov
+        address market) internal
     {
         bool isActive;
-        if(market == address(0)){
-            for(uint i; i < activeGlobalRewards.length; ++i){
-                if(activeGlobalRewards[i] == token){
-                    delete(activeGlobalRewards[i]);
-                    break;
-                }
-            }
-        } else {
-            for(uint i; i < activeMarketRewards[market].length; ++i){
-                if(activeMarketRewards[market][i] == token){
-                    delete(activeMarketRewards[market][i]);
-                    break;
-                }
+        for(uint i; i < activeMarketRewards[market].length; ++i){
+            if(activeMarketRewards[market][i] == token){
+                isActive = true;
+                delete(activeMarketRewards[market][i]);
+                break;
             }
         }
         if(!isActive) revert TokenInactive();
-
-        _updateRewardIndex(token, market);
         rewardStates[market][token].lastUpdate = block.timestamp;
         rewardStates[market][token].rewardRate = 0;
         rewardStates[market][token].maxRatePerDebt = 0;
     }
 
     function isTokenActive(address token, address market) public view returns(bool){
-        if(market == address(0)){
-            for(uint i; i < activeGlobalRewards.length; ++i){
-                if(activeGlobalRewards[i] == token) return true;
-            }
-        } else {
-            for(uint i; i < activeMarketRewards[market].length; ++i){
-                if(activeMarketRewards[market][i] == token) return true;
-            }
-        }   
+        for(uint i; i < activeMarketRewards[market].length; ++i){
+            if(activeMarketRewards[market][i] == token) return true;
+        }
         return false;
     }
 }
