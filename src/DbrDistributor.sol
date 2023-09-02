@@ -1,11 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 import "src/interfaces/IERC20.sol";
-
-interface IDBR {
-    function markets(address) external view returns (bool);
-    function mint(address, uint) external;
-}
+import "src/interfaces/IDBR.sol";
 
 interface IINVEscrow {
     function market() external view returns (address);
