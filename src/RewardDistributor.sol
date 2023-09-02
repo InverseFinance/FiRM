@@ -1,13 +1,13 @@
 pragma solidity ^0.8.13;
 
 import "src/Governable.sol";
-import "src/DBR.sol";
 import "src/interfaces/IERC20.sol";
+import "src/interfaces/IDBR.sol";
 
 contract RewardDistributor is Governable {
 
     uint public constant MANTISSA = 1e18;
-    DolaBorrowingRights public immutable DBR;
+    IDBR public immutable DBR;
 
     //Market -> Debt, address(0) is global debt
     mapping(address => uint) public marketDebt;
@@ -29,7 +29,7 @@ contract RewardDistributor is Governable {
     error ActiveRateCantBeZero();
 
     constructor(address _dbr, address _gov) Governable(_gov){
-        DBR = DolaBorrowingRights(_dbr);
+        DBR = IDBR(_dbr);
     }
     
     struct RewardState {
@@ -81,7 +81,7 @@ contract RewardDistributor is Governable {
     }
 
     //Call on both force replenishments and borrow
-    function onIncreaseDebt(address borrower, uint debtIncrease) public updateIndexes(borrower) onlyMarket {
+    function onIncreaseDebt(address borrower, uint debtIncrease) public onlyMarket updateIndexes(borrower) {
         marketBorrowerDebt[msg.sender][borrower] += debtIncrease;
         marketBorrowerDebt[address(0)][borrower] += debtIncrease;
         marketDebt[msg.sender] += debtIncrease;
@@ -89,7 +89,7 @@ contract RewardDistributor is Governable {
     }
 
     //Call on both repayments and liquidations
-    function onReduceDebt(address borrower, uint debtReduction) public updateIndexes(borrower) onlyMarket {
+    function onReduceDebt(address borrower, uint debtReduction) public onlyMarket updateIndexes(borrower) {
         marketBorrowerDebt[msg.sender][borrower] -= debtReduction;
         marketBorrowerDebt[address(0)][borrower] -= debtReduction;
         marketDebt[msg.sender] -= debtReduction;
