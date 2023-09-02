@@ -35,7 +35,6 @@ contract RewardDistributor is Governable {
     struct RewardState {
         address rewardToken;
         uint rewardRate;
-        //TODO: Implement max rate per debt
         uint maxRatePerDebt;
         uint lastUpdate;
         uint rewardIndexMantissa;
@@ -61,8 +60,10 @@ contract RewardDistributor is Governable {
         RewardState storage state = rewardStates[market][token];
         uint deltaT = block.timestamp - state.lastUpdate;
         if(deltaT > 0) {
-             if(state.rewardRate > 0 && marketDebt[market] > 0) {
+            if(state.rewardRate > 0 && marketDebt[market] > 0) {
                 uint rewardsAccrued = deltaT * state.rewardRate * MANTISSA;
+                uint maxAccrued = deltaT * state.maxRatePerDebt * marketDebt[market];
+                if(rewardsAccrued > maxAccrued) rewardsAccrued = maxAccrued;
                 rewardStates[market][token].rewardIndexMantissa += rewardsAccrued / marketDebt[market];
             }
             rewardStates[market][token].lastUpdate = block.timestamp; 
