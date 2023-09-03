@@ -44,7 +44,8 @@ contract InvPriceFeed {
 
     /**
      * @notice Retrieves the latest round data for the INV token price feed
-     * @dev This function calculates the INV price in USD by combining the USDC to USD price from a Chainlink oracle and the INV to USDC ratio from the tricrypto pool
+     * @dev This function calculates the INV price in USD by combining the USDC to USD price from a Chainlink oracle 
+     * and the INV to USDC ratio from the tricrypto pool. If USC/USD price is out of bounds, it will fallback to ETH/USD price.
      * @return roundId The round ID of the Chainlink price feed
      * @return usdcUsdPrice The latest USDC price in USD computed from the INV/USDC and USDC/USD feeds
      * @return startedAt The timestamp when the latest round of Chainlink price feed started
@@ -95,11 +96,11 @@ contract InvPriceFeed {
     /**
      * @notice Fetches the ETH to USD price and the ETH to USDC to get USDC/USD price, adjusts the decimals to match Chainlink oracles.
      * @dev The function assumes that the `price_oracle` returns the price with 18 decimals, and it adjusts to 8 decimals for compatibility with Chainlink oracles.
-     * @return roundId The round ID of the Chainlink price feed
+     * @return roundId The round ID of the ETH/USD Chainlink price feed
      * @return usdcToUsdPrice The latest USDC price in USD computed from the ETH/USD and ETH/USDC feeds
-     * @return startedAt The timestamp when the latest round of Chainlink price feed started
-     * @return updatedAt The timestamp when the latest round of Chainlink price feed was updated
-     * @return answeredInRound The round ID in which the answer was computed
+     * @return startedAt The timestamp when the latest round of ETH/USD Chainlink price feed started
+     * @return updatedAt The timestamp when the latest round of ETH/USD Chainlink price feed was updated
+     * @return answeredInRound The round ID of the ETH/USD Chainlink price feed in which the answer was computed
      */
     function usdcToUsdFallbackOracle()
         public
@@ -123,6 +124,16 @@ contract InvPriceFeed {
         return (roundId, usdcToUsdPrice, startedAt, updatedAt, answeredInRound);
     }
 
+    /**
+     * @notice Retrieves the latest round data for the INV token price feed
+     * @dev This function calculates the INV price in USD by combining the USDC to USD price from a Chainlink oracle and the INV to USDC ratio from the tricrypto pool
+     * @return roundId The round ID of the Chainlink price feed
+     * @return usdcUsdPrice The latest USDC price in USD computed from the INV/USDC and USDC/USD feeds
+     * @return startedAt The timestamp when the latest round of Chainlink price feed started
+     * @return updatedAt The timestamp when the latest round of Chainlink price feed was updated
+     * @return answeredInRound The round ID in which the answer was computed
+     */
+
     function _latestRoundData()
         internal
         view
@@ -145,10 +156,10 @@ contract InvPriceFeed {
                 answeredInRound
             ) = usdcToUsdFallbackOracle();
         }
-        int256 invDollarPrice = int256(tricrypto.price_oracle(invK));
+        int256 invUsdcPrice = int256(tricrypto.price_oracle(invK));
 
-        invDollarPrice =
-            (invDollarPrice * usdcUsdPrice * int(10 ** 10)) /
+        int256 invDollarPrice =
+            (invUsdcPrice * usdcUsdPrice * 10 ** 10) /
             int(10 ** decimals());
 
         return (roundId, invDollarPrice, startedAt, updatedAt, answeredInRound);
