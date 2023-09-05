@@ -25,6 +25,7 @@ contract RewardDistributor is Governable {
     error TokenAlreadyActive(address market);
     error TokenInactive();
     error ActiveRateCantBeZero();
+    error ZeroAmount();
 
     constructor(address _dbr, address _gov) Governable(_gov){
         DBR = IDBR(_dbr);
@@ -146,18 +147,30 @@ contract RewardDistributor is Governable {
         rewardStates[market][token].maxRatePerDebt = _maxRatePerDebt;
     }
 
+    function topUp(address token, address market, uint amount) external {
+        if(!isTokenActive(token, market) revert TokenInactive();
+        if(amount == 0) revert ZeroAmount();
+        //TODO: Use safe transfer
+        IERC20(token).transferFrom(msg.sender, address(this), amount);
+        rewardStates[market][token].surplus += amount;
+    }
+
     function activateReward(
         address token,
         address market,
         uint rewardRate,
-        uint maxRatePerDebt) external onlyGov
-    {
+        uint maxRatePerDebt,
+        uint amount
+    ) external onlyGov {
         if(maxRatePerDebt == 0 || rewardRate == 0) revert ActiveRateCantBeZero();
         if(isTokenActive(token, market)) revert TokenAlreadyActive(market);
+        //TODO: Use safe transfer
+        if(amount > 0) IERC20(token).transferFrom(msg.sender, address(this), amount);
         activeMarketRewards[market].push(token);
         rewardStates[market][token].lastUpdate = block.timestamp;
         rewardStates[market][token].rewardRate = rewardRate;
         rewardStates[market][token].maxRatePerDebt = maxRatePerDebt;
+        rewardStates[market][token].surplus += amount;
     }
 
     function inactivateReward( address token, address market) external onlyGov {
@@ -167,8 +180,8 @@ contract RewardDistributor is Governable {
 
     function _inactivateReward(
         address token,
-        address market) internal
-    {
+        address market
+    ) internal {
         bool isActive;
         for(uint i; i < activeMarketRewards[market].length; ++i){
             if(activeMarketRewards[market][i] == token){
