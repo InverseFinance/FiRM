@@ -141,9 +141,9 @@ contract ERC20 {
         address to,
         uint256 value
     ) external returns (bool) {
-        // if (allowance[from][msg.sender] != uint(-1)) {
-        //     allowance[from][msg.sender] = allowance[from][msg.sender].sub(value);
-        // }
+        if (allowance[from][msg.sender] != uint(-1)) {
+             allowance[from][msg.sender] = allowance[from][msg.sender].sub(value);
+        }
         _transfer(from, to, value);
         return true;
     }

@@ -25,6 +25,7 @@ contract RewardDistributor is Governable {
     error TokenAlreadyActive(address market);
     error TokenInactive();
     error ActiveRateCantBeZero();
+    error RewardRateAboveMaxRate();
     error ZeroAmount();
 
     constructor(address _dbr, address _gov) Governable(_gov){
@@ -148,7 +149,7 @@ contract RewardDistributor is Governable {
     }
 
     function topUp(address token, address market, uint amount) external {
-        if(!isTokenActive(token, market) revert TokenInactive();
+        if(!isTokenActive(token, market)) revert TokenInactive();
         if(amount == 0) revert ZeroAmount();
         //TODO: Use safe transfer
         IERC20(token).transferFrom(msg.sender, address(this), amount);

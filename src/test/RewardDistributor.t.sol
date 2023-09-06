@@ -4,6 +4,7 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 import "src/RewardDistributor.sol";
 import "src/test/mocks/DBR.sol";
+import "src/test/mocks/ERC20.sol";
 
 contract RewardDistributorTest is Test {
     DBRMock dbr;
@@ -13,12 +14,29 @@ contract RewardDistributorTest is Test {
     address operator = address(0xC);
     address market = address(0xD);
     address mallory = address(0x1337);
+    ERC20 token1 = new ERC20("Token 1", "TKN1", 18);
 
     function setUp() public {
         dbr = new DBRMock();
         dbr.allowMarket(address(market));
         rewardDistributor = new RewardDistributor(address(dbr), gov);
-        vm.prank(operator);
+        deal(address(token1), gov, 10**6 ether);
+    }
+
+    function test_activateReward_nominal() external {
+        vm.startPrank(gov);
+        token1.approve(address(rewardDistributor), uint(-1));
+        uint rewardRate = 10000;
+        uint maxRatePerDebt = 100;
+        uint tokenAmount = 10**5;
+        activateReward(address(token1), market, 10000, 20000, tokenAmount);
+        vm.stopPrank();
+        assertEq(activeMarketRewards[market].length, 1, "More than 1 active rewards");
+        assertEq(rewardStates(market, address(token1)).lastUpdate, block.timestamp, "Lastupdate out of sync");
+        assertEq(rewardStates(market, address(token1)).rewardRate, rewardRate, "Reward rate set imporproperly");
+        assertEq(rewardStates(market, address(token1)).maxRatePerDebt, maxRatePerDebt, "Max rate per debt set imporproperly");
+        assertEq(rewardStates(market, address(token1)).surplus, tokenAmount, "Surplus not equal to tokens supplied");
+        assertEq(token1.balanceOf(address(rewardDistributor), tokenAmount), "Didn't receive necessary amount");
     }
 
 
