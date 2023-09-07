@@ -104,10 +104,10 @@ contract ALEHelperTest is FiRMForkTest {
         // ALE setup
         vm.prank(gov);
         DOLA.addMinter(address(ale));
-
+        
         ale.setMarket(
+            address(styCRVmarket),
             yCRV,
-            IMarket(address(styCRVmarket)),
             address(styCRVmarket.collateral()),
             address(helper)
         );
@@ -308,7 +308,7 @@ contract ALEHelperTest is FiRMForkTest {
 
         ale.leveragePosition(
             maxBorrowAmount,
-            yCRV,
+            address(styCRVmarket),
             address(exchangeProxy),
             swapData,
             permit,
@@ -393,7 +393,7 @@ contract ALEHelperTest is FiRMForkTest {
 
         ale.leveragePosition(
             maxBorrowAmount,
-            yCRV,
+            address(styCRVmarket),
             address(exchangeProxy),
             swapData,
             permit,
@@ -475,7 +475,7 @@ contract ALEHelperTest is FiRMForkTest {
         ale.depositAndLeveragePosition(
             1 ether,
             maxBorrowAmount,
-            yCRV,
+            address(styCRVmarket),
             address(exchangeProxy),
             swapData,
             permit,
@@ -570,7 +570,7 @@ contract ALEHelperTest is FiRMForkTest {
         vm.startPrank(userPk, userPk);
         ale.deleveragePosition(
             _convertCollatToDola(amountToWithdraw),
-            yCRV,
+            address(styCRVmarket),
             amountToWithdraw,
             address(exchangeProxy),
             swapData,
@@ -665,7 +665,7 @@ contract ALEHelperTest is FiRMForkTest {
 
         ale.deleveragePosition(
             _convertCollatToDola(amountToWithdraw),
-            yCRV,
+            address(styCRVmarket),
             amountToWithdraw,
             address(exchangeProxy),
             swapData,

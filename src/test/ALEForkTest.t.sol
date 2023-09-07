@@ -61,7 +61,7 @@ contract ALEForkTest is FiRMForkTest {
     function setUp() public {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url);
+        vm.createSelectFork(url,17642520);
         init();
 
         vm.startPrank(chair, chair);
@@ -81,11 +81,11 @@ contract ALEForkTest is FiRMForkTest {
         ale = new ALE(address(exchangeProxy), curvePool);
         // ALE setup
         vm.prank(gov);
-        DOLA.addMinter(address(ale));
+        DOLA.addMinter(address(ale));  
 
         ale.setMarket(
+            address(market),
             address(market.collateral()),
-            IMarket(address(market)),
             address(market.collateral()),
             address(0)
         );
@@ -170,7 +170,7 @@ contract ALEForkTest is FiRMForkTest {
         ale.depositAndLeveragePosition(
             crvTestAmount,
             maxBorrowAmount,
-            address(market.collateral()),
+            address(market),
             address(exchangeProxy),
             swapData,
             permit,
@@ -249,7 +249,7 @@ contract ALEForkTest is FiRMForkTest {
         ale.depositAndLeveragePosition(
             0,
             maxBorrowAmount,
-            address(collateral),
+            address(market),
             address(exchangeProxy),
             swapData,
             permit,
@@ -315,7 +315,7 @@ contract ALEForkTest is FiRMForkTest {
 
         ale.leveragePosition(
             maxBorrowAmount,
-            address(market.collateral()),
+            address(market),
             address(exchangeProxy),
             swapData,
             permit,
@@ -401,7 +401,7 @@ contract ALEForkTest is FiRMForkTest {
 
         ale.deleveragePosition(
             convertCollatToDola(amountToWithdraw),
-            address(market.collateral()),
+            address(market),
             amountToWithdraw,
             address(exchangeProxy),
             swapData,
@@ -492,7 +492,7 @@ contract ALEForkTest is FiRMForkTest {
 
         ale.deleveragePosition(
             borrowAmount,
-            address(market.collateral()),
+            address(market),
             amountToWithdraw,
             address(exchangeProxy),
             swapData,
@@ -567,7 +567,7 @@ contract ALEForkTest is FiRMForkTest {
 
         ale.leveragePosition(
             maxBorrowAmount,
-            address(market.collateral()),
+            address(market),
             address(exchangeProxy),
             swapData,
             permit,
@@ -648,7 +648,7 @@ contract ALEForkTest is FiRMForkTest {
 
         ale.deleveragePosition(
             maxBorrowAmount,
-            address(market.collateral()),
+            address(market),
             amountToWithdraw,
             address(exchangeProxy),
             swapData,
@@ -723,7 +723,7 @@ contract ALEForkTest is FiRMForkTest {
 
         ale.leveragePosition(
             maxBorrowAmount,
-            address(market.collateral()),
+            address(market),
             address(exchangeProxy),
             swapData,
             permit,
@@ -766,7 +766,7 @@ contract ALEForkTest is FiRMForkTest {
 
         ale.deleveragePosition(
             maxBorrowAmount,
-            address(market.collateral()),
+            address(market),
             amountToWithdraw,
             address(exchangeProxy),
             swapData,
@@ -837,7 +837,7 @@ contract ALEForkTest is FiRMForkTest {
         // WE can deleverage even if we have no debt, will be swapped to DOLA and sent to the user
         ale.deleveragePosition(
             0,
-            address(collateral),
+            address(market),
             amountToWithdraw,
             address(exchangeProxy),
             swapData,
@@ -901,7 +901,7 @@ contract ALEForkTest is FiRMForkTest {
         vm.expectRevert(exceededLimit);
         ale.leveragePosition(
             maxBorrowAmount,
-            address(collateral),
+            address(market),
             address(exchangeProxy),
             swapData,
             permit,
@@ -959,7 +959,7 @@ contract ALEForkTest is FiRMForkTest {
         vm.expectRevert(repaymentGtThanDebt);
         ale.deleveragePosition(
             1 ether,
-            address(collateral),
+            address(market),
             amountToWithdraw,
             address(exchangeProxy),
             swapData,
@@ -1030,7 +1030,7 @@ contract ALEForkTest is FiRMForkTest {
         vm.expectRevert(exceededLimit);
         ale.leveragePosition(
             maxBorrowAmount,
-            address(collateral),
+            address(market),
             address(exchangeProxy),
             swapData,
             permit,

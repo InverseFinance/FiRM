@@ -10,6 +10,7 @@ import "../Oracle.sol";
 import {ALE} from "../util/ALE.sol";
 import {STYCRVHelper} from "../util/STYCRVHelper.sol";
 import {YCRVFeed} from "./mocks/YCRVFeed.sol";
+import {console} from "forge-std/console.sol";
 
 interface IErc20 is IERC20 {
     function approve(address beneficiary, uint amount) external;
@@ -103,7 +104,7 @@ contract ALEHelperForkTest is Test {
 
     function setUp() public {
         string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url);
+        vm.createSelectFork(url, 17809803);
 
         DOLA = IMintable(0x865377367054516e17014CcdED1e7d814EDC9ce4);
         market = Market(0x27b6c301Fd441f3345d61B7a4245E1F823c3F9c4); // st-yCRV Market
@@ -127,8 +128,8 @@ contract ALEHelperForkTest is Test {
 
         ale = new ALE(address(exchangeProxy), curvePool);
         ale.setMarket(
+            address(market),
             yCRV,
-            IMarket(address(market)),
             address(market.collateral()),
             address(helper)
         );
@@ -231,7 +232,7 @@ contract ALEHelperForkTest is Test {
 
         ale.leveragePosition(
             maxBorrowAmount,
-            yCRV,
+            address(market),
             address(exchangeProxy),
             swapData,
             permit,
@@ -314,7 +315,7 @@ contract ALEHelperForkTest is Test {
 
         ale.leveragePosition(
             maxBorrowAmount,
-            yCRV,
+            address(market),
             address(exchangeProxy),
             swapData,
             permit,
@@ -403,7 +404,7 @@ contract ALEHelperForkTest is Test {
 
         ale.deleveragePosition(
             _convertCollatToDola(amountToWithdraw),
-            yCRV,
+            address(market),
             amountToWithdraw,
             address(exchangeProxy),
             swapData,
@@ -490,7 +491,7 @@ contract ALEHelperForkTest is Test {
         vm.startPrank(userPk, userPk);
         ale.deleveragePosition(
             _convertCollatToDola(amountToWithdraw),
-            yCRV,
+            address(market),
             amountToWithdraw,
             address(exchangeProxy),
             swapData,
