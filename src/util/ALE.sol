@@ -213,14 +213,14 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
 
             if (
                 _collateralAmount + 1 < estimateAmount &&
-                IERC20(sellToken).balanceOf(address(this)) <
+                sellToken.balanceOf(address(this)) <
                 _collateralAmount
             ) revert WithdrawFailed();
         }
 
         // Approve sellToken for spender
-        IERC20(sellToken).approve(_spender, 0);
-        IERC20(sellToken).approve(_spender, _collateralAmount);
+        sellToken.approve(_spender, 0);
+        sellToken.approve(_spender, _collateralAmount);
 
         // Call the encoded swap function call on the contract at `swapTarget`,
         // passing along any ETH attached to this function call to cover protocol fees.
@@ -320,8 +320,6 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         }
 
         // Deposit and borrow on behalf
-        // markets[_market].collateral.approve(_market, collateralAmount);
-        // markets[_market].buySellToken.approve(_market, collateralAmount);
         market.deposit(msg.sender, collateralAmount);
 
         uint256 dolaToBorrow = _value;
