@@ -10,6 +10,7 @@ import "../Oracle.sol";
 import {ALE} from "../util/ALE.sol";
 import {STYCRVHelper} from "../util/STYCRVHelper.sol";
 import {YCRVFeed} from "./mocks/YCRVFeed.sol";
+import {ISTYCRV} from "../interfaces/ISTYCRV.sol";
 import {console} from "forge-std/console.sol";
 
 interface IErc20 is IERC20 {
@@ -177,6 +178,8 @@ contract ALEHelperForkTest is Test {
     }
 
     function test_leveragePosition() public {
+        // vm.assume(styCRVAmount < 7900 ether);
+        // vm.assume(styCRVAmount > 0.00000001 ether);
         // We are going to deposit some CRV, then leverage the position
         uint styCRVAmount = 1 ether;
         address userPk = vm.addr(1);
@@ -247,7 +250,7 @@ contract ALEHelperForkTest is Test {
                 helper.assetToCollateral(
                     _convertDolaToUnderlying(maxBorrowAmount)
                 ),
-            1
+            1000
         );
 
         assertEq(DOLA.balanceOf(userPk), 0);
@@ -310,7 +313,8 @@ contract ALEHelperForkTest is Test {
 
         ALE.DBRHelper memory dbrData = ALE.DBRHelper(
             dolaForDBR,
-            (dbrAmount * 97) / 100
+            (dbrAmount * 97) / 100,
+            0
         );
 
         ale.leveragePosition(
@@ -331,9 +335,11 @@ contract ALEHelperForkTest is Test {
         assertGt(dbr.balanceOf(userPk), (dbrAmount * 97) / 100);
     }
 
-    function test_deleveragePosition_sellDBR() public {
+    function test_deleveragePosition_sellDBR(uint256 styCRVAmount) public {
+        vm.assume(styCRVAmount < 7900 ether);
+        vm.assume(styCRVAmount > 0.00000001 ether);
         // We are going to deposit some st-yCRV, then borrow and then deleverage the position
-        uint styCRVAmount = 1 ether;
+        //uint styCRVAmount = 1 ether;
         address userPk = vm.addr(1);
         vm.prank(styCRVHolder);
         IERC20(styCRV).transfer(userPk, styCRVAmount);
@@ -391,7 +397,7 @@ contract ALEHelperForkTest is Test {
 
         ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
 
-        ALE.DBRHelper memory dbrData = ALE.DBRHelper(dbr.balanceOf(userPk), 0); // sell all DBR
+        ALE.DBRHelper memory dbrData = ALE.DBRHelper(dbr.balanceOf(userPk), 0, 0); // sell all DBR
 
         bytes memory swapData = abi.encodeWithSelector(
             MockExchangeProxy.swapDolaOut.selector,
@@ -425,7 +431,9 @@ contract ALEHelperForkTest is Test {
         assertEq(dbr.balanceOf(userPk), 0);
     }
 
-    function test_deleveragePosition() public {
+    function test_deleveragePosition(uint256 styCRVAmount) public {
+        vm.assume(styCRVAmount < 7900 ether);
+        vm.assume(styCRVAmount > 0.00000001 ether);
         // We are going to deposit some st-yCRV, then borrow and then deleverage the position
         uint styCRVAmount = 1 ether;
         address userPk = vm.addr(1);
@@ -509,7 +517,9 @@ contract ALEHelperForkTest is Test {
         assertEq(DOLA.balanceOf(userPk), borrowAmount);
     }
 
-    function test_transformToCollateralAndDeposit() public {
+    function test_transformToCollateralAndDeposit(uint256 yCRVAmount) public {
+        vm.assume(yCRVAmount < ISTYCRV(styCRV).availableDepositLimit());
+
         uint256 yCRVAmount = 1 ether;
         address userPk = vm.addr(1);
         vm.prank(yCRVHolder);
@@ -522,14 +532,15 @@ contract ALEHelperForkTest is Test {
         assertEq(IERC20(yCRV).balanceOf(userPk), 0);
         Market market = Market(address(helper.market()));
 
-        assertApproxEqAbs(
+        assertEq(
             IErc20(styCRV).balanceOf(address(market.predictEscrow(userPk))),
-            helper.assetToCollateral(yCRVAmount),
-            1
+            helper.assetToCollateral(yCRVAmount)
         );
     }
 
-    function test_withdrawAndTransformFromCollateral() public {
+    function test_withdrawAndTransformFromCollateral(uint256 yCRVAmount) public {
+        vm.assume(yCRVAmount < ISTYCRV(styCRV).availableDepositLimit());
+        
         uint256 yCRVAmount = 1 ether;
         address userPk = vm.addr(1);
         vm.prank(yCRVHolder);

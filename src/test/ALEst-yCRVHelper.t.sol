@@ -388,7 +388,8 @@ contract ALEHelperTest is FiRMForkTest {
 
         ALE.DBRHelper memory dbrData = ALE.DBRHelper(
             dolaForDBR,
-            (dbrAmount * 97) / 100
+            (dbrAmount * 97) / 100,
+            0
         );
 
         ale.leveragePosition(
@@ -405,6 +406,88 @@ contract ALEHelperTest is FiRMForkTest {
         checkEq(styCRVAmount, _convertDolaToCollat(maxBorrowAmount));
 
         assertEq(DOLA.balanceOf(userPk), 0);
+
+        assertGt(dbr.balanceOf(userPk), (dbrAmount * 97) / 100);
+    }
+
+    function test_leveragePosition_buyDBR_withdrawDOLA() public {
+        // We are going to deposit some st-yCRV, then leverage the position
+        uint styCRVAmount = 1 ether;
+        uint dolaToWithdraw = 0.01 ether;
+
+        address userPk = vm.addr(1);
+
+        vm.prank(styCRVHolder);
+        IERC20(styCRV).transfer(userPk, styCRVAmount);
+
+        uint maxBorrowAmount = _getMaxBorrowAmount(styCRVAmount + dolaToWithdraw);
+
+        uint256 yCRVAmount = helper.collateralToAsset(
+            _convertDolaToCollat(maxBorrowAmount)
+        );
+
+        // recharge mocked proxy for swap, we need to swap DOLA to unwrapped collateral
+        vm.prank(yCRVHolder);
+        IERC20(yCRV).transfer(address(exchangeProxy), yCRVAmount + 2);
+
+        vm.startPrank(userPk, userPk);
+        // Initial st-yCRV deposit
+        IErc20(styCRV).approve(address(styCRVmarket), styCRVAmount);
+        styCRVmarket.deposit(styCRVAmount);
+
+        // Calculate the amount of DOLA needed to borrow to buy the DBR needed to cover for the borrowing period
+        (uint256 dolaForDBR, uint256 dbrAmount) = ale
+            .approximateDolaAndDbrNeeded(maxBorrowAmount, 365 days, 8);
+
+        // Sign Message for borrow on behalf
+        bytes32 hash = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                styCRVmarket.DOMAIN_SEPARATOR(),
+                keccak256(
+                    abi.encode(
+                        keccak256(
+                            "BorrowOnBehalf(address caller,address from,uint256 amount,uint256 nonce,uint256 deadline)"
+                        ),
+                        address(ale),
+                        userPk,
+                        maxBorrowAmount + dolaForDBR + dolaToWithdraw,
+                        0,
+                        block.timestamp
+                    )
+                )
+            )
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
+
+        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+
+        bytes memory swapData = abi.encodeWithSelector(
+            MockExchangeProxy.swapDolaIn.selector,
+            yCRV,
+            maxBorrowAmount
+        );
+
+        ALE.DBRHelper memory dbrData = ALE.DBRHelper(
+            dolaForDBR,
+            (dbrAmount * 97) / 100,
+            dolaToWithdraw // will be sent to the user
+        );
+
+        ale.leveragePosition(
+            maxBorrowAmount,
+            address(styCRVmarket),
+            address(exchangeProxy),
+            swapData,
+            permit,
+            bytes(""),
+            dbrData
+        );
+
+        // Balance in escrow is equal to the collateral deposited + the extra collateral swapped from the leverage
+        checkEq(styCRVAmount, _convertDolaToCollat(maxBorrowAmount));
+
+        assertEq(DOLA.balanceOf(userPk), dolaToWithdraw);
 
         assertGt(dbr.balanceOf(userPk), (dbrAmount * 97) / 100);
     }
@@ -469,7 +552,8 @@ contract ALEHelperTest is FiRMForkTest {
 
         ALE.DBRHelper memory dbrData = ALE.DBRHelper(
             dolaForDBR,
-            (dbrAmount * 97) / 100
+            (dbrAmount * 97) / 100,
+            0
         );
 
         ale.depositAndLeveragePosition(
@@ -652,7 +736,7 @@ contract ALEHelperTest is FiRMForkTest {
 
         ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
 
-        ALE.DBRHelper memory dbrData = ALE.DBRHelper(dbr.balanceOf(userPk), 0); // sell all DBR
+        ALE.DBRHelper memory dbrData = ALE.DBRHelper(dbr.balanceOf(userPk), 0, 0); // sell all DBR
 
         bytes memory swapData = abi.encodeWithSelector(
             MockExchangeProxy.swapDolaOut.selector,

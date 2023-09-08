@@ -30,7 +30,7 @@ contract FiRMForkTest is Test {
     address user = address(0x69);
     address user2 = address(0x70);
     address replenisher = address(0x71);
-    address collatHolder = address(0xD533a949740bb3306d119CC777fa900bA034cd52);
+    address collatHolder = address(0x5f3b5DfEb7B28CDbD7FAba78963EE202a494e2A2);
     address gov = address(0x926dF14a23BE491164dCF93f4c468A50ef659D5B);
     address chair = address(0x8F97cCA30Dbe80e7a8B462F1dD1a51C32accDfC8);
     address pauseGuardian = address(0xE3eD95e130ad9E15643f5A5f232a3daE980784cd);

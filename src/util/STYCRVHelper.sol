@@ -11,8 +11,9 @@ import {ReentrancyGuard} from "lib/openzeppelin-contracts/contracts/security/Ree
 
 // st-yCRV helper
 contract STYCRVHelper is Ownable, ReentrancyGuard {
+    error DepositLimitExceeded();
     error NotEnoughShares();
-
+   
     uint256 public constant scale = 1e18;
     ISTYCRV public constant vault =
         ISTYCRV(0x27B5739e22ad9033bcBf192059122d163b60349D); // st-yCRV
@@ -47,6 +48,8 @@ contract STYCRVHelper is Ownable, ReentrancyGuard {
         uint256 _value,
         bytes calldata _helperData
     ) external nonReentrant returns (uint256 collateralAmount) {
+        if(_value > vault.availableDepositLimit()) revert DepositLimitExceeded();
+
         underlying.transferFrom(msg.sender, address(this), _value);
         // Transform underlying to collateral
         return vault.deposit(_value, msg.sender);
@@ -73,7 +76,7 @@ contract STYCRVHelper is Ownable, ReentrancyGuard {
     function assetToCollateral(
         uint assetAmount
     ) external view returns (uint collateralAmount) {
-        return (assetAmount * scale) / vault.pricePerShare();
+        return assetAmount * vault.totalSupply() / getFreeFunds();
     }
 
     /// @notice View function to calculate asset amount from collateral amount
@@ -126,5 +129,20 @@ contract STYCRVHelper is Ownable, ReentrancyGuard {
 
         uint256 shares = IERC20(address(vault)).balanceOf(address(this));
         return vault.withdraw(shares, msg.sender, maxLoss);
+    }
+
+    function getFreeFunds() public view returns (uint256) {
+        return vault.totalAssets() - calculateLockedProfit();
+    }
+
+    function calculateLockedProfit() public view returns (uint256) {
+        uint256 lockedFundsRatio = (block.timestamp - vault.lastReport()) * vault.lockedProfitDegradation(); 
+
+        if (lockedFundsRatio < 10**18) {
+            uint256 lockedProfit = vault.lockedProfit();
+
+            return lockedProfit  - (lockedFundsRatio * lockedProfit / 10**18);
+        }
+        else return 0;
     }
 }
