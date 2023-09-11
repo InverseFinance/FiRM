@@ -13,6 +13,10 @@ contract RewardDistributor is Governable {
     mapping(address => uint) public marketDebt;
     //Market -> Array of active reward tokens, address(0) is global rewards
     mapping(address => address[]) public activeMarketRewards;
+    //Market -> Array of inactive rewards
+    mapping(address => InactiveReward[]) public inactiveMarketRewards;
+    //Market -> (Borrower -> lastUpdate)
+    mapping(address => mapping(address => uint)) public lastInteraction;
     //Market -> (Reward Token -> RewardState of Token) - Market will be address(0) if global reward
     mapping(address => mapping(address => RewardState)) public rewardStates;
     //Market -> (Borrower -> Debt Amount)
@@ -31,6 +35,11 @@ contract RewardDistributor is Governable {
     constructor(address _dbr, address _gov) Governable(_gov){
         DBR = IDBR(_dbr);
     }
+
+    struct InactiveReward {
+        address rewardToken;
+        uint deactivatedAt;
+    }
     
     struct RewardState {
         address rewardToken;
@@ -43,13 +52,20 @@ contract RewardDistributor is Governable {
     }
 
     modifier updateIndexes(address borrower) {
+        address market = msg.sender;
         //Update indexes of global rewards
         for(uint i; i < activeMarketRewards[address(0)].length;++i){
             _updateBorrowerIndex(borrower, activeMarketRewards[address(0)][i], address(0));
         }
         //Update indexes of market specific rewards
-        for(uint i; i < activeMarketRewards[msg.sender].length;++i){
-            _updateBorrowerIndex(borrower, activeMarketRewards[msg.sender][i], msg.sender);
+        for(uint i; i < activeMarketRewards[market].length;++i){
+            _updateBorrowerIndex(borrower, activeMarketRewards[market][i], market);
+        }
+        uint len = inactiveMarketRewards[market].length;
+        if(len > 0){
+            if(lastInteraction[market][borrower] <= inactiveMarketRewards[market][len-1].deactivatedAt){
+                
+            }
         }
         _;
     }
@@ -70,7 +86,7 @@ contract RewardDistributor is Governable {
                 if(rewardsAccrued > state.surplus){
                     rewardsAccrued = state.surplus;
                     rewardStates[market][token].surplus = 0;
-                    _inactivateReward(token, market);
+                    _deactivateReward(token, market);
                 }
                 rewardStates[market][token].rewardIndexMantissa += rewardsAccrued / marketDebt[market];
             }
@@ -174,27 +190,37 @@ contract RewardDistributor is Governable {
         rewardStates[market][token].surplus += amount;
     }
 
-    function inactivateReward( address token, address market) external onlyGov {
+    function deactivateReward( address token, address market) external onlyGov {
         _updateRewardIndex(token, market);
-        _inactivateReward(token, market);
+        _deactivateReward(token, market);
     }
 
-    function _inactivateReward(
+    function _deactivateReward(
         address token,
         address market
     ) internal {
-        bool isActive;
-        for(uint i; i < activeMarketRewards[market].length; ++i){
-            if(activeMarketRewards[market][i] == token){
-                isActive = true;
-                delete(activeMarketRewards[market][i]);
-                break;
-            }
-        }
-        if(!isActive) revert TokenInactive();
+        if(!_deleteReward(token, market)) revert TokenInactive();
         rewardStates[market][token].lastUpdate = block.timestamp;
         rewardStates[market][token].rewardRate = 0;
         rewardStates[market][token].maxRatePerDebt = 0;
+    }
+
+    function _deleteReward(address token, address market) internal returns(bool){
+        uint foundIndex = type(uint).max;
+        for(uint i; i < activeMarketRewards[market].length; ++i){
+            if(activeMarketRewards[market][i] == token){
+                foundIndex = i;
+            }
+            if(foundIndex != type(uint).max){
+                //If last element, pop, else move forward by 1
+                if(i == activeMarketRewards[market].length-1){
+                    activeMarketRewards[market].pop();
+                } else {
+                    activeMarketRewards[market][i] = activeMarketRewards[market][i+1];
+                }
+            }
+        }
+        return foundIndex != type(uint).max;
     }
 
     function isTokenActive(address token, address market) public view returns(bool){
@@ -202,5 +228,37 @@ contract RewardDistributor is Governable {
             if(activeMarketRewards[market][i] == token) return true;
         }
         return false;
+    }
+
+    function getActiveRewardsCount(address market) external view returns(uint){
+        return activeMarketRewards[market].length;
+    }
+
+    function getRewardToken(address market, address rewardToken) external view returns(address){
+        return rewardStates[market][rewardToken].rewardToken;
+    }
+
+    function getRewardRate(address market, address rewardToken) external view returns(uint){
+        return rewardStates[market][rewardToken].rewardRate;
+    }
+
+    function getMaxRatePerDebt(address market, address rewardToken) external view returns(uint){
+        return rewardStates[market][rewardToken].maxRatePerDebt;
+    }
+
+    function getLastUpdate(address market, address rewardToken) external view returns(uint){
+        return rewardStates[market][rewardToken].lastUpdate;
+    }
+
+    function getRewardIndexMantissa(address market, address rewardToken) external view returns(uint){
+        return rewardStates[market][rewardToken].rewardIndexMantissa;
+    }
+
+    function getSurplus(address market, address rewardToken) external view returns(uint){
+        return rewardStates[market][rewardToken].surplus;
+    }
+
+    function getBorrowerIndexMantissa(address market, address rewardToken, address borrower) external view returns(uint){
+        return rewardStates[market][rewardToken].borrowerIndexMantissa[borrower];
     }
 }
