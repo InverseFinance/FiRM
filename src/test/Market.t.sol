@@ -60,12 +60,38 @@ contract MarketTest is FrontierV2Test {
         gibDBR(user, wethTestAmount);
         vm.startPrank(user, user);
         uint initialDolaBalance = DOLA.balanceOf(user);
+        uint initialDbrBalance = dbr.balanceOf(user);
         deposit(wethTestAmount);
 
         uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
         market.borrow(borrowAmount);
 
         assertEq(DOLA.balanceOf(user), initialDolaBalance + borrowAmount, "User balance did not increase by borrowAmount");
+        assertEq(dbr.balanceOf(user), initialDbrBalance, "DBR balance changed");
+        assertEq(dbr.deficitOf(user), 0, "User has a DBR deficit");
+    }
+
+    function testBorrow_Successful_WhenBorrowTwice_FullAmount() public {
+        gibWeth(user, wethTestAmount);
+        gibDBR(user, wethTestAmount);
+
+        vm.startPrank(user, user);
+
+        uint initialDolaBalance = DOLA.balanceOf(user);
+        uint initialDbrBalance = dbr.balanceOf(user);
+        deposit(wethTestAmount);
+        uint borrowAmount = getMaxBorrowAmount(wethTestAmount);
+        market.borrow(borrowAmount);
+        
+        market.repay(user, market.debts(user));
+
+        vm.warp(block.timestamp + 365 days);
+
+        market.borrow(borrowAmount);
+
+        assertEq(DOLA.balanceOf(user), initialDolaBalance + borrowAmount, "User balance did not increase by borrowAmount");
+        assertEq(dbr.balanceOf(user), initialDbrBalance, "DBR balance changed");
+        assertEq(dbr.deficitOf(user), 0, "User has a DBR deficit");
     }
 
     function testBorrow_BurnsCorrectAmountOfDBR_WhenTimePasses() public {
@@ -484,7 +510,8 @@ contract MarketTest is FrontierV2Test {
         uint initialUserDebt = market.debts(user);
         uint initialDolaBal = initialUserDebt * 2;
         gibDOLA(user2, initialDolaBal);
-
+        
+        DOLA.approve(address(market), type(uint).max);
         market.repay(user, market.debts(user));
 
         assertEq(market.debts(user), 0, "user's debt was not paid");

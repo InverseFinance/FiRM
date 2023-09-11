@@ -92,6 +92,8 @@ contract FrontierV2Test is Test {
         oracle.setFeed(address(wBTC), IChainlinkFeed(address(wbtcFeed)), 8);
         DOLA.addMinter(address(fed));
         vm.stopPrank();
+        vm.prank(user);
+        DOLA.approve(address(market), type(uint).max);
     }
 
     //Helper functions
