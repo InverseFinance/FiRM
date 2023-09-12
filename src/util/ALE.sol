@@ -318,11 +318,20 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
             payable(msg.sender).transfer(address(this).balance);
     }
 
+    /// @notice Mint DOLA to this contract and approve the spender
+    /// @param spender The spender address
+    /// @param _value Amount of DOLA to mint and approve
     function _mintAndApproveDola(address spender, uint256 _value) internal {
         dola.mint(address(this), _value);
         dola.approve(spender, _value);
     }
 
+    /// @notice convert a collateral amount into the underlying asset
+    /// @param _collateralAmount Collateral amount to convert
+    /// @param _market The market contract
+    /// @param sellToken The sell token (the underlying asset)
+    /// @param _helperData Optional helper data 
+    /// @return assetAmount The amount of sellToken/underlying after the conversion
     function _convertToAsset(
         uint256 _collateralAmount,
         address _market,
@@ -347,6 +356,12 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         return assetAmount;
     }
 
+    /// @notice convert the underlying asset amount into the collateral
+    /// @param _assetAmount The amount of sellToken/underlying to convert
+    /// @param _market The market contract
+    /// @param sellToken The sell token (the underlying asset)
+    /// @param _helperData Optional helper data
+    /// @return collateralAmount The amount of collateral after the conversion
     function _convertToCollateral(
         uint256 _assetAmount,
         address _market,

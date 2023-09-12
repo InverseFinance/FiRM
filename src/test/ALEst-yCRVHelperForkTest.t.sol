@@ -250,7 +250,7 @@ contract ALEHelperForkTest is Test {
                 helper.assetToCollateral(
                     _convertDolaToUnderlying(maxBorrowAmount)
                 ),
-            1000
+            1
         );
 
         assertEq(DOLA.balanceOf(userPk), 0);
