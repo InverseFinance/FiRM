@@ -114,7 +114,7 @@ contract ConvexCurveEscrow {
     /**
     @notice Allow address to claim on behalf of the beneficiary to any address
     @param allowee Address that are allowed to claim on behalf of the beneficiary
-    @dev Can be used to build contracts for auto-compounding cvxCrv, auto-buying DBR or auto-repaying loans
+    @dev Can be used to build contracts for auto-compounding, auto-buying DBR or auto-repaying loans
     */
     function allowClaimOnBehalf(address allowee) external onlyBeneficiary {
         allowlist[allowee] = true;
