@@ -104,7 +104,7 @@ contract ConvexEscrowForkTest is Test{
         escrow.claim();
         vm.stopPrank();
 
-        assertGt(cvxCrv.balanceOf(beneficiary), cvxCrvBalanceBefore, "Crv balance did not increase");
+        assertGt(cvxCrv.balanceOf(beneficiary), cvxCrvBalanceBefore, "cvxCrv balance did not increase");
     }
 
     function testClaimTo_successful_whenExtraRewardsAdded() public {
@@ -126,8 +126,8 @@ contract ConvexEscrowForkTest is Test{
         escrow.claimTo(beneficiary, rewards);
         vm.stopPrank();
 
-        assertGt(cvxCrv.balanceOf(beneficiary), cvxCrvBalanceBefore, "Crv balance did not increase");
-        assertGt(dola.balanceOf(beneficiary), dolaBalanceBefore, "Crv balance did not increase");
+        assertGt(cvxCrv.balanceOf(beneficiary), cvxCrvBalanceBefore, "cvxCrv balance did not increase");
+        assertGt(dola.balanceOf(beneficiary), dolaBalanceBefore, "Dola extra reward balance did not increase");
     }
 
     function testClaimTo_fails_whenTryingToClaimCollateral() public {
