@@ -101,6 +101,9 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         address _market,
         address _helper
     ) external onlyOwner {
+        address oldHelper = address(markets[_market].helper);
+        markets[_market].buySellToken.approve(oldHelper, 0);
+        markets[_market].collateral.approve(oldHelper, 0);
         markets[_market].helper = ITransformHelper(_helper);
         markets[_market].buySellToken.approve(_helper, type(uint256).max);
         markets[_market].collateral.approve(_helper, type(uint256).max);
