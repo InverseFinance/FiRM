@@ -488,7 +488,7 @@ contract ALEHelperForkTest is Test {
 
         ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
 
-        ALE.DBRHelper memory dbrData; // NO DBR sell
+        ALE.DBRHelper memory dbrData = ALE.DBRHelper(0,0,borrowAmount/2); // repay partially debt with DOLA in the wallet
 
         bytes memory swapData = abi.encodeWithSelector(
             MockExchangeProxy.swapDolaOut.selector,
@@ -497,6 +497,8 @@ contract ALEHelperForkTest is Test {
         );
 
         vm.startPrank(userPk, userPk);
+        DOLA.approve(address(ale), borrowAmount/2);
+
         ale.deleveragePosition(
             _convertCollatToDola(amountToWithdraw),
             address(market),
@@ -514,7 +516,7 @@ contract ALEHelperForkTest is Test {
             styCRVAmount - amountToWithdraw
         );
         // User still has dola but has some debt repaid
-        assertEq(DOLA.balanceOf(userPk), borrowAmount);
+        assertEq(DOLA.balanceOf(userPk), borrowAmount/2);
     }
 
     function test_transformToCollateralAndDeposit(uint256 yCRVAmount) public {

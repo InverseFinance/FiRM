@@ -41,13 +41,19 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
     struct DBRHelper {
         uint256 amountIn; // DOLA or DBR
         uint256 minOut; // DOLA or DBR
-        uint256 dolaToBorrow; // DOLA
+        uint256 dola; // DOLA to extra borrow or extra repay
     }
 
     // Mapping of market to Market structs
     // NOTE: in normal cases sellToken/buyToken is the collateral token,
     // in other cases it could be different (eg. st-yCRV is collateral, yCRV is the token to be swapped from/to DOLA)
     mapping(address => Market) public markets;
+
+    modifier dolaSupplyUnchanged() {
+        uint256 totalSupply = dola.totalSupply();
+        _;
+        require(totalSupply == dola.totalSupply());
+    }
 
     constructor(
         address _exchangeProxy,
@@ -140,7 +146,6 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
             collateralAmount = _convertToCollateral(
                 collateralAmount,
                 _market,
-                buyToken,
                 _helperData
             );
         }
@@ -150,8 +155,8 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
 
         uint256 dolaToBorrow = _value;
 
-        if (_dbrData.dolaToBorrow != 0) {
-            dolaToBorrow += _dbrData.dolaToBorrow;
+        if (_dbrData.dola != 0) {
+            dolaToBorrow += _dbrData.dola;
         }
 
         if (_dbrData.amountIn != 0) {
@@ -173,14 +178,18 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         // Burn the dola minted previously
         dola.burn(_value);
 
-        if (_dbrData.dolaToBorrow != 0) {
-            dola.transfer(msg.sender, _dbrData.dolaToBorrow);
+        if (_dbrData.dola != 0) {
+            dola.transfer(msg.sender, _dbrData.dola);
         }
 
         if (_dbrData.amountIn != 0) {
             _buyDbr(_dbrData.amountIn, _dbrData.minOut, msg.sender);
         }
 
+        if( dola.balanceOf(address(this)) != 0){
+            dola.transfer(msg.sender, dola.balanceOf(address(this)));
+        }
+        
         // Refund any possible unspent 0x protocol fees to the sender.
         if (address(this).balance > 0)
             payable(msg.sender).transfer(address(this).balance);
@@ -247,9 +256,18 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
 
         IERC20 sellToken = markets[_market].buySellToken;
 
-        _mintAndApproveDola(_market, _value);
+        if(_dbrData.dola != 0) {
+            dola.transferFrom(msg.sender, address(this), _dbrData.dola);
 
-        market.repay(msg.sender, _value);
+            dola.mint(address(this), _value);
+            dola.approve(_market, type(uint256).max);
+            
+            market.repay(msg.sender, _value + _dbrData.dola);
+        } else {
+            _mintAndApproveDola(_market, _value);
+            market.repay(msg.sender, _value);
+        }
+       
 
         // withdraw amount from ZERO EX quote
         market.withdrawOnBehalf(
@@ -330,7 +348,7 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
     /// @param _collateralAmount Collateral amount to convert
     /// @param _market The market contract
     /// @param sellToken The sell token (the underlying asset)
-    /// @param _helperData Optional helper data 
+    /// @param _helperData Optional helper data
     /// @return assetAmount The amount of sellToken/underlying after the conversion
     function _convertToAsset(
         uint256 _collateralAmount,
@@ -338,10 +356,6 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         IERC20 sellToken,
         bytes calldata _helperData
     ) internal returns (uint256) {
-        uint256 estimateAmount = markets[_market].helper.collateralToAsset(
-            _collateralAmount
-        );
-
         // Collateral amount is now transformed into sellToken
         uint256 assetAmount = markets[_market].helper.transformFromCollateral(
             _collateralAmount,
@@ -349,7 +363,6 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         );
 
         if (
-            assetAmount != estimateAmount &&
             sellToken.balanceOf(address(this)) < assetAmount
         ) revert WithdrawFailed();
 
@@ -359,26 +372,18 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
     /// @notice convert the underlying asset amount into the collateral
     /// @param _assetAmount The amount of sellToken/underlying to convert
     /// @param _market The market contract
-    /// @param sellToken The sell token (the underlying asset)
     /// @param _helperData Optional helper data
     /// @return collateralAmount The amount of collateral after the conversion
     function _convertToCollateral(
         uint256 _assetAmount,
         address _market,
-        IERC20 sellToken,
         bytes calldata _helperData
     ) internal returns (uint256) {
-        uint256 estimateAmount = markets[_market].helper.assetToCollateral(
-            _assetAmount
-        );
-
+      
         // Collateral amount is now transformed
         uint256 collateralAmount = markets[_market]
             .helper
             .transformToCollateral(_assetAmount, _helperData);
-
-        if (collateralAmount != estimateAmount)
-            revert DepositFailed(estimateAmount, collateralAmount);
 
         if (
             markets[_market].collateral.balanceOf(address(this)) <

@@ -13,6 +13,8 @@ import {ReentrancyGuard} from "lib/openzeppelin-contracts/contracts/security/Ree
 contract STYCRVHelper is Ownable, ReentrancyGuard {
     error DepositLimitExceeded();
     error NotEnoughShares();
+    error DepositFailed(uint256 expected, uint256 received);
+    error WithdrawFailed(uint256 expected, uint256 received);
    
     uint256 public constant scale = 1e18;
     ISTYCRV public constant vault =
@@ -51,8 +53,16 @@ contract STYCRVHelper is Ownable, ReentrancyGuard {
         if(_value > vault.availableDepositLimit()) revert DepositLimitExceeded();
 
         underlying.transferFrom(msg.sender, address(this), _value);
+
+        uint256 estimateAmount = assetToCollateral(
+            _value
+        );
+
         // Transform underlying to collateral
-        return vault.deposit(_value, msg.sender);
+        collateralAmount = vault.deposit(_value, msg.sender);
+        
+        if (collateralAmount < estimateAmount)
+            revert DepositFailed(estimateAmount, collateralAmount);
     }
 
     /// @notice Transforms collateral to underlying
@@ -67,7 +77,15 @@ contract STYCRVHelper is Ownable, ReentrancyGuard {
 
         IERC20(address(vault)).transferFrom(msg.sender, address(this), _value);
 
-        return vault.withdraw(_value, msg.sender, maxLoss);
+        uint256 estimateAmount = collateralToAsset(
+            _value
+        );
+
+        underlyingAmount = vault.withdraw(_value, msg.sender, maxLoss);
+
+        if (
+            underlyingAmount < estimateAmount
+        ) revert WithdrawFailed(estimateAmount, underlyingAmount);
     }
 
     /// @notice View function to calculate collateral amount from asset amount
@@ -75,7 +93,7 @@ contract STYCRVHelper is Ownable, ReentrancyGuard {
     /// @return collateralAmount Amount of collateral received
     function assetToCollateral(
         uint assetAmount
-    ) external view returns (uint collateralAmount) {
+    ) public view returns (uint collateralAmount) {
         return assetAmount * vault.totalSupply() / getFreeFunds();
     }
 
@@ -84,7 +102,7 @@ contract STYCRVHelper is Ownable, ReentrancyGuard {
     /// @return assetAmount Amount of asset received
     function collateralToAsset(
         uint collateralAmount
-    ) external view returns (uint assetAmount) {
+    ) public view returns (uint assetAmount) {
         return (collateralAmount * vault.pricePerShare()) / scale;
     }
 
