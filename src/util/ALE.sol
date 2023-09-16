@@ -13,13 +13,14 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
     error CollateralNotSet();
     error MarketNotSet(address market);
     error SwapFailed();
-    error DOLAInvalidBorrow();
+    error DOLAInvalidBorrow(uint256 expected, uint256 actual);
     error DOLAInvalidRepay(uint256 expected, uint256 actual);
     error InvalidProxyAddress();
     error InvalidHelperAddress();
     error NothingToDeposit();
     error DepositFailed(uint256 expected, uint256 actual);
-    error WithdrawFailed();
+    error WithdrawFailed(uint256 expected, uint256 actual);
+    error TotalSupplyChanged(uint256 expected, uint256 actual);
 
     // 0x ExchangeProxy address.
     // See https://docs.0x.org/developer-resources/contract-addresses
@@ -52,7 +53,7 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
     modifier dolaSupplyUnchanged() {
         uint256 totalSupply = dola.totalSupply();
         _;
-        require(totalSupply == dola.totalSupply());
+        if(totalSupply != dola.totalSupply()) revert TotalSupplyChanged(totalSupply, dola.totalSupply());
     }
 
     constructor(
@@ -122,7 +123,7 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         Permit calldata _permit,
         bytes calldata _helperData,
         DBRHelper calldata _dbrData
-    ) public payable nonReentrant {
+    ) public payable nonReentrant dolaSupplyUnchanged {
         if (address(markets[_market].buySellToken) == address(0))
             revert MarketNotSet(_market);
 
@@ -153,27 +154,7 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         // Deposit and borrow on behalf
         market.deposit(msg.sender, collateralAmount);
 
-        uint256 dolaToBorrow = _value;
-
-        if (_dbrData.dola != 0) {
-            dolaToBorrow += _dbrData.dola;
-        }
-
-        if (_dbrData.amountIn != 0) {
-            dolaToBorrow += _dbrData.amountIn;
-        }
-        // We borrow the amount of DOLA we minted before plus the amount for buying DBR if any
-        market.borrowOnBehalf(
-            msg.sender,
-            dolaToBorrow,
-            _permit.deadline,
-            _permit.v,
-            _permit.r,
-            _permit.s
-        );
-
-        if (dola.balanceOf(address(this)) < dolaToBorrow)
-            revert DOLAInvalidBorrow();
+        _borrowDola(_value, _permit, _dbrData, market);
 
         // Burn the dola minted previously
         dola.burn(_value);
@@ -186,10 +167,10 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
             _buyDbr(_dbrData.amountIn, _dbrData.minOut, msg.sender);
         }
 
-        if( dola.balanceOf(address(this)) != 0){
+        if (dola.balanceOf(address(this)) != 0) {
             dola.transfer(msg.sender, dola.balanceOf(address(this)));
         }
-        
+
         // Refund any possible unspent 0x protocol fees to the sender.
         if (address(this).balance > 0)
             payable(msg.sender).transfer(address(this).balance);
@@ -248,7 +229,7 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         Permit calldata _permit,
         bytes calldata _helperData,
         DBRHelper calldata _dbrData
-    ) external payable nonReentrant {
+    ) external payable nonReentrant dolaSupplyUnchanged {
         if (address(markets[_market].buySellToken) == address(0))
             revert MarketNotSet(_market);
 
@@ -256,28 +237,7 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
 
         IERC20 sellToken = markets[_market].buySellToken;
 
-        if(_dbrData.dola != 0) {
-            dola.transferFrom(msg.sender, address(this), _dbrData.dola);
-
-            dola.mint(address(this), _value);
-            dola.approve(_market, type(uint256).max);
-            
-            market.repay(msg.sender, _value + _dbrData.dola);
-        } else {
-            _mintAndApproveDola(_market, _value);
-            market.repay(msg.sender, _value);
-        }
-       
-
-        // withdraw amount from ZERO EX quote
-        market.withdrawOnBehalf(
-            msg.sender,
-            _collateralAmount,
-            _permit.deadline,
-            _permit.v,
-            _permit.r,
-            _permit.s
-        );
+        _repayAndWithdraw(_value, _collateralAmount, _permit, _dbrData, market);
 
         // If there's a helper contract, the collateral has to be transformed
         if (address(markets[_market].helper) != address(0)) {
@@ -344,6 +304,76 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         dola.approve(spender, _value);
     }
 
+    /// @notice Borrow DOLA on behalf of the user
+    /// @param _value Amount of DOLA to borrow
+    /// @param _permit Permit data
+    /// @param _dbrData DBR data
+    /// @param market The market contract
+    function _borrowDola(
+        uint256 _value,
+        Permit calldata _permit,
+        DBRHelper calldata _dbrData,
+        IMarket market
+    ) internal {
+        uint256 dolaToBorrow = _value;
+
+        if (_dbrData.dola != 0) {
+            dolaToBorrow += _dbrData.dola;
+        }
+
+        if (_dbrData.amountIn != 0) {
+            dolaToBorrow += _dbrData.amountIn;
+        }
+        // We borrow the amount of DOLA we minted before plus the amount for buying DBR if any
+        market.borrowOnBehalf(
+            msg.sender,
+            dolaToBorrow,
+            _permit.deadline,
+            _permit.v,
+            _permit.r,
+            _permit.s
+        );
+
+        if (dola.balanceOf(address(this)) < dolaToBorrow)
+            revert DOLAInvalidBorrow(dolaToBorrow, dola.balanceOf(address(this)));
+    }
+
+    /// @notice Repay DOLA loan and withdraw collateral from the escrow
+    /// @param _value Amount of DOLA to repay
+    /// @param _collateralAmount Collateral amount to withdraw from the escrow
+    /// @param _permit Permit data
+    /// @param _dbrData DBR data
+    /// @param market The market contract
+    function _repayAndWithdraw(
+        uint256 _value,
+        uint256 _collateralAmount,
+        Permit calldata _permit,
+        DBRHelper calldata _dbrData,
+        IMarket market
+    ) internal {
+        if (_dbrData.dola != 0) {
+            dola.transferFrom(msg.sender, address(this), _dbrData.dola);
+
+            dola.mint(address(this), _value);
+            dola.approve(address(market), _value + _dbrData.dola);
+
+            market.repay(msg.sender, _value + _dbrData.dola);
+        } else {
+            _mintAndApproveDola(address(market), _value);
+            market.repay(msg.sender, _value);
+        }
+
+        // withdraw amount from ZERO EX quote
+        market.withdrawOnBehalf(
+            msg.sender,
+            _collateralAmount,
+            _permit.deadline,
+            _permit.v,
+            _permit.r,
+            _permit.s
+        );
+    }
+
     /// @notice convert a collateral amount into the underlying asset
     /// @param _collateralAmount Collateral amount to convert
     /// @param _market The market contract
@@ -362,9 +392,8 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
             _helperData
         );
 
-        if (
-            sellToken.balanceOf(address(this)) < assetAmount
-        ) revert WithdrawFailed();
+        if (sellToken.balanceOf(address(this)) < assetAmount)
+            revert WithdrawFailed(assetAmount, sellToken.balanceOf(address(this)));
 
         return assetAmount;
     }
@@ -379,7 +408,6 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         address _market,
         bytes calldata _helperData
     ) internal returns (uint256) {
-      
         // Collateral amount is now transformed
         uint256 collateralAmount = markets[_market]
             .helper
