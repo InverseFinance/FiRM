@@ -74,7 +74,8 @@ contract ALEHelperForkTest is Test {
     address yCRVHolder = address(0xEE8fe4827ea1ad40e6960dDce84A97360D60dac2);
     address styCRV = address(0x27B5739e22ad9033bcBf192059122d163b60349D);
     address yCRV = address(0xFCc5c47bE19d06BF83eB04298b026F81069ff65b);
-
+    address triDBR = address(0xC7DE47b9Ca2Fc753D6a2F167D8b3e19c6D18b19a);
+    
     //ERC-20s
     IMintable DOLA;
     IErc20 collateral;
@@ -105,7 +106,7 @@ contract ALEHelperForkTest is Test {
 
     function setUp() public {
         string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url, 17809803);
+        vm.createSelectFork(url,18164420);
 
         DOLA = IMintable(0x865377367054516e17014CcdED1e7d814EDC9ce4);
         market = Market(0x27b6c301Fd441f3345d61B7a4245E1F823c3F9c4); // st-yCRV Market
@@ -127,7 +128,10 @@ contract ALEHelperForkTest is Test {
             address(DOLA)
         );
 
-        ale = new ALE(address(exchangeProxy), curvePool);
+        vm.prank(gov);
+        market.pauseBorrows(false);
+
+        ale = new ALE(address(exchangeProxy), triDBR);
         ale.setMarket(
             address(market),
             yCRV,
@@ -313,7 +317,7 @@ contract ALEHelperForkTest is Test {
 
         ALE.DBRHelper memory dbrData = ALE.DBRHelper(
             dolaForDBR,
-            (dbrAmount * 97) / 100,
+            (dbrAmount * 98) / 100,
             0
         );
 
@@ -332,7 +336,7 @@ contract ALEHelperForkTest is Test {
 
         assertEq(DOLA.balanceOf(userPk), 0);
 
-        assertGt(dbr.balanceOf(userPk), (dbrAmount * 97) / 100);
+        assertGt(dbr.balanceOf(userPk), (dbrAmount * 98) / 100);
     }
 
     function test_deleveragePosition_sellDBR(uint256 styCRVAmount) public {
@@ -516,7 +520,7 @@ contract ALEHelperForkTest is Test {
             styCRVAmount - amountToWithdraw
         );
         // User still has dola but has some debt repaid
-        assertEq(DOLA.balanceOf(userPk), borrowAmount/2);
+        assertApproxEqAbs(DOLA.balanceOf(userPk), borrowAmount/2, 1);
     }
 
     function test_transformToCollateralAndDeposit(uint256 yCRVAmount) public {

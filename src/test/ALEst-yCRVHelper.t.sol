@@ -69,11 +69,12 @@ contract ALEHelperTest is FiRMForkTest {
 
     address styCRVHolder = 0x577eBC5De943e35cdf9ECb5BbE1f7D7CB6c7C647;
     address yCRVHolder = 0xEE8fe4827ea1ad40e6960dDce84A97360D60dac2;
+    address triDBR = 0xC7DE47b9Ca2Fc753D6a2F167D8b3e19c6D18b19a;
 
     function setUp() public {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url);
+        vm.createSelectFork(url, 18171234);
         init();
         helper = new STYCRVHelper();
         feedSTYCRV = new STYCRVFeed();
@@ -100,7 +101,7 @@ contract ALEHelperTest is FiRMForkTest {
             address(DOLA)
         );
 
-        ale = new ALE(address(exchangeProxy), curvePool);
+        ale = new ALE(address(exchangeProxy), triDBR);
         // ALE setup
         vm.prank(gov);
         DOLA.addMinter(address(ale));
@@ -388,7 +389,7 @@ contract ALEHelperTest is FiRMForkTest {
 
         ALE.DBRHelper memory dbrData = ALE.DBRHelper(
             dolaForDBR,
-            (dbrAmount * 97) / 100,
+            (dbrAmount * 98) / 100,
             0
         );
 
@@ -407,7 +408,7 @@ contract ALEHelperTest is FiRMForkTest {
 
         assertEq(DOLA.balanceOf(userPk), 0);
 
-        assertGt(dbr.balanceOf(userPk), (dbrAmount * 97) / 100);
+        assertGt(dbr.balanceOf(userPk), (dbrAmount * 98) / 100);
     }
 
     function test_leveragePosition_buyDBR_withdrawDOLA() public {
@@ -470,7 +471,7 @@ contract ALEHelperTest is FiRMForkTest {
 
         ALE.DBRHelper memory dbrData = ALE.DBRHelper(
             dolaForDBR,
-            (dbrAmount * 97) / 100,
+            (dbrAmount * 98) / 100,
             dolaToWithdraw // will be sent to the user
         );
 
@@ -489,7 +490,7 @@ contract ALEHelperTest is FiRMForkTest {
 
         assertEq(DOLA.balanceOf(userPk), dolaToWithdraw);
 
-        assertGt(dbr.balanceOf(userPk), (dbrAmount * 97) / 100);
+        assertGt(dbr.balanceOf(userPk), (dbrAmount * 98) / 100);
     }
 
     function test_depositAndleveragePosition_buyDBR() public {
@@ -552,7 +553,7 @@ contract ALEHelperTest is FiRMForkTest {
 
         ALE.DBRHelper memory dbrData = ALE.DBRHelper(
             dolaForDBR,
-            (dbrAmount * 97) / 100,
+            (dbrAmount * 98) / 100,
             0
         );
 

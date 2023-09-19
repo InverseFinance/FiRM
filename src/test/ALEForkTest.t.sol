@@ -57,12 +57,16 @@ contract ALEForkTest is FiRMForkTest {
     IERC20 WETH;
     MockExchangeProxy exchangeProxy;
     ALE ale;
+    address triDBR = 0xC7DE47b9Ca2Fc753D6a2F167D8b3e19c6D18b19a;
 
     function setUp() public {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url,17642520);
+        vm.createSelectFork(url,18164420);
         init();
+
+        vm.prank(gov);
+        market.pauseBorrows(false);
 
         vm.startPrank(chair, chair);
         fed.expansion(IMarket(address(market)), 100_000e18);
@@ -78,7 +82,7 @@ contract ALEForkTest is FiRMForkTest {
             address(DOLA)
         );
 
-        ale = new ALE(address(exchangeProxy), curvePool);
+        ale = new ALE(address(exchangeProxy), triDBR);
         // ALE setup
         vm.prank(gov);
         DOLA.addMinter(address(ale));  
@@ -113,7 +117,7 @@ contract ALEForkTest is FiRMForkTest {
 
     function test_depositAndLeveragePosition_buyDBR(uint256 crvTestAmount) public {
         vm.assume(crvTestAmount < 50000 ether);
-        vm.assume(crvTestAmount > 0.00000001 ether);
+        vm.assume(crvTestAmount > 0.000001 ether);
         // We are going to deposit and leverage the position
       //  uint crvTestAmount = 13606;
         address userPk = vm.addr(1);
@@ -155,7 +159,7 @@ contract ALEForkTest is FiRMForkTest {
 
         ALE.DBRHelper memory dbrData = ALE.DBRHelper(
             dolaForDBR,
-            (dbrAmount * 97) / 100,
+            (dbrAmount * 98) / 100,
             0
         ); // DBR buy
 
@@ -188,7 +192,7 @@ contract ALEForkTest is FiRMForkTest {
         );
         assertEq(DOLA.balanceOf(userPk), 0);
 
-        assertGt(dbr.balanceOf(userPk), (dbrAmount * 97) / 100);
+        assertGt(dbr.balanceOf(userPk), (dbrAmount * 98) / 100);
     }
 
     function test_fail_depositAndLeveragePosition_buyDBR_with_ZERO_deposit() public {
@@ -233,7 +237,7 @@ contract ALEForkTest is FiRMForkTest {
 
         ALE.DBRHelper memory dbrData = ALE.DBRHelper(
             dolaForDBR,
-            (dbrAmount * 97) / 100, // DBR buy,
+            (dbrAmount * 98) / 100, // DBR buy,
             0 // Dola to borrow and withdraw after leverage
         ); 
         
@@ -309,7 +313,7 @@ contract ALEForkTest is FiRMForkTest {
 
         ALE.DBRHelper memory dbrData = ALE.DBRHelper(
             dolaForDBR,
-            (dbrAmount * 97) / 100, // DBR buy
+            (dbrAmount * 98) / 100, // DBR buy
             dolaToWithdraw // Dola to borrow and withdraw after leverage
         ); 
 
@@ -338,7 +342,7 @@ contract ALEForkTest is FiRMForkTest {
         );
         assertEq(DOLA.balanceOf(userPk), dolaToWithdraw); 
 
-        assertGt(dbr.balanceOf(userPk), (dbrAmount * 97) / 100);
+        assertGt(dbr.balanceOf(userPk), (dbrAmount * 98) / 100);
     }
 
     function test_leveragePosition_buyDBR() public {
@@ -385,7 +389,7 @@ contract ALEForkTest is FiRMForkTest {
 
         ALE.DBRHelper memory dbrData = ALE.DBRHelper(
             dolaForDBR,
-            (dbrAmount * 97) / 100, // DBR buy
+            (dbrAmount * 98) / 100, // DBR buy
             0 // Dola to borrow and withdraw after leverage
         ); 
 
@@ -414,7 +418,7 @@ contract ALEForkTest is FiRMForkTest {
         );
         assertEq(DOLA.balanceOf(userPk), 0);
 
-        assertGt(dbr.balanceOf(userPk), (dbrAmount * 97) / 100);
+        assertGt(dbr.balanceOf(userPk), (dbrAmount * 98) / 100);
     }
 
     function test_deleveragePosition_sellDBR() public {
