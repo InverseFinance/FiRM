@@ -49,6 +49,7 @@ contract OffchainHelperTest is FrontierV2Test {
         vm.startPrank(gov);
         borrowController = BorrowController(0x44B7895989Bc7886423F06DeAa844D413384b0d6);
         borrowController.allow(address(helper));
+        borrowController.setStalenessThreshold(0x63Df5e23Db45a2066508318f172bA45B9CD37035, type(uint).max);
         vm.stopPrank();
         
         market = Market(0x63Df5e23Db45a2066508318f172bA45B9CD37035);
@@ -72,7 +73,6 @@ contract OffchainHelperTest is FrontierV2Test {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, getBorrowHash(borrowAmount + dolaForDbr, 0));
 
         vm.startPrank(userPk, userPk);
-        emit log_uint(borrowAmount);
         helper.depositBuyDbrAndBorrowOnBehalf(IMarket(address(market)), wethTestAmount, borrowAmount, dolaForDbr, dbrNeeded * 99 / 100, block.timestamp, v, r, s);
         vm.stopPrank();
 
@@ -288,7 +288,7 @@ contract OffchainHelperTest is FrontierV2Test {
         vm.stopPrank();
 
         assertEq(weth.balanceOf(address(market.predictEscrow(userPk))), wethTestAmount, "failed to deposit weth");       
-        assertEq(DOLA.balanceOf(userPk), maxBorrowAmount, "failed to borrow");
+        assertEq(DOLA.balanceOf(userPk), borrowAmount, "failed to borrow");
         assertEq(market.debts(userPk), DOLA.balanceOf(userPk), "Debt not equal borrow"); 
     }
 
