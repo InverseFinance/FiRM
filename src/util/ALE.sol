@@ -53,7 +53,8 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
     modifier dolaSupplyUnchanged() {
         uint256 totalSupply = dola.totalSupply();
         _;
-        if(totalSupply != dola.totalSupply()) revert TotalSupplyChanged(totalSupply, dola.totalSupply());
+        if (totalSupply != dola.totalSupply())
+            revert TotalSupplyChanged(totalSupply, dola.totalSupply());
     }
 
     constructor(
@@ -102,8 +103,11 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         address _helper
     ) external onlyOwner {
         address oldHelper = address(markets[_market].helper);
-        markets[_market].buySellToken.approve(oldHelper, 0);
-        markets[_market].collateral.approve(oldHelper, 0);
+        if (oldHelper != address(0)) {
+            markets[_market].buySellToken.approve(oldHelper, 0);
+            markets[_market].collateral.approve(oldHelper, 0);
+        }
+
         markets[_market].helper = ITransformHelper(_helper);
         markets[_market].buySellToken.approve(_helper, type(uint256).max);
         markets[_market].collateral.approve(_helper, type(uint256).max);
@@ -236,11 +240,9 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         if (address(markets[_market].buySellToken) == address(0))
             revert MarketNotSet(_market);
 
-        IMarket market = IMarket(_market);
-
         IERC20 sellToken = markets[_market].buySellToken;
 
-        _repayAndWithdraw(_value, _collateralAmount, _permit, _dbrData, market);
+        _repayAndWithdraw(_value, _collateralAmount, _permit, _dbrData, IMarket(_market));
 
         // If there's a helper contract, the collateral has to be transformed
         if (address(markets[_market].helper) != address(0)) {
@@ -338,7 +340,10 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         );
 
         if (dola.balanceOf(address(this)) < dolaToBorrow)
-            revert DOLAInvalidBorrow(dolaToBorrow, dola.balanceOf(address(this)));
+            revert DOLAInvalidBorrow(
+                dolaToBorrow,
+                dola.balanceOf(address(this))
+            );
     }
 
     /// @notice Repay DOLA loan and withdraw collateral from the escrow
@@ -396,7 +401,10 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         );
 
         if (sellToken.balanceOf(address(this)) < assetAmount)
-            revert WithdrawFailed(assetAmount, sellToken.balanceOf(address(this)));
+            revert WithdrawFailed(
+                assetAmount,
+                sellToken.balanceOf(address(this))
+            );
 
         return assetAmount;
     }

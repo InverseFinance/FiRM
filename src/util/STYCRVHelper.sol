@@ -54,9 +54,7 @@ contract STYCRVHelper is Ownable, ReentrancyGuard {
 
         underlying.transferFrom(msg.sender, address(this), _value);
 
-        uint256 estimateAmount = assetToCollateral(
-            _value
-        );
+        uint256 estimateAmount = assetToCollateral(_value);
 
         // Transform underlying to collateral
         collateralAmount = vault.deposit(_value, msg.sender);
@@ -77,15 +75,12 @@ contract STYCRVHelper is Ownable, ReentrancyGuard {
 
         IERC20(address(vault)).transferFrom(msg.sender, address(this), _value);
 
-        uint256 estimateAmount = collateralToAsset(
-            _value
-        );
+        uint256 estimateAmount = collateralToAsset(_value);
 
         underlyingAmount = vault.withdraw(_value, msg.sender, maxLoss);
 
-        if (
-            underlyingAmount < estimateAmount
-        ) revert WithdrawFailed(estimateAmount, underlyingAmount);
+        if (underlyingAmount < estimateAmount) 
+            revert WithdrawFailed(estimateAmount, underlyingAmount);
     }
 
     /// @notice View function to calculate collateral amount from asset amount
