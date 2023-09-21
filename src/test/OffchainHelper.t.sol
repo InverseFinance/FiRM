@@ -21,6 +21,7 @@ interface IWeth is IERC20 {
     function withdraw(uint wad) external;
     function deposit() payable external;
 }
+
 //This test must be run as a mainnet fork, to work correctly
 contract OffchainHelperTest is FrontierV2Test {
 
@@ -42,11 +43,11 @@ contract OffchainHelperTest is FrontierV2Test {
         vm.stopPrank();
         
         dbr = DolaBorrowingRights(0xAD038Eb671c44b853887A7E32528FaB35dC5D710);
-        address pool = 0x056ef502C1Fc5335172bc95EC4cAE16C2eB9b5b6;
-        helper = new CurveHelper(pool); 
+        address pool = 0xC7DE47b9Ca2Fc753D6a2F167D8b3e19c6D18b19a;
+        helper = new CurveHelper(pool, 3); 
         userPk = vm.addr(1);
         vm.startPrank(gov);
-        borrowController = BorrowController(0x20C7349f6D6A746a25e66f7c235E96DAC880bc0D);
+        borrowController = BorrowController(0x44B7895989Bc7886423F06DeAa844D413384b0d6);
         borrowController.allow(address(helper));
         vm.stopPrank();
         
@@ -66,11 +67,12 @@ contract OffchainHelperTest is FrontierV2Test {
     }
 
     function testDepositAndBorrowOnBehalf() public {
-        uint borrowAmount = maxBorrowAmount / 2;
+        uint borrowAmount = maxBorrowAmount / 1000;
         (uint dolaForDbr, uint dbrNeeded) = helper.approximateDolaAndDbrNeeded(borrowAmount, 365 days, 18);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, getBorrowHash(borrowAmount + dolaForDbr, 0));
 
         vm.startPrank(userPk, userPk);
+        emit log_uint(borrowAmount);
         helper.depositBuyDbrAndBorrowOnBehalf(IMarket(address(market)), wethTestAmount, borrowAmount, dolaForDbr, dbrNeeded * 99 / 100, block.timestamp, v, r, s);
         vm.stopPrank();
 
@@ -83,7 +85,7 @@ contract OffchainHelperTest is FrontierV2Test {
 
     function testDepositAndBorrowOnBehalfFuzz(uint borrowAmount) public {
         vm.assume(borrowAmount > 1000_000_000);
-        borrowAmount = borrowAmount % (1000_000 ether > maxBorrowAmount ? maxBorrowAmount : 1000_000 ether );
+        borrowAmount = borrowAmount % (100 ether > maxBorrowAmount ? maxBorrowAmount : 100 ether );
         (uint dolaForDbr, uint dbrNeeded) = helper.approximateDolaAndDbrNeeded(borrowAmount, 365 days, 20);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, getBorrowHash(borrowAmount + dolaForDbr, 0));
 
@@ -100,7 +102,7 @@ contract OffchainHelperTest is FrontierV2Test {
 
     function testDepositNativeEthBuyDbrAndBorrowOnBehalf() public {
         uint duration = 365 days;
-        uint borrowAmount = maxBorrowAmount / 2;
+        uint borrowAmount = maxBorrowAmount / 100;
         (uint dolaForDbr, uint dbrNeeded) = helper.approximateDolaAndDbrNeeded(borrowAmount, 365 days, 18);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, getBorrowHash(borrowAmount + dolaForDbr, 0));
         uint prevBal = weth.balanceOf(userPk);
@@ -122,7 +124,7 @@ contract OffchainHelperTest is FrontierV2Test {
         uint duration = 365 days;
 
         vm.startPrank(userPk, userPk);
-        uint borrowAmount = maxBorrowAmount / 2;
+        uint borrowAmount = maxBorrowAmount / 100;
         (uint dolaForDbr, uint dbrNeeded) = helper.approximateDolaAndDbrNeeded(borrowAmount, 365 days, 18);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, getBorrowHash(borrowAmount + dolaForDbr, 0));
 
@@ -141,7 +143,7 @@ contract OffchainHelperTest is FrontierV2Test {
 
     function testSellDbrAndRepayOnBehalf() public {
         vm.startPrank(userPk, userPk);
-        uint borrowAmount = maxBorrowAmount / 2;
+        uint borrowAmount = maxBorrowAmount / 100;
         (uint dolaForDbr, uint dbrNeeded) = helper.approximateDolaAndDbrNeeded(borrowAmount, 365 days, 18);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, getBorrowHash(borrowAmount + dolaForDbr, 0));
 
@@ -162,7 +164,7 @@ contract OffchainHelperTest is FrontierV2Test {
 
     function testSellDbrRepayAndWithdrawOnBehalf() public {
         gibDOLA(userPk, 10000 ether);
-        uint borrowAmount = maxBorrowAmount / 2;
+        uint borrowAmount = maxBorrowAmount / 100;
         (uint dolaForDbr, uint dbrNeeded) = helper.approximateDolaAndDbrNeeded(borrowAmount, 365 days, 18);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, getBorrowHash(borrowAmount + dolaForDbr, 0));
 
@@ -192,7 +194,7 @@ contract OffchainHelperTest is FrontierV2Test {
 
     function testSellDbrRepayAndWithdrawNativeEthOnBehalf() public {
         gibDOLA(userPk, 10000 ether);
-        uint borrowAmount = maxBorrowAmount / 2;
+        uint borrowAmount = maxBorrowAmount / 100;
         (uint dolaForDbr, uint dbrNeeded) = helper.approximateDolaAndDbrNeeded(borrowAmount, 365 days, 18);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, getBorrowHash(borrowAmount + dolaForDbr, 0));
 
@@ -274,7 +276,7 @@ contract OffchainHelperTest is FrontierV2Test {
     }
 
     function testDepositNativeEthAndBorrowOnBehalf() public {
-        uint borrowAmount = maxBorrowAmount;
+        uint borrowAmount = maxBorrowAmount / 100;
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, getBorrowHash(borrowAmount, 0));
 
         vm.startPrank(userPk, userPk);

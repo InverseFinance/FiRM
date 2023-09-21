@@ -14,16 +14,17 @@ contract CurveHelper is OffchainAbstractHelper{
     uint dbrIndex;
     uint dolaIndex;
 
-    constructor(address _pool) {
+    constructor(address _pool, uint tokens) {
         curvePool = ICurvePool(_pool);
         DOLA.approve(_pool, type(uint).max);
         DBR.approve(_pool, type(uint).max);
-        if(ICurvePool(_pool).coins(0) == address(DOLA)){
-            dolaIndex = 0;
-            dbrIndex = 1;
-        } else {
-            dolaIndex = 1;
-            dbrIndex = 0;
+        for(uint i; i < tokens; ++i){
+            if(ICurvePool(_pool).coins(i) == address(DOLA)){
+                dolaIndex = i;
+            }
+            else if(ICurvePool(_pool).coins(i) == address(DBR)){
+                dbrIndex = i;
+            }
         }
     }
 
