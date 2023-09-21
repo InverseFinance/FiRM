@@ -36,6 +36,7 @@ contract DBRTest is FrontierV2Test {
         market.borrow(borrowAmount / 2);
 
         vm.warp(block.timestamp + 7 days);
+        ethFeed.changeUpdatedAt(block.timestamp);
 
         vm.expectRevert("DBR Deficit");
         market.borrow(borrowAmount / 2);

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "../../BorrowController.sol";
+import {BorrowController} from "../../BorrowController.sol";
 import "../../DBR.sol";
 import {Fed, IMarket} from "../../Fed.sol";
 import "../../Market.sol";
