@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 import "../interfaces/IMarket.sol";
 import "forge-std/Test.sol"; 
 import {FrontierV2Test} from "./FrontierV2Test.sol"; 
-import "../BorrowController.sol"; 
+import {BorrowController} from "../BorrowController.sol"; 
 import "../DBR.sol"; 
 import "../Fed.sol"; 
 import {SimpleERC20Escrow} from "../escrows/SimpleERC20Escrow.sol"; 
