@@ -340,10 +340,7 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         );
 
         if (dola.balanceOf(address(this)) < dolaToBorrow)
-            revert DOLAInvalidBorrow(
-                dolaToBorrow,
-                dola.balanceOf(address(this))
-            );
+            revert DOLAInvalidBorrow(dolaToBorrow,dola.balanceOf(address(this)));
     }
 
     /// @notice Repay DOLA loan and withdraw collateral from the escrow
@@ -401,10 +398,7 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         );
 
         if (sellToken.balanceOf(address(this)) < assetAmount)
-            revert WithdrawFailed(
-                assetAmount,
-                sellToken.balanceOf(address(this))
-            );
+            revert WithdrawFailed(assetAmount,sellToken.balanceOf(address(this)));
 
         return assetAmount;
     }
