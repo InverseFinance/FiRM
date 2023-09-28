@@ -45,6 +45,19 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         uint256 dola; // DOLA to extra borrow or extra repay
     }
 
+    event LeverageUp(
+        address indexed market,
+        address indexed account,
+        uint256 dolaFlashMinted,
+        uint256 collateralBought
+    );
+
+    event LeverageDown(
+        address indexed market,
+        address indexed account,
+        uint256 dolaFlashMinted,
+        uint256 collateralSold
+    );
     // Mapping of market to Market structs
     // NOTE: in normal cases sellToken/buyToken is the collateral token,
     // in other cases it could be different (eg. st-yCRV is collateral, yCRV is the token to be swapped from/to DOLA)
@@ -139,15 +152,13 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         // Mint and approve
         _mintAndApproveDola(_spender, _value);
 
-        IERC20 buyToken = markets[_market].buySellToken;
-
         // Call the encoded swap function call on the contract at `swapTarget`,
         // passing along any ETH attached to this function call to cover protocol fees.
         (bool success, ) = exchangeProxy.call{value: msg.value}(_swapCallData);
         if (!success) revert SwapFailed();
 
         // Actual collateral/buyToken bought
-        uint256 collateralAmount = buyToken.balanceOf(address(this));
+        uint256 collateralAmount = markets[_market].buySellToken.balanceOf(address(this));
 
         // If there's a helper contract, the buyToken has to be transformed
         if (address(markets[_market].helper) != address(0)) {
@@ -181,6 +192,8 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         // Refund any possible unspent 0x protocol fees to the sender.
         if (address(this).balance > 0)
             payable(msg.sender).transfer(address(this).balance);
+
+        emit LeverageUp(_market, msg.sender, _value, collateralAmount);
     }
 
     /// @notice Deposit collateral and instantly leverage user position by minting DOLA, buying collateral, deposting into the user escrow and borrow DOLA on behalf to repay the minted DOLA
@@ -299,6 +312,8 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         // Refund any unspent protocol fees to the sender.
         if (address(this).balance > 0)
             payable(msg.sender).transfer(address(this).balance);
+
+        emit LeverageDown(_market, msg.sender, _value, _collateralAmount);
     }
 
     /// @notice Mint DOLA to this contract and approve the spender
