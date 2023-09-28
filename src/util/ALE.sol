@@ -58,6 +58,11 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         uint256 dolaFlashMinted,
         uint256 collateralSold
     );
+
+    event NewMarket(address indexed market, address indexed buySellToken, address collateral, address indexed helper);
+
+    event NewHelper(address indexed market, address indexed helper);
+
     // Mapping of market to Market structs
     // NOTE: in normal cases sellToken/buyToken is the collateral token,
     // in other cases it could be different (eg. st-yCRV is collateral, yCRV is the token to be swapped from/to DOLA)
@@ -106,6 +111,8 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
             IERC20(_buySellToken).approve(_helper, type(uint256).max);
             IERC20(_collateral).approve(_helper, type(uint256).max);
         }
+
+        emit NewMarket(_market, _buySellToken, _collateral, _helper);
     }
 
     /// @notice Update the helper contract
@@ -124,6 +131,8 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         markets[_market].helper = ITransformHelper(_helper);
         markets[_market].buySellToken.approve(_helper, type(uint256).max);
         markets[_market].collateral.approve(_helper, type(uint256).max);
+
+        emit NewHelper(_market, _helper);
     }
 
     /// @notice Leverage user position by minting DOLA, buying collateral, deposting into the user escrow and borrow DOLA on behalf to repay the minted DOLA
