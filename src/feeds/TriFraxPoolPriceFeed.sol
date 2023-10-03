@@ -50,6 +50,8 @@ contract TriFraxPoolPriceFeed {
 
     uint256 public constant fraxHeartbeat = 1 hours;
 
+    uint256 public constant ethHeartbeat = 1 hours;
+
     /**
      * @notice Retrieves the latest round data for the LP token price feed
      * @dev This function calculates the LP token price in USD using the lowest usd price for FRAX and USDC from a Chainlink oracle
@@ -176,9 +178,14 @@ contract TriFraxPoolPriceFeed {
             uint80 answeredInRound
         ) = ethToUsd.latestRoundData();
 
-        int256 usdcToUsdPrice = (crvEthToUsdc * 10 ** 8) /
+        int usdcToUsdPrice = (crvEthToUsdc * 10 ** 8) /
             ethToUsdPrice /
             10 ** 10;
+        
+        if(isPriceOutOfBounds(ethToUsdPrice, ethToUsd) || block.timestamp - updatedAt > ethHeartbeat) {
+            // will cause stale price on borrow controller
+            updatedAt = 0;
+        } 
 
         return (roundId, usdcToUsdPrice, startedAt, updatedAt, answeredInRound);
     }
