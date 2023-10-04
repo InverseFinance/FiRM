@@ -141,9 +141,7 @@ contract InvPriceFeed {
             uint80 answeredInRound
         ) = ethToUsd.latestRoundData();
 
-        int256 usdcToUsdPrice = (crvEthToUsdc * 10 ** 8) /
-            ethToUsdPrice /
-            10 ** 10;
+        int256 usdcToUsdPrice = ethToUsdPrice * 10 ** 18 / crvEthToUsdc;
 
         return (roundId, usdcToUsdPrice, startedAt, updatedAt, answeredInRound);
     }
