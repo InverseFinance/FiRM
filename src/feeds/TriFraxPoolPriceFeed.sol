@@ -28,14 +28,19 @@ interface ICurvePool {
     function price_oracle(uint256 k) external view returns (uint256);
 
     function get_virtual_price() external view returns (uint256);
+
+    function ema_price() external view returns (uint256);
 }
 
 contract TriFraxPoolPriceFeed {
-    ICurvePool public constant tricryptoINV =
-        ICurvePool(0x5426178799ee0a0181A89b4f57eFddfAb49941Ec);
+    ICurvePool public constant tricryptoETH =
+        ICurvePool(0x7F86Bf177Dd4F3494b841a37e810A34dD56c829B);
 
     ICurvePool public constant tricryptoFRAX =
         ICurvePool(0xE57180685E3348589E9521aa53Af0BCD497E884d);
+
+    ICurvePool public constant crvUSDFrax =
+        ICurvePool(0x0CD6f267b2086bea681E922E19D40512511BE538);
 
     IChainlinkFeed public constant usdcToUsd =
         IChainlinkFeed(0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6);
@@ -46,11 +51,16 @@ contract TriFraxPoolPriceFeed {
     IChainlinkFeed public constant fraxToUsd =
         IChainlinkFeed(0xB9E1E3A9feFf48998E45Fa90847ed4D467E8BcfD);
 
-    uint256 public constant ethK = 0;
+    IChainlinkFeed public constant crvUSDToUsd =
+        IChainlinkFeed(0xEEf0C605546958c1f899b6fB336C20671f9cD49F);
+
+    uint256 public constant ethK = 1;
 
     uint256 public constant fraxHeartbeat = 1 hours;
 
     uint256 public constant ethHeartbeat = 1 hours;
+
+    uint256 public constant crvUSDHeartbeat = 24 hours;
 
     /**
      * @notice Retrieves the latest round data for the LP token price feed
@@ -94,14 +104,21 @@ contract TriFraxPoolPriceFeed {
             uint80 answeredInRoundFrax
         ) = fraxToUsd.latestRoundData();
 
-        // TODO: add FRAX to USD fallback oracle? from which pool/oracle?
+         if (isPriceOutOfBounds(fraxUsdPrice, fraxToUsd) || block.timestamp - updatedAtFrax > fraxHeartbeat) {
+            (
+                roundIdFrax,
+                fraxUsdPrice,
+                startedAtFrax,
+                updatedAtFrax,
+                answeredInRoundFrax
+            ) = fraxToUsdFallbackOracle();
+        }
 
         int256 minUsdPrice;
 
-        // If FRAX price is lower than USDC price and the FRAX price is not stale, use FRAX price
+        // If FRAX price is lower than USDC price, use FRAX price
         if (
-            fraxUsdPrice < usdcUsdPrice &&
-            block.timestamp - updatedAtFrax <= fraxHeartbeat
+            fraxUsdPrice < usdcUsdPrice && updatedAtFrax > 0
         ) {
             minUsdPrice = fraxUsdPrice;
             roundId = roundIdFrax;
@@ -168,7 +185,7 @@ contract TriFraxPoolPriceFeed {
         view
         returns (uint80, int256, uint256, uint256, uint80)
     {
-        int crvEthToUsdc = int(tricryptoINV.price_oracle(ethK));
+        int crvEthToUsdc = int(tricryptoETH.price_oracle(ethK));
 
         (
             uint80 roundId,
@@ -178,9 +195,7 @@ contract TriFraxPoolPriceFeed {
             uint80 answeredInRound
         ) = ethToUsd.latestRoundData();
 
-        int usdcToUsdPrice = (crvEthToUsdc * 10 ** 8) /
-            ethToUsdPrice /
-            10 ** 10;
+        int usdcToUsdPrice = ethToUsdPrice * 10 ** 18 / crvEthToUsdc;
         
         if(isPriceOutOfBounds(ethToUsdPrice, ethToUsd) || block.timestamp - updatedAt > ethHeartbeat) {
             // will cause stale price on borrow controller
@@ -188,5 +203,39 @@ contract TriFraxPoolPriceFeed {
         } 
 
         return (roundId, usdcToUsdPrice, startedAt, updatedAt, answeredInRound);
+    }
+
+        /**
+     * @notice Fetches the crvUSD to USD price and the crvUSD to FRAX to get FRAX/USD price, adjusts the decimals to match Chainlink oracles.
+     * @dev The function assumes that the `price_oracle` returns the price with 18 decimals, and it adjusts to 8 decimals for compatibility with Chainlink oracles.
+     * @return roundId The round ID of the crvUSD/USD Chainlink price feed
+     * @return fraxToUsdPrice The latest FRAX price in USD computed from the crvUSD/USD and crvUSD/FRAX feeds
+     * @return startedAt The timestamp when the latest round of crvUSD/USD Chainlink price feed started
+     * @return updatedAt The timestamp when the latest round of crvUSD/USD Chainlink price feed was updated
+     * @return answeredInRound The round ID of the crvUSD/USD Chainlink price feed in which the answer was computed
+     */
+    function fraxToUsdFallbackOracle()
+        public
+        view
+        returns (uint80, int256, uint256, uint256, uint80)
+    {
+        int crvUsdToFrax = int(crvUSDFrax.ema_price());
+
+        (
+            uint80 roundId,
+            int256 crvUSDToUsdPrice,
+            uint256 startedAt,
+            uint256 updatedAt,
+            uint80 answeredInRound
+        ) = crvUSDToUsd.latestRoundData();
+
+        int fraxToUsdPrice = crvUSDToUsdPrice * 10 ** 18 / crvUsdToFrax;
+        
+        if(isPriceOutOfBounds(crvUSDToUsdPrice, crvUSDToUsd) || block.timestamp - updatedAt > crvUSDHeartbeat) {
+            // will cause stale price on borrow controller
+            updatedAt = 0;
+        } 
+
+        return (roundId, fraxToUsdPrice, startedAt, updatedAt, answeredInRound);
     }
 }

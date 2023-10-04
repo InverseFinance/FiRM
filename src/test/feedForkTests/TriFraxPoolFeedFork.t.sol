@@ -51,7 +51,7 @@ contract TriFraxPoolPriceFeedFork is Test {
                 0,
                 110000000,
                 0,
-                0,
+                block.timestamp,
                 0
             )
         );
@@ -98,12 +98,10 @@ contract TriFraxPoolPriceFeedFork is Test {
         assertEq(clUpdatedAt2, updatedAt);
         assertEq(clAnsweredInRound2, answeredInRound);
 
-        uint256 ethUSDCPrice = feed.tricryptoINV().price_oracle(0);
+        uint256 ethUSDCPrice = feed.tricryptoETH().price_oracle(1);
         (, int256 usdcFallback, , , ) = feed.usdcToUsdFallbackOracle();
 
-        uint256 estimatedUSDCPrice = ethUSDCPrice * 10 ** 8 / 
-            uint256(ethToUsdPrice)
-            / 10 ** 10;
+        uint256 estimatedUSDCPrice = uint256(ethToUsdPrice) *10 ** 18 / ethUSDCPrice;
 
         assertEq(uint256(usdcFallback), estimatedUSDCPrice);
         assertEq(uint256(lpUsdPrice), uint(feed.latestAnswer()));
@@ -118,7 +116,7 @@ contract TriFraxPoolPriceFeedFork is Test {
                 0,
                 110000000,
                 0,
-                0,
+                block.timestamp,
                 0
             )
         );
@@ -164,12 +162,10 @@ contract TriFraxPoolPriceFeedFork is Test {
         assertEq(clUpdatedAt2, updatedAt);
         assertEq(clAnsweredInRound2, answeredInRound);
 
-        uint256 ethUSDCPrice = feed.tricryptoINV().price_oracle(0);
+        uint256 ethUSDCPrice = feed.tricryptoETH().price_oracle(1);
         (, int256 usdcFallback, , , ) = feed.usdcToUsdFallbackOracle();
 
-        uint256 estimatedUSDCPrice = ethUSDCPrice * 10 ** 8 / 
-            uint256(ethToUsdPrice)
-            / 10 ** 10;
+        uint256 estimatedUSDCPrice = uint256(ethToUsdPrice) * 10 ** 18 / ethUSDCPrice;
 
         assertEq(uint256(usdcFallback), estimatedUSDCPrice);
         assertEq(uint256(lpUsdPrice), uint(feed.latestAnswer()));
@@ -184,7 +180,7 @@ contract TriFraxPoolPriceFeedFork is Test {
                 0,
                 110000000,
                 0,
-                0,
+                block.timestamp,
                 0
             )
         );
@@ -244,15 +240,13 @@ contract TriFraxPoolPriceFeedFork is Test {
         assertEq(clAnsweredInRound2, answeredInRound);
 
         (, int256 usdcFallback, , , ) = feed.usdcToUsdFallbackOracle();
-        uint256 estimatedUsdcFallback = feed.tricryptoINV().price_oracle(0) * 10 ** 8 / 
-            uint256(ethToUsdPrice)
-            / 10 ** 10;
+        uint256 estimatedUsdcFallback = uint256(ethToUsdPrice) * 10 **18 / feed.tricryptoETH().price_oracle(1);
 
         assertEq(uint256(usdcFallback), estimatedUsdcFallback);
         assertEq(uint256(lpUsdPrice), uint(feed.latestAnswer()));
     }
 
-    function test_STALE_FRAX_whenFraxLessThanUSDC() public {
+    function test_STALE_FRAX_and_crvUSD_STALE_whenFraxLessThanUSDC() public {
        
         (
             uint80 clRoundId,
@@ -271,6 +265,17 @@ contract TriFraxPoolPriceFeedFork is Test {
                 fraxToUsdPrice,
                 clStartedAt,
                 clUpdatedAt - 1 - feed.fraxHeartbeat(),
+                clAnsweredInRound
+            )
+        );
+        vm.mockCall(
+            address(feed.crvUSDToUsd()),
+            abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
+            abi.encode(
+                clRoundId,
+                fraxToUsdPrice,
+                clStartedAt,
+                0,
                 clAnsweredInRound
             )
         );
