@@ -38,7 +38,7 @@ contract InvFeedFork is Test {
         assertEq(updatedAt, clUpdatedAt);
         assertEq(answeredInRound, clAnsweredInRound);
 
-        uint256 invUSDCPrice = feed.tricrypto().price_oracle(1);
+        uint256 invUSDCPrice = feed.tricryptoINV().price_oracle(1);
         uint256 estimatedInvUSDPrice = (invUSDCPrice *
             uint256(clUsdcToUsdPrice) *
             10 ** 10) / 10 ** 18;
@@ -86,7 +86,7 @@ contract InvFeedFork is Test {
         assertEq(clUpdatedAt2, updatedAt);
         assertEq(clAnsweredInRound2, answeredInRound);
 
-        uint256 invUSDCPrice = feed.tricrypto().price_oracle(1);
+        uint256 invUSDCPrice = feed.tricryptoINV().price_oracle(1);
         (, int256 usdcFallback, , , ) = feed.usdcToUsdFallbackOracle();
 
         uint256 estimatedInvUSDPrice = (invUSDCPrice *
@@ -136,7 +136,7 @@ contract InvFeedFork is Test {
         assertEq(clUpdatedAt2, updatedAt);
         assertEq(clAnsweredInRound2, answeredInRound);
 
-        uint256 invUSDCPrice = feed.tricrypto().price_oracle(1);
+        uint256 invUSDCPrice = feed.tricryptoINV().price_oracle(1);
         (, int256 usdcFallback, , , ) = feed.usdcToUsdFallbackOracle();
 
         uint256 estimatedInvUSDPrice = (invUSDCPrice *
@@ -145,6 +145,171 @@ contract InvFeedFork is Test {
 
         assertEq(uint256(invUsdPrice), estimatedInvUSDPrice);
         assertEq(uint256(invUsdPrice), uint(feed.latestAnswer()));
+    }
+
+    function test_StaleETH_WillReturnFallbackWhenOutOfMinBoundsUSDC() public {
+        (
+            uint80 clRoundId,
+            ,
+            uint clStartedAt,
+            uint clUpdatedAt,
+            uint80 clAnsweredInRound
+        ) = feed.usdcToUsd().latestRoundData();
+        (
+            uint80 clRoundId2,
+            int256 ethToUsdPrice,
+            uint clStartedAt2,
+            ,
+            uint80 clAnsweredInRound2
+        ) = feed.ethToUsd().latestRoundData();
+        vm.mockCall(
+            address(feed.usdcToUsd()),
+            abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
+            abi.encode(
+                clRoundId,
+                10,
+                clStartedAt,
+                clUpdatedAt,
+                clAnsweredInRound
+            )
+        );
+        vm.mockCall(
+            address(feed.ethToUsd()),
+            abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
+            abi.encode(
+                clRoundId2,
+                ethToUsdPrice, // correct price
+                clStartedAt2,
+                clUpdatedAt - feed.ethHeartbeat(), // stale heartbeat
+                clAnsweredInRound2
+            )
+        );
+        (
+            uint80 roundId,
+            int256 invUsdPrice,
+            uint startedAt,
+            uint updatedAt,
+            uint80 answeredInRound
+        ) = feed.latestRoundData();
+
+        assertEq(clRoundId2, roundId);
+        assertEq(clStartedAt2, startedAt);
+        assertEq(0, updatedAt); // if stale price return updateAt == 0
+        assertEq(clAnsweredInRound2, answeredInRound);
+
+        uint256 invUSDCPrice = feed.tricryptoINV().price_oracle(1);
+        (, int256 usdcFallback, , , ) = feed.usdcToUsdFallbackOracle();
+
+        uint256 estimatedInvUSDPrice = (invUSDCPrice *
+            uint256(usdcFallback) *
+            10 ** 10) / 10 ** 18;
+
+        assertEq(uint256(invUsdPrice), estimatedInvUSDPrice);
+        assertEq(uint256(invUsdPrice), uint(feed.latestAnswer()));
+    }
+
+    function test_OutOfMinBoundsETH_WillReturnFallbackWhenOutOfMinBoundsUSDC() public {
+        (
+            uint80 clRoundId,
+            ,
+            uint clStartedAt,
+            uint clUpdatedAt,
+            uint80 clAnsweredInRound
+        ) = feed.usdcToUsd().latestRoundData();
+        (
+            uint80 clRoundId2,
+            ,
+            uint clStartedAt2,
+            uint clUpdatedAt2,
+            uint80 clAnsweredInRound2
+        ) = feed.ethToUsd().latestRoundData();
+        vm.mockCall(
+            address(feed.usdcToUsd()),
+            abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
+            abi.encode(
+                clRoundId,
+                10,
+                clStartedAt,
+                clUpdatedAt,
+                clAnsweredInRound
+            )
+        );
+        vm.mockCall(
+            address(feed.ethToUsd()),
+            abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
+            abi.encode(
+                clRoundId2,
+                1, // out of bounds
+                clStartedAt2,
+                clUpdatedAt2, // within the eth heartbeat
+                clAnsweredInRound2
+            )
+        );
+        (
+            uint80 roundId,
+            int256 invUsdPrice,
+            uint startedAt,
+            uint updatedAt,
+            uint80 answeredInRound
+        ) = feed.latestRoundData();
+       
+        assertEq(clRoundId2, roundId);
+        assertEq(clStartedAt2, startedAt);
+        assertEq(0, updatedAt); // if out of bounds return updateAt == 0
+        assertEq(clAnsweredInRound2, answeredInRound);
+
+        uint256 invUSDCPrice = feed.tricryptoINV().price_oracle(1);
+        (, int256 usdcFallback, , , ) = feed.usdcToUsdFallbackOracle();
+
+        uint256 estimatedInvUSDPrice = (invUSDCPrice *
+            uint256(usdcFallback) *
+            10 ** 10) / 10 ** 18;
+
+        assertEq(uint256(invUsdPrice), estimatedInvUSDPrice);
+        assertEq(uint256(invUsdPrice), uint(feed.latestAnswer()));
+    }
+
+    function test_revert_withOutOfMaxBoundsETH_fallbackWhenOutOfMinBoundsUSDC() public {
+        (
+            uint80 clRoundId,
+            ,
+            uint clStartedAt,
+            uint clUpdatedAt,
+            uint80 clAnsweredInRound
+        ) = feed.usdcToUsd().latestRoundData();
+        (
+            uint80 clRoundId2,
+            ,
+            uint clStartedAt2,
+            uint clUpdatedAt2,
+            uint80 clAnsweredInRound2
+        ) = feed.ethToUsd().latestRoundData();
+        vm.mockCall(
+            address(feed.usdcToUsd()),
+            abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
+            abi.encode(
+                clRoundId,
+                10,
+                clStartedAt,
+                clUpdatedAt,
+                clAnsweredInRound
+            )
+        );
+        vm.mockCall(
+            address(feed.ethToUsd()),
+            abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
+            abi.encode(
+                clRoundId2,
+                IAggregator(feed.ethToUsd().aggregator()).maxAnswer() + 1, // out of bounds (maxAnswer ETH == 95780971304118053647396689196894323976171195136475135)
+                clStartedAt2,
+                clUpdatedAt2, // within the eth heartbeat
+                clAnsweredInRound2
+            )
+        );
+
+        // if ETH price > maxAnswer (95780971304118053647396689196894323976171195136475135) will revert
+        vm.expectRevert(stdError.arithmeticError);
+        feed.latestRoundData();
     }
 
     function test_compare_oracle() public {

@@ -30,7 +30,10 @@ interface ICurvePool {
 }
 
 contract InvPriceFeed {
-    ICurvePool public constant tricrypto =
+    ICurvePool public constant tricryptoETH =
+        ICurvePool(0x7F86Bf177Dd4F3494b841a37e810A34dD56c829B);
+
+    ICurvePool public constant tricryptoINV =
         ICurvePool(0x5426178799ee0a0181A89b4f57eFddfAb49941Ec);
 
     IChainlinkFeed public constant usdcToUsd =
@@ -39,8 +42,10 @@ contract InvPriceFeed {
     IChainlinkFeed public constant ethToUsd =
         IChainlinkFeed(0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419);
 
-    uint256 public constant ethK = 0;
+    uint256 public constant ethK = 1;
     uint256 public constant invK = 1;
+
+    uint256 public constant ethHeartbeat = 1 hours;
 
     /**
      * @notice Retrieves the latest round data for the INV token price feed
@@ -75,7 +80,7 @@ contract InvPriceFeed {
                 answeredInRound
             ) = usdcToUsdFallbackOracle();
         }
-        int256 invUsdcPrice = int256(tricrypto.price_oracle(invK));
+        int256 invUsdcPrice = int256(tricryptoINV.price_oracle(invK));
 
         int256 invDollarPrice =
             (invUsdcPrice * usdcUsdPrice * 10 ** 10) /
@@ -131,7 +136,7 @@ contract InvPriceFeed {
         view
         returns (uint80, int256, uint256, uint256, uint80)
     {
-        int crvEthToUsdc = int(tricrypto.price_oracle(ethK));
+        int crvEthToUsdc = int(tricryptoETH.price_oracle(ethK));
 
         (
             uint80 roundId,
@@ -142,6 +147,11 @@ contract InvPriceFeed {
         ) = ethToUsd.latestRoundData();
 
         int256 usdcToUsdPrice = ethToUsdPrice * 10 ** 18 / crvEthToUsdc;
+
+        if(isPriceOutOfBounds(ethToUsdPrice, ethToUsd) || block.timestamp - updatedAt > ethHeartbeat) {
+            // Will force stale price on borrow controller
+            updatedAt = 0;
+        }
 
         return (roundId, usdcToUsdPrice, startedAt, updatedAt, answeredInRound);
     }
