@@ -159,7 +159,7 @@ contract InvFeedFork is Test {
             uint80 clRoundId2,
             int256 ethToUsdPrice,
             uint clStartedAt2,
-            ,
+            uint clUpdatedAt2,
             uint80 clAnsweredInRound2
         ) = feed.ethToUsd().latestRoundData();
         vm.mockCall(
@@ -180,7 +180,7 @@ contract InvFeedFork is Test {
                 clRoundId2,
                 ethToUsdPrice, // correct price
                 clStartedAt2,
-                clUpdatedAt - feed.ethHeartbeat(), // stale heartbeat
+                clUpdatedAt2 - feed.ethHeartbeat(), // stale heartbeat
                 clAnsweredInRound2
             )
         );
