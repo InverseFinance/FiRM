@@ -50,29 +50,14 @@ contract InvFeedFork is Test {
     function testWillReturnFallbackWhenOutOfMaxBounds() public {
         (
             uint80 clRoundId,
-            int256 usdcToUsdPrice,
+            ,
             uint clStartedAt,
             uint clUpdatedAt,
             uint80 clAnsweredInRound
-        ) = feed.usdcToUsd().latestRoundData();
-        (
-            uint80 clRoundId2,
-            int256 ethToUsdPrice,
-            uint clStartedAt2,
-            uint clUpdatedAt2,
-            uint80 clAnsweredInRound2
         ) = feed.ethToUsd().latestRoundData();
-        vm.mockCall(
-            address(feed.usdcToUsd()),
-            abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
-            abi.encode(
-                clRoundId,
-                10 ** 12,
-                clStartedAt,
-                clUpdatedAt,
-                clAnsweredInRound
-            )
-        );
+
+        _mockChainlinkPrice(feed.usdcToUsd(), 10 ** 12);
+
         (
             uint80 roundId,
             int256 invUsdPrice,
@@ -81,10 +66,10 @@ contract InvFeedFork is Test {
             uint80 answeredInRound
         ) = feed.latestRoundData();
 
-        assertEq(clRoundId2, roundId);
-        assertEq(clStartedAt2, startedAt);
-        assertEq(clUpdatedAt2, updatedAt);
-        assertEq(clAnsweredInRound2, answeredInRound);
+        assertEq(clRoundId, roundId);
+        assertEq(clStartedAt, startedAt);
+        assertEq(clUpdatedAt, updatedAt);
+        assertEq(clAnsweredInRound, answeredInRound);
 
         uint256 invUSDCPrice = feed.tricryptoINV().price_oracle(1);
         (, int256 usdcFallback, , , ) = feed.usdcToUsdFallbackOracle();
@@ -100,29 +85,14 @@ contract InvFeedFork is Test {
     function testWillReturnFallbackWhenOutOfMinBounds() public {
         (
             uint80 clRoundId,
-            int256 usdcToUsdPrice,
+            ,
             uint clStartedAt,
             uint clUpdatedAt,
             uint80 clAnsweredInRound
-        ) = feed.usdcToUsd().latestRoundData();
-        (
-            uint80 clRoundId2,
-            int256 ethToUsdPrice,
-            uint clStartedAt2,
-            uint clUpdatedAt2,
-            uint80 clAnsweredInRound2
         ) = feed.ethToUsd().latestRoundData();
-        vm.mockCall(
-            address(feed.usdcToUsd()),
-            abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
-            abi.encode(
-                clRoundId,
-                10,
-                clStartedAt,
-                clUpdatedAt,
-                clAnsweredInRound
-            )
-        );
+
+        _mockChainlinkPrice(feed.usdcToUsd(), 10);
+
         (
             uint80 roundId,
             int256 invUsdPrice,
@@ -131,10 +101,10 @@ contract InvFeedFork is Test {
             uint80 answeredInRound
         ) = feed.latestRoundData();
 
-        assertEq(clRoundId2, roundId);
-        assertEq(clStartedAt2, startedAt);
-        assertEq(clUpdatedAt2, updatedAt);
-        assertEq(clAnsweredInRound2, answeredInRound);
+        assertEq(clRoundId, roundId);
+        assertEq(clStartedAt, startedAt);
+        assertEq(clUpdatedAt, updatedAt);
+        assertEq(clAnsweredInRound, answeredInRound);
 
         uint256 invUSDCPrice = feed.tricryptoINV().price_oracle(1);
         (, int256 usdcFallback, , , ) = feed.usdcToUsdFallbackOracle();
@@ -148,42 +118,18 @@ contract InvFeedFork is Test {
     }
 
     function test_StaleETH_WillReturnFallbackWhenOutOfMinBoundsUSDC() public {
+
         (
             uint80 clRoundId,
             ,
             uint clStartedAt,
-            uint clUpdatedAt,
+            ,
             uint80 clAnsweredInRound
-        ) = feed.usdcToUsd().latestRoundData();
-        (
-            uint80 clRoundId2,
-            int256 ethToUsdPrice,
-            uint clStartedAt2,
-            uint clUpdatedAt2,
-            uint80 clAnsweredInRound2
         ) = feed.ethToUsd().latestRoundData();
-        vm.mockCall(
-            address(feed.usdcToUsd()),
-            abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
-            abi.encode(
-                clRoundId,
-                10,
-                clStartedAt,
-                clUpdatedAt,
-                clAnsweredInRound
-            )
-        );
-        vm.mockCall(
-            address(feed.ethToUsd()),
-            abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
-            abi.encode(
-                clRoundId2,
-                ethToUsdPrice, // correct price
-                clStartedAt2,
-                clUpdatedAt2 - feed.ethHeartbeat(), // stale heartbeat
-                clAnsweredInRound2
-            )
-        );
+
+        _mockChainlinkPrice(feed.usdcToUsd(), 10);
+        _mockChainlinkUpdatedAt(feed.ethToUsd(), -1*int(feed.ethHeartbeat()));
+
         (
             uint80 roundId,
             int256 invUsdPrice,
@@ -192,10 +138,10 @@ contract InvFeedFork is Test {
             uint80 answeredInRound
         ) = feed.latestRoundData();
 
-        assertEq(clRoundId2, roundId);
-        assertEq(clStartedAt2, startedAt);
+        assertEq(clRoundId, roundId);
+        assertEq(clStartedAt, startedAt);
         assertEq(0, updatedAt); // if stale price return updateAt == 0
-        assertEq(clAnsweredInRound2, answeredInRound);
+        assertEq(clAnsweredInRound, answeredInRound);
 
         uint256 invUSDCPrice = feed.tricryptoINV().price_oracle(1);
         (, int256 usdcFallback, , , ) = feed.usdcToUsdFallbackOracle();
@@ -209,42 +155,18 @@ contract InvFeedFork is Test {
     }
 
     function test_OutOfMinBoundsETH_WillReturnFallbackWhenOutOfMinBoundsUSDC() public {
+
         (
             uint80 clRoundId,
             ,
             uint clStartedAt,
-            uint clUpdatedAt,
-            uint80 clAnsweredInRound
-        ) = feed.usdcToUsd().latestRoundData();
-        (
-            uint80 clRoundId2,
             ,
-            uint clStartedAt2,
-            uint clUpdatedAt2,
-            uint80 clAnsweredInRound2
+            uint80 clAnsweredInRound
         ) = feed.ethToUsd().latestRoundData();
-        vm.mockCall(
-            address(feed.usdcToUsd()),
-            abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
-            abi.encode(
-                clRoundId,
-                10,
-                clStartedAt,
-                clUpdatedAt,
-                clAnsweredInRound
-            )
-        );
-        vm.mockCall(
-            address(feed.ethToUsd()),
-            abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
-            abi.encode(
-                clRoundId2,
-                1, // out of bounds
-                clStartedAt2,
-                clUpdatedAt2, // within the eth heartbeat
-                clAnsweredInRound2
-            )
-        );
+
+        _mockChainlinkPrice(feed.usdcToUsd(), 10);
+        _mockChainlinkPrice(feed.ethToUsd(), 1);
+
         (
             uint80 roundId,
             int256 invUsdPrice,
@@ -253,10 +175,10 @@ contract InvFeedFork is Test {
             uint80 answeredInRound
         ) = feed.latestRoundData();
        
-        assertEq(clRoundId2, roundId);
-        assertEq(clStartedAt2, startedAt);
+        assertEq(clRoundId, roundId);
+        assertEq(clStartedAt, startedAt);
         assertEq(0, updatedAt); // if out of bounds return updateAt == 0
-        assertEq(clAnsweredInRound2, answeredInRound);
+        assertEq(clAnsweredInRound, answeredInRound);
 
         uint256 invUSDCPrice = feed.tricryptoINV().price_oracle(1);
         (, int256 usdcFallback, , , ) = feed.usdcToUsdFallbackOracle();
@@ -270,42 +192,8 @@ contract InvFeedFork is Test {
     }
 
     function test_revert_withOutOfMaxBoundsETH_fallbackWhenOutOfMinBoundsUSDC() public {
-        (
-            uint80 clRoundId,
-            ,
-            uint clStartedAt,
-            uint clUpdatedAt,
-            uint80 clAnsweredInRound
-        ) = feed.usdcToUsd().latestRoundData();
-        (
-            uint80 clRoundId2,
-            ,
-            uint clStartedAt2,
-            uint clUpdatedAt2,
-            uint80 clAnsweredInRound2
-        ) = feed.ethToUsd().latestRoundData();
-        vm.mockCall(
-            address(feed.usdcToUsd()),
-            abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
-            abi.encode(
-                clRoundId,
-                10,
-                clStartedAt,
-                clUpdatedAt,
-                clAnsweredInRound
-            )
-        );
-        vm.mockCall(
-            address(feed.ethToUsd()),
-            abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
-            abi.encode(
-                clRoundId2,
-                IAggregator(feed.ethToUsd().aggregator()).maxAnswer() + 1, // out of bounds (maxAnswer ETH == 95780971304118053647396689196894323976171195136475135)
-                clStartedAt2,
-                clUpdatedAt2, // within the eth heartbeat
-                clAnsweredInRound2
-            )
-        );
+        _mockChainlinkPrice(feed.usdcToUsd(), 10);
+        _mockChainlinkPrice(feed.ethToUsd(), IAggregator(feed.ethToUsd().aggregator()).maxAnswer()+1);
 
         // if ETH price > maxAnswer (95780971304118053647396689196894323976171195136475135) will revert
         vm.expectRevert(stdError.arithmeticError);
@@ -321,11 +209,8 @@ contract InvFeedFork is Test {
         ) = feed.latestRoundData();
         assertEq(uint256(invUsdPrice), uint(feed.latestAnswer()));
 
-        vm.mockCall(
-            address(feed.usdcToUsd()),
-            abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
-            abi.encode(0, 10, 0, 0, 0)
-        );
+        _mockChainlinkPrice(feed.usdcToUsd(), 10);
+
         (, int256 invUsdPriceFallback, , , ) = feed.latestRoundData();
         assertEq(uint256(invUsdPriceFallback), uint(feed.latestAnswer()));
 
@@ -334,5 +219,47 @@ contract InvFeedFork is Test {
             uint256(invUsdPriceFallback),
             0.5 ether
         ); // 0.5 dollar
+    }
+
+    function _mockChainlinkPrice(IChainlinkFeed clFeed, int mockPrice) internal {
+        (
+            uint80 roundId,
+            ,
+            uint startedAt,
+            uint updatedAt,
+            uint80 answeredInRound
+        ) = clFeed.latestRoundData();
+         vm.mockCall(
+            address(clFeed),
+            abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
+            abi.encode(
+                roundId,
+                mockPrice,
+                startedAt,
+                updatedAt,
+                answeredInRound
+            )
+        );   
+    }
+
+    function _mockChainlinkUpdatedAt(IChainlinkFeed clFeed, int updatedAtDelta) internal {
+        (
+            uint80 roundId,
+            int price,
+            uint startedAt,
+            uint updatedAt,
+            uint80 answeredInRound
+        ) = clFeed.latestRoundData();
+         vm.mockCall(
+            address(clFeed),
+            abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
+            abi.encode(
+                roundId,
+                price,
+                startedAt,
+                uint(int(updatedAt) + updatedAtDelta),
+                answeredInRound
+            )
+        );   
     }
 }
