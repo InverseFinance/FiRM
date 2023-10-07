@@ -48,16 +48,22 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
     event LeverageUp(
         address indexed market,
         address indexed account,
-        uint256 dolaFlashMinted,
-        uint256 collateralBought
+        uint256 dolaFlashMinted, // DOLA flash minted for buying collateral only
+        uint256 collateralDeposited, // amount of collateral deposited into the escrow    
+        uint256 dolaBorrowed,  // amount of DOLA borrowed on behalf of the user
+        uint256 dolaForDBR   // amount of DOLA used for buying DBR
     );
 
     event LeverageDown(
         address indexed market,
         address indexed account,
-        uint256 dolaFlashMinted,
-        uint256 collateralSold
+        uint256 dolaFlashMinted, // Flash minted DOLA for repaying leverage only
+        uint256 collateralSold,  // amount of collateral/underlying sold
+        uint256 dolaUserRepaid,  // amount of DOLA deposited by the user as part of the repay
+        uint256 dbrSoldForDola   // amount of DBR sold for DOLA
     );
+
+    event Deposit(address indexed market, address indexed account, uint256 depositAmount);
 
     event NewMarket(address indexed market, address indexed buySellToken, address collateral, address indexed helper);
 
@@ -137,7 +143,7 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
 
     /// @notice Leverage user position by minting DOLA, buying collateral, deposting into the user escrow and borrow DOLA on behalf to repay the minted DOLA
     /// @dev Requires user to sign message to permit the contract to borrow DOLA on behalf
-    /// @param _value Amount of DOLA to borrow
+    /// @param _value Amount of DOLA to flash mint/burn
     /// @param _market The market contract
     /// @param _spender The `allowanceTarget` field from the API response.
     /// @param _swapCallData The `data` field from the API response.
@@ -202,7 +208,7 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         if (address(this).balance > 0)
             payable(msg.sender).transfer(address(this).balance);
 
-        emit LeverageUp(_market, msg.sender, _value, collateralAmount);
+        emit LeverageUp(_market, msg.sender, _value, collateralAmount, _dbrData.dola, _dbrData.amountIn);
     }
 
     /// @notice Deposit collateral and instantly leverage user position by minting DOLA, buying collateral, deposting into the user escrow and borrow DOLA on behalf to repay the minted DOLA
@@ -227,6 +233,8 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         if (_initialDeposit == 0) revert NothingToDeposit();
         IERC20 buyToken = markets[_market].buySellToken;
         buyToken.transferFrom(msg.sender, address(this), _initialDeposit);
+
+        emit Deposit(_market, msg.sender, _initialDeposit);
 
         leveragePosition(
             _value,
@@ -322,7 +330,7 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         if (address(this).balance > 0)
             payable(msg.sender).transfer(address(this).balance);
 
-        emit LeverageDown(_market, msg.sender, _value, _collateralAmount);
+       emit LeverageDown(_market, msg.sender, _value, _collateralAmount, _dbrData.dola, _dbrData.amountIn);
     }
 
     /// @notice Mint DOLA to this contract and approve the spender
