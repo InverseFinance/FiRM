@@ -8,6 +8,10 @@ import "src/util/CurveDBRHelper.sol";
 import {Ownable} from "lib/openzeppelin-contracts/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "lib/openzeppelin-contracts/contracts/security/ReentrancyGuard.sol";
 
+interface IDBR {
+    function markets(address) external view returns (bool);
+}
+
 // Accelerated leverage engine
 contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
     error CollateralNotSet();
@@ -21,10 +25,15 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
     error DepositFailed(uint256 expected, uint256 actual);
     error WithdrawFailed(uint256 expected, uint256 actual);
     error TotalSupplyChanged(uint256 expected, uint256 actual);
+    error CollateralIsZero();
+    error NoMarket(address market);
+    error WrongCollateral(address market, address collateral, address helper);
 
     // 0x ExchangeProxy address.
     // See https://docs.0x.org/developer-resources/contract-addresses
     address payable public exchangeProxy;
+
+    IDBR public constant DBR = IDBR(0xAD038Eb671c44b853887A7E32528FaB35dC5D710);
 
     struct Market {
         IERC20 buySellToken;
@@ -104,13 +113,21 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         address _collateral,
         address _helper
     ) external onlyOwner {
+        if(!DBR.markets(_market)) revert NoMarket(_market);
+
+        if(_helper == address(0) && _buySellToken != IMarket(_market).collateral()) {
+            revert WrongCollateral(_market, _buySellToken, _helper);
+        } else if (_helper != address(0) && _collateral != IMarket(_market).collateral()) {
+            revert WrongCollateral(_market, _collateral, _helper);
+        }
+
         markets[_market].buySellToken = IERC20(_buySellToken);
         markets[_market].collateral = IERC20(_collateral);
         IERC20(_buySellToken).approve(_market, type(uint256).max);
 
         if (_buySellToken != _collateral) {
             IERC20(_collateral).approve(_market, type(uint256).max);
-        }
+        } 
 
         if (_helper != address(0)) {
             markets[_market].helper = ITransformHelper(_helper);
@@ -128,6 +145,8 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         address _market,
         address _helper
     ) external onlyOwner {
+        if (address(markets[_market].buySellToken) == address(0)) revert MarketNotSet(_market);
+
         address oldHelper = address(markets[_market].helper);
         if (oldHelper != address(0)) {
             markets[_market].buySellToken.approve(oldHelper, 0);
@@ -174,6 +193,7 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
 
         // Actual collateral/buyToken bought
         uint256 collateralAmount = markets[_market].buySellToken.balanceOf(address(this));
+        if(collateralAmount == 0) revert CollateralIsZero();
 
         // If there's a helper contract, the buyToken has to be transformed
         if (address(markets[_market].helper) != address(0)) {

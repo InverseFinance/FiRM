@@ -128,8 +128,10 @@ contract ALEHelperForkTest is Test {
             address(DOLA)
         );
 
-        vm.prank(gov);
+        vm.startPrank(gov);
         market.pauseBorrows(false);
+        dbr.addMarket(address(market));
+        vm.stopPrank();
 
         ale = new ALE(address(exchangeProxy), triDBR);
         ale.setMarket(
@@ -157,7 +159,7 @@ contract ALEHelperForkTest is Test {
         );
         market.setCollateralFactorBps(7500);
         borrowController.setDailyLimit(address(market), 250_000 * 1e18);
-        dbr.addMarket(address(market));
+     
         fed.changeMarketCeiling(IMarket(address(market)), type(uint).max);
         fed.changeSupplyCeiling(type(uint).max);
         oracle.setFeed(address(collateral), feed, 18);
