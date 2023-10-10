@@ -601,6 +601,35 @@ contract ALEHelperForkTest is Test {
         );
     }
 
+    function test_fail_setMarket_NoMarket() public {
+        address fakeMarket = address(0x69);
+
+        vm.expectRevert(abi.encodeWithSelector(ALE.NoMarket.selector, fakeMarket));
+        ale.setMarket(fakeMarket,address(0),address(0),address(0));
+    }
+
+
+    function test_fail_setMarket_WrongCollateral_WithHelper() public {
+        address fakeCollateral = address(0x69);
+
+        vm.expectRevert(abi.encodeWithSelector(ALE.WrongCollateral.selector,address(market), fakeCollateral, address(0), address(helper)));
+        ale.setMarket(address(market),fakeCollateral,address(0),address(helper));
+
+        vm.expectRevert(abi.encodeWithSelector(ALE.WrongCollateral.selector,address(market), address(0), fakeCollateral, address(helper)));
+        ale.setMarket(address(market),address(0), fakeCollateral, address(helper));
+
+        vm.expectRevert(abi.encodeWithSelector(ALE.WrongCollateral.selector,address(market), fakeCollateral, fakeCollateral, address(helper)));
+        ale.setMarket(address(market),fakeCollateral, fakeCollateral, address(helper));
+    }
+
+    function test_fail_updateMarketHelper_NoMarket() public {
+        address wrongMarket = address(0x69);
+        address newHelper = address(0x70);
+
+        vm.expectRevert(abi.encodeWithSelector(ALE.MarketNotSet.selector, wrongMarket));
+        ale.updateMarketHelper(wrongMarket, newHelper);
+    }
+
     function _convertCollatToDola(uint amount) internal view returns (uint) {
         uint256 underlying = helper.collateralToAsset(amount);
         return _convertUnderlyingToDola(underlying);

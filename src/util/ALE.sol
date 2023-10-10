@@ -27,7 +27,7 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
     error TotalSupplyChanged(uint256 expected, uint256 actual);
     error CollateralIsZero();
     error NoMarket(address market);
-    error WrongCollateral(address market, address collateral, address helper);
+    error WrongCollateral(address market, address buySellToken, address collateral, address helper);
 
     // 0x ExchangeProxy address.
     // See https://docs.0x.org/developer-resources/contract-addresses
@@ -115,10 +115,12 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
     ) external onlyOwner {
         if(!DBR.markets(_market)) revert NoMarket(_market);
 
-        if(_helper == address(0) && _buySellToken != IMarket(_market).collateral()) {
-            revert WrongCollateral(_market, _buySellToken, _helper);
+        if(_helper == address(0)) {
+            if(_buySellToken != IMarket(_market).collateral() || _collateral != IMarket(_market).collateral()) {
+                revert WrongCollateral(_market, _buySellToken, _collateral, _helper);
+            }
         } else if (_helper != address(0) && _collateral != IMarket(_market).collateral()) {
-            revert WrongCollateral(_market, _collateral, _helper);
+            revert WrongCollateral(_market, _buySellToken, _collateral, _helper);
         }
 
         markets[_market].buySellToken = IERC20(_buySellToken);
@@ -154,8 +156,12 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         }
 
         markets[_market].helper = ITransformHelper(_helper);
-        markets[_market].buySellToken.approve(_helper, type(uint256).max);
-        markets[_market].collateral.approve(_helper, type(uint256).max);
+        
+        if (_helper != address(0)) {
+            markets[_market].buySellToken.approve(_helper, type(uint256).max);
+            markets[_market].collateral.approve(_helper, type(uint256).max);
+        }
+     
 
         emit NewHelper(_market, _helper);
     }

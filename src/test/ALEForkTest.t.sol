@@ -1129,4 +1129,47 @@ contract ALEForkTest is FiRMForkTest {
             dbrData
         );
     }
+
+    function test_fail_setMarket_NoMarket() public {
+        address fakeMarket = address(0x69);
+
+        vm.expectRevert(abi.encodeWithSelector(ALE.NoMarket.selector, fakeMarket));
+        ale.setMarket(fakeMarket,address(0),address(0),address(0));
+    }
+
+    function test_fail_setMarket_WrongCollateral_NoHelper() public {
+        ale.updateMarketHelper(address(market), address(0));
+        
+        address fakeCollateral = address(0x69);
+
+        vm.expectRevert(abi.encodeWithSelector(ALE.WrongCollateral.selector,address(market), fakeCollateral, address(0), address(0)));
+        ale.setMarket(address(market),fakeCollateral,address(0),address(0));
+
+        vm.expectRevert(abi.encodeWithSelector(ALE.WrongCollateral.selector,address(market), address(0), fakeCollateral,address(0)));
+        ale.setMarket(address(market),address(0), fakeCollateral,address(0));
+
+        vm.expectRevert(abi.encodeWithSelector(ALE.WrongCollateral.selector,address(market), fakeCollateral, fakeCollateral,address(0)));
+        ale.setMarket(address(market),fakeCollateral, fakeCollateral,address(0));
+    }
+
+    function test_fail_setMarket_WrongCollateral_WithHelper() public {
+        address fakeCollateral = address(0x69);
+        address dummyHelper = address(0x70);
+        vm.expectRevert(abi.encodeWithSelector(ALE.WrongCollateral.selector,address(market), fakeCollateral, address(0), dummyHelper));
+        ale.setMarket(address(market),fakeCollateral,address(0),dummyHelper);
+
+        vm.expectRevert(abi.encodeWithSelector(ALE.WrongCollateral.selector,address(market), address(0), fakeCollateral, dummyHelper));
+        ale.setMarket(address(market),address(0), fakeCollateral, dummyHelper);
+
+        vm.expectRevert(abi.encodeWithSelector(ALE.WrongCollateral.selector,address(market), fakeCollateral, fakeCollateral, dummyHelper));
+        ale.setMarket(address(market),fakeCollateral, fakeCollateral, dummyHelper);
+    }
+
+    function test_fail_updateMarketHelper_NoMarket() public {
+        address wrongMarket = address(0x69);
+        address newHelper = address(0x70);
+
+        vm.expectRevert(abi.encodeWithSelector(ALE.MarketNotSet.selector, wrongMarket));
+        ale.updateMarketHelper(wrongMarket, newHelper);
+    }
 }
