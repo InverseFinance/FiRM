@@ -56,6 +56,8 @@ contract MockExchangeProxy {
 }
 
 contract ALEHelperForkTest is Test {
+    using stdStorage for StdStorage;
+
     //Market deployment:
     Market market;
     IChainlinkFeed feed;
@@ -628,6 +630,85 @@ contract ALEHelperForkTest is Test {
 
         vm.expectRevert(abi.encodeWithSelector(ALE.MarketNotSet.selector, wrongMarket));
         ale.updateMarketHelper(wrongMarket, newHelper);
+    }
+
+    function test_return_assetAmount_when_TotalSupply_is_Zero() public {
+        stdstore
+            .target(address(helper.vault()))
+            .sig(helper.vault().totalSupply.selector)
+            .checked_write(uint256(0));
+
+        uint256 assetAmount = 1 ether;
+        assertEq(assetAmount, helper.assetToCollateral(assetAmount));
+    }
+
+    function test_fail_collateral_is_zero_leveragePosition() public {
+        // We are going to deposit some CRV, then leverage the position
+        uint styCRVAmount = 1 ether;
+        address userPk = vm.addr(1);
+        vm.prank(styCRVHolder);
+        IERC20(styCRV).transfer(userPk, styCRVAmount);
+
+        gibDBR(userPk, styCRVAmount);
+
+        uint maxBorrowAmount = _getMaxBorrowAmount(styCRVAmount);
+
+        uint256 yCRVAmount = helper.collateralToAsset(
+            _convertDolaToCollat(maxBorrowAmount)
+        );
+        // recharge mocked proxy for swap, we need to swap DOLA to unwrapped collateral
+        vm.prank(yCRVHolder);
+        IERC20(yCRV).transfer(address(exchangeProxy), yCRVAmount + 2);
+
+        vm.startPrank(userPk, userPk);
+        // Initial CRV deposit
+        IErc20(styCRV).approve(address(market), styCRVAmount);
+        market.deposit(styCRVAmount);
+
+        // Sign Message for borrow on behalf
+        bytes32 hash = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                market.DOMAIN_SEPARATOR(),
+                keccak256(
+                    abi.encode(
+                        keccak256(
+                            "BorrowOnBehalf(address caller,address from,uint256 amount,uint256 nonce,uint256 deadline)"
+                        ),
+                        address(ale),
+                        userPk,
+                        maxBorrowAmount,
+                        0,
+                        block.timestamp
+                    )
+                )
+            )
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
+
+        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+
+        bytes memory swapData = abi.encodeWithSelector(
+            MockExchangeProxy.swapDolaIn.selector,
+            yCRV,
+            maxBorrowAmount
+        );
+
+        ALE.DBRHelper memory dbrData;
+
+        // Mock call to return 0 buySellToken balance for the ALE
+        vm.mockCall(yCRV, abi.encodeWithSelector(IERC20.balanceOf.selector,address(ale)), abi.encode(uint256(0)));
+
+        vm.expectRevert(ALE.CollateralIsZero.selector);
+        ale.leveragePosition(
+            maxBorrowAmount,
+            address(market),
+            address(exchangeProxy),
+            swapData,
+            permit,
+            bytes(""),
+            dbrData
+        );
     }
 
     function _convertCollatToDola(uint amount) internal view returns (uint) {
