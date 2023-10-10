@@ -93,6 +93,14 @@ contract MarketForkTest is Test {
         market.deposit(amount);
     }
 
+    function deposit(uint amount, address user) internal {
+        deal(address(collateral), user, amount);
+        vm.startPrank(user);
+        collateral.approve(address(market), amount);
+        market.deposit(amount);
+        vm.stopPrank();
+    }
+
     function convertCollatToDola(uint amount) public view returns (uint) {
         (,int latestAnswer,,,) = feed.latestRoundData();
         return amount * uint(latestAnswer) / 10**feed.decimals();
@@ -112,30 +120,12 @@ contract MarketForkTest is Test {
     }
 
     function gibDBR(address _address, uint _amount) internal {
-        vm.startPrank(gov);
+        vm.prank(gov);
         dbr.mint(_address, _amount);
-        vm.stopPrank();
     }
 
     function gibDOLA(address _address, uint _amount) internal {
-        vm.startPrank(gov);
+        vm.prank(gov);
         DOLA.mint(_address, _amount);
-        vm.stopPrank();
-    }
-
-    function codeAt(address _addr) public view returns (bytes memory o_code) {
-        assembly {
-            // retrieve the size of the code, this needs assembly
-            let size := extcodesize(_addr)
-            // allocate output byte array - this could also be done without assembly
-            // by using o_code = new bytes(size)
-            o_code := mload(0x40)
-            // new "memory end" including padding
-            mstore(0x40, add(o_code, and(add(add(size, 0x20), 0x1f), not(0x1f))))
-            // store length in memory
-            mstore(o_code, size)
-            // actually retrieve the code, this needs assembly
-            extcodecopy(_addr, add(o_code, 0x20), 0, size)
-        }
     }
 }
