@@ -30,6 +30,8 @@ interface ICurvePool {
 }
 
 contract InvPriceFeed {
+    error OnlyGov();
+
     ICurvePool public constant tricryptoETH =
         ICurvePool(0x7F86Bf177Dd4F3494b841a37e810A34dD56c829B);
 
@@ -45,8 +47,14 @@ contract InvPriceFeed {
     uint256 public constant ethK = 1;
     uint256 public constant invK = 1;
 
-    uint256 public constant ethHeartbeat = 1 hours;
+    uint256 public ethHeartbeat = 1 hours;
+    address public gov = 0x926dF14a23BE491164dCF93f4c468A50ef659D5B;
 
+    modifier onlyGov() {
+        if(msg.sender != gov) revert OnlyGov();
+        _;
+    }
+    
     /**
      * @notice Retrieves the latest round data for the INV token price feed
      * @dev This function calculates the INV price in USD by combining the USDC to USD price from a Chainlink oracle 
@@ -154,5 +162,23 @@ contract InvPriceFeed {
         }
 
         return (roundId, usdcToUsdPrice, startedAt, updatedAt, answeredInRound);
+    }
+
+    /**
+     * @notice Sets a new ETH heartbeat
+     * @dev Can only be called by the current gov address
+     * @param newHeartbeat The new ETH heartbeat
+     */
+    function setEthHeartbeat(uint256 newHeartbeat) external onlyGov {
+        ethHeartbeat = newHeartbeat;
+    }
+
+    /**
+     * @notice Sets a new gov address
+     * @dev Can only be called by the current gov address
+     * @param newGov The new gov address
+     */
+    function setGov(address newGov) external onlyGov {
+        gov = newGov;
     }
 }

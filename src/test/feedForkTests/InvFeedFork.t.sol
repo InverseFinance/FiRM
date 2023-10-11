@@ -221,6 +221,30 @@ contract InvFeedFork is Test {
         ); // 0.5 dollar
     }
 
+    function test_setEthHeartbeat() public {
+        assertEq(feed.ethHeartbeat(), 3600);
+
+        vm.expectRevert(InvPriceFeed.OnlyGov.selector);
+        feed.setEthHeartbeat(100);
+        assertEq(feed.ethHeartbeat(), 3600);
+
+        vm.prank(feed.gov());
+        feed.setEthHeartbeat(100);
+        assertEq(feed.ethHeartbeat(), 100);
+    } 
+
+    function test_setGov() public {
+        assertEq(feed.gov(), 0x926dF14a23BE491164dCF93f4c468A50ef659D5B);
+
+        vm.expectRevert(InvPriceFeed.OnlyGov.selector);
+        feed.setGov(address(this));
+        assertEq(feed.gov(), 0x926dF14a23BE491164dCF93f4c468A50ef659D5B);
+
+        vm.prank(feed.gov());
+        feed.setGov(address(this));
+        assertEq(feed.gov(), address(this));
+    }
+
     function _mockChainlinkPrice(IChainlinkFeed clFeed, int mockPrice) internal {
         (
             uint80 roundId,
