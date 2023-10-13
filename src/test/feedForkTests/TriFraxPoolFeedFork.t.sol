@@ -308,6 +308,54 @@ contract TriFraxPoolPriceFeedFork is Test {
         assertEq(uint256(lpUsdPrice), uint(feed.latestAnswer()));
     }
 
+    function test_setEthHeartbeat() public {
+        assertEq(feed.ethHeartbeat(), 3600);
+
+        vm.expectRevert(TriFraxPoolPriceFeed.OnlyGov.selector);
+        feed.setEthHeartbeat(100);
+        assertEq(feed.ethHeartbeat(), 3600);
+
+        vm.prank(feed.gov());
+        feed.setEthHeartbeat(100);
+        assertEq(feed.ethHeartbeat(), 100);
+    } 
+
+    function test_setFraxHeartbeat() public {
+        assertEq(feed.fraxHeartbeat(), 3600);
+
+        vm.expectRevert(TriFraxPoolPriceFeed.OnlyGov.selector);
+        feed.setFraxHeartbeat(100);
+        assertEq(feed.fraxHeartbeat(), 3600);
+
+        vm.prank(feed.gov());
+        feed.setFraxHeartbeat(100);
+        assertEq(feed.fraxHeartbeat(), 100);
+    } 
+
+    function test_setCrvUSDHeartbeat() public {
+        assertEq(feed.crvUSDHeartbeat(), 24 hours);
+
+        vm.expectRevert(TriFraxPoolPriceFeed.OnlyGov.selector);
+        feed.setCrvUSDHeartbeat(100);
+        assertEq(feed.crvUSDHeartbeat(), 24 hours);
+
+        vm.prank(feed.gov());
+        feed.setCrvUSDHeartbeat(100);
+        assertEq(feed.crvUSDHeartbeat(), 100);
+    } 
+
+    function test_setGov() public {
+        assertEq(feed.gov(), 0x926dF14a23BE491164dCF93f4c468A50ef659D5B);
+
+        vm.expectRevert(TriFraxPoolPriceFeed.OnlyGov.selector);
+        feed.setGov(address(this));
+        assertEq(feed.gov(), 0x926dF14a23BE491164dCF93f4c468A50ef659D5B);
+
+        vm.prank(feed.gov());
+        feed.setGov(address(this));
+        assertEq(feed.gov(), address(this));
+    }
+
     function _calculateOracleLpPrice()
         internal
         view
