@@ -1221,6 +1221,51 @@ contract CrvLPMarketForkTest is MarketForkTest {
         market.borrow(1300 ether);
     }
 
+    function testBorrow_Fails_if_price_stale_crvUSDToUsd_and_ethToUsd_when_fraxToUsd_stale_and_usdcToUsd_MAX_out_of_bounds_and_USDC_gt_FRAX()
+        public
+    {
+        _setNewBorrowController();
+
+        testAmount = 10000 ether;
+        gibCollateral(user, testAmount);
+        gibDBR(user, testAmount);
+        vm.startPrank(user, user);
+        deposit(testAmount);
+
+        _mockChainlinkUpdatedAt(
+            IChainlinkFeed(address(fraxPoolFeed.fraxToUsd())),
+            -1 hours
+        ); // Frax STALE
+
+
+        _mockChainlinkUpdatedAt(
+            IChainlinkFeed(address(fraxPoolFeed.crvUSDToUsd())),
+            -24 hours
+        ); // staleness for crvUSDToUsd
+
+        _mockChainlinkPrice(
+            IChainlinkFeed(address(fraxPoolFeed.usdcToUsd())),
+            IAggregator(fraxPoolFeed.usdcToUsd().aggregator()).maxAnswer() + 1
+        ); // Max out of bounds
+
+        _mockChainlinkUpdatedAt(
+            IChainlinkFeed(address(fraxPoolFeed.ethToUsd())),
+            -3601
+        ); // staleness for ethToUsd
+
+        assertTrue(
+            IBorrowControllerLatest(0x44B7895989Bc7886423F06DeAa844D413384b0d6)
+                .isPriceStale(address(market))
+        );
+        assertFalse(
+            IBorrowControllerLatest(0x44B7895989Bc7886423F06DeAa844D413384b0d6)
+                .isBelowMinDebt(address(market), user, 1300 ether)
+        ); // Minimum debt is 1250 DOLA
+
+        vm.expectRevert(bytes("Denied by borrow controller"));
+        market.borrow(1300 ether);
+    }
+
     function testBorrow_Fails_if_ethToUsd_MIN_out_of_bounds_when_usdcToUsd_MAX_out_of_bounds()
         public
     {
@@ -1296,6 +1341,46 @@ contract CrvLPMarketForkTest is MarketForkTest {
         market.borrow(1300 ether);
     }
 
+       function testBorrow_Fails_if_price_stale_crvUSDToUsd_and_ethToUsd_when_usdcToUsd_and_fraxToUsd_MAX_out_of_bounds()
+        public
+    {
+        _setNewBorrowController();
+
+        testAmount = 10000 ether;
+        gibCollateral(user, testAmount);
+        gibDBR(user, testAmount);
+        vm.startPrank(user, user);
+        deposit(testAmount);
+
+        _mockChainlinkPrice(
+            IChainlinkFeed(address(fraxPoolFeed.usdcToUsd())),
+            IAggregator(fraxPoolFeed.usdcToUsd().aggregator()).maxAnswer() + 1
+        ); // Max out of bounds
+
+        _mockChainlinkPrice(
+            IChainlinkFeed(address(fraxPoolFeed.fraxToUsd())),
+            IAggregator(fraxPoolFeed.fraxToUsd().aggregator()).maxAnswer() + 1
+        ); // Max out of bounds
+
+         _mockChainlinkUpdatedAt(
+            IChainlinkFeed(address(fraxPoolFeed.crvUSDToUsd())),
+           -24 hours
+        ); 
+        
+         _mockChainlinkUpdatedAt(
+            IChainlinkFeed(address(fraxPoolFeed.ethToUsd())),
+           -1 hours
+        ); 
+
+        assertTrue(
+            IBorrowControllerLatest(0x44B7895989Bc7886423F06DeAa844D413384b0d6)
+                .isPriceStale(address(market))
+        );
+        
+        vm.expectRevert(bytes("Denied by borrow controller"));
+        market.borrow(1300 ether);
+    }
+
     function testBorrow_if_price_NOT_stale_ethToUsd_when_usdcToUsd_MAX_out_of_bounds_and_FRAX_gt_USDC()
         public
     {
@@ -1333,7 +1418,67 @@ contract CrvLPMarketForkTest is MarketForkTest {
         assertEq(DOLA.balanceOf(user), 1300 ether);
     }
 
-    function testBorrow_if_price_NOT_stale_ethToUsd_when_usdcToUsd_MIN_out_of_bounds()
+    function testBorrow_if_price_NOT_stale_crvUSDoUsd_when_usdcToUsd_MAX_out_of_bounds_and_USDC_gt_FRAX()
+        public
+    {
+        _setNewBorrowController();
+
+        testAmount = 10000 ether;
+        gibCollateral(user, testAmount);
+        gibDBR(user, testAmount);
+        vm.startPrank(user, user);
+        deposit(testAmount);
+
+        _mockChainlinkPrice(
+            IChainlinkFeed(address(fraxPoolFeed.usdcToUsd())),
+            IAggregator(fraxPoolFeed.usdcToUsd().aggregator()).maxAnswer() + 1
+        ); // Max out of bounds
+
+        assertFalse(
+            IBorrowControllerLatest(0x44B7895989Bc7886423F06DeAa844D413384b0d6)
+                .isPriceStale(address(market))
+        );
+
+        market.borrow(1300 ether);
+        assertEq(DOLA.balanceOf(user), 1300 ether);
+    }
+
+    function testBorrow_if_price_stale_crvUSDToUsd_when_usdcToUsd_and_fraxToUsd_MAX_out_of_bounds_and_ethToUsd_NOT_stale()
+        public
+    {
+        _setNewBorrowController();
+
+        testAmount = 10000 ether;
+        gibCollateral(user, testAmount);
+        gibDBR(user, testAmount);
+        vm.startPrank(user, user);
+        deposit(testAmount);
+
+        _mockChainlinkPrice(
+            IChainlinkFeed(address(fraxPoolFeed.usdcToUsd())),
+            IAggregator(fraxPoolFeed.usdcToUsd().aggregator()).maxAnswer() + 1
+        ); // Max out of bounds
+
+        _mockChainlinkPrice(
+            IChainlinkFeed(address(fraxPoolFeed.fraxToUsd())),
+            IAggregator(fraxPoolFeed.fraxToUsd().aggregator()).maxAnswer() + 1
+        ); // Max out of bounds
+
+         _mockChainlinkUpdatedAt(
+            IChainlinkFeed(address(fraxPoolFeed.crvUSDToUsd())),
+           -24 hours
+        ); 
+
+        assertFalse(
+            IBorrowControllerLatest(0x44B7895989Bc7886423F06DeAa844D413384b0d6)
+                .isPriceStale(address(market))
+        );
+        
+        market.borrow(1300 ether);
+        assertEq(DOLA.balanceOf(user), 1300 ether);
+    }
+
+    function testBorrow_if_price_NOT_stale_ethToUsd_when_usdcToUsd_MIN_out_of_bounds_and_FRAX_gt_USDC()
         public
     {
         _setNewBorrowController();
@@ -1348,6 +1493,11 @@ contract CrvLPMarketForkTest is MarketForkTest {
             IChainlinkFeed(address(fraxPoolFeed.usdcToUsd())),
             IAggregator(fraxPoolFeed.usdcToUsd().aggregator()).minAnswer() - 1
         ); // min out of bounds
+
+        _mockChainlinkPrice(
+            IChainlinkFeed(address(fraxPoolFeed.fraxToUsd())),
+            110000000
+        ); // Frax > than USDC
 
         assertFalse(
             IBorrowControllerLatest(0x44B7895989Bc7886423F06DeAa844D413384b0d6)
