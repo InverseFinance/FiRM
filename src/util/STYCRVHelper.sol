@@ -89,7 +89,9 @@ contract STYCRVHelper is Ownable, ReentrancyGuard {
     function assetToCollateral(
         uint assetAmount
     ) public view returns (uint collateralAmount) {
-        return assetAmount * vault.totalSupply() / getFreeFunds();
+        uint totalSupply = vault.totalSupply();
+        if (totalSupply > 0) return assetAmount * totalSupply / getFreeFunds();
+        return assetAmount;
     }
 
     /// @notice View function to calculate asset amount from collateral amount

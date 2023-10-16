@@ -56,6 +56,8 @@ contract MockExchangeProxy {
 }
 
 contract ALEHelperForkTest is Test {
+    using stdStorage for StdStorage;
+
     //Market deployment:
     Market market;
     IChainlinkFeed feed;
@@ -128,8 +130,10 @@ contract ALEHelperForkTest is Test {
             address(DOLA)
         );
 
-        vm.prank(gov);
+        vm.startPrank(gov);
         market.pauseBorrows(false);
+        dbr.addMarket(address(market));
+        vm.stopPrank();
 
         ale = new ALE(address(exchangeProxy), triDBR);
         ale.setMarket(
@@ -157,7 +161,7 @@ contract ALEHelperForkTest is Test {
         );
         market.setCollateralFactorBps(7500);
         borrowController.setDailyLimit(address(market), 250_000 * 1e18);
-        dbr.addMarket(address(market));
+     
         fed.changeMarketCeiling(IMarket(address(market)), type(uint).max);
         fed.changeSupplyCeiling(type(uint).max);
         oracle.setFeed(address(collateral), feed, 18);
@@ -596,6 +600,114 @@ contract ALEHelperForkTest is Test {
             IERC20(yCRV).balanceOf(userPk),
             helper.collateralToAsset(amountToWithdraw),
             1
+        );
+    }
+
+    function test_fail_setMarket_NoMarket() public {
+        address fakeMarket = address(0x69);
+
+        vm.expectRevert(abi.encodeWithSelector(ALE.NoMarket.selector, fakeMarket));
+        ale.setMarket(fakeMarket,address(0),address(0),address(0));
+    }
+
+
+    function test_fail_setMarket_WrongCollateral_WithHelper() public {
+        address fakeCollateral = address(0x69);
+
+        vm.expectRevert(abi.encodeWithSelector(ALE.WrongCollateral.selector,address(market), fakeCollateral, address(0), address(helper)));
+        ale.setMarket(address(market),fakeCollateral,address(0),address(helper));
+
+        vm.expectRevert(abi.encodeWithSelector(ALE.WrongCollateral.selector,address(market), address(0), fakeCollateral, address(helper)));
+        ale.setMarket(address(market),address(0), fakeCollateral, address(helper));
+
+        vm.expectRevert(abi.encodeWithSelector(ALE.WrongCollateral.selector,address(market), fakeCollateral, fakeCollateral, address(helper)));
+        ale.setMarket(address(market),fakeCollateral, fakeCollateral, address(helper));
+    }
+
+    function test_fail_updateMarketHelper_NoMarket() public {
+        address wrongMarket = address(0x69);
+        address newHelper = address(0x70);
+
+        vm.expectRevert(abi.encodeWithSelector(ALE.MarketNotSet.selector, wrongMarket));
+        ale.updateMarketHelper(wrongMarket, newHelper);
+    }
+
+    function test_return_assetAmount_when_TotalSupply_is_Zero() public {
+        stdstore
+            .target(address(helper.vault()))
+            .sig(helper.vault().totalSupply.selector)
+            .checked_write(uint256(0));
+
+        uint256 assetAmount = 1 ether;
+        assertEq(assetAmount, helper.assetToCollateral(assetAmount));
+    }
+
+    function test_fail_collateral_is_zero_leveragePosition() public {
+        // We are going to deposit some CRV, then leverage the position
+        uint styCRVAmount = 1 ether;
+        address userPk = vm.addr(1);
+        vm.prank(styCRVHolder);
+        IERC20(styCRV).transfer(userPk, styCRVAmount);
+
+        gibDBR(userPk, styCRVAmount);
+
+        uint maxBorrowAmount = _getMaxBorrowAmount(styCRVAmount);
+
+        uint256 yCRVAmount = helper.collateralToAsset(
+            _convertDolaToCollat(maxBorrowAmount)
+        );
+        // recharge mocked proxy for swap, we need to swap DOLA to unwrapped collateral
+        vm.prank(yCRVHolder);
+        IERC20(yCRV).transfer(address(exchangeProxy), yCRVAmount + 2);
+
+        vm.startPrank(userPk, userPk);
+        // Initial CRV deposit
+        IErc20(styCRV).approve(address(market), styCRVAmount);
+        market.deposit(styCRVAmount);
+
+        // Sign Message for borrow on behalf
+        bytes32 hash = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                market.DOMAIN_SEPARATOR(),
+                keccak256(
+                    abi.encode(
+                        keccak256(
+                            "BorrowOnBehalf(address caller,address from,uint256 amount,uint256 nonce,uint256 deadline)"
+                        ),
+                        address(ale),
+                        userPk,
+                        maxBorrowAmount,
+                        0,
+                        block.timestamp
+                    )
+                )
+            )
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
+
+        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+
+        bytes memory swapData = abi.encodeWithSelector(
+            MockExchangeProxy.swapDolaIn.selector,
+            yCRV,
+            maxBorrowAmount
+        );
+
+        ALE.DBRHelper memory dbrData;
+
+        // Mock call to return 0 buySellToken balance for the ALE
+        vm.mockCall(yCRV, abi.encodeWithSelector(IERC20.balanceOf.selector,address(ale)), abi.encode(uint256(0)));
+
+        vm.expectRevert(ALE.CollateralIsZero.selector);
+        ale.leveragePosition(
+            maxBorrowAmount,
+            address(market),
+            address(exchangeProxy),
+            swapData,
+            permit,
+            bytes(""),
+            dbrData
         );
     }
 
