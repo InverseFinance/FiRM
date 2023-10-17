@@ -167,7 +167,7 @@ contract InvMarketForkTest is MarketForkTest {
         market.borrow(1300 ether);
     }
 
-    function testBorrow_Reverts_if_ethToUsd_MAX_out_of_bounds_when_usdcToUsd_MAX_out_of_bounds() public {
+    function testBorrow_Fails_if_ethToUsd_MAX_out_of_bounds_when_usdcToUsd_MAX_out_of_bounds() public {
         _setNewBorrowController();
 
         testAmount = 300 ether;
@@ -177,11 +177,12 @@ contract InvMarketForkTest is MarketForkTest {
         deposit(testAmount);
   
         _mockChainlinkPrice(IChainlinkFeed(address(newFeed.usdcToUsd())), IAggregator(newFeed.usdcToUsd().aggregator()).maxAnswer()+1); // Max out of bounds
-        _mockChainlinkPrice(IChainlinkFeed(address(newFeed.ethToUsd())), IAggregator(newFeed.ethToUsd().aggregator()).maxAnswer()+1 ); // Max out of bounds
+        _mockChainlinkPrice(IChainlinkFeed(address(newFeed.ethToUsd())), type(int192).max ); // Max out of bounds
 
+        assertTrue(IBorrowControllerLatest(0x44B7895989Bc7886423F06DeAa844D413384b0d6).isPriceStale(address(market)));
         assertFalse(IBorrowControllerLatest(0x44B7895989Bc7886423F06DeAa844D413384b0d6).isBelowMinDebt(address(market), user, 1300 ether)); // Minimum debt is 1250 DOLA
         
-        vm.expectRevert(stdError.arithmeticError);
+        vm.expectRevert(bytes("Denied by borrow controller"));
         market.borrow(1300 ether);
     }
 
