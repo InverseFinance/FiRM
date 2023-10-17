@@ -154,7 +154,7 @@ contract InvFeedFork is Test {
         assertEq(uint256(invUsdPrice), uint(feed.latestAnswer()));
     }
 
-    function test_OutOfMinBoundsETH_WillReturnFallbackWhenOutOfMinBoundsUSDC() public {
+    function test_OutOfMinBoundsETH_WillReturn_STALE_fallbackWhenOutOfMinBoundsUSDC() public {
 
         (
             uint80 clRoundId,
@@ -191,13 +191,41 @@ contract InvFeedFork is Test {
         assertEq(uint256(invUsdPrice), uint(feed.latestAnswer()));
     }
 
-    function test_revert_withOutOfMaxBoundsETH_fallbackWhenOutOfMinBoundsUSDC() public {
+    function test_OutOfMaxBoundsETH_WillReturn_STALE_fallbackWhenOutOfMinBoundsUSDC() public {
+        
+        (
+            uint80 clRoundId,
+            ,
+            uint clStartedAt,
+            ,
+            uint80 clAnsweredInRound
+        ) = feed.ethToUsd().latestRoundData();
+        
+       
         _mockChainlinkPrice(feed.usdcToUsd(), 10);
-        _mockChainlinkPrice(feed.ethToUsd(), IAggregator(feed.ethToUsd().aggregator()).maxAnswer()+1);
+        _mockChainlinkPrice(feed.ethToUsd(),  type(int192).max); // won't revert even if maxAnswer is the maximum int192 value but will return Stale price
 
-        // if ETH price > maxAnswer (95780971304118053647396689196894323976171195136475135) will revert
-        vm.expectRevert(stdError.arithmeticError);
-        feed.latestRoundData();
+            (
+            uint80 roundId,
+            int256 invUsdPrice,
+            uint startedAt,
+            uint updatedAt,
+            uint80 answeredInRound
+        ) = feed.latestRoundData();
+
+        assertEq(clRoundId, roundId);
+        assertEq(clStartedAt, startedAt);
+        assertEq(0, updatedAt); // if out of bounds ETH return updateAt == 0
+        assertEq(clAnsweredInRound, answeredInRound);
+
+        uint256 invUSDCPrice = feed.tricryptoINV().price_oracle(1);
+        (, int256 usdcFallback, , , ) = feed.usdcToUsdFallbackOracle();
+
+        uint256 estimatedInvUSDPrice = invUSDCPrice *
+            uint256(usdcFallback) / 10 ** 8;
+        
+        assertEq(uint256(invUsdPrice), estimatedInvUSDPrice);
+        assertEq(uint256(invUsdPrice), uint(feed.latestAnswer()));
     }
 
     function test_compare_oracle() public {
