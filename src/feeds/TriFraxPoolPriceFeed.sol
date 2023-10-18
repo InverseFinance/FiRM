@@ -126,7 +126,7 @@ contract TriFraxPoolPriceFeed {
 
         // If FRAX price is lower than USDC price, use FRAX price
         if (
-            fraxUsdPrice < usdcUsdPrice && updatedAtFrax > 0
+            fraxUsdPrice < usdcUsdPrice && updatedAtFrax > 0 || usdcUsdPrice == 0
         ) {
             minUsdPrice = fraxUsdPrice;
             roundId = roundIdFrax;
