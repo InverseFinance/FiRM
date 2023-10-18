@@ -73,7 +73,7 @@ contract MarketForkTest is Test {
         vm.label(user2, "user2");
 
         //Warp forward 7 days since local chain timestamp is 0, will cause revert when calculating `days` in oracle.
-        vm.warp(block.timestamp + 7 days);
+        vm.warp(block.timestamp);
 
         vm.startPrank(gov, gov);
         market.setBorrowController(IBorrowController(address(borrowController)));
