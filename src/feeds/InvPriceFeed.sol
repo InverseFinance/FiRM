@@ -91,8 +91,8 @@ contract InvPriceFeed {
         int256 invUsdcPrice = int256(tricryptoINV.price_oracle(invK));
 
         int256 invDollarPrice =
-            (invUsdcPrice * usdcUsdPrice * 10 ** 10) /
-            int(10 ** decimals());
+            invUsdcPrice * usdcUsdPrice /
+            int(10 ** (decimals() - 10));
 
         return (roundId, invDollarPrice, startedAt, updatedAt, answeredInRound);
     }
