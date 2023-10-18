@@ -2,11 +2,12 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import {BorrowController} from "../../BorrowController.sol";
-import "../../DBR.sol";
-import {Fed, IMarket} from "../../Fed.sol";
-import "../../Market.sol";
-import "../../Oracle.sol";
+import {BorrowController} from "src/BorrowController.sol";
+import "src/DBR.sol";
+import {Fed, IMarket} from "src/Fed.sol";
+import "src/Market.sol";
+import "src/Oracle.sol";
+
 
 interface IErc20 is IERC20 {
     function approve(address beneficiary, uint amount) external;
@@ -93,9 +94,9 @@ contract MarketForkTest is Test {
         market.deposit(amount);
     }
 
-    function deposit(uint amount, address user) internal {
-        deal(address(collateral), user, amount);
-        vm.startPrank(user);
+    function deposit(uint amount, address depositor) internal {
+        deal(address(collateral), depositor, amount);
+        vm.startPrank(depositor);
         collateral.approve(address(market), amount);
         market.deposit(amount);
         vm.stopPrank();
