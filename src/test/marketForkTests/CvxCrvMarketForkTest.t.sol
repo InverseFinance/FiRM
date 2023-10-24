@@ -6,12 +6,11 @@ import "./MarketForkTest.sol";
 import {ConvexCurvePriceFeed} from "../../feeds/ConvexCurvePriceFeed.sol";
 import "../../DBR.sol";
 import "../../Fed.sol";
-import "../../Market.sol";
+import {Market} from "src/Market.sol";
 import "../../Oracle.sol";
 import {ConvexCurveEscrow, ICvxCrvStakingWrapper} from "../../escrows/ConvexCurveEscrow.sol";
 
-import "../mocks/ERC20.sol";
-import "../mocks/BorrowContract.sol";
+import {BorrowContract} from "src/test/mocks/BorrowContract.sol";
 
 contract CvxCrvMarketForkTest is MarketForkTest {
     bytes onlyGovUnpause = "Only governance can unpause";
@@ -29,6 +28,10 @@ contract CvxCrvMarketForkTest is MarketForkTest {
         ConvexCurvePriceFeed cvxCrvFeed = ConvexCurvePriceFeed(0x0266445Ea652F8467cbaA344Fcf531FF8f3d6462); 
         Market cvxCrvMarket = Market(0x3474ad0e3a9775c9F68B415A7a9880B0CAB9397a);//new Market(gov, lender, pauseGuardian, address(escrow), IDolaBorrowingRights(address(dbr)), cvxCrv, IOracle(address(oracle)), 5000, 5000, 1000, true);
         init(address(cvxCrvMarket), address(cvxCrvFeed));
+        if(market.borrowPaused()){
+            vm.prank(gov, gov);
+            market.pauseBorrows(false);
+        }
         vm.startPrank(chair, chair);
         fed.expansion(IMarket(address(market)), 100_000e18);
         vm.stopPrank();

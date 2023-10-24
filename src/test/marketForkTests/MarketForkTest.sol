@@ -5,7 +5,9 @@ import "forge-std/Test.sol";
 import {BorrowController} from "src/BorrowController.sol";
 import "src/DBR.sol";
 import {Fed, IMarket} from "src/Fed.sol";
-import "src/Market.sol";
+import {IERC20} from "src/interfaces/IERC20.sol";
+import {IMarket} from "src/interfaces/IMarket.sol";
+import {IEscrow, IBorrowController, IOracle, IDolaBorrowingRights} from "src/Market.sol";
 import "src/Oracle.sol";
 
 
@@ -19,7 +21,7 @@ interface IMintable is IErc20 {
 
 contract MarketForkTest is Test {
     //Market deployment:
-    Market market;
+    IMarket market;
     IChainlinkFeed feed;
     BorrowController borrowController;
     bool callOnDepositCallback = false;
@@ -35,7 +37,7 @@ contract MarketForkTest is Test {
 
     //ERC-20s
     IMintable DOLA;
-    IErc20 collateral;
+    IERC20 collateral;
 
     //FiRM
     Oracle oracle = Oracle(0xaBe146CF570FD27ddD985895ce9B138a7110cce8);
@@ -58,7 +60,7 @@ contract MarketForkTest is Test {
 
     function init(address _market, address _feed) public {
         DOLA = IMintable(0x865377367054516e17014CcdED1e7d814EDC9ce4);
-        market = Market(_market);
+        market = IMarket(_market);
         feed = IChainlinkFeed(_feed);
         borrowController = BorrowController(0x20C7349f6D6A746a25e66f7c235E96DAC880bc0D);
         replenishmentIncentiveBps = market.replenishmentIncentiveBps();
@@ -68,7 +70,7 @@ contract MarketForkTest is Test {
         //FiRM
         escrowImplementation = IEscrow(market.escrowImplementation());
         fed = Fed(market.lender());
-        collateral = IErc20(address(market.collateral()));
+        collateral = IERC20(address(market.collateral()));
 
         vm.label(user, "user");
         vm.label(user2, "user2");
@@ -95,7 +97,7 @@ contract MarketForkTest is Test {
     }
 
     function deposit(uint amount, address depositor) internal {
-        deal(address(collateral), depositor, amount);
+        gibCollateral(depositor, amount);
         vm.startPrank(depositor);
         collateral.approve(address(market), amount);
         market.deposit(amount);
@@ -116,7 +118,7 @@ contract MarketForkTest is Test {
         return convertCollatToDola(amountCollat) * market.collateralFactorBps() / 10_000;
     }
 
-    function gibCollateral(address _address, uint _amount) internal {
+    function gibCollateral(address _address, uint _amount) internal virtual {
         deal(address(collateral), _address, _amount, true);
     }
 

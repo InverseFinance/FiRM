@@ -3,15 +3,13 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 import "./MarketForkTest.sol";
-//import {ConvexCurvePriceFeed} from "../../feeds/ConvexCurvePriceFeed.sol";
 import "src/DBR.sol";
 import "src/Fed.sol";
-import "src/Market.sol";
+import "src/interfaces/IMarket.sol";
 import "src/Oracle.sol";
-//import {ConvexCurveEscrow, ICvxCrvStakingWrapper} from "../../escrows/ConvexCurveEscrow.sol";
 
 import "src/test/mocks/ERC20.sol";
-import "src/test/mocks/BorrowContract.sol";
+import {BorrowContract} from "src/test/mocks/BorrowContract.sol";
 
 abstract contract MarketBaseForkTest is MarketForkTest {
     bytes onlyGovUnpause = "Only governance can unpause";
@@ -39,7 +37,6 @@ abstract contract MarketBaseForkTest is MarketForkTest {
     function testDeposit() public {
         gibCollateral(user, testAmount);
         uint balanceUserBefore = collateral.balanceOf(user); 
-
         vm.startPrank(user, user);
         deposit(testAmount);
         assertEq(collateral.balanceOf(user), balanceUserBefore - testAmount, "User balance did not decrease");
@@ -785,7 +782,6 @@ abstract contract MarketBaseForkTest is MarketForkTest {
     }
 
     function testWithdraw_Fail_When_WithdrawingCollateralBelowCF() public {
-        gibCollateral(user, testAmount);
         deposit(testAmount, user);
         uint borrowAmount = market.getCreditLimit(user);
         gibDBR(user, testAmount);
@@ -813,7 +809,6 @@ abstract contract MarketBaseForkTest is MarketForkTest {
 
     function testWithdrawOnBehalf() public {
         address userPk = vm.addr(1);
-        gibCollateral(userPk, testAmount);
         gibDBR(userPk, testAmount);
         deposit(testAmount, userPk);
         uint withdrawAmount = market.predictEscrow(userPk).balance();
@@ -846,9 +841,9 @@ abstract contract MarketBaseForkTest is MarketForkTest {
         vm.startPrank(user2);
         market.withdrawOnBehalf(userPk, market.predictEscrow(userPk).balance(), block.timestamp, v, r, s);
         if(approximateBalance){
-            assertApproxEqAbs(market.predictEscrow(userPk).balance(), 0, 10, "failed to withdraw collateral within max deviation");
+            assertApproxEqAbs(market.predictEscrow(userPk).balance(), 0, 10, "Escrow balance not near 0 after withdraw");
         } else {
-            assertEq(market.predictEscrow(userPk).balance(), 0, "failed to withdraw collateral");
+            assertEq(market.predictEscrow(userPk).balance(), 0, "Escrow balance not 0 after withdraw");
         }
         assertEq(collateral.balanceOf(user2), withdrawAmount, "failed to withdraw collateral");
     }

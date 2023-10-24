@@ -7,12 +7,11 @@ import {ConvexFraxSharePriceFeed} from "../../feeds/ConvexFraxSharePriceFeed.sol
 import {BorrowController} from "../../BorrowController.sol";
 import "../../DBR.sol";
 import "../../Fed.sol";
-import "../../Market.sol";
+import {Market} from "src/Market.sol";
 import "../../Oracle.sol";
 import {ConvexFraxShareEscrow, ICvxFxsStakingWrapper} from "../../escrows/ConvexFraxShareEscrow.sol";
 
-import "../mocks/ERC20.sol";
-import "../mocks/BorrowContract.sol";
+import {BorrowContract} from "src/test/mocks/BorrowContract.sol";
 
 contract CvxFxsMarketForkTest is MarketForkTest {
     bytes onlyGovUnpause = "Only governance can unpause";
