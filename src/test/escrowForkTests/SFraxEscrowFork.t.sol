@@ -73,9 +73,11 @@ contract SFraxEscrowForkTest is Test{
         assertEq(sFrax.convertToAssets(sFrax.balanceOf(address(escrow))), escrow.balance());
     }
 
-    function testPay_successful_whenEscrowHasStakedFRAX_AndTimeWarp_PAY_ALL() public {
+    function testPay_successful_whenEscrowHasStakedFRAX_AndTimeWarp_PAY_ALL_Fuzz(uint walletAmount) public {
+        vm.assume(walletAmount > 1000);
+        vm.assume(walletAmount <= 1000 ether);
         vm.prank(holder, holder);
-        frax.transfer(address(escrow), 1 ether);
+        frax.transfer(address(escrow), walletAmount);
         escrow.onDeposit();
         uint recipientBalanceBefore = frax.balanceOf(recipient);
 
@@ -86,11 +88,11 @@ contract SFraxEscrowForkTest is Test{
 
         assertEq(escrow.balance(), 0); 
         assertEq(sFrax.balanceOf(address(escrow)), 0);
-        assertGe(frax.balanceOf(recipient), recipientBalanceBefore + 1 ether);
+        assertGe(frax.balanceOf(recipient), recipientBalanceBefore + walletAmount - 1);
         assertEq(sFrax.convertToAssets(sFrax.balanceOf(address(escrow))), escrow.balance());
     }
 
-    function testPay_successful_whenContractHasStakedFRAXFuzz(uint walletAmount) public {
+    function testPay_successful_whenContractHasStakedFRAX_Fuzz(uint walletAmount) public {
         vm.assume(walletAmount > 1000);
         vm.startPrank(holder, holder);
         uint payAmount = walletAmount % frax.balanceOf(holder);
