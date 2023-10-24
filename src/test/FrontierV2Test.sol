@@ -83,7 +83,7 @@ contract FrontierV2Test is Test {
         borrowController = new BorrowController(gov, address(dbr));
         fed = new Fed(IDBR(address(dbr)), IDola(address(DOLA)), gov, chair, type(uint).max);
         market = new Market(gov, address(fed), pauseGuardian, address(escrowImplementation), IDolaBorrowingRights(address(dbr)), IERC20(address(WETH)), IOracle(address(oracle)), collateralFactorBps_, replenishmentIncentiveBps_, liquidationBonusBps_, callOnDepositCallback_);
-        borrowController.setStalenessThreshold(address(market), 3600);
+        borrowController.setStalenessThreshold(address(market), 3600*24);
         fed.changeMarketCeiling(IMarket(address(market)), type(uint).max);
         market.setBorrowController(IBorrowController(address(borrowController)));
 

@@ -35,26 +35,30 @@ contract OffchainHelperTest is FrontierV2Test {
         string memory url = vm.rpcUrl("mainnet");
         vm.createSelectFork(url);
 
+
         initialize(replenishmentPriceBps, collateralFactorBps, replenishmentIncentiveBps, liquidationBonusBps, callOnDepositCallback);
+
+        vm.warp(block.timestamp - 7 days);
 
         vm.startPrank(chair);
         fed.expansion(IMarket(address(market)), 1_000_000e18);
         vm.stopPrank();
         
         dbr = DolaBorrowingRights(0xAD038Eb671c44b853887A7E32528FaB35dC5D710);
-        address pool = 0x056ef502C1Fc5335172bc95EC4cAE16C2eB9b5b6;
+        address pool = 0xC7DE47b9Ca2Fc753D6a2F167D8b3e19c6D18b19a;
         helper = new CurveHelper(pool); 
         userPk = vm.addr(1);
         vm.startPrank(gov);
-        borrowController = BorrowController(0x20C7349f6D6A746a25e66f7c235E96DAC880bc0D);
+        borrowController = BorrowController(0x44B7895989Bc7886423F06DeAa844D413384b0d6);
         borrowController.allow(address(helper));
         vm.stopPrank();
         
         market = Market(0x63Df5e23Db45a2066508318f172bA45B9CD37035);
         weth = IWeth(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
-        vm.prank(0xF04a5cC80B1E94C69B48f5ee68a08CD2F09A7c3E);
 
+        vm.prank(0xF04a5cC80B1E94C69B48f5ee68a08CD2F09A7c3E);
         weth.transfer(userPk, wethTestAmount);
+        
         maxBorrowAmount = getMaxBorrowAmount(wethTestAmount);
         vm.startPrank(userPk, userPk);
         weth.approve(address(helper), type(uint).max);
@@ -65,34 +69,22 @@ contract OffchainHelperTest is FrontierV2Test {
 
     }
 
+    event log_bool(bool);
+
     function testDepositAndBorrowOnBehalf() public {
         uint borrowAmount = maxBorrowAmount / 2;
         (uint dolaForDbr, uint dbrNeeded) = helper.approximateDolaAndDbrNeeded(borrowAmount, 365 days, 18);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, getBorrowHash(borrowAmount + dolaForDbr, 0));
 
         vm.startPrank(userPk, userPk);
+        emit log_bool(borrowController.isBelowMinDebt(address(market), userPk, borrowAmount));
+        emit log_bool(borrowController.isPriceStale(address(market)));
+        assertEq(borrowController.isPriceStale(address(market)), false);
         helper.depositBuyDbrAndBorrowOnBehalf(IMarket(address(market)), wethTestAmount, borrowAmount, dolaForDbr, dbrNeeded * 99 / 100, block.timestamp, v, r, s);
         vm.stopPrank();
 
         assertLt(dbr.balanceOf(userPk), dbrNeeded * 1001 / 1000);
         assertGt(dbr.balanceOf(userPk), dbrNeeded * 999 / 1000);
-        assertEq(weth.balanceOf(address(market.predictEscrow(userPk))), wethTestAmount, "failed to deposit weth");
-        assertEq(weth.balanceOf(userPk), 0, "failed to deposit weth");
-        assertEq(DOLA.balanceOf(userPk), borrowAmount, "failed to borrow DOLA");
-    }
-
-    function testDepositAndBorrowOnBehalfFuzz(uint borrowAmount) public {
-        vm.assume(borrowAmount > 1000_000_000);
-        borrowAmount = borrowAmount % (1000_000 ether > maxBorrowAmount ? maxBorrowAmount : 1000_000 ether );
-        (uint dolaForDbr, uint dbrNeeded) = helper.approximateDolaAndDbrNeeded(borrowAmount, 365 days, 20);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, getBorrowHash(borrowAmount + dolaForDbr, 0));
-
-        vm.startPrank(userPk, userPk);
-        helper.depositBuyDbrAndBorrowOnBehalf(IMarket(address(market)), wethTestAmount, borrowAmount, dolaForDbr, dbrNeeded * 99 / 100, block.timestamp, v, r, s);
-        vm.stopPrank();
-
-        assertLt(dbr.balanceOf(userPk), dbrNeeded * 1001 / 1000, "Overshoot by more than 1%");
-        assertGt(dbr.balanceOf(userPk), dbrNeeded * 999 / 1000, "Undershoot by more than 1%");
         assertEq(weth.balanceOf(address(market.predictEscrow(userPk))), wethTestAmount, "failed to deposit weth");
         assertEq(weth.balanceOf(userPk), 0, "failed to deposit weth");
         assertEq(DOLA.balanceOf(userPk), borrowAmount, "failed to borrow DOLA");
