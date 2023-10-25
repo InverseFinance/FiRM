@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "../../Market.sol";
-import "../mocks/WETH9.sol";
+import "src/Market.sol";
+import "test/mocks/WETH9.sol";
 
 contract BorrowContract {
     Market market;

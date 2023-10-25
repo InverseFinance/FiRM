@@ -3,23 +3,21 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 import "./MarketForkTest.sol";
-import {ConvexFraxSharePriceFeed} from "../../feeds/ConvexFraxSharePriceFeed.sol";
-import {BorrowController} from "../../BorrowController.sol";
-import "../../DBR.sol";
-import "../../Fed.sol";
+import {ConvexCurvePriceFeed} from "src/feeds/ConvexCurvePriceFeed.sol";
+import "src/DBR.sol";
+import "src/Fed.sol";
 import {Market} from "src/Market.sol";
-import "../../Oracle.sol";
-import {ConvexFraxShareEscrow, ICvxFxsStakingWrapper} from "../../escrows/ConvexFraxShareEscrow.sol";
+import "src/Oracle.sol";
+import {ConvexCurveEscrow, ICvxCrvStakingWrapper} from "src/escrows/ConvexCurveEscrow.sol";
 
-import {BorrowContract} from "src/test/mocks/BorrowContract.sol";
+import {BorrowContract} from "test/mocks/BorrowContract.sol";
 
-contract CvxFxsMarketForkTest is MarketForkTest {
+contract CvxCrvMarketForkTest is MarketForkTest {
     bytes onlyGovUnpause = "Only governance can unpause";
     bytes onlyPauseGuardianOrGov = "Only pause guardian or governance can pause";
     address lender = 0x2b34548b865ad66A2B046cb82e59eE43F75B90fd;
-    IERC20 cvxFxs =  IERC20(0xFEEf77d3f69374f66429C91d732A244f074bdf74);
-    ICvxFxsStakingWrapper stakingWrapper = ICvxFxsStakingWrapper(0x49b4d1dF40442f0C31b1BbAEA3EDE7c38e37E31a);
-    ConvexFraxShareEscrow escrow;
+    IERC20 cvxCrv =  IERC20(0x62B9c7356A2Dc64a1969e19C23e4f579F9810Aa7);
+    ICvxCrvStakingWrapper stakingWrapper = ICvxCrvStakingWrapper(0xaa0C3f5F7DFD688C6E646F66CD2a6B66ACdbE434);
 
     BorrowContract borrowContract;
 
@@ -27,10 +25,13 @@ contract CvxFxsMarketForkTest is MarketForkTest {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
         vm.createSelectFork(url);
-        escrow = new ConvexFraxShareEscrow();
-        ConvexFraxSharePriceFeed cvxFxsFeed = new ConvexFraxSharePriceFeed(); 
-        Market cvxFxsMarket = new Market(gov, lender, pauseGuardian, address(escrow), IDolaBorrowingRights(address(dbr)), cvxFxs, IOracle(address(oracle)), 5000, 5000, 1000, true);
-        init(address(cvxFxsMarket), address(cvxFxsFeed));
+        ConvexCurvePriceFeed cvxCrvFeed = ConvexCurvePriceFeed(0x0266445Ea652F8467cbaA344Fcf531FF8f3d6462); 
+        Market cvxCrvMarket = Market(0x3474ad0e3a9775c9F68B415A7a9880B0CAB9397a);//new Market(gov, lender, pauseGuardian, address(escrow), IDolaBorrowingRights(address(dbr)), cvxCrv, IOracle(address(oracle)), 5000, 5000, 1000, true);
+        init(address(cvxCrvMarket), address(cvxCrvFeed));
+        if(market.borrowPaused()){
+            vm.prank(gov, gov);
+            market.pauseBorrows(false);
+        }
         vm.startPrank(chair, chair);
         fed.expansion(IMarket(address(market)), 100_000e18);
         vm.stopPrank();

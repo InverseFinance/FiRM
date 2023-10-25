@@ -2,10 +2,10 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import {BorrowController} from "../BorrowController.sol";
+import {BorrowController} from "src/BorrowController.sol";
 import "./mocks/BorrowContract.sol";
 import "./FrontierV2Test.sol";
-import "../Market.sol";
+import "src/Market.sol";
 import "./mocks/WETH9.sol";
 
 contract BorrowContractTxOrigin {

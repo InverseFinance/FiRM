@@ -3,16 +3,16 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 import "./MarketForkTest.sol";
-import {BorrowController} from "../../BorrowController.sol";
-import "../../DBR.sol";
-import {Fed} from "../../Fed.sol";
+import {BorrowController} from "src/BorrowController.sol";
+import "src/DBR.sol";
+import {Fed} from "src/Fed.sol";
 import {Market} from "src/Market.sol";
-import "../../Oracle.sol";
-import {DbrDistributor, IDBR} from "../../DbrDistributor.sol";
-import {INVEscrow, IXINV, IDbrDistributor} from "../../escrows/INVEscrow.sol";
+import "src/Oracle.sol";
+import {DbrDistributor, IDBR} from "src/DbrDistributor.sol";
+import {INVEscrow, IXINV, IDbrDistributor} from "src/escrows/INVEscrow.sol";
 
-import "../mocks/ERC20.sol";
-import {BorrowContract} from "src/test/mocks/BorrowContract.sol";
+import "test/mocks/ERC20.sol";
+import {BorrowContract} from "test/mocks/BorrowContract.sol";
 
 contract InvMarketForkTest is MarketForkTest {
     bytes onlyGovUnpause = "Only governance can unpause";

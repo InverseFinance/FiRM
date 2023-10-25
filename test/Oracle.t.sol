@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 import "./FrontierV2Test.sol";
-import "../Oracle.sol";
+import "src/Oracle.sol";
 
 import {EthFeed} from "./mocks/EthFeed.sol";
 import "./mocks/WETH9.sol";

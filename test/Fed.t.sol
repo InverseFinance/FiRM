@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "../Fed.sol";
+import "src/Fed.sol";
 import "./FrontierV2Test.sol";
 
 contract FedTest is FrontierV2Test {

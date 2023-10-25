@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "../../escrows/ConvexCurveEscrow.sol";
+import "src/escrows/ConvexCurveEscrow.sol";
 
 contract ConvexCurveEscrowForkTest is Test{
 

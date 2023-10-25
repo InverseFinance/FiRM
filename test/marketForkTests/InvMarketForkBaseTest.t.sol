@@ -3,8 +3,8 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 import "./MarketBaseForkTest.sol";
-import {DbrDistributor} from "../../DbrDistributor.sol";
-import {INVEscrow, IXINV, IDbrDistributor} from "../../escrows/INVEscrow.sol";
+import {DbrDistributor} from "src/DbrDistributor.sol";
+import {INVEscrow, IXINV, IDbrDistributor} from "src/escrows/INVEscrow.sol";
 
 contract InvMarketBaseForkTest is MarketBaseForkTest {
     DbrDistributor distributor;

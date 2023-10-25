@@ -2,10 +2,10 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "../../interfaces/IERC20.sol";
-import {INVEscrow, IXINV, IDbrDistributor} from "../../escrows/INVEscrow.sol";
-import "../../DBR.sol";
-import {DbrDistributor, IMarket, IDBR} from "../../DbrDistributor.sol";
+import "src/interfaces/IERC20.sol";
+import {INVEscrow, IXINV, IDbrDistributor} from "src/escrows/INVEscrow.sol";
+import "src/DBR.sol";
+import {DbrDistributor, IMarket, IDBR} from "src/DbrDistributor.sol";
 
 contract MockMarket is IMarket {
     mapping(address => address) public escrows;

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13; 
  
 import "forge-std/Test.sol"; 
-import {ConvexFraxSharePriceFeed} from "../../feeds/ConvexFraxSharePriceFeed.sol"; 
+import {ConvexFraxSharePriceFeed} from "src/feeds/ConvexFraxSharePriceFeed.sol"; 
 
 interface ICurvePool {
     function get_p() view external returns(uint);

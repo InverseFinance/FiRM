@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "../DBR.sol";
+import "src/DBR.sol";
 import "./FrontierV2Test.sol";
 
 contract DBRTest is FrontierV2Test {

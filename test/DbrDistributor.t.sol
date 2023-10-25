@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "../DbrDistributor.sol";
+import "src/DbrDistributor.sol";
 
 contract INVEscrowMock is IINVEscrow {
     address public market;
