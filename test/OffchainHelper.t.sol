@@ -69,16 +69,12 @@ contract OffchainHelperTest is FrontierV2Test {
 
     }
 
-    event log_bool(bool);
-
     function testDepositAndBorrowOnBehalf() public {
         uint borrowAmount = maxBorrowAmount / 2;
         (uint dolaForDbr, uint dbrNeeded) = helper.approximateDolaAndDbrNeeded(borrowAmount, 365 days, 18);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, getBorrowHash(borrowAmount + dolaForDbr, 0));
 
         vm.startPrank(userPk, userPk);
-        emit log_bool(borrowController.isBelowMinDebt(address(market), userPk, borrowAmount));
-        emit log_bool(borrowController.isPriceStale(address(market)));
         assertEq(borrowController.isPriceStale(address(market)), false);
         helper.depositBuyDbrAndBorrowOnBehalf(IMarket(address(market)), wethTestAmount, borrowAmount, dolaForDbr, dbrNeeded * 99 / 100, block.timestamp, v, r, s);
         vm.stopPrank();
