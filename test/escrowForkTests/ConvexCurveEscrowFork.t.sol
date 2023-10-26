@@ -30,6 +30,15 @@ contract ConvexCurveEscrowForkTest is Test{
         vm.stopPrank();
     }
 
+    function test_initialize() public {
+        ConvexCurveEscrow freshEscrow = new ConvexCurveEscrow();
+        vm.prank(address(market));
+        freshEscrow.initialize(cvxCrv, holder);
+        assertEq(address(freshEscrow.market()), address(market), "Market not equal market");
+        assertEq(freshEscrow.beneficiary(), holder, "Holder not beneficiary");
+        assertEq(address(freshEscrow.token()), address(cvxCrv), "cvxCrv not Token");
+    }
+
     function testOnDeposit_successful_whenContractHoldsCvxCrv() public {
         uint balanceBefore = escrow.balance();
         uint stakedBalanceBefore = stakingWrapper.balanceOf(address(escrow));

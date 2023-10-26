@@ -49,6 +49,15 @@ contract INVEscrowForkTest is Test{
         vm.stopPrank();
     }
 
+    function test_initialize() public {
+        INVEscrow freshEscrow = new INVEscrow(xINV, IDbrDistributor(address(distributor)));
+        vm.prank(address(market));
+        freshEscrow.initialize(INV, holder);
+        assertEq(address(freshEscrow.market()), address(market), "Market not equal market");
+        assertEq(freshEscrow.beneficiary(), holder, "Holder not beneficiary");
+        assertEq(address(freshEscrow.token()), address(INV), "INV not Token");
+    }
+
     function testOnDeposit_successful_whenContractHoldsINV() public {
         uint balanceBefore = escrow.balance();
         uint stakedBalanceBefore = xINV.balanceOf(address(escrow));
@@ -136,12 +145,15 @@ contract INVEscrowForkTest is Test{
         escrow.onDeposit();
 
         vm.warp(block.timestamp + 14 days);
-        vm.prank(beneficiary);
+        vm.startPrank(beneficiary);
+        uint claimable = escrow.claimable();
         escrow.claimDBR();
+        vm.stopPrank();
         
         uint expectedDbr = 14 days * 1 ether;
         uint max = expectedDbr * 1 ether / (1 ether - 1);
         uint min = expectedDbr * (1 ether - 1) / 1 ether;
+        assertEq(DBR.balanceOf(beneficiary), DBRBalanceBefore + claimable);
         withinSpan(DBR.balanceOf(beneficiary) - DBRBalanceBefore, max, min);
     }
 
@@ -152,12 +164,15 @@ contract INVEscrowForkTest is Test{
         escrow.onDeposit();
 
         vm.warp(block.timestamp + 14 days);
-        vm.prank(beneficiary);
+        vm.startPrank(beneficiary);
+        uint claimable = escrow.claimable();
         escrow.claimDBRTo(claimant);
+        vm.stopPrank();
 
         uint expectedDbr = 14 days * 1 ether;
         uint max = expectedDbr * 1 ether / (1 ether - 1);
         uint min = expectedDbr * (1 ether - 1) / 1 ether;
+        assertEq(DBR.balanceOf(claimant), DBRBalanceBefore + claimable);
         withinSpan(DBR.balanceOf(claimant) - DBRBalanceBefore, max, min);
     }
 
@@ -170,12 +185,15 @@ contract INVEscrowForkTest is Test{
         vm.warp(block.timestamp + 14 days);
         vm.prank(beneficiary);
         escrow.setClaimer(claimant, true);
-        vm.prank(claimant);
+        vm.startPrank(claimant);
+        uint claimable = escrow.claimable();
         escrow.claimDBRTo(beneficiary);
+        vm.stopPrank();
 
         uint expectedDbr = 14 days * 1 ether;
         uint max = expectedDbr * 1 ether / (1 ether - 1);
         uint min = expectedDbr * (1 ether - 1) / 1 ether;
+        assertEq(DBR.balanceOf(beneficiary), DBRBalanceBefore + claimable);
         withinSpan(DBR.balanceOf(beneficiary) - DBRBalanceBefore, max, min);
     }
 
@@ -212,6 +230,16 @@ contract INVEscrowForkTest is Test{
         vm.prank(claimant);
         vm.expectRevert("ONLY BENEFICIARY");
         escrow.setClaimer(claimant, true);
+    }
+
+    function testDelegate_success() public {
+        vm.prank(holder, holder);
+        INV.transfer(address(escrow), 1 ether);
+        escrow.onDeposit();
+
+        vm.prank(beneficiary, beneficiary);
+        escrow.delegate(holder);
+        assertEq(INV.delegates(address(escrow)), holder);
     }
 
     function withinSpan(uint input, uint max, uint min) public {

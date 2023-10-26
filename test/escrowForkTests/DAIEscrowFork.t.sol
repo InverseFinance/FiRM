@@ -28,6 +28,14 @@ contract DAIEscrowForkTest is Test{
         deal(address(DAI), holder, 1000 ether);
     }
 
+    function test_initialize() public {
+        DAIEscrow freshEscrow = new DAIEscrow();
+        vm.prank(address(market));
+        freshEscrow.initialize(DAI, holder);
+        assertEq(address(freshEscrow.market()), address(market), "Market not equal market");
+        assertEq(address(freshEscrow.token()), address(DAI), "DAI not Token");
+    }
+
     function testOnDeposit_successful_whenContractHoldsDAI() public {
         uint balanceBefore = escrow.balance();
         
