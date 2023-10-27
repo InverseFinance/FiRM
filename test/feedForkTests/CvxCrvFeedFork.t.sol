@@ -43,6 +43,19 @@ contract CvxCrvFeedFork is Test {
         assertLt(crvUsdPrice, cvxCrvUsdPrice);
     }
 
+    function testCvxCrvPriceAboveCrvCase() public {
+        (uint80 clRoundId, int256 crvUsdPrice, uint clStartedAt, uint clUpdatedAt,  uint80 clAnsweredInRound) = feed.crvToUsd().latestRoundData();
+        _mockCurvePriceOracle(address(curvePool), 2 ether);
+        (uint80 roundId, int256 cvxCrvUsdPrice, uint startedAt, uint updatedAt, uint80 answeredInRound) = feed.latestRoundData();
+
+        assertEq(clRoundId, roundId);
+        assertEq(clStartedAt, startedAt);
+        assertEq(clUpdatedAt, updatedAt);
+        assertEq(clAnsweredInRound, answeredInRound);
+        assertEq(crvUsdPrice * 10**10, cvxCrvUsdPrice);
+        assertLt(crvUsdPrice, cvxCrvUsdPrice);
+    }
+
     function testPriceFloorCase() public {
         vm.prank(feed.gov());
         feed.setMinCrvPerCvxCrvRatio(10**18-1);
@@ -105,5 +118,20 @@ contract CvxCrvFeedFork is Test {
         feed.setGov(address(0xA));
         assertEq(feed.gov(), address(0xA));
     }
+
+    function testDecimals() public {
+        assertEq(feed.decimals(), 18);
+    }
+
+    function _mockCurvePriceOracle(address pool, uint mockPrice) internal {
+         vm.mockCall(
+            pool,
+            abi.encodeWithSelector(ICurvePool.price_oracle.selector),
+            abi.encode(
+                mockPrice
+            )
+        );
+    }
+
 }
 

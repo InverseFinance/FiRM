@@ -164,4 +164,20 @@ contract FedTest is FrontierV2Test {
         vm.expectRevert(onlyChair);
         fed.contraction(IMarket(address(market)), 100e18);
     }
+
+    function test_changeSupplyCeiling() public {
+        vm.expectRevert("ONLY GOV");
+        fed.changeSupplyCeiling(1);
+        vm.prank(gov);
+        fed.changeSupplyCeiling(1);
+        assertEq(fed.supplyCeiling(), 1);
+    }
+
+    function test_changeMarketCeiling() public {
+        vm.expectRevert("ONLY GOV");
+        fed.changeMarketCeiling(IMarket(address(0)), 1);
+        vm.prank(gov);
+        fed.changeMarketCeiling(IMarket(address(0)), 1);
+        assertEq(fed.ceilings(IMarket(address(0))), 1);
+    }
 }

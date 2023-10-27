@@ -47,6 +47,17 @@ contract BorrowControllerTest is FrontierV2Test {
         assertEq(borrowController.borrowAllowed(address(borrowContract),address(0), 0), false, "Unallowed contract allowed to borrow");
     }
 
+    function test_BorrowAllowed_Where_MarketHasDailyLimit() public {
+        vm.prank(borrowController.operator());
+        borrowController.setDailyLimit(address(market), 1 ether);
+        vm.startPrank(address(market), user);
+        assertEq(borrowController.borrowAllowed(user, address(0), 0.5 ether), true, "Not allowed to borrow below limit");
+        assertEq(borrowController.borrowAllowed(user, address(0), 1 ether), false, "Allowed to borrow above limit");
+        assertEq(borrowController.borrowAllowed(user, address(0), 0.5 ether + 1), false, "Allowed to borrow above limit");
+        assertEq(borrowController.dailyBorrows(address(market), block.timestamp / 1 days), 0.5 ether, "Unexpected daily borrows");
+
+    }
+
     function test_BorrowAllowed_True_Where_UserIsAllowedContract() public {
         vm.startPrank(gov);
         borrowController.allow(address(borrowContract));
@@ -161,6 +172,15 @@ contract BorrowControllerTest is FrontierV2Test {
         bytes memory denied = "Denied by borrow controller";
         vm.expectRevert(denied);
         new BorrowContractTxOrigin{value:1 ether}(market, WETH);
+    }
+
+    function test_setDailyLimit() public {
+        vm.expectRevert(onlyOperatorLowercase);
+        borrowController.setDailyLimit(address(0), 1);
+
+        vm.prank(borrowController.operator());
+        borrowController.setDailyLimit(address(0), 1);
+        assertEq(borrowController.dailyLimits(address(0)), 1);
     }
 
     //Access Control

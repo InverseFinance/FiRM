@@ -160,6 +160,44 @@ contract DbrDistributorTest is Test {
         distributor.stake(stakeAmount);
     }
 
+    function testSetRewardRateConstraints() external {
+        vm.startPrank(gov);
+        
+        //Set min
+        distributor.setRewardRateConstraints(0, 0);
+        assertEq(distributor.minRewardRate(), 0);
+        assertEq(distributor.maxRewardRate(), 0);
 
+        //Set max
+        uint max = type(uint).max / 3652500 days - 1;
+        distributor.setRewardRateConstraints(max, max);
+        assertEq(distributor.minRewardRate(), max);
+        assertEq(distributor.maxRewardRate(), max);
+        vm.stopPrank();
+    }
 
+    function testSetRewardRateConstraints_FailWhenMinHigherThanMax() external {
+        vm.prank(gov);
+        
+        //Set min
+        vm.expectRevert();
+        distributor.setRewardRateConstraints(1, 0);
+
+    }
+
+    function testSetOperator() external {
+        vm.expectRevert("ONLY GOV");
+        distributor.setOperator(address(0));
+        vm.prank(gov);
+        distributor.setOperator(address(0));
+        assertEq(distributor.operator(), address(0));
+    }
+
+    function testSetGov() external {
+        vm.expectRevert("ONLY GOV");
+        distributor.setGov(address(0));
+        vm.prank(gov);
+        distributor.setGov(address(0));
+        assertEq(distributor.gov(), address(0));
+    }
 }
