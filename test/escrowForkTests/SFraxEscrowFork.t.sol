@@ -32,11 +32,14 @@ contract SFraxEscrowForkTest is Test{
         freshEscrow.initialize(frax, holder);
         assertEq(address(freshEscrow.market()), address(market), "Market not equal market");
         assertEq(address(freshEscrow.token()), address(frax), "FRAX not Token");
+
+        vm.expectRevert(bytes("ALREADY INITIALIZED"));
+        freshEscrow.initialize(frax, holder);
     }
 
     function testOnDeposit_successful_whenContractHoldsDAI() public {
         uint balanceBefore = escrow.balance();
-        
+
         vm.prank(holder, holder);
         frax.transfer(address(escrow), 1 ether);
         escrow.onDeposit();
