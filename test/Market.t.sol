@@ -10,10 +10,7 @@ import {SimpleERC20Escrow} from "src/escrows/SimpleERC20Escrow.sol";
 import "src/Market.sol";
 import "src/Oracle.sol";
 
-import "./mocks/ERC20.sol";
-import "./mocks/WETH9.sol";
 import "./mocks/BorrowContract.sol";
-import {EthFeed} from "./mocks/EthFeed.sol";
 
 contract MarketTest is FrontierV2Test {
     bytes onlyGovUnpause = "Only governance can unpause";
@@ -303,9 +300,51 @@ contract MarketTest is FrontierV2Test {
         market.borrow(1 ether);
     }
 
-    function testLiquidate_NoLiquidationFee(uint depositAmount, uint liqAmount, uint16 borrowMulti_) public {
+    function testLiquidate_LiquidationMoreExpensiveThanFeePlusIncentive() public {
+        uint depositAmount = 1 ether;
+        uint maxBorrowAmount = convertWethToDola(depositAmount) * market.collateralFactorBps() / 10_000;
+
+        gibWeth(user, depositAmount);
+        gibDBR(user, depositAmount);
+
+        vm.startPrank(chair);
+        fed.expansion(IMarket(address(market)), convertWethToDola(depositAmount)*2);
+        vm.stopPrank();
+
+        vm.startPrank(user, user);
+        deposit(depositAmount);
+        market.borrow(maxBorrowAmount);
+        vm.stopPrank();
+
+        vm.startPrank(gov);
+        uint liquidationFeeBps = 9998;
+        market.setLiquidationIncentiveBps(1);
+        market.setLiquidationFeeBps(liquidationFeeBps);
+        vm.stopPrank();
+
+        ethFeed.changeAnswer(oracle.getFeedPrice(address(WETH)) / 2);
+
+        vm.startPrank(user2);
+        uint liquidationAmount = market.debts(user) * market.liquidationFactorBps() / 10_000;
+        gibDOLA(user2, liquidationAmount);
+        DOLA.approve(address(market), type(uint).max);
+
+        uint marketDolaBal = DOLA.balanceOf(address(market));
+        uint govWethBal = WETH.balanceOf(gov);
+
+        //Successful liquidation
+        market.liquidate(user, liquidationAmount);
+
+        uint expectedReward = convertDolaToWeth(liquidationAmount);
+        expectedReward += expectedReward * market.liquidationIncentiveBps() / 10_000;
+        assertEq(expectedReward, WETH.balanceOf(user2), "user2 didn't receive proper liquidation reward");
+        assertEq(DOLA.balanceOf(address(market)), marketDolaBal + liquidationAmount, "market didn't receive repaid DOLA");
+        assertGt(WETH.balanceOf(gov), govWethBal, "Gov should receive liquidation fee");
+    }
+
+    function testLiquidate_NoLiquidationFee(uint depositAmount, uint liquidationAmount, uint16 borrowMulti_) public {
         depositAmount = bound(depositAmount, 1e18, 100_000e18);
-        liqAmount = bound(liqAmount, 500e18, 200_000_000e18);
+        liquidationAmount = bound(liquidationAmount, 500e18, 200_000_000e18);
         uint borrowMulti = bound(borrowMulti_, 0, 100);
 
         uint maxBorrowAmount = convertWethToDola(depositAmount) * market.collateralFactorBps() / 10_000;
@@ -326,7 +365,7 @@ contract MarketTest is FrontierV2Test {
         ethFeed.changeAnswer(oracle.getFeedPrice(address(WETH)) * 9 / 10);
 
         vm.startPrank(user2);
-        gibDOLA(user2, liqAmount);
+        gibDOLA(user2, liquidationAmount);
         DOLA.approve(address(market), type(uint).max);
 
         uint marketDolaBal = DOLA.balanceOf(address(market));
@@ -335,25 +374,79 @@ contract MarketTest is FrontierV2Test {
 
         if (market.debts(user) <= market.getCreditLimit(user)) {
             vm.expectRevert("User debt is healthy");
-            market.liquidate(user, liqAmount);
-        } else if (repayAmount < liqAmount) {
+            market.liquidate(user, liquidationAmount);
+        } else if (repayAmount < liquidationAmount) {
             vm.expectRevert("Exceeded liquidation factor");
-            market.liquidate(user, liqAmount);
+            market.liquidate(user, liquidationAmount);
         } else {
             //Successful liquidation
-            market.liquidate(user, liqAmount);
+            market.liquidate(user, liquidationAmount);
 
-            uint expectedReward = convertDolaToWeth(liqAmount);
+            uint expectedReward = convertDolaToWeth(liquidationAmount);
             expectedReward += expectedReward * market.liquidationIncentiveBps() / 10_000;
             assertEq(expectedReward, WETH.balanceOf(user2), "user2 didn't receive proper liquidation reward");
-            assertEq(DOLA.balanceOf(address(market)), marketDolaBal + liqAmount, "market didn't receive repaid DOLA");
+            assertEq(DOLA.balanceOf(address(market)), marketDolaBal + liquidationAmount, "market didn't receive repaid DOLA");
             assertEq(DOLA.balanceOf(gov), govDolaBal, "gov should not receive liquidation fee when it's set to 0");
         }
     }
 
-    function testLiquidate_WithLiquidationFee(uint depositAmount, uint liqAmount, uint256 liquidationFeeBps, uint16 borrowMulti_) public {
+    function testLiquidate_WithMaxLiquidationFee(uint depositAmount, uint liquidationAmount, uint16 borrowMulti_) public {
         depositAmount = bound(depositAmount, 1e18, 100_000e18);
-        liqAmount = bound(liqAmount, 500e18, 200_000_000e18);
+        liquidationAmount = bound(liquidationAmount, 500e18, 200_000_000e18);
+        uint borrowMulti = bound(borrowMulti_, 0, 100);
+
+        gibWeth(user, depositAmount);
+        gibDBR(user, depositAmount);
+
+        vm.startPrank(chair);
+        fed.expansion(IMarket(address(market)), convertWethToDola(depositAmount));
+        vm.stopPrank();
+
+        vm.startPrank(gov);
+        uint liquidationFeeBps = 9998;
+        market.setLiquidationIncentiveBps(1);
+        market.setLiquidationFeeBps(liquidationFeeBps);
+        vm.stopPrank();
+
+        vm.startPrank(user, user);
+        deposit(depositAmount);
+        uint maxBorrowAmount = convertWethToDola(depositAmount) * market.collateralFactorBps() / 10_000;
+        uint borrowAmount = maxBorrowAmount * borrowMulti / 100;
+        market.borrow(borrowAmount);
+        vm.stopPrank();
+
+        ethFeed.changeAnswer(oracle.getFeedPrice(address(WETH)) * 9 / 10);
+
+        vm.startPrank(user2);
+        gibDOLA(user2, liquidationAmount);
+        DOLA.approve(address(market), type(uint).max);
+
+        uint marketDolaBal = DOLA.balanceOf(address(market));
+        uint govWethBal = WETH.balanceOf(gov);
+        uint repayAmount = market.debts(user) * market.liquidationFactorBps() / 10_000;
+
+        if (market.debts(user) <= market.getCreditLimit(user)) {
+            vm.expectRevert("User debt is healthy");
+            market.liquidate(user, liquidationAmount);
+        } else if (repayAmount < liquidationAmount) {
+            vm.expectRevert("Exceeded liquidation factor");
+            market.liquidate(user, liquidationAmount);
+        } else {
+            //Successful liquidation
+            market.liquidate(user, liquidationAmount);
+
+            uint expectedReward = convertDolaToWeth(liquidationAmount);
+            expectedReward += expectedReward * market.liquidationIncentiveBps() / 10_000;
+            uint expectedLiquidationFee = convertDolaToWeth(liquidationAmount) * market.liquidationFeeBps() / 10_000;
+            assertEq(expectedReward, WETH.balanceOf(user2), "user2 didn't receive proper liquidation reward");
+            assertEq(DOLA.balanceOf(address(market)), marketDolaBal + liquidationAmount, "market didn't receive repaid DOLA");
+            assertEq(WETH.balanceOf(gov), govWethBal + expectedLiquidationFee, "gov didn't receive proper liquidation fee");
+        }
+    }
+
+    function testLiquidate_WithLiquidationFee(uint depositAmount, uint liquidationAmount, uint256 liquidationFeeBps, uint16 borrowMulti_) public {
+        depositAmount = bound(depositAmount, 1e18, 100_000e18);
+        liquidationAmount = bound(liquidationAmount, 500e18, 200_000_000e18);
         uint borrowMulti = bound(borrowMulti_, 0, 100);
 
         gibWeth(user, depositAmount);
@@ -379,7 +472,7 @@ contract MarketTest is FrontierV2Test {
         ethFeed.changeAnswer(oracle.getFeedPrice(address(WETH)) * 9 / 10);
 
         vm.startPrank(user2);
-        gibDOLA(user2, liqAmount);
+        gibDOLA(user2, liquidationAmount);
         DOLA.approve(address(market), type(uint).max);
 
         uint marketDolaBal = DOLA.balanceOf(address(market));
@@ -388,19 +481,19 @@ contract MarketTest is FrontierV2Test {
 
         if (market.debts(user) <= market.getCreditLimit(user)) {
             vm.expectRevert("User debt is healthy");
-            market.liquidate(user, liqAmount);
-        } else if (repayAmount < liqAmount) {
+            market.liquidate(user, liquidationAmount);
+        } else if (repayAmount < liquidationAmount) {
             vm.expectRevert("Exceeded liquidation factor");
-            market.liquidate(user, liqAmount);
+            market.liquidate(user, liquidationAmount);
         } else {
             //Successful liquidation
-            market.liquidate(user, liqAmount);
+            market.liquidate(user, liquidationAmount);
 
-            uint expectedReward = convertDolaToWeth(liqAmount);
+            uint expectedReward = convertDolaToWeth(liquidationAmount);
             expectedReward += expectedReward * market.liquidationIncentiveBps() / 10_000;
-            uint expectedLiquidationFee = convertDolaToWeth(liqAmount) * market.liquidationFeeBps() / 10_000;
+            uint expectedLiquidationFee = convertDolaToWeth(liquidationAmount) * market.liquidationFeeBps() / 10_000;
             assertEq(expectedReward, WETH.balanceOf(user2), "user2 didn't receive proper liquidation reward");
-            assertEq(DOLA.balanceOf(address(market)), marketDolaBal + liqAmount, "market didn't receive repaid DOLA");
+            assertEq(DOLA.balanceOf(address(market)), marketDolaBal + liquidationAmount, "market didn't receive repaid DOLA");
             assertEq(WETH.balanceOf(gov), govWethBal + expectedLiquidationFee, "gov didn't receive proper liquidation fee");
         }
     }
@@ -1170,5 +1263,44 @@ contract MarketTest is FrontierV2Test {
 
         vm.expectRevert(onlyLender);
         market.recall(100e18);
+    }
+
+    function test_domainSeparator() public {
+         ExposedMarket newMarket1 = new ExposedMarket(gov, address(fed), pauseGuardian, address(escrowImplementation), IDolaBorrowingRights(address(dbr)), IERC20(address(WETH)), IOracle(address(oracle)), 1, 1, 1, false);
+         ExposedMarket newMarket2 = new ExposedMarket(gov, address(fed), pauseGuardian, address(escrowImplementation), IDolaBorrowingRights(address(dbr)), IERC20(address(WETH)), IOracle(address(oracle)), 1, 1, 1, false);
+         assertNotEq(newMarket1.exposeDomainSeparator(), newMarket2.exposeDomainSeparator());
+    }
+}
+
+contract ExposedMarket is Market{
+
+    constructor (
+        address _gov,
+        address _lender,
+        address _pauseGuardian,
+        address _escrowImplementation,
+        IDolaBorrowingRights _dbr,
+        IERC20 _collateral,
+        IOracle _oracle,
+        uint _collateralFactorBps,
+        uint _replenishmentIncentiveBps,
+        uint _liquidationIncentiveBps,
+        bool _callOnDepositCallback
+    ) Market(
+        _gov,
+        _lender,
+        _pauseGuardian,
+        _escrowImplementation,
+        _dbr,
+        _collateral,
+        _oracle,
+        _collateralFactorBps,
+        _replenishmentIncentiveBps,
+        _liquidationIncentiveBps,
+        _callOnDepositCallback   
+    ) {}
+
+    function exposeDomainSeparator() external view returns(bytes32){
+        return computeDomainSeparator();
     }
 }

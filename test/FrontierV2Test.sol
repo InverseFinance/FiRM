@@ -12,8 +12,7 @@ import "src/Oracle.sol";
 import "./mocks/ERC20.sol";
 import "./mocks/WETH9.sol";
 import "./mocks/WBTC.sol";
-import {WbtcFeed} from "./mocks/WbtcFeed.sol";
-import {EthFeed} from "./mocks/EthFeed.sol";
+import {MockFeed} from "./mocks/MockFeed.sol";
 
 contract FrontierV2Test is Test {
     //EOAs & Multisigs
@@ -31,8 +30,9 @@ contract FrontierV2Test is Test {
 
     //Frontier V2
     Oracle oracle;
-    EthFeed ethFeed;
-    WbtcFeed wbtcFeed;
+    MockFeed ethFeed;
+    MockFeed wbtcFeed;
+    MockFeed dolaFeed;
     BorrowController borrowController;
     SimpleERC20Escrow escrowImplementation;
     DolaBorrowingRights dbr;
@@ -75,8 +75,9 @@ contract FrontierV2Test is Test {
         WETH = new WETH9();
         wBTC = new WBTC();
 
-        ethFeed = new EthFeed();
-        wbtcFeed = new WbtcFeed();
+        ethFeed = new MockFeed(18, 2000e18);
+        wbtcFeed = new MockFeed(8, 30000e8);
+        dolaFeed = new MockFeed(20, 1e20);
         oracle = new Oracle(gov);
         escrowImplementation = new SimpleERC20Escrow();
         dbr = new DolaBorrowingRights(replenishmentPriceBps_, "DOLA Borrowing Rights", "DBR", gov);
@@ -90,6 +91,7 @@ contract FrontierV2Test is Test {
         dbr.addMarket(address(market));
         oracle.setFeed(address(WETH), IChainlinkFeed(address(ethFeed)), 18);
         oracle.setFeed(address(wBTC), IChainlinkFeed(address(wbtcFeed)), 8);
+        oracle.setFeed(address(DOLA), IChainlinkFeed(address(dolaFeed)), 18);
         DOLA.addMinter(address(fed));
         vm.stopPrank();
         vm.prank(chair);

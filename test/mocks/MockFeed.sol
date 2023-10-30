@@ -5,31 +5,29 @@ interface IChainlinkFeed {
     function latestAnswer() external view returns (uint);
 }
 
-contract EthFeed is IChainlinkFeed {
-    uint8 decimals_ = 18;
-    uint price = 1600e18;
+contract MockFeed is IChainlinkFeed {
+    uint8 public decimals;
+    int price;
     uint updatedAt;
 
-    constructor(){
+    constructor(uint8 _decimals, int _price){
         updatedAt = block.timestamp;
-    }
-
-    function decimals() external view returns (uint8) {
-        return decimals_;
+        decimals = _decimals;
+        price = _price;
     }
 
     function latestAnswer() external view returns (uint) {
-        return price;
+        return uint(price);
     }
 
     function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80) {
-        return (0,int(price),0,updatedAt,0);
+        return(0, price, 0, updatedAt, 0);
     }
 
     function changeAnswer(uint _price) external {
-        price = _price;
+        price = int(_price);
     }
-    
+
     function changeUpdatedAt(uint _updatedAt) external {
         updatedAt = _updatedAt;
     }

@@ -174,6 +174,16 @@ contract BorrowControllerTest is FrontierV2Test {
         new BorrowContractTxOrigin{value:1 ether}(market, WETH);
     }
 
+    function test_onRepay_ReducesDailyBorrowsByAmount() public {
+        vm.prank(borrowController.operator());
+        borrowController.setDailyLimit(address(market), 10 ether);
+        vm.startPrank(address(market), user);
+        borrowController.borrowAllowed(user, address(0), 1 ether);
+        assertEq(borrowController.dailyBorrows(address(market), block.timestamp / 1 days), 1 ether);
+        borrowController.onRepay(0.5 ether);
+        assertEq(borrowController.dailyBorrows(address(market), block.timestamp / 1 days), 0.5 ether);
+    }
+
     function test_setDailyLimit() public {
         vm.expectRevert(onlyOperatorLowercase);
         borrowController.setDailyLimit(address(0), 1);

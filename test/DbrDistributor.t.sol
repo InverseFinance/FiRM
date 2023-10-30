@@ -139,7 +139,6 @@ contract DbrDistributorTest is Test {
     }
 
     function testFailNotAllowedMarket() external {
-        MarketMock evilMarket = new MarketMock(); 
         INVEscrowMock evilEscrow = market.createEscrow(user);
         vm.prank(address(evilEscrow));
         uint stakeAmount = 10**18;

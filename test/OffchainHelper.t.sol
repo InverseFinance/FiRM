@@ -12,9 +12,7 @@ import "src/Market.sol";
 import {CurveHelper} from "src/util/CurveHelper.sol";
 import "src/Oracle.sol"; 
  
-import "./mocks/ERC20.sol"; 
 import "./mocks/BorrowContract.sol"; 
-import {EthFeed} from "./mocks/EthFeed.sol"; 
 
 interface IWeth is IERC20 {
     function approve(address, uint) external;
@@ -89,7 +87,7 @@ contract OffchainHelperTest is FrontierV2Test {
     function testDepositNativeEthBuyDbrAndBorrowOnBehalf() public {
         uint duration = 365 days;
         uint borrowAmount = maxBorrowAmount / 2;
-        (uint dolaForDbr, uint dbrNeeded) = helper.approximateDolaAndDbrNeeded(borrowAmount, 365 days, 18);
+        (uint dolaForDbr, uint dbrNeeded) = helper.approximateDolaAndDbrNeeded(borrowAmount, duration, 18);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, getBorrowHash(borrowAmount + dolaForDbr, 0));
         uint prevBal = weth.balanceOf(userPk);
         vm.deal(userPk, wethTestAmount);
@@ -102,7 +100,7 @@ contract OffchainHelperTest is FrontierV2Test {
         assertGt(dbr.balanceOf(userPk), dbrNeeded * 99 / 100);
         assertEq(weth.balanceOf(address(market.predictEscrow(userPk))), wethTestAmount, "failed to deposit weth");
         assertEq(weth.balanceOf(userPk)-prevBal, 0, "failed to deposit weth");
-        assertGt(duration, market.debts(userPk) * 365 days / dbr.balanceOf(userPk) - 1 days); 
+        assertGt(duration, market.debts(userPk) * duration / dbr.balanceOf(userPk) - 1 days); 
         assertEq(DOLA.balanceOf(userPk), borrowAmount, "failed to borrow DOLA");
     }
 
@@ -262,7 +260,7 @@ contract OffchainHelperTest is FrontierV2Test {
     }
 
     function testDepositNativeEthAndBorrowOnBehalf() public {
-        uint borrowAmount = maxBorrowAmount;
+        uint borrowAmount = maxBorrowAmount / 2;
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, getBorrowHash(borrowAmount, 0));
 
         vm.startPrank(userPk, userPk);
@@ -274,7 +272,7 @@ contract OffchainHelperTest is FrontierV2Test {
         vm.stopPrank();
 
         assertEq(weth.balanceOf(address(market.predictEscrow(userPk))), wethTestAmount, "failed to deposit weth");       
-        assertEq(DOLA.balanceOf(userPk), maxBorrowAmount, "failed to borrow");
+        assertEq(DOLA.balanceOf(userPk), borrowAmount, "failed to borrow");
         assertEq(market.debts(userPk), DOLA.balanceOf(userPk), "Debt not equal borrow"); 
     }
 

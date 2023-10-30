@@ -442,4 +442,31 @@ contract DBRTest is FrontierV2Test {
         vm.expectRevert(onForceReplenishError);
         dbr.onForceReplenish(user, msg.sender, deficit, 1);
     }
+
+    function test_domainSeparator() public {
+         ExposedDBR newDBR1 = new ExposedDBR(10000, "Dola Borrowing Rights", "DBR", address(0));
+         ExposedDBR newDBR2 = new ExposedDBR(10000, "Dola Borrowing Rights", "DBR", address(0));
+         assertNotEq(newDBR1.exposeDomainSeparator(), newDBR2.exposeDomainSeparator());
+    }
+
 }
+
+contract ExposedDBR is DolaBorrowingRights{
+
+    constructor (
+        uint _replenishmentPriceBps,
+        string memory _name,
+        string memory _symbol,
+        address _operator
+    ) DolaBorrowingRights (
+        _replenishmentPriceBps,
+        _name,
+        _symbol,
+        _operator
+    ) {}
+
+    function exposeDomainSeparator() external view returns(bytes32){
+        return computeDomainSeparator();
+    }
+}
+
