@@ -9,14 +9,6 @@ import {SimpleERC20Escrow} from "src/escrows/SimpleERC20Escrow.sol";
 import "src/Market.sol";
 import "src/Oracle.sol";
 
-interface IErc20 is IERC20 {
-    function approve(address beneficiary, uint amount) external;
-}
-
-interface IMintable is IErc20 {
-    function mint(address receiver, uint amount) external;
-}
-
 contract FiRMForkTest is Test {
     //Market deployment:
     Market market;
@@ -35,7 +27,7 @@ contract FiRMForkTest is Test {
 
     //ERC-20s
     IMintable DOLA;
-    IErc20 collateral;
+    IERC20 collateral;
 
     //FiRM
     Oracle oracle;
@@ -71,7 +63,7 @@ contract FiRMForkTest is Test {
         oracle = Oracle(address(market.oracle()));
         escrowImplementation = IEscrow(market.escrowImplementation());
         fed = Fed(market.lender());
-        collateral = IErc20(address(market.collateral()));
+        collateral = IERC20(address(market.collateral()));
 
         vm.label(user, "user");
         vm.label(user2, "user2");

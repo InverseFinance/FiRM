@@ -1,12 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "forge-std/Test.sol";
-import {BorrowController} from "src/BorrowController.sol";
 import "./mocks/BorrowContract.sol";
-import "./FrontierV2Test.sol";
-import "src/Market.sol";
-import "./mocks/WETH9.sol";
+import "./FiRMBaseTest.sol";
 
 contract BorrowContractTxOrigin {
     
@@ -23,7 +19,7 @@ contract BorrowContractTxOrigin {
     }
 }  
 
-contract BorrowControllerTest is FrontierV2Test {
+contract BorrowControllerTest is FiRMBaseTest {
     BorrowContract borrowContract;
     bytes onlyOperatorLowercase = "Only operator";
 

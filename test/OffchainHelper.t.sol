@@ -1,26 +1,17 @@
 // SPDX-License-Identifier: UNLICENSED 
 pragma solidity ^0.8.13; 
 
-import "src/interfaces/IMarket.sol";
-import "forge-std/Test.sol"; 
-import {FrontierV2Test} from "./FrontierV2Test.sol"; 
-import {BorrowController} from "src/BorrowController.sol"; 
-import "src/DBR.sol"; 
-import "src/Fed.sol"; 
+import "./FiRMBaseTest.sol"; 
 import {SimpleERC20Escrow} from "src/escrows/SimpleERC20Escrow.sol"; 
-import "src/Market.sol"; 
 import {CurveHelper} from "src/util/CurveHelper.sol";
-import "src/Oracle.sol"; 
- 
-import "./mocks/BorrowContract.sol"; 
 
 interface IWeth is IERC20 {
-    function approve(address, uint) external;
     function withdraw(uint wad) external;
     function deposit() payable external;
 }
+
 //This test must be run as a mainnet fork, to work correctly
-contract OffchainHelperTest is FrontierV2Test {
+contract OffchainHelperTest is FiRMBaseTest {
 
     CurveHelper helper;
     bytes32 borrowHash;

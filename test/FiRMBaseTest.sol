@@ -11,10 +11,9 @@ import "src/Oracle.sol";
 
 import "./mocks/ERC20.sol";
 import "./mocks/WETH9.sol";
-import "./mocks/WBTC.sol";
 import {MockFeed} from "./mocks/MockFeed.sol";
 
-contract FrontierV2Test is Test {
+contract FiRMBaseTest is Test {
     //EOAs & Multisigs
     address user = address(0x69);
     address user2 = address(0x70);
@@ -26,7 +25,7 @@ contract FrontierV2Test is Test {
     //ERC-20s
     ERC20 DOLA;
     WETH9 WETH;
-    WBTC wBTC;
+    ERC20 wBTC;
 
     //Frontier V2
     Oracle oracle;
@@ -73,7 +72,7 @@ contract FrontierV2Test is Test {
         vm.startPrank(gov, gov);
         DOLA.claimOperator();
         WETH = new WETH9();
-        wBTC = new WBTC();
+        wBTC = new ERC20("WBTC", "WRAPPED BITCOIN", 8);
 
         ethFeed = new MockFeed(18, 2000e18);
         wbtcFeed = new MockFeed(8, 30000e8);

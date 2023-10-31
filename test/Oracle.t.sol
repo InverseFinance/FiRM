@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "forge-std/Test.sol";
-import "./FrontierV2Test.sol";
-import "src/Oracle.sol";
+import "./FiRMBaseTest.sol";
 
-contract OracleTest is FrontierV2Test {
+contract OracleTest is FiRMBaseTest {
     address operator;
     
     bytes onlyPendingOperator = "ONLY PENDING OPERATOR";

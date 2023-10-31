@@ -1,25 +1,17 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "forge-std/Test.sol";
-import "./FrontierV2Test.sol";
-import {BorrowController} from "src/BorrowController.sol";
-import "src/DBR.sol";
-import "src/Fed.sol";
+import "./FiRMBaseTest.sol";
 import {SimpleERC20Escrow} from "src/escrows/SimpleERC20Escrow.sol";
-import "src/Market.sol";
-import "src/Oracle.sol";
-
 import "./mocks/BorrowContract.sol";
 
-contract MarketTest is FrontierV2Test {
+contract MarketTest is FiRMBaseTest {
     bytes onlyGovUnpause = "Only governance can unpause";
     bytes onlyPauseGuardianOrGov = "Only pause guardian or governance can pause";
 
     BorrowContract borrowContract;
 
     function setUp() public {
-        //vm.createSelectFork("https://eth-mainnet.g.alchemy.com/v2/fQtwn2btewrr5lh9sJ3RHR8EbwxjBrU2");
         initialize(replenishmentPriceBps, collateralFactorBps, replenishmentIncentiveBps, liquidationBonusBps, callOnDepositCallback);
 
         vm.startPrank(chair, chair);
