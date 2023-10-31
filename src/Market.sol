@@ -1,13 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
+import "src/interfaces/IERC20.sol";
 
 // Caution. We assume all failed transfers cause reverts and ignore the returned bool.
-interface IERC20 {
-    function transfer(address,uint) external returns (bool);
-    function transferFrom(address,address,uint) external returns (bool);
-    function balanceOf(address) external view returns (uint);
-}
-
 interface IOracle {
     function getPrice(address,uint) external returns (uint);
     function viewPrice(address,uint) external view returns (uint);

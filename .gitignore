@@ -1,7 +1,9 @@
 cache/
 out/
 broadcast/
+coverage/
 foundry.toml
 lcov.info
 .env
 *.sh
+*.info
