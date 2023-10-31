@@ -146,6 +146,50 @@ contract OffchainHelperTest is FrontierV2Test {
         assertEq(dbr.balanceOf(userPk), 0, "Did not sell DBR"); 
     }
 
+    function testSellDbrAndRepayOnBehalf_HigherDBRAmountThanOwned() public {
+        vm.startPrank(userPk, userPk);
+        uint borrowAmount = maxBorrowAmount / 2;
+        (uint dolaForDbr, uint dbrNeeded) = helper.approximateDolaAndDbrNeeded(borrowAmount, 365 days, 18);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, getBorrowHash(borrowAmount + dolaForDbr, 0));
+
+        gibDOLA(userPk, 10000 ether);
+
+        deposit(wethTestAmount);
+
+        helper.buyDbrAndBorrowOnBehalf(IMarket(address(market)), borrowAmount, dolaForDbr, dbrNeeded * 99 / 100, block.timestamp, v, r, s);
+        helper.sellDbrAndRepayOnBehalf(IMarket(address(market)), market.debts(userPk), dbr.balanceOf(userPk) / 100,dbr.balanceOf(userPk)+1);
+        vm.stopPrank();
+
+        assertEq(weth.balanceOf(address(market.predictEscrow(userPk))), wethTestAmount, "failed to deposit weth");
+        assertEq(weth.balanceOf(userPk), 0, "failed to deposit weth");
+        
+        assertEq(market.debts(userPk), 0, "Did not repay debt"); 
+        assertEq(dbr.balanceOf(userPk), 0, "Did not sell DBR"); 
+    }
+
+    function testSellDbrAndRepayOnBehalf_EarnMoreFromDBRSellThanRepay() public {
+        vm.startPrank(userPk, userPk);
+        uint borrowAmount = maxBorrowAmount / 2;
+        (uint dolaForDbr, uint dbrNeeded) = helper.approximateDolaAndDbrNeeded(borrowAmount, 365 days, 18);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, getBorrowHash(borrowAmount + dolaForDbr, 0));
+
+        gibDOLA(userPk, 10000 ether);
+
+        deposit(wethTestAmount);
+        helper.buyDbrAndBorrowOnBehalf(IMarket(address(market)), borrowAmount, dolaForDbr, dbrNeeded * 99 / 100, block.timestamp, v, r, s);
+        //Reduce debt to 1
+        market.repay(userPk, market.debts(userPk) - 1 ether);
+        uint dolaBalanceBefore = DOLA.balanceOf(userPk);
+        helper.sellDbrAndRepayOnBehalf(IMarket(address(market)), market.debts(userPk), dbr.balanceOf(userPk) / 100,dbr.balanceOf(userPk));
+        vm.stopPrank();
+
+        assertGt(DOLA.balanceOf(userPk), dolaBalanceBefore, "DOLA balance did not increase");
+        assertEq(weth.balanceOf(address(market.predictEscrow(userPk))), wethTestAmount, "failed to deposit weth");
+        assertEq(weth.balanceOf(userPk), 0, "failed to deposit weth");
+        assertEq(market.debts(userPk), 0, "Did not repay debt"); 
+        assertEq(dbr.balanceOf(userPk), 0, "Did not sell DBR"); 
+    }
+
     function testSellDbrRepayAndWithdrawOnBehalf() public {
         gibDOLA(userPk, 10000 ether);
         uint borrowAmount = maxBorrowAmount / 2;
