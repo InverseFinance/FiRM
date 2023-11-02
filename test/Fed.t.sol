@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "forge-std/Test.sol";
-import "src/Fed.sol";
-import "./FrontierV2Test.sol";
+import "./FiRMBaseTest.sol";
 
-contract FedTest is FrontierV2Test {
+contract FedTest is FiRMBaseTest {
     bytes onlyGovUpper = "ONLY GOV";
     bytes unsupportedMarket = "UNSUPPORTED MARKET";
     bytes tooBig = "AMOUNT TOO BIG";

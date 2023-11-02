@@ -95,6 +95,24 @@ contract ConvexCurveEscrowForkTest is Test{
         assertEq(threeCrv.balanceOf(beneficiary), threeCrvBalanceBefore);
     }
 
+    function testClaim_successful_whenForcedToClaim() public {
+        uint crvBalanceBefore = crv.balanceOf(beneficiary);
+        uint cvxBalanceBefore = cvx.balanceOf(beneficiary);
+        uint threeCrvBalanceBefore = threeCrv.balanceOf(beneficiary);
+        vm.prank(holder, holder);
+        cvxCrv.transfer(address(escrow), 1 ether);
+        escrow.onDeposit();
+
+        vm.warp(block.timestamp + 14 days);
+        stakingWrapper.getReward(address(escrow));
+        vm.prank(beneficiary);
+        escrow.claim();
+
+        assertGt(crv.balanceOf(beneficiary), crvBalanceBefore);
+        assertGt(cvx.balanceOf(beneficiary), cvxBalanceBefore);
+        assertEq(threeCrv.balanceOf(beneficiary), threeCrvBalanceBefore);
+    }
+
     function testClaim_successful_whenRewardWeightSetTo5000() public {
         uint crvBalanceBefore = crv.balanceOf(beneficiary);
         uint cvxBalanceBefore = cvx.balanceOf(beneficiary);

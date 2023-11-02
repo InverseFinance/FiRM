@@ -83,6 +83,22 @@ contract ConvexFraxShareEscrowForkTest is Test{
         assertGt(cvx.balanceOf(beneficiary), cvxBalanceBefore);
     }
 
+    function testClaim_successful_whenForcedToClaim() public {
+        uint fxsBalanceBefore = fxs.balanceOf(beneficiary);
+        uint cvxBalanceBefore = cvx.balanceOf(beneficiary);
+        vm.prank(holder, holder);
+        cvxFxs.transfer(address(escrow), 1 ether);
+        escrow.onDeposit();
+
+        vm.warp(block.timestamp + 14 days);
+        stakingWrapper.getReward(address(escrow));
+        vm.prank(beneficiary);
+        escrow.claim();
+
+        assertGt(fxs.balanceOf(beneficiary), fxsBalanceBefore);
+        assertGt(cvx.balanceOf(beneficiary), cvxBalanceBefore);
+    }
+
     function testClaimTo_successful_whenCalledByBeneficiary() public {
         uint fxsBalanceBefore = fxs.balanceOf(friend);
         uint cvxBalanceBefore = cvx.balanceOf(friend);

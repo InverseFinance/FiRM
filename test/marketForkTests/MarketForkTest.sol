@@ -5,19 +5,10 @@ import "forge-std/Test.sol";
 import {BorrowController} from "src/BorrowController.sol";
 import "src/DBR.sol";
 import {Fed, IMarket} from "src/Fed.sol";
-import {IERC20} from "src/interfaces/IERC20.sol";
+import {IERC20, IMintable} from "src/interfaces/IERC20.sol";
 import {IMarket} from "src/interfaces/IMarket.sol";
 import {IEscrow, IBorrowController, IOracle, IDolaBorrowingRights} from "src/Market.sol";
 import "src/Oracle.sol";
-
-
-interface IErc20 is IERC20 {
-    function approve(address beneficiary, uint amount) external;
-}
-
-interface IMintable is IErc20 {
-    function mint(address receiver, uint amount) external;
-}
 
 contract MarketForkTest is Test {
     //Market deployment:

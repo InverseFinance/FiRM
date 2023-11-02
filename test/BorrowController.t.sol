@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "forge-std/Test.sol";
-import {BorrowController} from "src/BorrowController.sol";
 import "./mocks/BorrowContract.sol";
-import "./FrontierV2Test.sol";
-import "src/Market.sol";
 import "./mocks/WETH9.sol";
+import "./mocks/BorrowContract.sol";
+import "./FiRMBaseTest.sol";
 
 contract BorrowContractTxOrigin {
     
@@ -23,7 +21,7 @@ contract BorrowContractTxOrigin {
     }
 }  
 
-contract BorrowControllerTest is FrontierV2Test {
+contract BorrowControllerTest is FiRMBaseTest {
     BorrowContract borrowContract;
     bytes onlyOperatorLowercase = "Only operator";
 
@@ -172,6 +170,16 @@ contract BorrowControllerTest is FrontierV2Test {
         bytes memory denied = "Denied by borrow controller";
         vm.expectRevert(denied);
         new BorrowContractTxOrigin{value:1 ether}(market, WETH);
+    }
+
+    function test_onRepay_ReducesDailyBorrowsByAmount() public {
+        vm.prank(borrowController.operator());
+        borrowController.setDailyLimit(address(market), 10 ether);
+        vm.startPrank(address(market), user);
+        borrowController.borrowAllowed(user, address(0), 1 ether);
+        assertEq(borrowController.dailyBorrows(address(market), block.timestamp / 1 days), 1 ether);
+        borrowController.onRepay(0.5 ether);
+        assertEq(borrowController.dailyBorrows(address(market), block.timestamp / 1 days), 0.5 ether);
     }
 
     function test_setDailyLimit() public {

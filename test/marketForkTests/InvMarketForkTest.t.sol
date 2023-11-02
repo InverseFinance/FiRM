@@ -28,9 +28,8 @@ contract InvMarketForkTest is MarketForkTest {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
         vm.createSelectFork(url);
-        distributor = DbrDistributor(0xdcd2D918511Ba39F2872EB731BB88681AE184244);//new DbrDistributor(IDBR(address(dbr)), gov, chair);
-        INVEscrow escrow = INVEscrow(0x502a7759809bD673cd39A0055beed44b40EAac98);//new INVEscrow(xINV, IDbrDistributor(address(distributor)));
-        Market market = Market(0xb516247596Ca36bf32876199FBdCaD6B3322330B); //new Market(gov, lender, pauseGuardian, address(escrow), IDolaBorrowingRights(address(dbr)), INV, IOracle(address(oracle)), 0, 0, 1, true);
+        distributor = DbrDistributor(0xdcd2D918511Ba39F2872EB731BB88681AE184244);
+        Market market = Market(0xb516247596Ca36bf32876199FBdCaD6B3322330B);
         address oldInvFeed = 0x0dBC61D27ab9f1D2ADa932b4B58138C5Ae9B4F94;
         init(address(market), oldInvFeed);
         vm.startPrank(gov);
@@ -39,9 +38,6 @@ contract InvMarketForkTest is MarketForkTest {
         distributor.setRewardRateConstraints(126839167935058000,317097919837646000);
         distributor.setRewardRateConstraints(0,317097919837646000);
         vm.stopPrank();
-        //vm.startPrank(chair, chair);
-        //distributor.setRewardRate(1 ether);
-        //vm.stopPrank();
 
         borrowContract = new BorrowContract(address(market), payable(address(collateral)));
     }
