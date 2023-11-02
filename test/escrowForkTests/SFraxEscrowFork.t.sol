@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 
-import {SFraxEscrow, IERC20, IERC4626} from "src/escrows/SFraxEscrow.sol";
+import {VaultEscrow, IERC20, IERC4626} from "src/escrows/VaultEscrow.sol";
 
 contract SFraxEscrowForkTest is Test{
 
@@ -13,21 +13,21 @@ contract SFraxEscrowForkTest is Test{
     address gov = address(0x926dF14a23BE491164dCF93f4c468A50ef659D5B);
     IERC20 public frax = IERC20(0x853d955aCEf822Db058eb8505911ED77F175b99e);
     IERC4626 public sFrax = IERC4626(0xA663B02CF0a4b149d2aD41910CB81e23e1c41c32);
-    SFraxEscrow escrow;
+    VaultEscrow escrow;
 
 
     function setUp() public {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
         vm.createSelectFork(url);
-        escrow = new SFraxEscrow();
+        escrow = new VaultEscrow(0xA663B02CF0a4b149d2aD41910CB81e23e1c41c32);
         vm.prank(market, market);
         escrow.initialize(frax, address(0));
         deal(address(frax), holder, 1000 ether);
     }
 
     function test_initialize() public {
-        SFraxEscrow freshEscrow = new SFraxEscrow();
+        VaultEscrow freshEscrow = new VaultEscrow(0xA663B02CF0a4b149d2aD41910CB81e23e1c41c32);
         vm.prank(address(market));
         freshEscrow.initialize(frax, holder);
         assertEq(address(freshEscrow.market()), address(market), "Market not equal market");
@@ -39,6 +39,9 @@ contract SFraxEscrowForkTest is Test{
 
     function testOnDeposit_successful_whenContractHoldsDAI() public {
         uint balanceBefore = escrow.balance();
+
+        escrow.onDeposit();
+        assertEq(balanceBefore, escrow.balance(), "No funds deposited");
 
         vm.prank(holder, holder);
         frax.transfer(address(escrow), 1 ether);
@@ -58,8 +61,13 @@ contract SFraxEscrowForkTest is Test{
         escrow.onDeposit();
         uint recipientBalanceBefore = frax.balanceOf(recipient);
 
-        vm.prank(market, market);
-        escrow.pay(recipient, 1 ether);
+
+        vm.startPrank(market, market);
+        escrow.pay(recipient, 0.5 ether);
+        assertEq(frax.balanceOf(recipient), recipientBalanceBefore + 0.5 ether);
+
+        escrow.pay(recipient, escrow.balance());
+        vm.stopPrank();
 
         assertEq(escrow.balance(), 0);
         assertEq(sFrax.balanceOf(address(escrow)), 0);

@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "forge-std/Test.sol";
 import "./MarketBaseForkTest.sol";
-import {SFraxEscrow} from "src/escrows/SFraxEscrow.sol";
 import {Market} from "src/Market.sol";
-import "src/Oracle.sol";
+import {VaultEscrow} from "src/escrows/VaultEscrow.sol";
 
 contract SFraxMarketForkTest is MarketBaseForkTest {
-    SFraxEscrow escrow;
+    VaultEscrow escrow;
     IERC20 frax = IERC20(0x853d955aCEf822Db058eb8505911ED77F175b99e);
     address fraxToUsd = 0xB9E1E3A9feFf48998E45Fa90847ed4D467E8BcfD;
 
@@ -17,7 +15,7 @@ contract SFraxMarketForkTest is MarketBaseForkTest {
         string memory url = vm.rpcUrl("mainnet");
         vm.createSelectFork(url);
         
-        escrow = new SFraxEscrow();
+        escrow = new VaultEscrow(0xA663B02CF0a4b149d2aD41910CB81e23e1c41c32);
         
         Market market = new Market(
             gov,

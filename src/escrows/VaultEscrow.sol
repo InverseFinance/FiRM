@@ -5,15 +5,19 @@ import {IERC4626} from "lib/openzeppelin-contracts/contracts/interfaces/IERC4626
 import {IERC20} from "lib/openzeppelin-contracts/contracts/interfaces/IERC20.sol";
 
 /**
-@title sFrax Escrow
+@title Vault Escrow
 @notice Collateral is stored in unique escrow contracts for every user and every market.
-This escrow allows user to deposit FRAX collateral directly into the sFRAX ERC4626 contract, earning FRAX yield which is accounted for FRAX collateral
+This escrow allows user to deposit collateral directly into the ERC4626 contract, earning yield
 @dev Caution: This is a proxy implementation. Follow proxy pattern best practices
 */
-contract SFraxEscrow {
+contract VaultEscrow {
     address public market;
     IERC20 public token;
-    IERC4626 public constant sFrax = IERC4626(0xA663B02CF0a4b149d2aD41910CB81e23e1c41c32);
+    IERC4626 public immutable vault;
+
+    constructor(address _vault){
+        vault = IERC4626(_vault);
+    }
 
     /**
     @notice Initialize escrow with a token
@@ -24,7 +28,7 @@ contract SFraxEscrow {
         require(market == address(0), "ALREADY INITIALIZED");
         market = msg.sender;
         token = _token;
-        token.approve(address(sFrax), type(uint).max);
+        token.approve(address(vault), type(uint).max);
     }
     
     /**
@@ -35,10 +39,10 @@ contract SFraxEscrow {
     function pay(address recipient, uint amount) public {
         require(msg.sender == market, "ONLY MARKET");
         if(amount == balance()){
-            amount += 1;
+            vault.redeem(vault.balanceOf(address(this)), recipient, address(this));
+        } else {
+            vault.withdraw(amount, recipient, address(this));
         }
-        uint256 sFraxAmount = sFrax.convertToShares(amount);
-        sFrax.redeem(sFraxAmount, recipient, address(this));
     }
 
     /**
@@ -46,8 +50,8 @@ contract SFraxEscrow {
     @return Uint representing the token balance of the escrow
     */
     function balance() public view returns (uint) {
-        uint sFraxBalance = sFrax.balanceOf(address(this));
-        return sFrax.convertToAssets(sFraxBalance);
+        uint vaultBalance = vault.balanceOf(address(this));
+        return vault.convertToAssets(vaultBalance);
     }
 
     /**
@@ -55,9 +59,9 @@ contract SFraxEscrow {
     @dev This function should remain callable by anyone to handle direct inbound transfers.
     */
     function onDeposit() public {
-        uint fraxBalance = token.balanceOf(address(this));
-        if(fraxBalance > 0) {
-            sFrax.deposit(fraxBalance, address(this));
+        uint tokenBalance = token.balanceOf(address(this));
+        if(tokenBalance > 0) {
+            vault.deposit(tokenBalance, address(this));
         }
     }
 }
