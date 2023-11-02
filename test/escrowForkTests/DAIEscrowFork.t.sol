@@ -56,8 +56,11 @@ contract DAIEscrowForkTest is Test{
         escrow.onDeposit();
         uint beneficiaryBalanceBefore = DAI.balanceOf(beneficiary);
 
-        vm.prank(market, market);
-        escrow.pay(beneficiary, 1 ether-1);
+        vm.startPrank(market, market);
+        escrow.pay(beneficiary, 0.5 ether);
+        assertEq(DAI.balanceOf(beneficiary), beneficiaryBalanceBefore + 0.5 ether);
+
+        escrow.pay(beneficiary, escrow.balance());
 
         assertEq(escrow.balance(), 0);
         assertEq(DSR.daiBalance(address(escrow)), 0);
