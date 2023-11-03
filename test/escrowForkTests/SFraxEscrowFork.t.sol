@@ -102,12 +102,13 @@ contract SFraxEscrowForkTest is Test{
 
         vm.startPrank(market, market);
         vm.warp(block.timestamp + 365 days);
-        escrow.pay(recipient, escrow.balance());
+        uint escrowBal = escrow.balance();
+        escrow.pay(recipient, escrowBal);
         vm.stopPrank();
 
         assertEq(escrow.balance(), 0); 
         assertEq(sFrax.balanceOf(address(escrow)), 0);
-        assertGe(frax.balanceOf(recipient), recipientBalanceBefore + walletAmount - 1);
+        assertGe(frax.balanceOf(recipient), recipientBalanceBefore + escrowBal);
         assertEq(sFrax.convertToAssets(sFrax.balanceOf(address(escrow))), escrow.balance());
     }
 
