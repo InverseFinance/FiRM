@@ -60,7 +60,7 @@ contract WstETHPriceFeed {
      * and the stETH per wstETH ratio from the wstETH contract. 
      * If stETH/USD price is out of bounds, it will fallback to ETH/USD and stETH/ETH oracles to get the price.
      * @return roundId The round ID of the Chainlink price feed
-     * @return wstEthUsdPrice The latest wstEthUsdPrice
+     * @return wstEthUsdPrice The latest wstETH price in USD
      * @return startedAt The timestamp when the latest round of Chainlink price feed started
      * @return updatedAt The timestamp when the latest round of Chainlink price feed was updated
      * @return answeredInRound The round ID in which the answer was computed
@@ -91,14 +91,14 @@ contract WstETHPriceFeed {
             ) = stEthToUsdFallbackOracle();
         }
 
-        int256 wstEthUsdPrice = int256(stEthPerToken) * stEthUsdPrice / 10 ** 18;
+        int256 wstEthUsdPrice = int256(stEthPerToken) * stEthUsdPrice / 10 ** 8;
 
         return (roundId, wstEthUsdPrice, startedAt, updatedAt, answeredInRound);
     }
 
     /** 
-    @notice Retrieves the latest price for the INV token
-    @return price The latest price for the INV token
+    @notice Retrieves the latest price for the wstETH token
+    @return price The latest price for the wstETH token
     */
     function latestAnswer() external view returns (int256) {
         (, int256 price, , , ) = latestRoundData();
@@ -106,8 +106,8 @@ contract WstETHPriceFeed {
     }
 
     /**
-     * @notice Retrieves number of decimals for the INV price feed
-     * @return decimals The number of decimals for the INV price feed
+     * @notice Retrieves number of decimals for the wstETH price feed
+     * @return decimals The number of decimals for the wstETH price feed
      */
     function decimals() external pure returns (uint8) {
         return 18;
@@ -134,7 +134,7 @@ contract WstETHPriceFeed {
      * @dev It will return the roundId, startedAt, updatedAt and answeredInRound from the ETH/USD Chainlink price feed when both oracle are not stale,
      * in which case updatedAt will be zero
      * @return roundId The round ID of the ETH/USD Chainlink price feed
-     * @return usdcToUsdPrice The latest stETH price in USD computed from the ETH/USD and stETH/ETH feeds
+     * @return stEthToUsdPrice The latest stETH price in USD computed from the ETH/USD and stETH/ETH feeds
      * @return startedAt The timestamp when the latest round of ETH/USD Chainlink price feed started
      * @return updatedAt The timestamp when the latest round of ETH/USD Chainlink price feed was updated
      * @return answeredInRound The round ID of the ETH/USD Chainlink price feed in which the answer was computed
