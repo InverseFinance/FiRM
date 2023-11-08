@@ -325,6 +325,42 @@ contract WstETHFeedFork is Test {
         assertEq(uint256(wstEthUsdPrice), uint(feed.latestAnswer()));
     }
 
+    function test_Mutations() public {
+        // Mutated line 128 return (max < price || min >= price);
+        // If maxAnswer is out of bounds return TRUE
+        IAggregator aggregator = IAggregator(feed.stEthToUsd().aggregator());
+        int192 max = aggregator.maxAnswer();
+        _mockChainlinkPrice(feed.stEthToUsd(), max);
+        bool success = feed.isPriceOutOfBounds(max, feed.stEthToUsd());
+        assertTrue(success);
+
+        // Mutated line 161 int256 stEthToUsdPrice = ethToUsdPrice / stEthToEthPrice / 10**18;
+        // Assert gt than ZERO
+        // We are returning the price from the fallback since it's already stEthToUsd is already out of bounds from above mutation
+        (,int price,,,) = feed.latestRoundData();
+        assertGt(uint(price),0);
+
+        // Mutated line 163  if(isPriceOutOfBounds(ethToUsdPrice, ethToUsd) || block.timestamp - updatedAt >= ethHeartbeat) {
+        // Return NOT stale (updatedAtEth != 0) when  block.timestamp - updatedAt == ethHeartbeat
+        (, , , uint updatedAt, ) = feed.ethToUsd().latestRoundData();
+        _mockChainlinkUpdatedAt(feed.ethToUsd(), -1*int(feed.ethHeartbeat() - (block.timestamp - updatedAt)));
+        (, , , uint updatedAtEth, ) = feed.stEthToUsdFallbackOracle();
+        // Not stale when ethHeartbeat == block.timestamp - updatedAt
+        assertGt(updatedAtEth,0);
+        assertEq(feed.ethHeartbeat(),block.timestamp - updatedAtEth);
+
+
+        // Mutated line 168  if(isPriceOutOfBounds(stEthToEthPrice, stEthToEth) || block.timestamp - updatedAtStEth >= stEthToEthHeartbeat) {
+        // Not stale when stEthHeartbeat == block.timestamp - updatedAt, return updateAtEth from eth/usd oracle
+        (, , , uint updatedAtStEth, ) = feed.stEthToEth().latestRoundData();
+        _mockChainlinkUpdatedAt(feed.stEthToEth(), -1*int(feed.stEthToEthHeartbeat() - (block.timestamp - updatedAtStEth)));
+        (, , , uint updatedAtstEthToEth,) = feed.stEthToEth().latestRoundData();
+        assertEq(feed.stEthToEthHeartbeat(),block.timestamp - updatedAtstEthToEth);
+        // The fallback returns the updatedAtEth (eth/usd) 
+        (, , , uint updatedAtAfter, ) = feed.stEthToUsdFallbackOracle();
+        assertEq(updatedAtEth,updatedAtAfter);
+    }
+
     function test_setEthHeartbeat() public {
         assertEq(feed.ethHeartbeat(), 3600);
 
@@ -341,7 +377,7 @@ contract WstETHFeedFork is Test {
         assertEq(feed.stEthToEthHeartbeat(), 86400);
 
         vm.expectRevert(WstETHPriceFeed.OnlyGov.selector);
-        feed.setEthHeartbeat(100);
+        feed.setStEthHeartbeat(100);
         assertEq(feed.stEthToEthHeartbeat(), 86400);
 
         vm.prank(feed.gov());
@@ -390,6 +426,8 @@ contract WstETHFeedFork is Test {
             uint updatedAt,
             uint80 answeredInRound
         ) = clFeed.latestRoundData();
+        console.log("updatedAt in mockChainlinkUpdatedat", updatedAt);
+        console.log(uint(int(updatedAt) + updatedAtDelta), "updatedAtDelta");
          vm.mockCall(
             address(clFeed),
             abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
