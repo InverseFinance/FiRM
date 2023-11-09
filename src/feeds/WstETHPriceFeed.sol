@@ -5,14 +5,12 @@ pragma solidity ^0.8.4;
 interface IChainlinkFeed {
     function aggregator() external view returns (address aggregator);
 
-    function decimals() external view returns (uint8);
-
     function latestRoundData()
         external
         view
         returns (
             uint80 roundId,
-            int256 invDollarPrice,
+            int256 price,
             uint256 startedAt,
             uint256 updatedAt,
             uint80 answeredInRound
