@@ -131,7 +131,7 @@ contract WstETHPriceFeed {
 
     /**
      * @notice Fetches the ETH to USD price and the stETH/ETH to get stETH/USD price, adjusts the decimals to match Chainlink oracles.
-     * @dev It will return the roundId, startedAt, updatedAt and answeredInRound from the ETH/USD Chainlink price feed when both oracle are not stale,
+     * @dev It will return the roundId, startedAt, updatedAt and answeredInRound from the ETH/USD Chainlink price feed when both oracles are not stale,
      * in which case updatedAt will be zero
      * @return roundId The round ID of the ETH/USD Chainlink price feed
      * @return stEthToUsdPrice The latest stETH price in USD computed from the ETH/USD and stETH/ETH feeds

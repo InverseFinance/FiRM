@@ -15,7 +15,7 @@ contract SFraxMarketForkTest is MarketBaseForkTest {
     function setUp() public {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url);
+        vm.createSelectFork(url, 18535539);
 
         escrow = new SimpleERC20Escrow();
 

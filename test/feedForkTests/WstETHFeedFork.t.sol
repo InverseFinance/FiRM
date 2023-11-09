@@ -11,7 +11,7 @@ contract WstETHFeedFork is Test {
 
     function setUp() public {
         string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url);
+        vm.createSelectFork(url, 18535539);
         feed = new WstETHPriceFeed();
     }
 
@@ -426,8 +426,7 @@ contract WstETHFeedFork is Test {
             uint updatedAt,
             uint80 answeredInRound
         ) = clFeed.latestRoundData();
-        console.log("updatedAt in mockChainlinkUpdatedat", updatedAt);
-        console.log(uint(int(updatedAt) + updatedAtDelta), "updatedAtDelta");
+        
          vm.mockCall(
             address(clFeed),
             abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
