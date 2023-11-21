@@ -17,9 +17,12 @@ interface ICurvePool {
 
 interface IINVEscrow {
     function claimDBRTo(address to) external;
-    function claimable() external returns (uint); // TODO: should we use this?
+    function claimable() external returns (uint);
 }
 
+/// @title DbrHelper
+/// @notice Helper contract to claim DBR, sell it for DOLA and optionally repay debt or sell it for INV and deposit into INV market
+/// @dev Require approving DbrHelper to claim on behalf of the user (via setClaimer function in INVEscrow)
 contract DbrHelper is ReentrancyGuard {
     error NoEscrow(address user);
     error NoDbrToClaim();
@@ -33,44 +36,71 @@ contract DbrHelper is ReentrancyGuard {
     uint public constant dolaIndex = 0;
     uint public constant dbrIndex = 1;
     uint public constant invIndex = 2;
+    
+    event ClaimAndSell(address indexed claimer, uint dbrAmount, uint dolaAmount, address receiver);
+    event ClaimSellAndRepay(address indexed claimer, address indexed market, address indexed to, uint dolaAmount);
+    event ClaimSellAndDepositInv(address indexed claimer, address indexed to, uint invAmount);
+    event ExtraDola(address indexed receiver, uint amount);
 
     constructor() {
         dbr.approve(address(curvePool), type(uint).max);
         inv.approve(address(invMarket), type(uint).max);
     }
 
-    function claimAndSellDbr(uint minOut, address receiver) public nonReentrant {
+    /// @notice Claim DBR, sell it for DOLA, and send DOLA to receiver
+    /// @param minOut Minimum amount of DOLA to receive
+    /// @param receiver Address to receive DOLA
+    /// @return dolaAmount Amount of DOLA received
+    function claimAndSellDbr(uint minOut, address receiver) public nonReentrant returns (uint256 dolaAmount) {
         uint256 amount = _claimDBR();
 
-        _sellDbr(amount, minOut, dolaIndex, receiver);
+        dolaAmount = _sellDbr(amount, minOut, dolaIndex, receiver);
+
+        emit ClaimAndSell(msg.sender, amount, dolaAmount, receiver);
     }
 
-    function claimSellAndRepay(uint minOut, address market, address to) external {
+    /// @notice Claim DBR, sell it for DOLA, and repay DOLA debt
+    /// @param minOut Minimum amount of DOLA to receive
+    /// @param market Address of the market to repay
+    /// @param to Address to receive debt repayment and which is going to receive any extra DOLA
+    /// @return dolaAmount Amount of DOLA repaid
+    function claimSellAndRepay(uint minOut, address market, address to) external returns (uint256 dolaAmount) {
         claimAndSellDbr(minOut, address(this));
 
-        uint256 dolaAmount = dola.balanceOf(address(this));
+        dolaAmount = dola.balanceOf(address(this));
         uint256 debt = IMarket(market).debts(to);
 
         if(dolaAmount > debt) {
             uint256 extraDola = dolaAmount - debt;
             dolaAmount = debt;
             dola.transfer(to, extraDola);
+            emit ExtraDola(to, extraDola);
         }
 
         dola.approve(market, dolaAmount);
         IMarket(market).repay(to, dolaAmount);
+
+        emit ClaimSellAndRepay(msg.sender, market, to, dolaAmount);
     }
 
-    function claimSellAndDepositInv(uint minOut, address to) external nonReentrant {
+    /// @notice Claim DBR, sell it for DOLA, and deposit INV
+    /// @param minOut Minimum amount of DOLA to receive
+    /// @param to Address to receive INV deposit
+    /// @return invAmount Amount of INV deposited
+    function claimSellAndDepositInv(uint minOut, address to) external nonReentrant returns (uint256 invAmount) {
         uint256 amount = _claimDBR();
 
         _sellDbr(amount, minOut, invIndex, address(this));
 
-        uint256 invAmount = inv.balanceOf(address(this));
+        invAmount = inv.balanceOf(address(this));
 
         invMarket.deposit(to, invAmount);
+
+        emit ClaimSellAndDepositInv(msg.sender, to, invAmount);
     }
 
+    /// @notice Claim DBR
+    /// @return amount of DBR claimed
     function _claimDBR() internal returns (uint amount) {
         IINVEscrow escrow = _getEscrow();
 
@@ -81,17 +111,24 @@ contract DbrHelper is ReentrancyGuard {
         amount = dbr.balanceOf(address(this));
     }
 
+    /// @notice Get escrow for the user
+    /// @return escrow Escrow for the user
     function _getEscrow() internal view returns (IINVEscrow escrow)  {
         escrow = IINVEscrow(address(invMarket.escrows(msg.sender)));
         if (address(escrow) == address(0)) revert NoEscrow(msg.sender);
     }
 
-    function _sellDbr(uint amount, uint minOut, uint indexOut, address receiver) internal {
-        if (amount > 0) {
-            curvePool.exchange(
+    /// @notice Sell DBR for DOLA or INV
+    /// @param amountIn Amount of DBR to sell
+    /// @param minOut Minimum amount of DOLA or INV to receive
+    /// @param indexOut Index of the token to receive (0 for DOLA, 2 for INV)
+    /// @param receiver Address to receive DOLA or INV
+    function _sellDbr(uint amountIn, uint minOut, uint indexOut, address receiver) internal returns (uint256 amountOut){
+        if (amountIn > 0) {
+            amountOut = curvePool.exchange(
                 dbrIndex,
                 indexOut,
-                amount,
+                amountIn,
                 minOut,
                 false,
                 receiver
