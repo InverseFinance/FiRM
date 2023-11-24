@@ -4,8 +4,7 @@ pragma solidity ^0.8.13;
 import "./marketForkTests/MarketBaseForkTest.sol";
 import {DbrDistributor} from "src/DbrDistributor.sol";
 import {INVEscrow, IXINV, IDbrDistributor} from "src/escrows/INVEscrow.sol";
-import {DbrHelper, ICurvePool} from "src/util/DbrHelper.sol";
-
+import "src/util/DbrHelper.sol";
 
 contract DbrHelperForkTest is MarketBaseForkTest {
     using stdStorage for StdStorage;
@@ -55,15 +54,23 @@ contract DbrHelperForkTest is MarketBaseForkTest {
         _depositAllowAndWarp();
 
         escrow.setClaimer(address(helper), false);
+        
+        DbrHelper.ClaimAndSell memory sell;
+        DbrHelper.Repay memory repay;
+
+        (sell, repay) = _getArguments(
+            address(0),
+            user2,
+            address(0),
+            10000,
+            0,
+            address(0),
+            address(0),
+            0
+        );
 
         vm.expectRevert(bytes("ONLY BENEFICIARY OR ALLOWED CLAIMERS"));
-        helper.claimAndSellDbr(1, user);
-
-        vm.expectRevert(bytes("ONLY BENEFICIARY OR ALLOWED CLAIMERS"));
-        helper.claimSellAndDepositInv(1, user);
-
-        vm.expectRevert(bytes("ONLY BENEFICIARY OR ALLOWED CLAIMERS"));
-        helper.claimSellAndRepay(1, marketAddr, user);
+        helper.claimAndSell(sell, repay);
     }
 
     function test_Fails_if_nothing_to_claim() public {
@@ -71,21 +78,102 @@ contract DbrHelperForkTest is MarketBaseForkTest {
         vm.warp(block.timestamp - 3600);
         assertEq(escrow.claimable(), 0);
 
+         
+        DbrHelper.ClaimAndSell memory sell;
+        DbrHelper.Repay memory repay;
+
+        (sell, repay) = _getArguments(
+            address(0),
+            user2,
+            address(0),
+            10000,
+            0,
+            address(0),
+            address(0),
+            0
+        );
+
         vm.expectRevert(DbrHelper.NoDbrToClaim.selector);
-        helper.claimAndSellDbr(1, user);
+        helper.claimAndSell(sell, repay);
     }
 
     function test_Fails_if_no_escrow() public {
-        vm.expectRevert(abi.encodeWithSelector(DbrHelper.NoEscrow.selector,address(address(this))));
-        helper.claimAndSellDbr(1, user);
+        DbrHelper.ClaimAndSell memory sell;
+        DbrHelper.Repay memory repay;
+
+        (sell, repay) = _getArguments(
+            address(0),
+            user2,
+            address(0),
+            10000,
+            0,
+            address(0),
+            address(0),
+            0
+        );
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                DbrHelper.NoEscrow.selector,
+                address(address(this))
+            )
+        );
+        helper.claimAndSell(sell, repay);
     }
 
-    function test_Can_claim_and_sell_for_DOLA() public {
+    function _getArguments(
+        address toDbr,
+        address toDola,
+        address toInv,
+        uint256 sellForDola,
+        uint256 sellForInv,
+        address repayMarket,
+        address toRepay,
+        uint256 repayPercentage
+    )
+        internal
+        pure
+        returns (
+            DbrHelper.ClaimAndSell memory sell,
+            DbrHelper.Repay memory repay
+        )
+    {
+        sell = DbrHelper.ClaimAndSell({
+            toDbr: toDbr,
+            toDola: toDola,
+            toInv: toInv,
+            minOutDola: 1,
+            sellForDola: sellForDola,
+            minOutInv: 1,
+            sellForInv: sellForInv
+        });
+        repay = DbrHelper.Repay({
+            market: repayMarket,
+            to: toRepay,
+            percentage: repayPercentage
+        });
+        return (sell, repay);
+    }
+
+    function test_Can_claim_and_sell_ALL_for_DOLA() public {
         _depositAllowAndWarp();
 
         assertEq(DOLA.balanceOf(user), 0);
 
-        helper.claimAndSellDbr(1, user);
+        DbrHelper.ClaimAndSell memory sell;
+        DbrHelper.Repay memory repay;
+
+        (sell, repay) = _getArguments(
+            address(0),
+            user,
+            address(0),
+            10000,
+            0,
+            address(0),
+            address(0),
+            0
+        );
+        helper.claimAndSell(sell, repay);
 
         assertEq(dbr.balanceOf(user), 0);
 
@@ -102,7 +190,21 @@ contract DbrHelperForkTest is MarketBaseForkTest {
 
         assertEq(DOLA.balanceOf(user), 0);
 
-        helper.claimAndSellDbr(1, user2);
+
+        DbrHelper.ClaimAndSell memory sell;
+        DbrHelper.Repay memory repay;
+
+        (sell, repay) = _getArguments(
+            address(0),
+            user2,
+            address(0),
+            10000,
+            0,
+            address(0),
+            address(0),
+            0
+        );
+        helper.claimAndSell(sell, repay);
 
         assertEq(escrow.claimable(), 0);
 
@@ -126,7 +228,21 @@ contract DbrHelperForkTest is MarketBaseForkTest {
         uint256 xINVBefore = xInv.balanceOf(address(escrow));
         assertGt(xINVBefore, 0);
 
-        helper.claimSellAndDepositInv(1, user);
+        DbrHelper.ClaimAndSell memory sell;
+        DbrHelper.Repay memory repay;
+
+        (sell, repay) = _getArguments(
+            address(0),
+            address(0),
+            user,
+            0,
+            10000,
+            address(0),
+            address(0),
+            0
+        );
+
+        helper.claimAndSell(sell, repay);
 
         assertEq(escrow.claimable(), 0);
 
@@ -154,7 +270,21 @@ contract DbrHelperForkTest is MarketBaseForkTest {
         assertEq(address(market.escrows(user2)), address(0));
         assertEq(xInv.balanceOf(address(escrow2)), 0);
 
-        helper.claimSellAndDepositInv(1, user2);
+        DbrHelper.ClaimAndSell memory sell;
+        DbrHelper.Repay memory repay;
+
+        (sell, repay) = _getArguments(
+            address(0),
+            address(0),
+            user2,
+            0,
+            10000,
+            address(0),
+            address(0),
+            0
+        );
+
+        helper.claimAndSell(sell, repay);
 
         assertEq(escrow.claimable(), 0);
 
@@ -183,7 +313,21 @@ contract DbrHelperForkTest is MarketBaseForkTest {
         uint dolaBefore = DOLA.balanceOf(user);
         assertEq(dolaBefore, borrowAmount);
 
-        helper.claimSellAndRepay(1, marketAddr, user);
+        DbrHelper.ClaimAndSell memory sell;
+        DbrHelper.Repay memory repay;
+
+        (sell, repay) = _getArguments(
+            address(0),
+            user,
+            address(0),
+            10000,
+            0,
+            marketAddr,
+            user,
+            10000
+        );
+
+        helper.claimAndSell(sell, repay);
 
         assertEq(dbr.balanceOf(user), 0);
 
@@ -200,7 +344,7 @@ contract DbrHelperForkTest is MarketBaseForkTest {
     function test_Can_claim_and_sell_for_DOLA_and_repay_only_debt() public {
         _depositAllowAndWarp();
 
-        uint borrowAmount = 100000;
+        uint borrowAmount = 10000;
         market.borrow(borrowAmount);
 
         uint debtBefore = market.debts(user);
@@ -208,7 +352,21 @@ contract DbrHelperForkTest is MarketBaseForkTest {
         uint dolaBefore = DOLA.balanceOf(user);
         assertEq(dolaBefore, borrowAmount);
 
-        helper.claimSellAndRepay(1, marketAddr, user);
+        DbrHelper.ClaimAndSell memory sell;
+        DbrHelper.Repay memory repay;
+
+        (sell, repay) = _getArguments(
+            address(0),
+            user,
+            address(0),
+            10000,
+            0,
+            marketAddr,
+            user,
+            10000
+        );
+
+        helper.claimAndSell(sell, repay);
 
         assertEq(dbr.balanceOf(user), 0);
 
@@ -222,6 +380,7 @@ contract DbrHelperForkTest is MarketBaseForkTest {
         assertEq(DOLA.balanceOf(address(helper)), 0);
         assertEq(dbr.balanceOf(address(helper)), 0);
     }
+
     function test_Can_claim_and_sell_for_DOLA_and_repay_for_other_user()
         public
     {
@@ -241,14 +400,34 @@ contract DbrHelperForkTest is MarketBaseForkTest {
         uint dolaBefore = DOLA.balanceOf(user2);
         assertEq(dolaBefore, borrowAmount);
 
+        uint dolaBeforeUser = DOLA.balanceOf(user);
+       
+        DbrHelper.ClaimAndSell memory sell;
+        DbrHelper.Repay memory repay;
+
+        (sell, repay) = _getArguments(
+            address(0),
+            user,
+            address(0),
+            10000,
+            0,
+            marketAddr,
+            user2,
+            10000
+        );
+
         vm.prank(user, user);
-        helper.claimSellAndRepay(1, marketAddr, user2);
+        helper.claimAndSell(sell, repay);
 
         assertEq(dbr.balanceOf(user), 0);
 
         // DOLA in user2 wallet didn't reduced
         assertEq(DOLA.balanceOf(user2), dolaBefore);
-        // User2 debt is reduced
+        // User2 debt is reduced but not fully repaid
         assertGt(debtBefore, market.debts(user2));
+        assertNotEq(market.debts(user2),0);
+
+        // User1 DOLA didn't increase (all went to repay debt)
+        assertEq(DOLA.balanceOf(user), dolaBeforeUser);
     }
 }
