@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 import "src/interfaces/IERC20.sol";
 import "src/interfaces/IMarket.sol";
 import {ReentrancyGuard} from "openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
+import {Ownable} from "openzeppelin-contracts/contracts/access/Ownable.sol";
 
 interface ICurvePool {
     function exchange(
@@ -24,11 +25,17 @@ interface IINVEscrow {
 /// @title DbrHelper
 /// @notice Helper contract to claim DBR, sell it for DOLA and optionally repay debt or sell it for INV and deposit into INV market
 /// @dev Require approving DbrHelper to claim on behalf of the user (via setClaimer function in INVEscrow)
-contract DbrHelper is ReentrancyGuard {
+contract DbrHelper is Ownable, ReentrancyGuard {
     error NoEscrow(address user);
     error NoDbrToClaim();
     error AddressZero(address token);
-    error RepayParamsNotCorrect();
+    error RepayParamsNotCorrect(
+        uint256 percentage,
+        address to,
+        address market,
+        uint256 sellForDola,
+        bool isMarket
+    );
     error SellPercentageTooHigh();
     error RepayPercentageTooHigh();
     error ClaimedWrongAmount(uint256 amount, uint256 claimable);
@@ -49,6 +56,8 @@ contract DbrHelper is ReentrancyGuard {
     uint256 public constant invIndex = 2;
     uint256 public constant denominator = 10000; // 100% in basis points
 
+    mapping(address => bool) public isMarket;
+
     event RepayDebt(
         address indexed claimer,
         address indexed market,
@@ -58,10 +67,10 @@ contract DbrHelper is ReentrancyGuard {
     event DepositInv(
         address indexed claimer,
         address indexed to,
-        uint invAmount
+        uint indexed invAmount
     );
 
-    constructor() {
+    constructor() Ownable(msg.sender) {
         dbr.approve(address(curvePool), type(uint).max);
         inv.approve(address(invMarket), type(uint).max);
     }
@@ -82,6 +91,15 @@ contract DbrHelper is ReentrancyGuard {
         uint256 percentage; // Percentage of DOLA swapped from claimed DBR to use for repaying debt (in basis points)
     }
 
+    /// @notice Approve market to be used for repaying debt, only Owner
+    /// @param market Address of the market
+    /// @param approved True if market is approved, false otherwise
+    function approveMarket(address market, bool approved) external onlyOwner {
+        isMarket[market] = approved;
+        if(approved) dola.approve(market, type(uint).max);
+        else dola.approve(market, 0);
+    }
+
     /// @notice Claim DBR, sell it for DOLA and/or INV and/or repay debt
     /// @param params ClaimAndSell struct with parameters for claiming and selling
     /// @param repay Repay struct with parameters for repaying debt
@@ -95,19 +113,22 @@ contract DbrHelper is ReentrancyGuard {
     )
         external
         nonReentrant
-        returns (uint256 dolaAmount, uint256 invAmount, uint256 repaidAmount, uint256 dbrAmount)
+        returns (
+            uint256 dolaAmount,
+            uint256 invAmount,
+            uint256 repaidAmount,
+            uint256 dbrAmount
+        )
     {
-        if (params.toDbr == address(0) && params.sellForDola + params.sellForInv != denominator) revert AddressZero(address(dbr));
-        if (params.toDola == address(0) && params.sellForDola > 0) revert AddressZero(address(dola));
-        if (params.toInv == address(0) && params.sellForInv > 0) revert AddressZero(address(inv));
-        if (repay.percentage != 0 && repay.to == address(0))
-            revert RepayParamsNotCorrect();
-        if (params.sellForDola + params.sellForInv > denominator)
-            revert SellPercentageTooHigh();
-        if (repay.percentage > denominator) revert RepayPercentageTooHigh();
+        _checkInputs(params, repay);
 
         uint256 amount = _claimDBR();
-        (dolaAmount, invAmount, repaidAmount, dbrAmount) = _sell(params, repay, amount);
+
+        (dolaAmount, invAmount, repaidAmount, dbrAmount) = _sell(
+            params,
+            repay,
+            amount
+        );
     }
 
     /// @notice  Sell DBR for DOLA and/or INV and/or repay debt
@@ -124,7 +145,12 @@ contract DbrHelper is ReentrancyGuard {
         uint256 amount
     )
         internal
-        returns (uint256 dolaAmount, uint256 invAmount, uint256 repaidAmount, uint256 dbrLeft)
+        returns (
+            uint256 dolaAmount,
+            uint256 invAmount,
+            uint256 repaidAmount,
+            uint256 dbrLeft
+        )
     {
         if (params.sellForDola > 0) {
             uint256 sellAmountForDola = (amount * params.sellForDola) /
@@ -158,12 +184,10 @@ contract DbrHelper is ReentrancyGuard {
 
         // Send leftover DBR to the receiver
         dbrLeft = dbr.balanceOf(address(this));
-        if (dbrLeft > 0)
-            dbr.transfer(params.toDbr, dbrLeft);
+        if (dbrLeft > 0) dbr.transfer(params.toDbr, dbrLeft);
         // Send leftover DOLA to the receiver
         uint256 dolaLeft = dola.balanceOf(address(this));
-        if (dolaLeft > 0)
-            dola.transfer(params.toDola, dolaLeft);
+        if (dolaLeft > 0) dola.transfer(params.toDola, dolaLeft);
     }
 
     /// @notice Sell DBR amount for INV and deposit into the escrow
@@ -181,6 +205,8 @@ contract DbrHelper is ReentrancyGuard {
         // Deposit INV
         invAmount = inv.balanceOf(address(this));
         invMarket.deposit(to, invAmount);
+
+        emit DepositInv(msg.sender, to, invAmount);
     }
 
     /// @notice Sell DBR amount for DOLA and repay debt
@@ -214,16 +240,10 @@ contract DbrHelper is ReentrancyGuard {
         if (repaidAmount > debt) {
             repaidAmount = debt;
         }
-
-        dola.approve(repay.market, repaidAmount);
+        // Repay debt
         IMarket(repay.market).repay(repay.to, repaidAmount);
 
-        emit RepayDebt(
-            msg.sender,
-            repay.market,
-            repay.to,
-            repaidAmount
-        );
+        emit RepayDebt(msg.sender, repay.market, repay.to, repaidAmount);
     }
 
     /// @notice Claim DBR
@@ -236,7 +256,7 @@ contract DbrHelper is ReentrancyGuard {
 
         escrow.claimDBRTo(address(this));
         amount = dbr.balanceOf(address(this));
-        if (dbrClaimable > amount)
+        if (dbrClaimable > amount || amount == 0)
             revert ClaimedWrongAmount(amount, dbrClaimable);
     }
 
@@ -259,15 +279,47 @@ contract DbrHelper is ReentrancyGuard {
         uint indexOut,
         address receiver
     ) internal returns (uint256 amountOut) {
-        if (amountIn > 0) {
-            amountOut = curvePool.exchange(
-                dbrIndex,
-                indexOut,
-                amountIn,
-                minOut,
-                false,
-                receiver
+        amountOut = curvePool.exchange(
+            dbrIndex,
+            indexOut,
+            amountIn,
+            minOut,
+            false,
+            receiver
+        );
+    }
+
+    /// @notice Check inputs
+    /// @param params ClaimAndSell struct with parameters for claiming and selling
+    /// @param repay Repay struct with parameters for repaying debt
+    function _checkInputs(
+        ClaimAndSell calldata params,
+        Repay calldata repay
+    ) internal view {
+        if (
+            params.toDbr == address(0) &&
+            params.sellForDola + params.sellForInv != denominator
+        ) revert AddressZero(address(dbr));
+        if (params.toDola == address(0) && params.sellForDola > 0)
+            revert AddressZero(address(dola));
+        if (params.toInv == address(0) && params.sellForInv > 0)
+            revert AddressZero(address(inv));
+        if (
+            repay.percentage != 0 &&
+            (repay.to == address(0) ||
+                repay.market == address(0) ||
+                params.sellForDola == 0 ||
+                !isMarket[repay.market])
+        )
+            revert RepayParamsNotCorrect(
+                repay.percentage,
+                repay.to,
+                repay.market,
+                params.sellForDola,
+                isMarket[repay.market]
             );
-        }
+        if (params.sellForDola + params.sellForInv > denominator)
+            revert SellPercentageTooHigh();
+        if (repay.percentage > denominator) revert RepayPercentageTooHigh();
     }
 }
