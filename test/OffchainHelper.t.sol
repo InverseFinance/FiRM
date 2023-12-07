@@ -22,7 +22,7 @@ contract OffchainHelperTest is FiRMBaseTest {
     function setUp() public {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url);
+        vm.createSelectFork(url, 18484330); // Block at which there's enough DOLA liquidity in WETH market
 
 
         initialize(replenishmentPriceBps, collateralFactorBps, replenishmentIncentiveBps, liquidationBonusBps, callOnDepositCallback);

@@ -2,8 +2,8 @@
 pragma solidity ^0.8.13;
 
 import "./FiRMBaseTest.sol";
-import {SimpleERC20Escrow} from "src/escrows/SimpleERC20Escrow.sol";
 import "./mocks/BorrowContract.sol";
+import {SimpleERC20Escrow} from "src/escrows/SimpleERC20Escrow.sol";
 
 contract MarketTest is FiRMBaseTest {
     bytes onlyGovUnpause = "Only governance can unpause";

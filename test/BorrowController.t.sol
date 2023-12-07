@@ -2,6 +2,8 @@
 pragma solidity ^0.8.13;
 
 import "./mocks/BorrowContract.sol";
+import "./mocks/WETH9.sol";
+import "./mocks/BorrowContract.sol";
 import "./FiRMBaseTest.sol";
 
 contract BorrowContractTxOrigin {
