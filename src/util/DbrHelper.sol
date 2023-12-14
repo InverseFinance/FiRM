@@ -58,6 +58,13 @@ contract DbrHelper is Ownable, ReentrancyGuard {
 
     mapping(address => bool) public isMarket;
 
+    event Sell(
+        address indexed claimer,
+        uint amountIn,
+        uint amountOut,
+        uint indexOut,
+        address indexed receiver
+    );
     event RepayDebt(
         address indexed claimer,
         address indexed market,
@@ -67,8 +74,9 @@ contract DbrHelper is Ownable, ReentrancyGuard {
     event DepositInv(
         address indexed claimer,
         address indexed to,
-        uint indexed invAmount
+        uint invAmount
     );
+    event MarketApproved(address indexed market, bool approved);
 
     constructor() Ownable(msg.sender) {
         dbr.approve(address(curvePool), type(uint).max);
@@ -98,6 +106,7 @@ contract DbrHelper is Ownable, ReentrancyGuard {
         isMarket[market] = approved;
         if(approved) dola.approve(market, type(uint).max);
         else dola.approve(market, 0);
+        emit MarketApproved(market, approved);
     }
 
     /// @notice Claim DBR, sell it for DOLA and/or INV and/or repay debt
@@ -287,6 +296,7 @@ contract DbrHelper is Ownable, ReentrancyGuard {
             false,
             receiver
         );
+        emit Sell(msg.sender, amountIn, amountOut, indexOut, receiver);
     }
 
     /// @notice Check inputs
