@@ -32,6 +32,26 @@ contract DbrHelperForkTest is MarketBaseForkTest {
     IXINV xINV;
     FakeMarket fakeMarket;
 
+    event Sell(
+        address indexed claimer,
+        uint amountIn,
+        uint amountOut,
+        uint indexOut,
+        address indexed receiver
+    );
+    event RepayDebt(
+        address indexed claimer,
+        address indexed market,
+        address indexed to,
+        uint dolaAmount
+    );
+    event DepositInv(
+        address indexed claimer,
+        address indexed to,
+        uint invAmount
+    );
+    event MarketApproved(address indexed market, bool approved);
+
     function setUp() public {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
@@ -188,9 +208,15 @@ contract DbrHelperForkTest is MarketBaseForkTest {
             type(uint256).max
         );
 
+        vm.expectEmit(true, false, false, true);
+        emit MarketApproved(marketAddr, false);
+
         helper.approveMarket(marketAddr, false);
         assertEq(helper.isMarket(marketAddr), false);
         assertEq(DOLA.allowance(address(helper), marketAddr), 0);
+
+        vm.expectEmit(true, false, false, true);
+        emit MarketApproved(marketAddr, true);
 
         helper.approveMarket(marketAddr, true);
         assertEq(helper.isMarket(marketAddr), true);
@@ -225,6 +251,10 @@ contract DbrHelperForkTest is MarketBaseForkTest {
             address(0),
             0
         );
+
+        vm.expectEmit(true, true, false, false);
+        emit Sell(user, 0, 0, 0, user);
+        
         helper.claimAndSell(sell, repay);
 
         assertEq(dbr.balanceOf(user), 0);
@@ -288,6 +318,10 @@ contract DbrHelperForkTest is MarketBaseForkTest {
             address(0),
             0
         );
+        
+        vm.expectEmit(true, true, false, false);
+        emit Sell(user, 0, 0, 0, user2);
+
         (uint256 dolaAmount, , , ) = helper.claimAndSell(sell, repay);
 
         assertEq(escrow.claimable(), 0);
@@ -400,6 +434,10 @@ contract DbrHelperForkTest is MarketBaseForkTest {
             address(0),
             0
         );
+
+        vm.expectEmit(true, true, false, false);
+
+        emit DepositInv(user,user,0);
 
         (, uint256 invAmount, , uint256 dbrAmount) = helper.claimAndSell(
             sell,
@@ -621,6 +659,12 @@ contract DbrHelperForkTest is MarketBaseForkTest {
             user,
             5000
         );
+
+        vm.expectEmit(true, true, false, false);
+        emit Sell(user, 0, 0, 0, address(helper));
+
+        vm.expectEmit(true, true, true, false);
+        emit RepayDebt(user, marketAddr, user, 0);
 
         (uint256 dolaAmount, , uint256 dolaRepaid, ) = helper.claimAndSell(
             sell,
