@@ -22,6 +22,10 @@ interface IINVEscrow {
     function claimable() external returns (uint);
 }
 
+interface IDbr {
+    function markets(address) external view returns (bool);
+}
+
 /// @title DbrHelper
 /// @notice Helper contract to claim DBR, sell it for DOLA and optionally repay debt or sell it for INV and deposit into INV market
 /// @dev Require approving DbrHelper to claim on behalf of the user (via setClaimer function in INVEscrow)
@@ -33,12 +37,12 @@ contract DbrHelper is Ownable, ReentrancyGuard {
         uint256 percentage,
         address to,
         address market,
-        uint256 sellForDola,
-        bool isMarket
+        uint256 sellForDola
     );
     error SellPercentageTooHigh();
     error RepayPercentageTooHigh();
     error ClaimedWrongAmount(uint256 amount, uint256 claimable);
+    error MarketNotFound(address market);
 
     IMarket public constant invMarket =
         IMarket(0xb516247596Ca36bf32876199FBdCaD6B3322330B);
@@ -55,8 +59,6 @@ contract DbrHelper is Ownable, ReentrancyGuard {
     uint256 public constant dbrIndex = 1;
     uint256 public constant invIndex = 2;
     uint256 public constant denominator = 10000; // 100% in basis points
-
-    mapping(address => bool) public isMarket;
 
     event Sell(
         address indexed claimer,
@@ -76,7 +78,7 @@ contract DbrHelper is Ownable, ReentrancyGuard {
         address indexed to,
         uint invAmount
     );
-    event MarketApproved(address indexed market, bool approved);
+    event MarketApproved(address indexed market);
 
     constructor() Ownable(msg.sender) {
         dbr.approve(address(curvePool), type(uint).max);
@@ -99,14 +101,13 @@ contract DbrHelper is Ownable, ReentrancyGuard {
         uint256 percentage; // Percentage of DOLA swapped from claimed DBR to use for repaying debt (in basis points)
     }
 
-    /// @notice Approve market to be used for repaying debt, only Owner
+    /// @notice Approve market to be used for repaying debt
+    /// @dev Must be an active market
     /// @param market Address of the market
-    /// @param approved True if market is approved, false otherwise
-    function approveMarket(address market, bool approved) external onlyOwner {
-        isMarket[market] = approved;
-        if(approved) dola.approve(market, type(uint).max);
-        else dola.approve(market, 0);
-        emit MarketApproved(market, approved);
+    function approveMarket(address market) external {
+        if(!IDbr(address(dbr)).markets(market)) revert MarketNotFound(market); 
+        dola.approve(market, type(uint).max);
+        emit MarketApproved(market);
     }
 
     /// @notice Claim DBR, sell it for DOLA and/or INV and/or repay debt
@@ -319,14 +320,13 @@ contract DbrHelper is Ownable, ReentrancyGuard {
             (repay.to == address(0) ||
                 repay.market == address(0) ||
                 params.sellForDola == 0 ||
-                !isMarket[repay.market])
-        )
+                !IDbr(address(dbr)).markets(repay.market)
+            ))
             revert RepayParamsNotCorrect(
                 repay.percentage,
                 repay.to,
                 repay.market,
-                params.sellForDola,
-                isMarket[repay.market]
+                params.sellForDola
             );
         if (params.sellForDola + params.sellForInv > denominator)
             revert SellPercentageTooHigh();

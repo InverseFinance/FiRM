@@ -27,7 +27,9 @@ contract DbrHelperForkTest is MarketBaseForkTest {
     DbrHelper helper;
     INVEscrow internal escrow;
     address marketAddr = 0xb516247596Ca36bf32876199FBdCaD6B3322330B;
+    address wethMarket = 0x63Df5e23Db45a2066508318f172bA45B9CD37035;
     address feedAddr = 0xC54Ca0a605D5DA34baC77f43efb55519fC53E78e;
+
     IERC20 INV;
     IXINV xINV;
     FakeMarket fakeMarket;
@@ -50,7 +52,7 @@ contract DbrHelperForkTest is MarketBaseForkTest {
         address indexed to,
         uint invAmount
     );
-    event MarketApproved(address indexed market, bool approved);
+    event MarketApproved(address indexed market);
 
     function setUp() public {
         //This will fail if there's no mainnet variable in foundry.toml
@@ -67,7 +69,21 @@ contract DbrHelperForkTest is MarketBaseForkTest {
 
         helper = new DbrHelper();
         INV = helper.inv();
-        helper.approveMarket(marketAddr, true);
+        
+        vm.expectEmit(true, false, false, true);
+        emit MarketApproved(marketAddr);
+
+        assertEq(
+            DOLA.allowance(address(helper), marketAddr),
+            0
+        );
+
+        helper.approveMarket(marketAddr);
+
+        assertEq(
+            DOLA.allowance(address(helper), marketAddr),
+            type(uint256).max
+        );
     }
 
     function _depositAllowAndWarp() internal {
@@ -183,8 +199,7 @@ contract DbrHelperForkTest is MarketBaseForkTest {
                 repay.percentage,
                 repay.to,
                 repay.market,
-                sell.sellForDola,
-                false
+                sell.sellForDola
             )
         );
         (uint256 dolaAmount, , uint256 dolaRepaid, ) = helper.claimAndSell(
@@ -194,42 +209,34 @@ contract DbrHelperForkTest is MarketBaseForkTest {
     }
 
     function test_approveMarket() public {
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                Ownable.OwnableUnauthorizedAccount.selector,
-                user
-            )
+        assertEq(
+            DOLA.allowance(address(helper), wethMarket),
+            0
         );
         vm.prank(user, user);
-        helper.approveMarket(marketAddr, false);
-        assertEq(helper.isMarket(marketAddr), true);
+
+        vm.expectEmit(true, false, false, false);
+        emit MarketApproved(wethMarket);
+
+        helper.approveMarket(wethMarket);
+        assertEq(IDBR(address(helper.dbr())).markets(wethMarket), true);
         assertEq(
-            DOLA.allowance(address(helper), marketAddr),
+            DOLA.allowance(address(helper), wethMarket),
             type(uint256).max
         );
 
-        vm.expectEmit(true, false, false, true);
-        emit MarketApproved(marketAddr, false);
-
-        helper.approveMarket(marketAddr, false);
-        assertEq(helper.isMarket(marketAddr), false);
-        assertEq(DOLA.allowance(address(helper), marketAddr), 0);
-
-        vm.expectEmit(true, false, false, true);
-        emit MarketApproved(marketAddr, true);
-
-        helper.approveMarket(marketAddr, true);
-        assertEq(helper.isMarket(marketAddr), true);
-        assertEq(
-            DOLA.allowance(address(helper), marketAddr),
-            type(uint256).max
+        
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                DbrHelper.MarketNotFound.selector,
+                address(0x10)
+            )
         );
-
-        helper.approveMarket(address(0x10), true);
-        assertEq(helper.isMarket(address(0x10)), true);
+        helper.approveMarket(address(0x10));
+        assertEq(IDBR(address(helper.dbr())).markets(address(0x10)), false);
         assertEq(
             DOLA.allowance(address(helper), address(0x10)),
-            type(uint256).max
+            0
         );
     }
 
@@ -1075,8 +1082,7 @@ contract DbrHelperForkTest is MarketBaseForkTest {
                 repay.percentage,
                 repay.to,
                 repay.market,
-                sell.sellForDola,
-                true
+                sell.sellForDola
             )
         );
         helper.claimAndSell(sell, repay);
@@ -1114,8 +1120,7 @@ contract DbrHelperForkTest is MarketBaseForkTest {
                 repay.percentage,
                 repay.to,
                 repay.market,
-                sell.sellForDola,
-                false
+                sell.sellForDola
             )
         );
         helper.claimAndSell(sell, repay);
