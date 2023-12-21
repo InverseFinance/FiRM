@@ -235,6 +235,7 @@ contract DbrHelper is Ownable, ReentrancyGuard {
     }
 
     /// @notice Repay debt
+    /// @dev Must transfer any remaining DOLA out of contract after being called
     /// @param repay Repay struct with parameters for repaying debt
     /// @param dolaAmount Amount of DOLA available to repay
     /// @return repaidAmount Actual amount of DOLA repaid
