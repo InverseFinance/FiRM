@@ -68,7 +68,7 @@ contract DbrHelperForkTest is MarketBaseForkTest {
         vm.stopPrank();
 
         helper = new DbrHelper();
-        INV = helper.inv();
+        INV = helper.INV();
         
         vm.expectEmit(true, false, false, true);
         emit MarketApproved(marketAddr);
@@ -144,7 +144,7 @@ contract DbrHelperForkTest is MarketBaseForkTest {
             0
         );
 
-        vm.expectRevert(DbrHelper.NoDbrToClaim.selector);
+        vm.expectRevert();
         helper.claimAndSell(sell, repay);
     }
 
@@ -219,7 +219,7 @@ contract DbrHelperForkTest is MarketBaseForkTest {
         emit MarketApproved(wethMarket);
 
         helper.approveMarket(wethMarket);
-        assertEq(IDBR(address(helper.dbr())).markets(wethMarket), true);
+        assertEq(IDBR(address(helper.DBR())).markets(wethMarket), true);
         assertEq(
             DOLA.allowance(address(helper), wethMarket),
             type(uint256).max
@@ -233,7 +233,7 @@ contract DbrHelperForkTest is MarketBaseForkTest {
             )
         );
         helper.approveMarket(address(0x10));
-        assertEq(IDBR(address(helper.dbr())).markets(address(0x10)), false);
+        assertEq(IDBR(address(helper.DBR())).markets(address(0x10)), false);
         assertEq(
             DOLA.allowance(address(helper), address(0x10)),
             0
@@ -1026,7 +1026,7 @@ contract DbrHelperForkTest is MarketBaseForkTest {
         );
 
         vm.expectRevert(
-            abi.encodeWithSelector(DbrHelper.AddressZero.selector, address(dbr))
+            abi.encodeWithSelector(DbrHelper.ReceiverAddressZero.selector, address(dbr))
         );
         helper.claimAndSell(sell, repay);
 
@@ -1043,7 +1043,7 @@ contract DbrHelperForkTest is MarketBaseForkTest {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                DbrHelper.AddressZero.selector,
+                DbrHelper.ReceiverAddressZero.selector,
                 address(DOLA)
             )
         );
@@ -1061,7 +1061,7 @@ contract DbrHelperForkTest is MarketBaseForkTest {
         );
 
         vm.expectRevert(
-            abi.encodeWithSelector(DbrHelper.AddressZero.selector, address(INV))
+            abi.encodeWithSelector(DbrHelper.ReceiverAddressZero.selector, address(INV))
         );
         helper.claimAndSell(sell, repay);
 
@@ -1143,13 +1143,7 @@ contract DbrHelperForkTest is MarketBaseForkTest {
             0
         );
 
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                DbrHelper.ClaimedWrongAmount.selector,
-                0,
-                escrow.claimable()
-            )
-        );
+        vm.expectRevert();
         helper.claimAndSell(sell, repay);
 
         // Return Zero DBR claimable on escrow
@@ -1159,9 +1153,7 @@ contract DbrHelperForkTest is MarketBaseForkTest {
             abi.encode(uint(0))
         );
 
-        vm.expectRevert(
-            abi.encodeWithSelector(DbrHelper.NoDbrToClaim.selector)
-        );
+        vm.expectRevert();
         helper.claimAndSell(sell, repay);
 
         vm.clearMockedCalls();

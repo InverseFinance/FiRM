@@ -31,7 +31,7 @@ interface IDbr {
 /// @dev Require approving DbrHelper to claim on behalf of the user (via setClaimer function in INVEscrow)
 contract DbrHelper is Ownable, ReentrancyGuard {
     error NoEscrow(address user);
-    error AddressZero(address token);
+    error ReceiverAddressZero(address token);
     error RepayParamsNotCorrect(
         uint256 percentage,
         address to,
@@ -42,21 +42,21 @@ contract DbrHelper is Ownable, ReentrancyGuard {
     error RepayPercentageTooHigh();
     error MarketNotFound(address market);
 
-    IMarket public constant invMarket =
+    IMarket public constant INV_MARKET =
         IMarket(0xb516247596Ca36bf32876199FBdCaD6B3322330B);
-    ICurvePool public constant curvePool =
+    ICurvePool public constant CURVE_POOL =
         ICurvePool(0xC7DE47b9Ca2Fc753D6a2F167D8b3e19c6D18b19a);
-    IERC20 public constant dola =
+    IERC20 public constant DOLA =
         IERC20(0x865377367054516e17014CcdED1e7d814EDC9ce4);
-    IERC20 public constant dbr =
+    IERC20 public constant DBR =
         IERC20(0xAD038Eb671c44b853887A7E32528FaB35dC5D710);
-    IERC20 public constant inv =
+    IERC20 public constant INV =
         IERC20(0x41D5D79431A913C4aE7d69a668ecdfE5fF9DFB68);
 
-    uint256 public constant dolaIndex = 0;
-    uint256 public constant dbrIndex = 1;
-    uint256 public constant invIndex = 2;
-    uint256 public constant denominator = 10000; // 100% in basis points
+    uint256 public constant DOLA_INDEX = 0;
+    uint256 public constant DBR_INDEX = 1;
+    uint256 public constant INV_INDEX = 2;
+    uint256 public constant DENOMINATOR = 10000; // 100% in basis points
 
     event Sell(
         address indexed claimer,
@@ -79,8 +79,8 @@ contract DbrHelper is Ownable, ReentrancyGuard {
     event MarketApproved(address indexed market);
 
     constructor() Ownable(msg.sender) {
-        dbr.approve(address(curvePool), type(uint).max);
-        inv.approve(address(invMarket), type(uint).max);
+        DBR.approve(address(CURVE_POOL), type(uint).max);
+        INV.approve(address(INV_MARKET), type(uint).max);
     }
 
     struct ClaimAndSell {
@@ -103,8 +103,8 @@ contract DbrHelper is Ownable, ReentrancyGuard {
     /// @dev Must be an active market
     /// @param market Address of the market
     function approveMarket(address market) external {
-        if(!IDbr(address(dbr)).markets(market)) revert MarketNotFound(market); 
-        dola.approve(market, type(uint).max);
+        if(!IDbr(address(DBR)).markets(market)) revert MarketNotFound(market); 
+        DOLA.approve(market, type(uint).max);
         emit MarketApproved(market);
     }
 
@@ -162,7 +162,7 @@ contract DbrHelper is Ownable, ReentrancyGuard {
     {
         if (params.sellForDola > 0) {
             uint256 sellAmountForDola = (amount * params.sellForDola) /
-                denominator;
+                DENOMINATOR;
 
             if (repay.percentage != 0) {
                 (dolaAmount, repaidAmount) = _sellAndRepay(
@@ -174,7 +174,7 @@ contract DbrHelper is Ownable, ReentrancyGuard {
                 dolaAmount = _sellDbr(
                     sellAmountForDola,
                     params.minOutDola,
-                    dolaIndex,
+                    DOLA_INDEX,
                     params.toDola
                 );
             }
@@ -182,7 +182,7 @@ contract DbrHelper is Ownable, ReentrancyGuard {
 
         if (params.sellForInv > 0) {
             uint256 sellAmountForInv = (amount * params.sellForInv) /
-                denominator;
+                DENOMINATOR;
             invAmount = _sellAndDeposit(
                 sellAmountForInv,
                 params.minOutInv,
@@ -191,11 +191,11 @@ contract DbrHelper is Ownable, ReentrancyGuard {
         }
 
         // Send leftover DBR to the receiver
-        dbrLeft = dbr.balanceOf(address(this));
-        if (dbrLeft > 0) dbr.transfer(params.toDbr, dbrLeft);
+        dbrLeft = DBR.balanceOf(address(this));
+        if (dbrLeft > 0) DBR.transfer(params.toDbr, dbrLeft);
         // Send leftover DOLA to the receiver
-        uint256 dolaLeft = dola.balanceOf(address(this));
-        if (dolaLeft > 0) dola.transfer(params.toDola, dolaLeft);
+        uint256 dolaLeft = DOLA.balanceOf(address(this));
+        if (dolaLeft > 0) DOLA.transfer(params.toDola, dolaLeft);
     }
 
     /// @notice Sell DBR amount for INV and deposit into the escrow
@@ -209,10 +209,10 @@ contract DbrHelper is Ownable, ReentrancyGuard {
         address to
     ) internal returns (uint256 invAmount) {
         // Sell DBR for INV
-        _sellDbr(amount, minOutInv, invIndex, address(this));
+        _sellDbr(amount, minOutInv, INV_INDEX, address(this));
         // Deposit INV
-        invAmount = inv.balanceOf(address(this));
-        invMarket.deposit(to, invAmount);
+        invAmount = INV.balanceOf(address(this));
+        INV_MARKET.deposit(to, invAmount);
 
         emit DepositInv(msg.sender, to, invAmount);
     }
@@ -229,7 +229,7 @@ contract DbrHelper is Ownable, ReentrancyGuard {
         Repay calldata repay
     ) internal returns (uint256 dolaAmount, uint256 repaidAmount) {
         // Sell DBR for DOLA
-        dolaAmount = _sellDbr(amount, minOutDola, dolaIndex, address(this));
+        dolaAmount = _sellDbr(amount, minOutDola, DOLA_INDEX, address(this));
         // Repay debt
         repaidAmount = _repay(repay, dolaAmount);
     }
@@ -243,7 +243,7 @@ contract DbrHelper is Ownable, ReentrancyGuard {
         uint256 dolaAmount
     ) internal returns (uint256 repaidAmount) {
         uint256 debt = IMarket(repay.market).debts(repay.to);
-        repaidAmount = (dolaAmount * repay.percentage) / denominator;
+        repaidAmount = (dolaAmount * repay.percentage) / DENOMINATOR;
         // If repaidAmount is higher than debt, use debt instead
         if (repaidAmount > debt) {
             repaidAmount = debt;
@@ -259,13 +259,13 @@ contract DbrHelper is Ownable, ReentrancyGuard {
     function _claimDBR() internal returns (uint amount) {
         IINVEscrow escrow = _getEscrow();
         escrow.claimDBRTo(address(this));
-        amount = dbr.balanceOf(address(this));
+        amount = DBR.balanceOf(address(this));
     }
 
     /// @notice Get escrow for the user
     /// @return escrow Escrow for the user
     function _getEscrow() internal view returns (IINVEscrow escrow) {
-        escrow = IINVEscrow(address(invMarket.escrows(msg.sender)));
+        escrow = IINVEscrow(address(INV_MARKET.escrows(msg.sender)));
         if (address(escrow) == address(0)) revert NoEscrow(msg.sender);
     }
 
@@ -281,8 +281,8 @@ contract DbrHelper is Ownable, ReentrancyGuard {
         uint indexOut,
         address receiver
     ) internal returns (uint256 amountOut) {
-        amountOut = curvePool.exchange(
-            dbrIndex,
+        amountOut = CURVE_POOL.exchange(
+            DBR_INDEX,
             indexOut,
             amountIn,
             minOut,
@@ -301,18 +301,18 @@ contract DbrHelper is Ownable, ReentrancyGuard {
     ) internal view {
         if (
             params.toDbr == address(0) &&
-            params.sellForDola + params.sellForInv != denominator
-        ) revert AddressZero(address(dbr));
+            params.sellForDola + params.sellForInv != DENOMINATOR
+        ) revert ReceiverAddressZero(address(DBR));
         if (params.toDola == address(0) && params.sellForDola > 0)
-            revert AddressZero(address(dola));
+            revert ReceiverAddressZero(address(DOLA));
         if (params.toInv == address(0) && params.sellForInv > 0)
-            revert AddressZero(address(inv));
+            revert ReceiverAddressZero(address(INV));
         if (
             repay.percentage != 0 &&
             (repay.to == address(0) ||
                 repay.market == address(0) ||
                 params.sellForDola == 0 ||
-                !IDbr(address(dbr)).markets(repay.market)
+                !IDbr(address(DBR)).markets(repay.market)
             ))
             revert RepayParamsNotCorrect(
                 repay.percentage,
@@ -320,8 +320,8 @@ contract DbrHelper is Ownable, ReentrancyGuard {
                 repay.market,
                 params.sellForDola
             );
-        if (params.sellForDola + params.sellForInv > denominator)
+        if (params.sellForDola + params.sellForInv > DENOMINATOR)
             revert SellPercentageTooHigh();
-        if (repay.percentage > denominator) revert RepayPercentageTooHigh();
+        if (repay.percentage > DENOMINATOR) revert RepayPercentageTooHigh();
     }
 }
