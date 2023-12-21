@@ -31,7 +31,6 @@ interface IDbr {
 /// @dev Require approving DbrHelper to claim on behalf of the user (via setClaimer function in INVEscrow)
 contract DbrHelper is Ownable, ReentrancyGuard {
     error NoEscrow(address user);
-    error NoDbrToClaim();
     error AddressZero(address token);
     error RepayParamsNotCorrect(
         uint256 percentage,
@@ -41,7 +40,6 @@ contract DbrHelper is Ownable, ReentrancyGuard {
     );
     error SellPercentageTooHigh();
     error RepayPercentageTooHigh();
-    error ClaimedWrongAmount(uint256 amount, uint256 claimable);
     error MarketNotFound(address market);
 
     IMarket public constant invMarket =
@@ -260,14 +258,8 @@ contract DbrHelper is Ownable, ReentrancyGuard {
     /// @return amount of DBR claimed
     function _claimDBR() internal returns (uint amount) {
         IINVEscrow escrow = _getEscrow();
-
-        uint256 dbrClaimable = escrow.claimable();
-        if (dbrClaimable == 0) revert NoDbrToClaim();
-
         escrow.claimDBRTo(address(this));
         amount = dbr.balanceOf(address(this));
-        if (dbrClaimable > amount || amount == 0)
-            revert ClaimedWrongAmount(amount, dbrClaimable);
     }
 
     /// @notice Get escrow for the user
