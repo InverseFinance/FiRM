@@ -88,7 +88,7 @@ abstract contract MarketBaseForkTest is MarketForkTest {
         uint initialGlobalDebt = dbr.debts(user);
         deposit(testAmount);
 
-        uint borrowAmount = market.getCreditLimit(user);
+        uint borrowAmount = market.getCreditLimit(user) / 2;
         uint timestamp = block.timestamp;
         vm.warp(timestamp + 1_000_000);
         uint dbrBal = dbr.balanceOf(user);

@@ -25,6 +25,7 @@ interface IMarket {
     function getWithdrawalLimit(address user) external view returns (uint);
     function getCreditLimit(address user) external view returns (uint);
     function lender() external view returns (address);
+    function borrowController() external view returns (address);
     function escrowImplementation() external view returns (address);
     function totalDebt() external view returns (uint);
     function borrowPaused() external view returns (bool);
