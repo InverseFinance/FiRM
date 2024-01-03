@@ -1,0 +1,997 @@
+Mutation testing report:
+Number of mutations:    91
+Killed:                 68 / 91
+
+Mutations:
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 132
+    Result: Lived
+    Original line:
+              * @notice Fetches the ETH to USD price and the stETH/ETH to get stETH/USD price, adjusts the decimals to match Chainlink oracles.
+
+    Mutated line:
+              * @notice Fetches the ETH to USD price and the stETH/ETH to get stETH/USD price, adjusts the < imals to match Chainlink oracles.
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 168
+    Result: Error
+    Original line:
+                 if(isPriceOutOfBounds(stEthToEthPrice, stEthToEth) || block.timestamp - updatedAtStEth > stEthToEthHeartbeat) {
+
+    Mutated line:
+                 if(isPriceOutOfBounds( >= thToEthPrice, stEthToEth) || block.timestamp - updatedAtStEth > stEthToEthHeartbeat) {
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 173
+    Result: Error
+    Original line:
+                 return (roundId, stEthToUsdPrice, startedAt, updatedAt, answeredInRound);
+
+    Mutated line:
+                 return (roundId >= tEthToUsdPrice, startedAt, updatedAt, answeredInRound);
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 57
+    Result: Lived
+    Original line:
+              * @notice Retrieves the latest round data for wstETH price feed
+
+    Mutated line:
+              * @notice Retrieves the latest round d == for wstETH price feed
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 132
+    Result: Lived
+    Original line:
+              * @notice Fetches the ETH to USD price and the stETH/ETH to get stETH/USD price, adjusts the decimals to match Chainlink oracles.
+
+    Mutated line:
+              * @notice Fetches the ETH to USD price and the stETH/ETH to get stETH/USD price, adjusts the > imals to match Chainlink oracles.
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 132
+    Result: Lived
+    Original line:
+              * @notice Fetches the ETH to USD price and the stETH/ETH to get stETH/USD price, adjusts the decimals to match Chainlink oracles.
+
+    Mutated line:
+              * @notice Fetches the ETH to USD price and the stETH/ETH to get stETH/USD price, adjusts the decimals to mat < hainlink oracles.
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 168
+    Result: Error
+    Original line:
+                 if(isPriceOutOfBounds(stEthToEthPrice, stEthToEth) || block.timestamp - updatedAtStEth > stEthToEthHeartbeat) {
+
+    Mutated line:
+                 if(isPriceOutOfBounds( <= thToEthPrice, stEthToEth) || block.timestamp - updatedAtStEth > stEthToEthHeartbeat) {
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 173
+    Result: Error
+    Original line:
+                 return (roundId, stEthToUsdPrice, startedAt, updatedAt, answeredInRound);
+
+    Mutated line:
+                 return (roundId <= tEthToUsdPrice, startedAt, updatedAt, answeredInRound);
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 99
+    Result: Lived
+    Original line:
+             @notice Retrieves the latest price for the wstETH token
+
+    Mutated line:
+             @notice Retrieves the latest price for  *  wstETH token
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 99
+    Result: Lived
+    Original line:
+             @notice Retrieves the latest price for the wstETH token
+
+    Mutated line:
+             @notice Retrieves the l / st price for the wstETH token
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 164
+    Result: Lived
+    Original line:
+                     // Will force stale price on borrow controller
+
+    Mutated line:
+                     // Will force stal * rice on borrow controller
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 164
+    Result: Error
+    Original line:
+                     // Will force stale price on borrow controller
+
+    Mutated line:
+                      / Will force stale price on borrow controller
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 164
+    Result: Error
+    Original line:
+                     // Will force stale price on borrow controller
+
+    Mutated line:
+              /      // Will force stale price on borrow controller
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 168
+    Result: Error
+    Original line:
+                 if(isPriceOutOfBounds(stEthToEthPrice, stEthToEth) || block.timestamp - updatedAtStEth > stEthToEthHeartbeat) {
+
+    Mutated line:
+                 if(isPrice + OfBounds(stEthToEthPrice, stEthToEth) || block.timestamp - updatedAtStEth > stEthToEthHeartbeat) {
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 173
+    Result: Error
+    Original line:
+                 return (roundId, stEthToUsdPrice, startedAt, updatedAt, answeredInRound);
+
+    Mutated line:
+                + eturn (roundId, stEthToUsdPrice, startedAt, updatedAt, answeredInRound);
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 57
+    Result: Lived
+    Original line:
+              * @notice Retrieves the latest round data for wstETH price feed
+
+    Mutated line:
+              * @notice Retrieves the latest round data for wstETH p     * @dev This function calculates the wstETH price in USD by combining the stETH to USD price from a Chainlink oracle 
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 187
+    Result: Lived
+    Original line:
+              * @dev Can only be called by the current gov address
+
+    Mutated line:
+              * @dev Can only be called by the  gov address
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 196
+    Result: Lived
+    Original line:
+              * @dev Can only be called by the current gov address
+
+    Mutated line:
+              * @dev Can only be called by the cgov address
+
+
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 128
+    Result: Killed
+    Original line:
+                 return (max <= price || min >= price);
+
+    Mutated line:
+                 return (max < price || min >= price);
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 163
+    Result: Killed
+    Original line:
+                 if(isPriceOutOfBounds(ethToUsdPrice, ethToUsd) || block.timestamp - updatedAt > ethHeartbeat) {
+
+    Mutated line:
+                 if(isPriceOutOfBounds(ethToUsdPrice, ethToUsd) || block.timestamp - updatedAt >= ethHeartbeat) {
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 168
+    Result: Killed
+    Original line:
+                 if(isPriceOutOfBounds(stEthToEthPrice, stEthToEth) || block.timestamp - updatedAtStEth > stEthToEthHeartbeat) {
+
+    Mutated line:
+                 if(isPriceOutOfBounds(stEthToEthPrice, stEthToEth) || block.timestamp - updatedAtStEth >= stEthToEthHeartbeat) {
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 52
+    Result: Killed
+    Original line:
+                 if(msg.sender != gov) revert OnlyGov();
+
+    Mutated line:
+                 if(msg.sender == gov) revert OnlyGov();
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 128
+    Result: Killed
+    Original line:
+                 return (max <= price || min >= price);
+
+    Mutated line:
+                 return (max > price || min >= price);
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 128
+    Result: Killed
+    Original line:
+                 return (max <= price || min >= price);
+
+    Mutated line:
+                 return (max <= price || min < price);
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 163
+    Result: Killed
+    Original line:
+                 if(isPriceOutOfBounds(ethToUsdPrice, ethToUsd) || block.timestamp - updatedAt > ethHeartbeat) {
+
+    Mutated line:
+                 if(isPriceOutOfBounds(ethToUsdPrice, ethToUsd) || block.timestamp - updatedAt <= ethHeartbeat) {
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 168
+    Result: Killed
+    Original line:
+                 if(isPriceOutOfBounds(stEthToEthPrice, stEthToEth) || block.timestamp - updatedAtStEth > stEthToEthHeartbeat) {
+
+    Mutated line:
+                 if(isPriceOutOfBounds(stEthToEthPrice, stEthToEth) || block.timestamp - updatedAtStEth <= stEthToEthHeartbeat) {
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 93
+    Result: Killed
+    Original line:
+                 int256 wstEthUsdPrice = int256(stEthPerToken) * stEthUsdPrice / 10 ** 8;
+
+    Mutated line:
+                 int256 wstEthUsdPrice = int256(stEthPerToken) * stEthUsdPrice * 10 ** 8;
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 93
+    Result: Killed
+    Original line:
+                 int256 wstEthUsdPrice = int256(stEthPerToken) * stEthUsdPrice / 10 ** 8;
+
+    Mutated line:
+                 int256 wstEthUsdPrice = int256(stEthPerToken) / stEthUsdPrice / 10 ** 8;
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 161
+    Result: Killed
+    Original line:
+                 int256 stEthToUsdPrice = ethToUsdPrice * stEthToEthPrice / 10**18;
+
+    Mutated line:
+                 int256 stEthToUsdPrice = ethToUsdPrice * stEthToEthPrice * 10**18;
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 161
+    Result: Killed
+    Original line:
+                 int256 stEthToUsdPrice = ethToUsdPrice * stEthToEthPrice / 10**18;
+
+    Mutated line:
+                 int256 stEthToUsdPrice = ethToUsdPrice / stEthToEthPrice / 10**18;
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 163
+    Result: Killed
+    Original line:
+                 if(isPriceOutOfBounds(ethToUsdPrice, ethToUsd) || block.timestamp - updatedAt > ethHeartbeat) {
+
+    Mutated line:
+                 if(isPriceOutOfBounds(ethToUsdPrice, ethToUsd) || block.timestamp + updatedAt > ethHeartbeat) {
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 168
+    Result: Killed
+    Original line:
+                 if(isPriceOutOfBounds(stEthToEthPrice, stEthToEth) || block.timestamp - updatedAtStEth > stEthToEthHeartbeat) {
+
+    Mutated line:
+                 if(isPriceOutOfBounds(stEthToEthPrice, stEthToEth) || block.timestamp + updatedAtStEth > stEthToEthHeartbeat) {
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 52
+    Result: Error
+    Original line:
+                 if(msg.sender != gov) revert OnlyGov();
+
+    Mutated line:
+                 if(msg.sender != gov) revert 
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 181
+    Result: Killed
+    Original line:
+             function setEthHeartbeat(uint256 newHeartbeat) external onlyGov {
+
+    Mutated line:
+             function setEthHeartbeat(uint256 newHeartbeat) external  {
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 190
+    Result: Killed
+    Original line:
+             function setStEthHeartbeat(uint256 newHeartbeat) external onlyGov {
+
+    Mutated line:
+             function setStEthHeartbeat(uint256 newHeartbeat) external  {
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 199
+    Result: Killed
+    Original line:
+             function setGov(address newGov) external onlyGov {
+
+    Mutated line:
+             function setGov(address newGov) external  {
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 128
+    Result: Killed
+    Original line:
+                 return (max <= price || min >= price);
+
+    Mutated line:
+                 return (max < price || min >= price);
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 163
+    Result: Killed
+    Original line:
+                 if(isPriceOutOfBounds(ethToUsdPrice, ethToUsd) || block.timestamp - updatedAt > ethHeartbeat) {
+
+    Mutated line:
+                 if(isPriceOutOfBounds(ethToUsdPrice, ethToUsd) || block.timestamp - updatedAt >= ethHeartbeat) {
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 168
+    Result: Killed
+    Original line:
+                 if(isPriceOutOfBounds(stEthToEthPrice, stEthToEth) || block.timestamp - updatedAtStEth > stEthToEthHeartbeat) {
+
+    Mutated line:
+                 if(isPriceOutOfBounds(stEthToEthPrice, stEthToEth) || block.timestamp - updatedAtStEth >= stEthToEthHeartbeat) {
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 52
+    Result: Killed
+    Original line:
+                 if(msg.sender != gov) revert OnlyGov();
+
+    Mutated line:
+                 if(msg.sender == gov) revert OnlyGov();
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 128
+    Result: Killed
+    Original line:
+                 return (max <= price || min >= price);
+
+    Mutated line:
+                 return (max > price || min >= price);
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 128
+    Result: Killed
+    Original line:
+                 return (max <= price || min >= price);
+
+    Mutated line:
+                 return (max <= price || min < price);
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 163
+    Result: Killed
+    Original line:
+                 if(isPriceOutOfBounds(ethToUsdPrice, ethToUsd) || block.timestamp - updatedAt > ethHeartbeat) {
+
+    Mutated line:
+                 if(isPriceOutOfBounds(ethToUsdPrice, ethToUsd) || block.timestamp - updatedAt <= ethHeartbeat) {
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 168
+    Result: Killed
+    Original line:
+                 if(isPriceOutOfBounds(stEthToEthPrice, stEthToEth) || block.timestamp - updatedAtStEth > stEthToEthHeartbeat) {
+
+    Mutated line:
+                 if(isPriceOutOfBounds(stEthToEthPrice, stEthToEth) || block.timestamp - updatedAtStEth <= stEthToEthHeartbeat) {
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 93
+    Result: Killed
+    Original line:
+                 int256 wstEthUsdPrice = int256(stEthPerToken) * stEthUsdPrice / 10 ** 8;
+
+    Mutated line:
+                 int256 wstEthUsdPrice = int256(stEthPerToken) * stEthUsdPrice * 10 ** 8;
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 93
+    Result: Killed
+    Original line:
+                 int256 wstEthUsdPrice = int256(stEthPerToken) * stEthUsdPrice / 10 ** 8;
+
+    Mutated line:
+                 int256 wstEthUsdPrice = int256(stEthPerToken) / stEthUsdPrice / 10 ** 8;
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 161
+    Result: Killed
+    Original line:
+                 int256 stEthToUsdPrice = ethToUsdPrice * stEthToEthPrice / 10**18;
+
+    Mutated line:
+                 int256 stEthToUsdPrice = ethToUsdPrice * stEthToEthPrice * 10**18;
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 161
+    Result: Killed
+    Original line:
+                 int256 stEthToUsdPrice = ethToUsdPrice * stEthToEthPrice / 10**18;
+
+    Mutated line:
+                 int256 stEthToUsdPrice = ethToUsdPrice / stEthToEthPrice / 10**18;
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 163
+    Result: Killed
+    Original line:
+                 if(isPriceOutOfBounds(ethToUsdPrice, ethToUsd) || block.timestamp - updatedAt > ethHeartbeat) {
+
+    Mutated line:
+                 if(isPriceOutOfBounds(ethToUsdPrice, ethToUsd) || block.timestamp + updatedAt > ethHeartbeat) {
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 168
+    Result: Killed
+    Original line:
+                 if(isPriceOutOfBounds(stEthToEthPrice, stEthToEth) || block.timestamp - updatedAtStEth > stEthToEthHeartbeat) {
+
+    Mutated line:
+                 if(isPriceOutOfBounds(stEthToEthPrice, stEthToEth) || block.timestamp + updatedAtStEth > stEthToEthHeartbeat) {
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 52
+    Result: Error
+    Original line:
+                 if(msg.sender != gov) revert OnlyGov();
+
+    Mutated line:
+                 if(msg.sender != gov) revert 
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 181
+    Result: Killed
+    Original line:
+             function setEthHeartbeat(uint256 newHeartbeat) external onlyGov {
+
+    Mutated line:
+             function setEthHeartbeat(uint256 newHeartbeat) external  {
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 190
+    Result: Killed
+    Original line:
+             function setStEthHeartbeat(uint256 newHeartbeat) external onlyGov {
+
+    Mutated line:
+             function setStEthHeartbeat(uint256 newHeartbeat) external  {
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 199
+    Result: Killed
+    Original line:
+             function setGov(address newGov) external onlyGov {
+
+    Mutated line:
+             function setGov(address newGov) external  {
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 128
+    Result: Killed
+    Original line:
+                 return (max <= price || min >= price);
+
+    Mutated line:
+                 return (max < price || min >= price);
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 163
+    Result: Killed
+    Original line:
+                 if(isPriceOutOfBounds(ethToUsdPrice, ethToUsd) || block.timestamp - updatedAt > ethHeartbeat) {
+
+    Mutated line:
+                 if(isPriceOutOfBounds(ethToUsdPrice, ethToUsd) || block.timestamp - updatedAt >= ethHeartbeat) {
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 168
+    Result: Killed
+    Original line:
+                 if(isPriceOutOfBounds(stEthToEthPrice, stEthToEth) || block.timestamp - updatedAtStEth > stEthToEthHeartbeat) {
+
+    Mutated line:
+                 if(isPriceOutOfBounds(stEthToEthPrice, stEthToEth) || block.timestamp - updatedAtStEth >= stEthToEthHeartbeat) {
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 52
+    Result: Killed
+    Original line:
+                 if(msg.sender != gov) revert OnlyGov();
+
+    Mutated line:
+                 if(msg.sender == gov) revert OnlyGov();
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 128
+    Result: Killed
+    Original line:
+                 return (max <= price || min >= price);
+
+    Mutated line:
+                 return (max > price || min >= price);
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 128
+    Result: Killed
+    Original line:
+                 return (max <= price || min >= price);
+
+    Mutated line:
+                 return (max <= price || min < price);
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 163
+    Result: Killed
+    Original line:
+                 if(isPriceOutOfBounds(ethToUsdPrice, ethToUsd) || block.timestamp - updatedAt > ethHeartbeat) {
+
+    Mutated line:
+                 if(isPriceOutOfBounds(ethToUsdPrice, ethToUsd) || block.timestamp - updatedAt <= ethHeartbeat) {
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 168
+    Result: Killed
+    Original line:
+                 if(isPriceOutOfBounds(stEthToEthPrice, stEthToEth) || block.timestamp - updatedAtStEth > stEthToEthHeartbeat) {
+
+    Mutated line:
+                 if(isPriceOutOfBounds(stEthToEthPrice, stEthToEth) || block.timestamp - updatedAtStEth <= stEthToEthHeartbeat) {
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 93
+    Result: Killed
+    Original line:
+                 int256 wstEthUsdPrice = int256(stEthPerToken) * stEthUsdPrice / 10 ** 8;
+
+    Mutated line:
+                 int256 wstEthUsdPrice = int256(stEthPerToken) * stEthUsdPrice * 10 ** 8;
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 93
+    Result: Killed
+    Original line:
+                 int256 wstEthUsdPrice = int256(stEthPerToken) * stEthUsdPrice / 10 ** 8;
+
+    Mutated line:
+                 int256 wstEthUsdPrice = int256(stEthPerToken) / stEthUsdPrice / 10 ** 8;
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 161
+    Result: Killed
+    Original line:
+                 int256 stEthToUsdPrice = ethToUsdPrice * stEthToEthPrice / 10**18;
+
+    Mutated line:
+                 int256 stEthToUsdPrice = ethToUsdPrice * stEthToEthPrice * 10**18;
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 161
+    Result: Killed
+    Original line:
+                 int256 stEthToUsdPrice = ethToUsdPrice * stEthToEthPrice / 10**18;
+
+    Mutated line:
+                 int256 stEthToUsdPrice = ethToUsdPrice / stEthToEthPrice / 10**18;
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 163
+    Result: Killed
+    Original line:
+                 if(isPriceOutOfBounds(ethToUsdPrice, ethToUsd) || block.timestamp - updatedAt > ethHeartbeat) {
+
+    Mutated line:
+                 if(isPriceOutOfBounds(ethToUsdPrice, ethToUsd) || block.timestamp + updatedAt > ethHeartbeat) {
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 168
+    Result: Killed
+    Original line:
+                 if(isPriceOutOfBounds(stEthToEthPrice, stEthToEth) || block.timestamp - updatedAtStEth > stEthToEthHeartbeat) {
+
+    Mutated line:
+                 if(isPriceOutOfBounds(stEthToEthPrice, stEthToEth) || block.timestamp + updatedAtStEth > stEthToEthHeartbeat) {
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 52
+    Result: Error
+    Original line:
+                 if(msg.sender != gov) revert OnlyGov();
+
+    Mutated line:
+                 if(msg.sender != gov) revert 
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 181
+    Result: Killed
+    Original line:
+             function setEthHeartbeat(uint256 newHeartbeat) external onlyGov {
+
+    Mutated line:
+             function setEthHeartbeat(uint256 newHeartbeat) external  {
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 190
+    Result: Killed
+    Original line:
+             function setStEthHeartbeat(uint256 newHeartbeat) external onlyGov {
+
+    Mutated line:
+             function setStEthHeartbeat(uint256 newHeartbeat) external  {
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 199
+    Result: Killed
+    Original line:
+             function setGov(address newGov) external onlyGov {
+
+    Mutated line:
+             function setGov(address newGov) external  {
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 128
+    Result: Killed
+    Original line:
+                 return (max <= price || min >= price);
+
+    Mutated line:
+                 return (max < price || min >= price);
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 163
+    Result: Killed
+    Original line:
+                 if(isPriceOutOfBounds(ethToUsdPrice, ethToUsd) || block.timestamp - updatedAt > ethHeartbeat) {
+
+    Mutated line:
+                 if(isPriceOutOfBounds(ethToUsdPrice, ethToUsd) || block.timestamp - updatedAt >= ethHeartbeat) {
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 168
+    Result: Killed
+    Original line:
+                 if(isPriceOutOfBounds(stEthToEthPrice, stEthToEth) || block.timestamp - updatedAtStEth > stEthToEthHeartbeat) {
+
+    Mutated line:
+                 if(isPriceOutOfBounds(stEthToEthPrice, stEthToEth) || block.timestamp - updatedAtStEth >= stEthToEthHeartbeat) {
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 52
+    Result: Killed
+    Original line:
+                 if(msg.sender != gov) revert OnlyGov();
+
+    Mutated line:
+                 if(msg.sender == gov) revert OnlyGov();
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 128
+    Result: Killed
+    Original line:
+                 return (max <= price || min >= price);
+
+    Mutated line:
+                 return (max > price || min >= price);
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 128
+    Result: Killed
+    Original line:
+                 return (max <= price || min >= price);
+
+    Mutated line:
+                 return (max <= price || min < price);
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 163
+    Result: Killed
+    Original line:
+                 if(isPriceOutOfBounds(ethToUsdPrice, ethToUsd) || block.timestamp - updatedAt > ethHeartbeat) {
+
+    Mutated line:
+                 if(isPriceOutOfBounds(ethToUsdPrice, ethToUsd) || block.timestamp - updatedAt <= ethHeartbeat) {
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 168
+    Result: Killed
+    Original line:
+                 if(isPriceOutOfBounds(stEthToEthPrice, stEthToEth) || block.timestamp - updatedAtStEth > stEthToEthHeartbeat) {
+
+    Mutated line:
+                 if(isPriceOutOfBounds(stEthToEthPrice, stEthToEth) || block.timestamp - updatedAtStEth <= stEthToEthHeartbeat) {
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 93
+    Result: Killed
+    Original line:
+                 int256 wstEthUsdPrice = int256(stEthPerToken) * stEthUsdPrice / 10 ** 8;
+
+    Mutated line:
+                 int256 wstEthUsdPrice = int256(stEthPerToken) * stEthUsdPrice * 10 ** 8;
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 93
+    Result: Killed
+    Original line:
+                 int256 wstEthUsdPrice = int256(stEthPerToken) * stEthUsdPrice / 10 ** 8;
+
+    Mutated line:
+                 int256 wstEthUsdPrice = int256(stEthPerToken) / stEthUsdPrice / 10 ** 8;
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 161
+    Result: Killed
+    Original line:
+                 int256 stEthToUsdPrice = ethToUsdPrice * stEthToEthPrice / 10**18;
+
+    Mutated line:
+                 int256 stEthToUsdPrice = ethToUsdPrice * stEthToEthPrice * 10**18;
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 161
+    Result: Killed
+    Original line:
+                 int256 stEthToUsdPrice = ethToUsdPrice * stEthToEthPrice / 10**18;
+
+    Mutated line:
+                 int256 stEthToUsdPrice = ethToUsdPrice / stEthToEthPrice / 10**18;
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 163
+    Result: Killed
+    Original line:
+                 if(isPriceOutOfBounds(ethToUsdPrice, ethToUsd) || block.timestamp - updatedAt > ethHeartbeat) {
+
+    Mutated line:
+                 if(isPriceOutOfBounds(ethToUsdPrice, ethToUsd) || block.timestamp + updatedAt > ethHeartbeat) {
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 168
+    Result: Killed
+    Original line:
+                 if(isPriceOutOfBounds(stEthToEthPrice, stEthToEth) || block.timestamp - updatedAtStEth > stEthToEthHeartbeat) {
+
+    Mutated line:
+                 if(isPriceOutOfBounds(stEthToEthPrice, stEthToEth) || block.timestamp + updatedAtStEth > stEthToEthHeartbeat) {
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 52
+    Result: Error
+    Original line:
+                 if(msg.sender != gov) revert OnlyGov();
+
+    Mutated line:
+                 if(msg.sender != gov) revert 
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 181
+    Result: Killed
+    Original line:
+             function setEthHeartbeat(uint256 newHeartbeat) external onlyGov {
+
+    Mutated line:
+             function setEthHeartbeat(uint256 newHeartbeat) external  {
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 190
+    Result: Killed
+    Original line:
+             function setStEthHeartbeat(uint256 newHeartbeat) external onlyGov {
+
+    Mutated line:
+             function setStEthHeartbeat(uint256 newHeartbeat) external  {
+
+
+Mutation:
+    File: /home/andrea/inverse/FiRM/src/feeds/WstETHPriceFeed.sol
+    Line nr: 199
+    Result: Killed
+    Original line:
+             function setGov(address newGov) external onlyGov {
+
+    Mutated line:
+             function setGov(address newGov) external  {
+
+
