@@ -79,6 +79,11 @@ contract WstETHFeedFork is Test {
         assertEq(uint256(stYEthUsdPrice), estimatedStyEthUSDPrice);
         assertEq(uint256(stYEthUsdPrice), uint(feed.latestAnswer()));
     }
+
+    function test_isPriceOutofBounds() public {
+        assertTrue(feed.isPriceOutOfBounds(1, feed.ethToUsd()));
+    }
+
     function test_WillReturnFallbackWhenOutOfMaxBounds() public {
         (
             uint80 clRoundId,
