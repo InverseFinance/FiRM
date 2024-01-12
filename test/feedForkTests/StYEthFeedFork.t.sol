@@ -2,7 +2,7 @@
 pragma solidity ^0.8.19;
 
 import "forge-std/Test.sol";
-import {StYEthPriceFeed, IAggregator, IChainlinkFeed} from "src/feeds/StYEthPriceFeed.sol";
+import {StYEthPriceFeed, IAggregator, IChainlinkFeed, ICurvePool} from "src/feeds/StYEthPriceFeed.sol";
 import "forge-std/console.sol";
 
 
@@ -23,7 +23,7 @@ contract WstETHFeedFork is Test {
     function test_latestRoundData() public {
         (
             uint80 clRoundId,
-            int256 clUsdcToUsdPrice,
+            int256 clEthToUsdPrice,
             uint clStartedAt,
             uint clUpdatedAt,
             uint80 clAnsweredInRound
@@ -42,12 +42,43 @@ contract WstETHFeedFork is Test {
         assertEq(answeredInRound, clAnsweredInRound);
 
         uint256 ethTostyEthRatio = feed.curveYETH().ema_price() * feed.styETH().convertToAssets(1 ether);
-        uint256 estimatedStyEthUSDPrice = uint(clUsdcToUsdPrice) * ethTostyEthRatio / 10 **8 / 10 **18;
+        uint256 estimatedStyEthUSDPrice = uint(clEthToUsdPrice) * ethTostyEthRatio / 10 **8 / 10 **18;
 
         assertEq(uint256(stYEthUsdPrice), estimatedStyEthUSDPrice);
         assertEq(uint256(stYEthUsdPrice), uint(feed.latestAnswer()));
     }
 
+    function test_use_capper_exchange_rate_YETH_ETH() public {
+        (
+            uint80 clRoundId,
+            int256 clEthToUsdPrice,
+            uint clStartedAt,
+            uint clUpdatedAt,
+            uint80 clAnsweredInRound
+        ) = feed.ethToUsd().latestRoundData();
+        
+        vm.mockCall(address(feed.curveYETH()), abi.encodeWithSelector(ICurvePool.ema_price.selector), abi.encode(10 ether));
+
+        (
+            uint80 roundId,
+            int256 stYEthUsdPrice,
+            uint startedAt,
+            uint updatedAt,
+            uint80 answeredInRound
+        ) = feed.latestRoundData();
+
+        assertEq(roundId, clRoundId);
+        assertEq(startedAt, clStartedAt);
+        assertEq(updatedAt, clUpdatedAt);
+        assertEq(answeredInRound, clAnsweredInRound);
+
+     
+        uint256 ethTostyEthRatio = 1e18 * feed.styETH().convertToAssets(1 ether);
+        uint256 estimatedStyEthUSDPrice = uint(clEthToUsdPrice) * ethTostyEthRatio / 10 **8 / 10 **18;
+
+        assertEq(uint256(stYEthUsdPrice), estimatedStyEthUSDPrice);
+        assertEq(uint256(stYEthUsdPrice), uint(feed.latestAnswer()));
+    }
     function test_WillReturnFallbackWhenOutOfMaxBounds() public {
         (
             uint80 clRoundId,
