@@ -11,7 +11,7 @@ contract WstETHFeedFork is Test {
 
     function setUp() public {
         string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url, 18535539);
+        vm.createSelectFork(url, 19015193);
 
         feed = new StYEthPriceFeed();
     }
