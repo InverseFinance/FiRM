@@ -16,6 +16,8 @@ contract VaultHelper {
 
     error InsufficientShares();
     error AddressZero();
+    error MaxDeposit(uint256 amount);
+    error MaxRedeem(uint256 amount);
 
     IMarket public immutable market;
     IERC20 public immutable token;
@@ -45,6 +47,7 @@ contract VaultHelper {
     ) external returns (uint256 shares) {
         if(recipient == address(0)) revert AddressZero();
         token.safeTransferFrom(msg.sender, address(this), assets);
+        if (assets > vault.maxDeposit(address(this))) revert MaxDeposit(assets);
         shares = vault.deposit(assets, address(this));
         uint256 actualShares = vault.balanceOf(address(this));
         if (shares > actualShares) revert InsufficientShares();
@@ -74,6 +77,7 @@ contract VaultHelper {
         market.withdrawOnBehalf(recipient, shares, deadline, v, r, s);
         uint256 actualShares = vault.balanceOf(address(this));
         if (actualShares < shares) revert InsufficientShares();
+        if (shares > vault.maxRedeem(address(this))) revert MaxRedeem(shares);
         assets = vault.redeem(shares, recipient, address(this));
     }
 }

@@ -5,7 +5,7 @@ import "./MarketBaseForkTest.sol";
 import {Market} from "src/Market.sol";
 import {SimpleERC20Escrow} from "src/escrows/SimpleERC20Escrow.sol";
 import {StYEthPriceFeed} from "src/feeds/StYEthPriceFeed.sol";
-import {VaultHelper} from "src/escrows/VaultHelper.sol";
+import {VaultHelper, IERC4626} from "src/escrows/VaultHelper.sol";
 
 contract StYEthMarketForkTest is MarketBaseForkTest {
     SimpleERC20Escrow escrow;
@@ -114,6 +114,13 @@ contract StYEthMarketForkTest is MarketBaseForkTest {
 
         vm.startPrank(userPk);
         yEth.approve(address(helper), type(uint).max);
+
+        vm.mockCall(address(stYEth),abi.encodeWithSelector(IERC4626.maxDeposit.selector, address(helper)), abi.encode(uint(0)));
+        vm.expectRevert(abi.encodeWithSelector(VaultHelper.MaxDeposit.selector, 10 ether));
+        helper.wrapAndDeposit(userPk, 10 ether);
+
+        vm.clearMockedCalls();
+
         helper.wrapAndDeposit(userPk, 10 ether);
         // Amount of SHARES to withdraw
         uint256 withdrawAmount = market.predictEscrow(userPk).balance();
@@ -141,5 +148,12 @@ contract StYEthMarketForkTest is MarketBaseForkTest {
         vm.mockCall(address(stYEth),abi.encodeWithSelector(IERC20.balanceOf.selector, address(helper)), abi.encode(uint(0)));
         vm.expectRevert(abi.encodeWithSelector(VaultHelper.InsufficientShares.selector));
         helper.withdrawAndUnwrap(userPk, withdrawAmount, block.timestamp, v, r, s);
+
+        vm.clearMockedCalls();
+        vm.mockCall(address(stYEth),abi.encodeWithSelector(IERC4626.maxRedeem.selector, address(helper)), abi.encode(uint(0)));
+        
+        vm.expectRevert(abi.encodeWithSelector(VaultHelper.MaxRedeem.selector, withdrawAmount));
+        helper.withdrawAndUnwrap(userPk, withdrawAmount, block.timestamp, v, r, s);
+   
     }
 }
