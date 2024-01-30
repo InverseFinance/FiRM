@@ -9,9 +9,10 @@ interface IChainlinkFeed {
 /**
 @title Oracle
 @notice Oracle used by markets. Uses Chainlink-style feeds for prices.
-The Pessimistic Oracle introduces collateral factor into the pricing formula. It ensures that any given oracle price is dampened to prevent borrowers from borrowing more than the lowest recorded value of their collateral over the past 2 days.
+The Pessimistic Oracle introduces collateral factor into the pricing formula. It ensures that any given oracle price is dampened to prevent borrowers from borrowing more than the lowest recorded value of their collateral over a certain window.
 This has the advantage of making price manipulation attacks more difficult, as an attacker needs to log artificially high lows.
-It has the disadvantage of reducing borrow power of borrowers to a 2-day minimum value of their collateral, where the value must have been seen by the oracle.
+It has the disadvantage of reducing borrow power of borrowers to a window minimum value of their collateral, where the value must have been seen by the oracle.
+NOTE: If window has passed, the oracle will update the lowest price with the current value, not the lowest between now and the window.
 */
 contract Oracle {
 
@@ -23,7 +24,15 @@ contract Oracle {
     address public operator;
     address public pendingOperator;
     mapping (address => FeedData) public feeds;
-    mapping (address => mapping(uint => uint)) public dailyLows; // token => day => price
+
+    struct Price {
+        uint128 price; // Lowest price in the window
+        uint128 timestamp; // Timestamp of the lowest price
+    }
+
+    mapping(address => Price) public lows;  // token => Price
+    mapping(address => uint) public windows; // token => window
+
 
     constructor(
         address _operator
@@ -52,6 +61,13 @@ contract Oracle {
     function setFeed(address token, IChainlinkFeed feed, uint8 tokenDecimals) public onlyOperator { feeds[token] = FeedData(feed, tokenDecimals); }
 
     /**
+    @notice Sets the window for a specific token address.
+    @param token Address of the ERC20 token to set a window for
+    @param window The window in seconds for the token.
+    */
+    function setWindow(address token, uint window) public onlyOperator { windows[token] = window; }
+    
+    /**
     @notice Claims the operator role. Only successfully callable by the pending operator.
     */
     function claimOperator() public {
@@ -71,21 +87,27 @@ contract Oracle {
 
             //get normalized price
             uint normalizedPrice = getNormalizedPrice(token);
-            uint day = block.timestamp / 1 days;
-            // get today's low
-            uint todaysLow = dailyLows[token][day];
-            if(todaysLow == 0 || normalizedPrice < todaysLow) {
-                todaysLow = normalizedPrice;
+       
+            // window for this token
+            uint window = windows[token];
+            uint lowestPrice = lows[token].price;
+            uint timestamp = lows[token].timestamp;
+            
+            if(lowestPrice == 0 || block.timestamp - timestamp > window) {
+                lowestPrice = normalizedPrice;
+            } else if (normalizedPrice < lowestPrice) {
+                // If new price is lower than lowest price, update lowest price and timestamp
+                lowestPrice = normalizedPrice;
             }
+
             // if collateralFactorBps is 0, return normalizedPrice;
             if(collateralFactorBps == 0) return normalizedPrice;
-            // get yesterday's low
-            uint yesterdaysLow = dailyLows[token][day - 1];
+    
             // calculate new borrowing power based on collateral factor
             uint newBorrowingPower = normalizedPrice * collateralFactorBps / 10000;
-            uint twoDayLow = todaysLow > yesterdaysLow && yesterdaysLow > 0 ? yesterdaysLow : todaysLow;
-            if(twoDayLow > 0 && newBorrowingPower > twoDayLow) {
-                uint dampenedPrice = twoDayLow * 10000 / collateralFactorBps;
+       
+            if(lowestPrice > 0 && newBorrowingPower > lowestPrice) {
+                uint dampenedPrice = lowestPrice * 10000 / collateralFactorBps;
                 return dampenedPrice < normalizedPrice ? dampenedPrice: normalizedPrice;
             }
             return normalizedPrice;
@@ -103,23 +125,25 @@ contract Oracle {
         if(feeds[token].feed != IChainlinkFeed(address(0))) {
             // get normalized price
             uint normalizedPrice = getNormalizedPrice(token);
-            // potentially store price as today's low
-            uint day = block.timestamp / 1 days;
-            uint todaysLow = dailyLows[token][day];
-            if(todaysLow == 0 || normalizedPrice < todaysLow) {
-                dailyLows[token][day] = normalizedPrice;
-                todaysLow = normalizedPrice;
-                emit RecordDailyLow(token, normalizedPrice);
-            }
+
+            // window for this token
+            uint window = windows[token];
+            uint lowestPrice = lows[token].price;
+            uint timestamp = lows[token].timestamp;
+            // if lowest price is 0 or window has passed or if new price is lower than lowest price, update lowest price and timestamp
+            if(lowestPrice == 0 || block.timestamp - timestamp > window || normalizedPrice < lowestPrice) {
+                lows[token].price = uint128(normalizedPrice);
+                lows[token].timestamp = uint128(block.timestamp);
+                emit RecordWindowLow(token, normalizedPrice);
+                lowestPrice = normalizedPrice;
+            } 
+
             // if collateralFactorBps is 0, return normalizedPrice;
             if(collateralFactorBps == 0) return normalizedPrice;
-            // get yesterday's low
-            uint yesterdaysLow = dailyLows[token][day - 1];
             // calculate new borrowing power based on collateral factor
             uint newBorrowingPower = normalizedPrice * collateralFactorBps / 10000;
-            uint twoDayLow = todaysLow > yesterdaysLow && yesterdaysLow > 0 ? yesterdaysLow : todaysLow;
-            if(twoDayLow > 0 && newBorrowingPower > twoDayLow) {
-                uint dampenedPrice = twoDayLow * 10000 / collateralFactorBps;
+            if(lowestPrice > 0 && newBorrowingPower > lowestPrice) {
+                uint dampenedPrice = lowestPrice * 10000 / collateralFactorBps;
                 return dampenedPrice < normalizedPrice ? dampenedPrice: normalizedPrice;
             }
             return normalizedPrice;
@@ -162,6 +186,5 @@ contract Oracle {
     }
 
     event ChangeOperator(address indexed newOperator);
-    event RecordDailyLow(address indexed token, uint price);
-
+    event RecordWindowLow(address indexed token, uint price);
 }
