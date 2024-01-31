@@ -93,13 +93,9 @@ contract Oracle {
             uint lowestPrice = lows[token].price;
             uint timestamp = lows[token].timestamp;
             
-            if(lowestPrice == 0 || block.timestamp - timestamp > window) {
+            if(lowestPrice == 0 || block.timestamp - timestamp > window || normalizedPrice < lowestPrice) {
                 lowestPrice = normalizedPrice;
-            } else if (normalizedPrice < lowestPrice) {
-                // If new price is lower than lowest price, update lowest price and timestamp
-                lowestPrice = normalizedPrice;
-            }
-
+            } 
             // if collateralFactorBps is 0, return normalizedPrice;
             if(collateralFactorBps == 0) return normalizedPrice;
     
