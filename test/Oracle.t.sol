@@ -67,7 +67,7 @@ contract OracleTest is FiRMBaseTest {
         assertEq(low, newPrice, "Oracle didn't record low on call to getPrice");
     }
 
-    function test_getPrice_records_NEW_LOWER_Window_set() public {
+    function test_getPrice_records_NEW_SHORTER_Window_set() public {
         uint collateralFactor = market.collateralFactorBps();
         uint feedPrice = ethFeed.latestAnswer();
         uint oraclePrice = oracle.getPrice(address(WETH), collateralFactor);
@@ -93,7 +93,7 @@ contract OracleTest is FiRMBaseTest {
         assertEq(low, newPrice, "Oracle didn't record low on call to getPrice");        
     }
 
-    function test_getPrice_records_NEW_BIGGER_Window_set() public {
+    function test_getPrice_records_NEW_LONGER_Window_set() public {
         uint collateralFactor = market.collateralFactorBps();
         uint feedPrice = ethFeed.latestAnswer();
         uint oraclePrice = oracle.getPrice(address(WETH), collateralFactor);
@@ -139,7 +139,6 @@ contract OracleTest is FiRMBaseTest {
         assertEq(low, newPrice / 100, "Oracle didn't record low on call to getPrice");
     }
 
-
     function test_getPrice_recordsWindowLowWbtc() public {
         uint collateralFactor = market.collateralFactorBps();
         uint feedPrice = wbtcFeed.latestAnswer();
@@ -157,6 +156,32 @@ contract OracleTest is FiRMBaseTest {
         assertEq(oraclePrice, expectedPrice, "Oracle didn't update when feed did");
         (low, timestmap) = oracle.lows(address(wBTC));
         assertEq(low, expectedPrice, "Oracle didn't record low on call to getPrice");
+    }
+
+    function test_getPrice_collateralFactorBps_ZERO_returns_normalizedPrice() public {
+        uint collateralFactor = market.collateralFactorBps();
+        uint feedPrice = ethFeed.latestAnswer();
+        uint oraclePrice = oracle.getPrice(address(WETH), collateralFactor);
+        uint priceZeroCF = oracle.getPrice(address(WETH), 0);
+        assertEq(feedPrice, oraclePrice, "Oracle didn't return normalized price when collateralFactorBps is not 0");
+        assertEq(oraclePrice, priceZeroCF, "Oracle didn't return normalized price when collateralFactorBps is 0");
+    }
+
+    function test_viewPrice_collateralFactorBps_ZERO_returns_normalizedPrice() public {
+        uint collateralFactor = market.collateralFactorBps();
+        uint feedPrice = ethFeed.latestAnswer();
+        uint oraclePrice = oracle.viewPrice(address(WETH), collateralFactor);
+        uint priceZeroCF = oracle.viewPrice(address(WETH), 0);
+        assertEq(feedPrice, oraclePrice, "Oracle didn't return normalized price when collateralFactorBps is not 0");
+        assertEq(oraclePrice, priceZeroCF, "Oracle didn't return normalized price when collateralFactorBps is 0");
+    }
+
+    function test_getFeedPrice() public {
+        uint feedPrice = ethFeed.latestAnswer();
+        uint oraclePrice = oracle.getFeedPrice(address(WETH));
+        assertEq(feedPrice, oraclePrice, "Oracle didn't return feed price");
+
+        
     }
 
     function test_viewPrice_returnsDampenedPrice() public {
@@ -287,4 +312,12 @@ contract OracleTest is FiRMBaseTest {
         oracle.setFeed(address(WETH), IChainlinkFeed(address(ethFeed)), 18);
     }
 
-}
+    function test_accessControl_setWindow() public {
+        vm.prank(operator);
+        oracle.setWindow(address(WETH), 5 days);
+        assertEq(oracle.windows(address(WETH)), 5 days, "Window failed to set");
+
+        vm.expectRevert(onlyOperator);
+        oracle.setWindow(address(WETH), 3 days);
+    }
+}   
