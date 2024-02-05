@@ -13,52 +13,140 @@ contract OracleTest is FiRMBaseTest {
         operator = gov;
 
         initialize(replenishmentPriceBps, collateralFactorBps, replenishmentIncentiveBps, liquidationBonusBps, callOnDepositCallback);
+
+        vm.startPrank(gov);
+        oracle.setWindow(address(WETH), 3 days);
+        oracle.setWindow(address(DOLA), 3 days);
+        oracle.setWindow(address(wBTC), 3 days);
+        vm.stopPrank();
+
     }
 
-    function test_getPrice_recordsDailyLowWeth() public {
-        uint day = block.timestamp / 1 days;
+    function test_getPrice_recordsWindowLowWeth() public {
         uint collateralFactor = market.collateralFactorBps();
         uint feedPrice = ethFeed.latestAnswer();
         uint oraclePrice = oracle.getPrice(address(WETH), collateralFactor);
 
         assertEq(oraclePrice, feedPrice);
-        assertEq(oracle.dailyLows(address(WETH), day), feedPrice, "Oracle didn't record daily low on call to getPrice");
+        (uint low, uint timestamp) = oracle.lows(address(WETH));
+        assertEq(low, feedPrice, "Oracle didn't record low on call to getPrice");
 
         uint newPrice = 1200e18;
         ethFeed.changeAnswer(newPrice);
         oraclePrice = oracle.getPrice(address(WETH), collateralFactor);
 
         assertEq(oraclePrice, newPrice, "Oracle didn't update when feed did");
-        assertEq(oracle.dailyLows(address(WETH), day), newPrice, "Oracle didn't record daily low on call to getPrice");
+        (low, timestamp) = oracle.lows(address(WETH));
+        assertEq(low, newPrice, "Oracle didn't record low on call to getPrice");
     }
 
-    function test_getPrice_recordsDailyLowDola() public {
-        uint day = block.timestamp / 1 days;
+    function test_getPrice_records_NEW_WindowLowWeth() public {
+        uint collateralFactor = market.collateralFactorBps();
+        uint feedPrice = ethFeed.latestAnswer();
+        uint oraclePrice = oracle.getPrice(address(WETH), collateralFactor);
+
+        assertEq(oraclePrice, feedPrice);
+        (uint low, uint timestamp) = oracle.lows(address(WETH));
+        assertEq(low, feedPrice, "Oracle didn't record low on call to getPrice");
+
+        uint newPrice = 1200e18;
+        ethFeed.changeAnswer(newPrice);
+        oraclePrice = oracle.getPrice(address(WETH), collateralFactor);
+
+        assertEq(oraclePrice, newPrice, "Oracle didn't update when feed did");
+        (low, timestamp) = oracle.lows(address(WETH));
+        assertEq(low, newPrice, "Oracle didn't record low on call to getPrice");
+
+        vm.warp(block.timestamp + 3 days + 1);
+        newPrice = 3000e18;
+        ethFeed.changeAnswer(newPrice);
+        oraclePrice = oracle.getPrice(address(WETH), collateralFactor);
+
+        assertEq(oraclePrice, newPrice, "Oracle didn't update when feed did");
+        (low, timestamp) = oracle.lows(address(WETH));
+        assertEq(low, newPrice, "Oracle didn't record low on call to getPrice");
+    }
+
+    function test_getPrice_records_NEW_SHORTER_Window_set() public {
+        uint collateralFactor = market.collateralFactorBps();
+        uint feedPrice = ethFeed.latestAnswer();
+        uint oraclePrice = oracle.getPrice(address(WETH), collateralFactor);
+
+        assertEq(oraclePrice, feedPrice);
+        (uint low, uint timestamp) = oracle.lows(address(WETH));
+        assertEq(low, feedPrice, "Oracle didn't record low on call to getPrice");
+
+        // Advance time to 1 day + 1 second
+        vm.warp(block.timestamp + 1 days + 1);
+
+        // Update window to 1 day
+        vm.prank(gov);
+        oracle.setWindow(address(WETH), 1 days);
+
+        // Will update timestamp because of new window
+        uint newPrice = 2000e18;
+        ethFeed.changeAnswer(newPrice);
+        oraclePrice = oracle.getPrice(address(WETH), collateralFactor);
+
+        assertEq(oraclePrice, newPrice, "Oracle didn't update when feed did");
+        (low, timestamp) = oracle.lows(address(WETH));
+        assertEq(low, newPrice, "Oracle didn't record low on call to getPrice");        
+    }
+
+    function test_getPrice_records_NEW_LONGER_Window_set() public {
+        uint collateralFactor = market.collateralFactorBps();
+        uint feedPrice = ethFeed.latestAnswer();
+        uint oraclePrice = oracle.getPrice(address(WETH), collateralFactor);
+
+        assertEq(oraclePrice, feedPrice);
+        (uint low, uint timestamp) = oracle.lows(address(WETH));
+        assertEq(low, feedPrice, "Oracle didn't record low on call to getPrice");
+
+        // Advance time to 3 days + 1 second
+        vm.warp(block.timestamp + 3 days + 1);
+
+        // Update window to 5 day
+        vm.prank(gov);
+        oracle.setWindow(address(WETH), 5 days);
+
+        // Won't update bc of new window (5 days) still include the previous low, return current price
+        uint newPrice = 2200e18;
+        ethFeed.changeAnswer(newPrice);
+        oraclePrice = oracle.getPrice(address(WETH), collateralFactor);
+
+        assertNotEq(oraclePrice, feedPrice, "Oracle update when shouldn't");
+        (low, timestamp) = oracle.lows(address(WETH));
+        assertEq(low, feedPrice, "Oracle didn't record low on call to getPrice");
+        assertEq(oraclePrice, newPrice, "Oracle update when shouldn't");        
+    }
+
+    function test_getPrice_recordsWindowLowDola() public {
         uint collateralFactor = market.collateralFactorBps();
         uint feedPrice = dolaFeed.latestAnswer();
         uint oraclePrice = oracle.getPrice(address(DOLA), collateralFactor);
 
         //Oracle price is 18 decimals, while feed price is 20 decimals, therefor we have to divide by 100
         assertEq(oraclePrice, feedPrice / 100);
-        assertEq(oracle.dailyLows(address(DOLA), day), feedPrice / 100, "Oracle didn't record daily low on call to getPrice");
+        (uint low, uint timestamp) = oracle.lows(address(DOLA));
+        assertEq(low, feedPrice / 100, "Oracle didn't record low on call to getPrice");
 
         uint newPrice = 1e20 - 10;
         dolaFeed.changeAnswer(newPrice);
         oraclePrice = oracle.getPrice(address(DOLA), collateralFactor);
 
         assertEq(oraclePrice, newPrice / 100, "Oracle didn't update when feed did");
-        assertEq(oracle.dailyLows(address(DOLA), day), newPrice / 100, "Oracle didn't record daily low on call to getPrice");
+        (low, timestamp) = oracle.lows(address(DOLA));
+        assertEq(low, newPrice / 100, "Oracle didn't record low on call to getPrice");
     }
 
-
-    function test_getPrice_recordsDailyLowWbtc() public {
-        uint day = block.timestamp / 1 days;
+    function test_getPrice_recordsWindowLowWbtc() public {
         uint collateralFactor = market.collateralFactorBps();
         uint feedPrice = wbtcFeed.latestAnswer();
         uint expectedOraclePrice = feedPrice * 1e20;
         uint oraclePrice = oracle.getPrice(address(wBTC), collateralFactor);
         assertEq(oraclePrice, expectedOraclePrice);
-        assertEq(oracle.dailyLows(address(wBTC), day), expectedOraclePrice, "Oracle didn't record daily low on call to getPrice");
+        (uint low, uint timestmap) = oracle.lows(address(wBTC));
+        assertEq(low, expectedOraclePrice, "Oracle didn't record low on call to getPrice");
 
         uint newPrice = 12000e8;
         uint expectedPrice = newPrice * 1e20;
@@ -66,24 +154,52 @@ contract OracleTest is FiRMBaseTest {
         oraclePrice = oracle.getPrice(address(wBTC), collateralFactor);
 
         assertEq(oraclePrice, expectedPrice, "Oracle didn't update when feed did");
-        assertEq(oracle.dailyLows(address(wBTC), day), expectedPrice, "Oracle didn't record daily low on call to getPrice");
+        (low, timestmap) = oracle.lows(address(wBTC));
+        assertEq(low, expectedPrice, "Oracle didn't record low on call to getPrice");
+    }
+
+    function test_getPrice_collateralFactorBps_ZERO_returns_normalizedPrice() public {
+        uint collateralFactor = market.collateralFactorBps();
+        uint feedPrice = ethFeed.latestAnswer();
+        uint oraclePrice = oracle.getPrice(address(WETH), collateralFactor);
+        uint priceZeroCF = oracle.getPrice(address(WETH), 0);
+        assertEq(feedPrice, oraclePrice, "Oracle didn't return normalized price when collateralFactorBps is not 0");
+        assertEq(oraclePrice, priceZeroCF, "Oracle didn't return normalized price when collateralFactorBps is 0");
+    }
+
+    function test_viewPrice_collateralFactorBps_ZERO_returns_normalizedPrice() public {
+        uint collateralFactor = market.collateralFactorBps();
+        uint feedPrice = ethFeed.latestAnswer();
+        uint oraclePrice = oracle.viewPrice(address(WETH), collateralFactor);
+        uint priceZeroCF = oracle.viewPrice(address(WETH), 0);
+        assertEq(feedPrice, oraclePrice, "Oracle didn't return normalized price when collateralFactorBps is not 0");
+        assertEq(oraclePrice, priceZeroCF, "Oracle didn't return normalized price when collateralFactorBps is 0");
+    }
+
+    function test_getFeedPrice() public {
+        uint feedPrice = ethFeed.latestAnswer();
+        uint oraclePrice = oracle.getFeedPrice(address(WETH));
+        assertEq(feedPrice, oraclePrice, "Oracle didn't return feed price");
+
+        
     }
 
     function test_viewPrice_returnsDampenedPrice() public {
         uint collateralFactor = market.collateralFactorBps();
-        uint day = block.timestamp / 1 days;
         uint feedPrice = ethFeed.latestAnswer();
 
         //1600e18 price saved as daily low
         oracle.getPrice(address(WETH), collateralFactor);
-        assertEq(oracle.dailyLows(address(WETH), day), feedPrice, "Oracle didn't record daily low on call to getPrice");
+        (uint low, uint timestamp) = oracle.lows(address(WETH));
+        assertEq(low, feedPrice, "Oracle didn't record low on call to getPrice");
 
         vm.warp(block.timestamp + 1 days);
         uint newPrice = 1200e18;
         ethFeed.changeAnswer(newPrice);
         //1200e18 price saved as daily low
         oracle.getPrice(address(WETH), collateralFactor);
-        assertEq(oracle.dailyLows(address(WETH), ++day), newPrice, "Oracle didn't record daily low on call to getPrice");
+        (low, timestamp) = oracle.lows(address(WETH));
+        assertEq(low, newPrice, "Oracle didn't record daily low on call to getPrice");
 
         vm.warp(block.timestamp + 1 days);
         newPrice = 3000e18;
@@ -92,7 +208,8 @@ contract OracleTest is FiRMBaseTest {
         //1200e18 should be twoDayLow, 3000e18 is current price. We should receive dampened price here.
         uint price = oracle.getPrice(address(WETH), collateralFactor);
         uint viewPrice = oracle.viewPrice(address(WETH), collateralFactor);
-        assertEq(oracle.dailyLows(address(WETH), ++day), newPrice, "Oracle didn't record daily low on call to getPrice");
+        (low, timestamp) = oracle.lows(address(WETH));
+        assertEq(low, 1200e18, "Oracle didn't record daily low on call to getPrice");
 
         assertEq(price, 1200e18 * 10_000 / collateralFactor, "Oracle did not dampen price correctly");
         assertEq(viewPrice, 1200e18 * 10_000 / collateralFactor, "Oracle did not dampen view price correctly");
@@ -132,19 +249,20 @@ contract OracleTest is FiRMBaseTest {
 
     function test_viewPriceNoDampenedPrice_AUDIT() public {
         uint collateralFactor = market.collateralFactorBps();
-        uint day = block.timestamp / 1 days;
         uint feedPrice = ethFeed.latestAnswer();
 
-        //1600e18 price saved as daily low
+        //1600e18 price saved as window low
         oracle.getPrice(address(WETH), collateralFactor);
-        assertEq(oracle.dailyLows(address(WETH), day), feedPrice);
+        (uint low, uint timestamp) = oracle.lows(address(WETH));
+        assertEq(low, feedPrice, "Oracle didn't record low on call to getPrice");
 
         vm.warp(block.timestamp + 1 days);
         uint newPrice = 1200e18;
         ethFeed.changeAnswer(newPrice);
-        //1200e18 price saved as daily low
+        //1200e18 price saved as window low
         oracle.getPrice(address(WETH), collateralFactor);
-        assertEq(oracle.dailyLows(address(WETH), ++day), newPrice);
+        (low, timestamp) = oracle.lows(address(WETH));
+        assertEq(low, newPrice, "Oracle didn't record low on call to getPrice");
 
         vm.warp(block.timestamp + 1 days);
         newPrice = 3000e18;
@@ -194,4 +312,12 @@ contract OracleTest is FiRMBaseTest {
         oracle.setFeed(address(WETH), IChainlinkFeed(address(ethFeed)), 18);
     }
 
-}
+    function test_accessControl_setWindow() public {
+        vm.prank(operator);
+        oracle.setWindow(address(WETH), 5 days);
+        assertEq(oracle.windows(address(WETH)), 5 days, "Window failed to set");
+
+        vm.expectRevert(onlyOperator);
+        oracle.setWindow(address(WETH), 3 days);
+    }
+}   
