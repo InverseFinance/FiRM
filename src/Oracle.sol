@@ -30,7 +30,7 @@ contract Oracle {
         uint128 timestamp; // Timestamp of the lowest price
     }
 
-    mapping(address => Price) public lows;  // token => Price
+    mapping(address => Price) public lastUpdate;  // token => Price
     mapping(address => uint) public windows; // token => window
 
 
@@ -82,32 +82,24 @@ contract Oracle {
     @param token The address of the token to get price of
     @return The price of the token in DOLA, adjusted for token and feed decimals
     */
-    function viewPrice(address token, uint collateralFactorBps) external view returns (uint) {
+    function viewPrice(address token, uint collateralFactorBps) public view returns (uint) {
         if(feeds[token].feed != IChainlinkFeed(address(0))) {
 
-            //get normalized price
             uint normalizedPrice = getNormalizedPrice(token);
-       
-            // window for this token
-            uint window = windows[token];
-            uint lowestPrice = lows[token].price;
-            uint timestamp = lows[token].timestamp;
-            
-            if(lowestPrice == 0 || block.timestamp - timestamp > window || normalizedPrice < lowestPrice) {
-                lowestPrice = normalizedPrice;
-            } 
-            // if collateralFactorBps is 0, return normalizedPrice;
             if(collateralFactorBps == 0) return normalizedPrice;
-    
-            // calculate new borrowing power based on collateral factor
-            uint newBorrowingPower = normalizedPrice * collateralFactorBps / 10000;
        
-            if(lowestPrice > 0 && newBorrowingPower > lowestPrice) {
-                uint dampenedPrice = lowestPrice * 10000 / collateralFactorBps;
-                return dampenedPrice < normalizedPrice ? dampenedPrice: normalizedPrice;
+            uint window = windows[token];
+            uint lastPrice = lastUpdate[token].price;
+            uint timeElapsed = block.timestamp - lastUpdate[token].timestamp;
+            uint maxPrice = timeElapsed > window ?
+                lastPrice * 10000 / collateralFactorBps :
+                lastPrice + (lastPrice * 10000 / collateralFactorBps - lastPrice) * timeElapsed / window;
+            
+            if(normalizedPrice < maxPrice || lastPrice == 0) {
+                return normalizedPrice;
+            } else {
+                return maxPrice;
             }
-            return normalizedPrice;
-
         }
         revert("Price not found");
     }
@@ -119,31 +111,10 @@ contract Oracle {
     */
     function getPrice(address token, uint collateralFactorBps) external returns (uint) {
         if(feeds[token].feed != IChainlinkFeed(address(0))) {
-            // get normalized price
-            uint normalizedPrice = getNormalizedPrice(token);
-
-            // window for this token
-            uint window = windows[token];
-            uint lowestPrice = lows[token].price;
-            uint timestamp = lows[token].timestamp;
-            // if lowest price is 0 or window has passed or if new price is lower than lowest price, update lowest price and timestamp
-            if(lowestPrice == 0 || block.timestamp - timestamp > window || normalizedPrice < lowestPrice) {
-                lows[token].price = uint128(normalizedPrice);
-                lows[token].timestamp = uint128(block.timestamp);
-                emit RecordWindowLow(token, normalizedPrice);
-                lowestPrice = normalizedPrice;
-            } 
-
-            // if collateralFactorBps is 0, return normalizedPrice;
-            if(collateralFactorBps == 0) return normalizedPrice;
-            // calculate new borrowing power based on collateral factor
-            uint newBorrowingPower = normalizedPrice * collateralFactorBps / 10000;
-            if(lowestPrice > 0 && newBorrowingPower > lowestPrice) {
-                uint dampenedPrice = lowestPrice * 10000 / collateralFactorBps;
-                return dampenedPrice < normalizedPrice ? dampenedPrice: normalizedPrice;
-            }
-            return normalizedPrice;
-
+            uint price = viewPrice(token, collateralFactorBps);
+            emit PriceUpdated(token, price);
+            lastUpdate[token] = Price(uint128(price), uint128(block.timestamp));
+            return price;
         }
         revert("Price not found");
     }
@@ -182,5 +153,5 @@ contract Oracle {
     }
 
     event ChangeOperator(address indexed newOperator);
-    event RecordWindowLow(address indexed token, uint price);
+    event PriceUpdated(address indexed token, uint price);
 }
