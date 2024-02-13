@@ -85,26 +85,21 @@ contract Oracle {
     function viewPrice(address token, uint collateralFactorBps) external view returns (uint) {
         if(feeds[token].feed != IChainlinkFeed(address(0))) {
 
-            //get normalized price
             uint normalizedPrice = getNormalizedPrice(token);
+            if(collateralFactorBps == 0) return normalizedPrice;
        
-            // window for this token
             uint window = windows[token];
             uint lowestPrice = lows[token].price;
             uint timestamp = lows[token].timestamp;
             
             if(lowestPrice == 0 || block.timestamp - timestamp > window || normalizedPrice < lowestPrice) {
-                lowestPrice = normalizedPrice;
+                return normalizedPrice;
             } 
-            // if collateralFactorBps is 0, return normalizedPrice;
-            if(collateralFactorBps == 0) return normalizedPrice;
     
-            // calculate new borrowing power based on collateral factor
             uint newBorrowingPower = normalizedPrice * collateralFactorBps / 10000;
-       
-            if(lowestPrice > 0 && newBorrowingPower > lowestPrice) {
+            if(newBorrowingPower > lowestPrice) {
                 uint dampenedPrice = lowestPrice * 10000 / collateralFactorBps;
-                return dampenedPrice < normalizedPrice ? dampenedPrice: normalizedPrice;
+                if(dampenedPrice < normalizedPrice) return dampenedPrice;
             }
             return normalizedPrice;
 
@@ -119,28 +114,24 @@ contract Oracle {
     */
     function getPrice(address token, uint collateralFactorBps) external returns (uint) {
         if(feeds[token].feed != IChainlinkFeed(address(0))) {
-            // get normalized price
             uint normalizedPrice = getNormalizedPrice(token);
+            if(collateralFactorBps == 0) return normalizedPrice;
 
-            // window for this token
             uint window = windows[token];
             uint lowestPrice = lows[token].price;
             uint timestamp = lows[token].timestamp;
-            // if lowest price is 0 or window has passed or if new price is lower than lowest price, update lowest price and timestamp
+
             if(lowestPrice == 0 || block.timestamp - timestamp > window || normalizedPrice < lowestPrice) {
                 lows[token].price = uint128(normalizedPrice);
                 lows[token].timestamp = uint128(block.timestamp);
                 emit RecordWindowLow(token, normalizedPrice);
-                lowestPrice = normalizedPrice;
+                return normalizedPrice;
             } 
 
-            // if collateralFactorBps is 0, return normalizedPrice;
-            if(collateralFactorBps == 0) return normalizedPrice;
-            // calculate new borrowing power based on collateral factor
             uint newBorrowingPower = normalizedPrice * collateralFactorBps / 10000;
-            if(lowestPrice > 0 && newBorrowingPower > lowestPrice) {
+            if(newBorrowingPower > lowestPrice) {
                 uint dampenedPrice = lowestPrice * 10000 / collateralFactorBps;
-                return dampenedPrice < normalizedPrice ? dampenedPrice: normalizedPrice;
+                if(dampenedPrice < normalizedPrice) return dampenedPrice;
             }
             return normalizedPrice;
 
