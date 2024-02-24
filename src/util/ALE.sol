@@ -234,7 +234,7 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper, IERC3156FlashBorrower 
     ) public payable nonReentrant dolaSupplyUnchanged {
         if (address(markets[market].buySellToken) == address(0))
             revert MarketNotSet(market);   
-            
+
         bytes memory data = abi.encode(
                                 LEVERAGE, 
                                 msg.sender, 
@@ -463,7 +463,7 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper, IERC3156FlashBorrower 
         // Refund any unspent protocol fees to the sender.
         if (address(this).balance > 0) payable(_user).transfer(address(this).balance);
         
-        emit LeverageDown(_market, msg.sender, _value, _collateralAmount, _dbrData.dola, _dbrData.amountIn);
+        emit LeverageDown(_market, _user, _value, _collateralAmount, _dbrData.dola, _dbrData.amountIn);
 
     }
 
