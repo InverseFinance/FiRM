@@ -6,14 +6,51 @@ import "src/interfaces/IERC20.sol";
 import "src/interfaces/ITransformHelper.sol";
 import "src/util/CurveDBRHelper.sol";
 import {Ownable} from "lib/openzeppelin-contracts/contracts/access/Ownable.sol";
-import {ReentrancyGuard} from "lib/openzeppelin-contracts/contracts/security/ReentrancyGuard.sol";
+import {ReentrancyGuard} from "lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
 
 interface IDBR {
     function markets(address) external view returns (bool);
 }
 
+interface IERC3156FlashBorrower {
+
+  /**
+    * @dev Receive a flash loan.
+    * @param initiator The initiator of the loan.
+    * @param token The loan currency.
+    * @param amount The amount of tokens lent.
+    * @param fee The additional amount of tokens to repay.
+    * @param data Arbitrary data structure, intended to contain user-defined parameters.
+    * @return The keccak256 hash of "ERC3156FlashBorrower.onFlashLoan"
+    */
+  function onFlashLoan(
+      address initiator,
+      address token,
+      uint256 amount,
+      uint256 fee,
+      bytes calldata data
+  ) external returns (bytes32);
+}
+
+interface IERC3156FlashLender {
+
+    /**
+    * @dev Initiate a flash loan.
+    * @param receiver The receiver of the tokens in the loan, and the receiver of the callback.
+    * @param token The loan currency.
+    * @param value The amount of tokens lent.
+    * @param data Arbitrary data structure, intended to contain user-defined parameters.
+    */
+  function flashLoan(
+      IERC3156FlashBorrower receiver,
+      address token,
+      uint256 value,
+      bytes calldata data
+  ) external returns (bool);
+}
+
 // Accelerated leverage engine
-contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
+contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper, IERC3156FlashBorrower {
     error CollateralNotSet();
     error MarketNotSet(address market);
     error SwapFailed();
@@ -21,6 +58,10 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
     error DOLAInvalidRepay(uint256 expected, uint256 actual);
     error InvalidProxyAddress();
     error InvalidHelperAddress();
+    error InvalidAction(bytes32 action);
+    error NotFlashMinter(address caller);
+    error NotALE(address caller);
+
     error NothingToDeposit();
     error DepositFailed(uint256 expected, uint256 actual);
     error WithdrawFailed(uint256 expected, uint256 actual);
@@ -34,6 +75,13 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
     address payable public exchangeProxy;
 
     IDBR public constant DBR = IDBR(0xAD038Eb671c44b853887A7E32528FaB35dC5D710);
+
+    IERC3156FlashLender public constant flash = IERC3156FlashLender(0x6112818d0c0d75448551b76EC80F14de10F4E054);
+
+    bytes32 public constant CALLBACK_SUCCESS = keccak256("ERC3156FlashBorrower.onFlashLoan");
+
+    bytes32 public constant LEVERAGE = keccak256("LEVERAGE");
+    bytes32 public constant DELEVERAGE = keccak256("DELEVERAGE");
 
     struct Market {
         IERC20 buySellToken;
@@ -95,6 +143,7 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         address _pool
     ) Ownable(msg.sender) CurveDBRHelper(_pool) {
         exchangeProxy = payable(address(_exchangeProxy));
+        dola.approve(address(flash), type(uint).max);
     }
 
     function setExchangeProxy(address _exchangeProxy) external onlyOwner {
@@ -187,55 +236,19 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         if (address(markets[_market].buySellToken) == address(0))
             revert MarketNotSet(_market);
 
-        IMarket market = IMarket(_market);
+        bytes memory data = abi.encode( LEVERAGE, 
+                                        msg.sender, 
+                                        _market, 
+                                        0, // unused
+                                        _spender, 
+                                        _swapCallData, 
+                                        _permit, 
+                                        _helperData, 
+                                        _dbrData);
 
-        // Mint and approve
-        _mintAndApproveDola(_spender, _value);
-
-        // Call the encoded swap function call on the contract at `swapTarget`,
-        // passing along any ETH attached to this function call to cover protocol fees.
-        (bool success, ) = exchangeProxy.call{value: msg.value}(_swapCallData);
-        if (!success) revert SwapFailed();
-
-        // Actual collateral/buyToken bought
-        uint256 collateralAmount = markets[_market].buySellToken.balanceOf(address(this));
-        if(collateralAmount == 0) revert CollateralIsZero();
-
-        // If there's a helper contract, the buyToken has to be transformed
-        if (address(markets[_market].helper) != address(0)) {
-            collateralAmount = _convertToCollateral(
-                collateralAmount,
-                _market,
-                _helperData
-            );
-        }
-
-        // Deposit and borrow on behalf
-        market.deposit(msg.sender, collateralAmount);
-
-        _borrowDola(_value, _permit, _dbrData, market);
-
-        // Burn the dola minted previously
-        dola.burn(_value);
-
-        if (_dbrData.dola != 0) {
-            dola.transfer(msg.sender, _dbrData.dola);
-        }
-
-        if (_dbrData.amountIn != 0) {
-            _buyDbr(_dbrData.amountIn, _dbrData.minOut, msg.sender);
-        }
-
-        if (dola.balanceOf(address(this)) != 0) {
-            dola.transfer(msg.sender, dola.balanceOf(address(this)));
-        }
-
-        // Refund any possible unspent 0x protocol fees to the sender.
-        if (address(this).balance > 0)
-            payable(msg.sender).transfer(address(this).balance);
-
-        emit LeverageUp(_market, msg.sender, _value, collateralAmount, _dbrData.dola, _dbrData.amountIn);
+        flash.flashLoan(IERC3156FlashBorrower(address(this)), address(dola), _value, data);  
     }
+
 
     /// @notice Deposit collateral and instantly leverage user position by minting DOLA, buying collateral, deposting into the user escrow and borrow DOLA on behalf to repay the minted DOLA
     /// @dev Requires user to sign message to permit the contract to borrow DOLA on behalf
@@ -296,9 +309,86 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         if (address(markets[_market].buySellToken) == address(0))
             revert MarketNotSet(_market);
 
-        IERC20 sellToken = markets[_market].buySellToken;
+        bytes memory data = abi.encode( DELEVERAGE, 
+                                        msg.sender, 
+                                       _market, 
+                                       _collateralAmount, 
+                                       _spender, 
+                                       _swapCallData, 
+                                       _permit, 
+                                       _helperData, 
+                                       _dbrData);
+        
+        flash.flashLoan(IERC3156FlashBorrower(address(this)), address(dola), _value,  data);
+    }
 
-        _repayAndWithdraw(_value, _collateralAmount, _permit, _dbrData, IMarket(_market));
+    function onFlashLoan(address initiator, address token, uint amount, uint fee, bytes calldata data) external returns(bytes32) {
+        if (initiator != address(this)) revert NotALE(initiator);
+        if (msg.sender != address(flash)) revert NotFlashMinter(msg.sender);
+
+        (bytes32 ACTION, 
+         address _user, 
+         address _market, 
+         uint256 _collateralAmount, 
+         address _spender, 
+         bytes memory _swapCallData, 
+         Permit memory _permit, 
+         bytes memory _helperData, 
+         DBRHelper memory _dbrData
+         ) = abi.decode(data, (bytes32, address, address, uint256, address, bytes, Permit, bytes, DBRHelper));
+        
+        if(ACTION == LEVERAGE) _onFlashLoanLeverage(_user, amount, _market, _spender, _swapCallData, _permit, _helperData, _dbrData);
+          
+          else if(ACTION == DELEVERAGE) _onFlashLoanDeleverage(_user, amount, _market, _collateralAmount, _spender, _swapCallData, _permit, _helperData, _dbrData);
+          
+          else revert InvalidAction(bytes32(ACTION));
+
+        return CALLBACK_SUCCESS;
+    }
+
+    function _onFlashLoanLeverage(address _user, uint256 _value, address _market, address _spender, bytes memory _swapCallData, Permit memory _permit, bytes memory _helperData, DBRHelper memory _dbrData) internal {
+        _approveDola(_spender, _value);
+        
+        // Call the encoded swap function call on the contract at `swapTarget`,
+        // passing along any ETH attached to this function call to cover protocol fees.
+        (bool success, ) = exchangeProxy.call{value: msg.value}(_swapCallData);
+        if (!success) revert SwapFailed();
+
+        // Actual collateral/buyToken bought
+        uint256 collateralAmount = markets[_market].buySellToken.balanceOf(address(this));
+        if(collateralAmount == 0) revert CollateralIsZero();
+
+        // If there's a helper contract, the buyToken has to be transformed
+        if (address(markets[_market].helper) != address(0)) {
+            collateralAmount = _convertToCollateral(
+                collateralAmount,
+                _market,
+                _helperData
+            );
+        }
+
+        // Deposit and borrow on behalf
+        IMarket(_market).deposit(_user, collateralAmount);
+
+        _borrowDola(_user, _value, _permit, _dbrData, IMarket(_market));
+        
+        if (_dbrData.dola != 0) dola.transfer(_user, _dbrData.dola);
+            
+        if (_dbrData.amountIn != 0) _buyDbr(_dbrData.amountIn, _dbrData.minOut, _user);
+            
+        uint balance = dola.balanceOf(address(this));
+        if (balance > _value) dola.transfer(_user, balance - _value);
+
+        // Refund any possible unspent fees to the sender.
+        if (address(this).balance > 0) payable(_user).transfer(address(this).balance);
+
+        emit LeverageUp(_market, _user, _value, collateralAmount, _dbrData.dola, _dbrData.amountIn);
+    }
+
+    function _onFlashLoanDeleverage(address _user, uint256 _value, address _market, uint _collateralAmount, address _spender, bytes memory _swapCallData, Permit memory _permit, bytes memory _helperData, DBRHelper memory _dbrData ) internal {
+        IERC20 sellToken = markets[_market].buySellToken;
+        
+        _repayAndWithdraw(_user, _value, _collateralAmount, _permit, _dbrData, IMarket(_market));
 
         // If there's a helper contract, the collateral has to be transformed
         if (address(markets[_market].helper) != address(0)) {
@@ -327,43 +417,39 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
 
             if (collateralAvailable != 0) {
                 markets[_market].collateral.transfer(
-                    msg.sender,
+                    _user,
                     collateralAvailable
                 );
             }
         } else {
             uint256 sellTokenBal = sellToken.balanceOf(address(this));
             // Send any leftover sellToken to the sender
-            if (sellTokenBal != 0) {
-                sellToken.transfer(msg.sender, sellTokenBal);
-            }
+            if (sellTokenBal != 0) sellToken.transfer(_user, sellTokenBal);
+            
         }
 
         if (dola.balanceOf(address(this)) < _value)
             revert DOLAInvalidRepay(_value, dola.balanceOf(address(this)));
 
-        dola.burn(_value);
-
-        // Send any DOLA leftover to the sender after burning (in case the collateral withdrawn and swapped exceeds the value to burn)
-        dola.transfer(msg.sender, dola.balanceOf(address(this)));
+        // Send any extra DOLA to the sender (in case the collateral withdrawn and swapped exceeds the value to burn)
+        dola.transfer(_user, dola.balanceOf(address(this)) - _value);
 
         if (_dbrData.amountIn != 0) {
-            dbr.transferFrom(msg.sender, address(this), _dbrData.amountIn);
-            _sellDbr(_dbrData.amountIn, _dbrData.minOut, msg.sender);
+            dbr.transferFrom(_user, address(this), _dbrData.amountIn);
+            _sellDbr(_dbrData.amountIn, _dbrData.minOut, _user);
         }
 
         // Refund any unspent protocol fees to the sender.
-        if (address(this).balance > 0)
-            payable(msg.sender).transfer(address(this).balance);
+        if (address(this).balance > 0) payable(_user).transfer(address(this).balance);
+        
+        emit LeverageDown(_market, msg.sender, _value, _collateralAmount, _dbrData.dola, _dbrData.amountIn);
 
-       emit LeverageDown(_market, msg.sender, _value, _collateralAmount, _dbrData.dola, _dbrData.amountIn);
     }
 
     /// @notice Mint DOLA to this contract and approve the spender
     /// @param spender The spender address
     /// @param _value Amount of DOLA to mint and approve
-    function _mintAndApproveDola(address spender, uint256 _value) internal {
-        dola.mint(address(this), _value);
+    function _approveDola(address spender, uint256 _value) internal {
         dola.approve(spender, _value);
     }
 
@@ -373,9 +459,10 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
     /// @param _dbrData DBR data
     /// @param market The market contract
     function _borrowDola(
+        address _user,
         uint256 _value,
-        Permit calldata _permit,
-        DBRHelper calldata _dbrData,
+        Permit memory _permit,
+        DBRHelper memory _dbrData,
         IMarket market
     ) internal {
         uint256 dolaToBorrow = _value;
@@ -389,7 +476,7 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         }
         // We borrow the amount of DOLA we minted before plus the amount for buying DBR if any
         market.borrowOnBehalf(
-            msg.sender,
+            _user,
             dolaToBorrow,
             _permit.deadline,
             _permit.v,
@@ -408,27 +495,27 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
     /// @param _dbrData DBR data
     /// @param market The market contract
     function _repayAndWithdraw(
+        address _user,
         uint256 _value,
         uint256 _collateralAmount,
-        Permit calldata _permit,
-        DBRHelper calldata _dbrData,
+        Permit memory _permit,
+        DBRHelper memory _dbrData,
         IMarket market
     ) internal {
         if (_dbrData.dola != 0) {
-            dola.transferFrom(msg.sender, address(this), _dbrData.dola);
+            dola.transferFrom(_user, address(this), _dbrData.dola);
 
-            dola.mint(address(this), _value);
             dola.approve(address(market), _value + _dbrData.dola);
 
-            market.repay(msg.sender, _value + _dbrData.dola);
+            market.repay(_user, _value + _dbrData.dola);
         } else {
-            _mintAndApproveDola(address(market), _value);
-            market.repay(msg.sender, _value);
+            _approveDola(address(market), _value);
+            market.repay(_user, _value);
         }
 
         // withdraw amount from ZERO EX quote
         market.withdrawOnBehalf(
-            msg.sender,
+            _user,
             _collateralAmount,
             _permit.deadline,
             _permit.v,
@@ -447,7 +534,7 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         uint256 _collateralAmount,
         address _market,
         IERC20 sellToken,
-        bytes calldata _helperData
+        bytes memory _helperData
     ) internal returns (uint256) {
         // Collateral amount is now transformed into sellToken
         uint256 assetAmount = markets[_market].helper.transformFromCollateral(
@@ -469,7 +556,7 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
     function _convertToCollateral(
         uint256 _assetAmount,
         address _market,
-        bytes calldata _helperData
+        bytes memory _helperData
     ) internal returns (uint256) {
         // Collateral amount is now transformed
         uint256 collateralAmount = markets[_market]

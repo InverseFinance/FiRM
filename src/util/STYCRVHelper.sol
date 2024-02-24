@@ -7,7 +7,7 @@ import "src/interfaces/IDola.sol";
 import "src/interfaces/ITransformHelper.sol";
 import "src/interfaces/ISTYCRV.sol";
 import {Ownable} from "lib/openzeppelin-contracts/contracts/access/Ownable.sol";
-import {ReentrancyGuard} from "lib/openzeppelin-contracts/contracts/security/ReentrancyGuard.sol";
+import {ReentrancyGuard} from "lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
 
 // st-yCRV helper
 contract STYCRVHelper is Ownable, ReentrancyGuard {

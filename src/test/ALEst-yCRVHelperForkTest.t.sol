@@ -55,6 +55,11 @@ contract MockExchangeProxy {
     }
 }
 
+interface IFlashMinter {
+    function setFlashLoanRate(uint256 rate) external;
+}
+
+
 contract ALEHelperForkTest is Test {
     using stdStorage for StdStorage;
 
@@ -92,6 +97,8 @@ contract ALEHelperForkTest is Test {
     ALE ale;
     STYCRVHelper helper;
     YCRVFeed feedYCRV;
+
+    IFlashMinter flash;
 
     //Variables
     uint collateralFactorBps;
@@ -143,6 +150,15 @@ contract ALEHelperForkTest is Test {
             address(helper)
         );
 
+        // Allow contract
+        vm.startPrank(gov);
+        borrowController.allow(address(ale));
+
+        flash = IFlashMinter(address(ale.flash()));
+        flash.setFlashLoanRate(0);
+
+        vm.stopPrank();
+
         //FiRM
         oracle = Oracle(address(market.oracle()));
         escrowImplementation = IEscrow(market.escrowImplementation());
@@ -167,7 +183,7 @@ contract ALEHelperForkTest is Test {
         oracle.setFeed(address(collateral), feed, 18);
         oracle.setFeed(yCRV, IChainlinkFeed(address(feedYCRV)), 18);
         borrowController.allow(address(ale));
-        DOLA.addMinter(address(ale));
+
         vm.stopPrank();
 
         collateralFactorBps = market.collateralFactorBps();

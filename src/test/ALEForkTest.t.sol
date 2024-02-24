@@ -44,6 +44,9 @@ contract MockExchangeProxy {
     }
 }
 
+interface IFlashMinter {
+    function setFlashLoanRate(uint256 rate) external;
+}
 contract ALEForkTest is FiRMForkTest {
     bytes onlyGovUnpause = "Only governance can unpause";
     bytes onlyPauseGuardianOrGov =
@@ -58,6 +61,7 @@ contract ALEForkTest is FiRMForkTest {
     MockExchangeProxy exchangeProxy;
     ALE ale;
     address triDBR = 0xC7DE47b9Ca2Fc753D6a2F167D8b3e19c6D18b19a;
+    IFlashMinter flash;
 
     function setUp() public {
         //This will fail if there's no mainnet variable in foundry.toml
@@ -84,9 +88,6 @@ contract ALEForkTest is FiRMForkTest {
 
         ale = new ALE(address(exchangeProxy), triDBR);
         // ALE setup
-        vm.prank(gov);
-        DOLA.addMinter(address(ale));  
-
         ale.setMarket(
             address(market),
             address(market.collateral()),
@@ -95,8 +96,13 @@ contract ALEForkTest is FiRMForkTest {
         );
 
         // Allow contract
-        vm.prank(gov);
+        vm.startPrank(gov);
         borrowController.allow(address(ale));
+
+        flash = IFlashMinter(address(ale.flash()));
+        flash.setFlashLoanRate(0);
+
+        vm.stopPrank();
     }
 
     function getMaxLeverageBorrowAmount(
