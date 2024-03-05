@@ -626,7 +626,6 @@ contract ALEHelperForkTest is Test {
         ale.setMarket(fakeMarket,address(0),address(0),address(0));
     }
 
-
     function test_fail_setMarket_WrongCollateral_WithHelper() public {
         address fakeCollateral = address(0x69);
 
@@ -646,6 +645,9 @@ contract ALEHelperForkTest is Test {
 
         vm.expectRevert(abi.encodeWithSelector(ALE.MarketNotSet.selector, wrongMarket));
         ale.updateMarketHelper(wrongMarket, newHelper);
+
+        // Successuful update if proper market
+        ale.updateMarketHelper(address(market), newHelper);
     }
 
     function test_return_assetAmount_when_TotalSupply_is_Zero() public {
@@ -719,6 +721,164 @@ contract ALEHelperForkTest is Test {
         ale.leveragePosition(
             maxBorrowAmount,
             address(market),
+            address(exchangeProxy),
+            swapData,
+            permit,
+            bytes(""),
+            dbrData
+        );
+    }
+
+    function test_fail_leveragePosition_DepositFailed() public {
+        // vm.assume(styCRVAmount < 7900 ether);
+        // vm.assume(styCRVAmount > 0.00000001 ether);
+        // We are going to deposit some CRV, then leverage the position
+        uint styCRVAmount = 1 ether;
+        address userPk = vm.addr(1);
+        vm.prank(styCRVHolder);
+        IERC20(styCRV).transfer(userPk, styCRVAmount);
+
+        gibDBR(userPk, styCRVAmount);
+
+        uint maxBorrowAmount = _getMaxBorrowAmount(styCRVAmount);
+
+        uint256 yCRVAmount = helper.collateralToAsset(
+            _convertDolaToCollat(maxBorrowAmount)
+        );
+        // recharge mocked proxy for swap, we need to swap DOLA to unwrapped collateral
+        vm.prank(yCRVHolder);
+        IERC20(yCRV).transfer(address(exchangeProxy), yCRVAmount + 2);
+
+        vm.startPrank(userPk, userPk);
+        // Initial CRV deposit
+        IErc20(styCRV).approve(address(market), styCRVAmount);
+        market.deposit(styCRVAmount);
+
+        // Sign Message for borrow on behalf
+        bytes32 hash = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                market.DOMAIN_SEPARATOR(),
+                keccak256(
+                    abi.encode(
+                        keccak256(
+                            "BorrowOnBehalf(address caller,address from,uint256 amount,uint256 nonce,uint256 deadline)"
+                        ),
+                        address(ale),
+                        userPk,
+                        maxBorrowAmount,
+                        0,
+                        block.timestamp
+                    )
+                )
+            )
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
+
+        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+
+        bytes memory swapData = abi.encodeWithSelector(
+            MockExchangeProxy.swapDolaIn.selector,
+            yCRV,
+            maxBorrowAmount
+        );
+
+        ALE.DBRHelper memory dbrData;
+
+        vm.mockCall(styCRV, abi.encodeWithSelector(IERC20.balanceOf.selector,address(ale)), abi.encode(uint256(0)));
+
+        vm.expectRevert(abi.encodeWithSelector(ALE.DepositFailed.selector,_convertDolaToCollat(maxBorrowAmount), uint256(0)));
+        ale.leveragePosition(
+            maxBorrowAmount,
+            address(market),
+            address(exchangeProxy),
+            swapData,
+            permit,
+            bytes(""),
+            dbrData
+        );
+
+
+    }
+
+    function test_fail_deleveragePosition_WithdrawFailed() public {
+        // vm.assume(styCRVAmount < 7900 ether);
+        // vm.assume(styCRVAmount > 0.00000001 ether);
+        // We are going to deposit some st-yCRV, then borrow and then deleverage the position
+        uint styCRVAmount = 1 ether;
+        address userPk = vm.addr(1);
+        vm.prank(styCRVHolder);
+        IERC20(styCRV).transfer(userPk, styCRVAmount);
+
+        gibDBR(userPk, styCRVAmount);
+
+        uint borrowAmount = (_getMaxBorrowAmount(styCRVAmount) * 97) / 100;
+
+        vm.startPrank(userPk, userPk);
+        // Initial styCRV deposit
+        IErc20(styCRV).approve(address(market), styCRVAmount);
+        market.deposit(styCRVAmount);
+        market.borrow(borrowAmount);
+        vm.stopPrank();
+
+        address userEscrow = address(market.predictEscrow(userPk));
+        assertEq(IERC20(styCRV).balanceOf(userEscrow), styCRVAmount);
+        assertEq(DOLA.balanceOf(userPk), borrowAmount);
+
+        // We are going to withdraw only 1/10 of the collateral to deleverage
+        uint256 amountToWithdraw = IERC20(styCRV).balanceOf(userEscrow) / 10;
+        uint256 dolaAmountForSwap = _convertUnderlyingToDola(
+            helper.collateralToAsset(amountToWithdraw)
+        );
+
+        // recharge mocked proxy for swap, we need to swap DOLA to unwrapped collateral
+        vm.startPrank(gov);
+        DOLA.mint(address(exchangeProxy), dolaAmountForSwap);
+        vm.stopPrank();
+
+        bytes32 hash = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                market.DOMAIN_SEPARATOR(),
+                keccak256(
+                    abi.encode(
+                        keccak256(
+                            "WithdrawOnBehalf(address caller,address from,uint256 amount,uint256 nonce,uint256 deadline)"
+                        ),
+                        address(ale),
+                        userPk,
+                        amountToWithdraw,
+                        0,
+                        block.timestamp
+                    )
+                )
+            )
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
+
+        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+
+        ALE.DBRHelper memory dbrData = ALE.DBRHelper(0,0,borrowAmount/2); // repay partially debt with DOLA in the wallet
+
+        bytes memory swapData = abi.encodeWithSelector(
+            MockExchangeProxy.swapDolaOut.selector,
+            yCRV,
+            helper.collateralToAsset(amountToWithdraw)
+        );
+
+        vm.startPrank(userPk, userPk);
+        DOLA.approve(address(ale), borrowAmount/2);
+    
+
+        vm.mockCall(yCRV, abi.encodeWithSelector(IERC20.balanceOf.selector,address(ale)), abi.encode(uint256(0)));
+        
+        uint256 value = _convertCollatToDola(amountToWithdraw);
+        
+        vm.expectRevert(abi.encodeWithSelector(ALE.WithdrawFailed.selector, helper.collateralToAsset(amountToWithdraw), uint256(0)));
+        ale.deleveragePosition(
+            value,
+            address(market),
+            amountToWithdraw,
             address(exchangeProxy),
             swapData,
             permit,

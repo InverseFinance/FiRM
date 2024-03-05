@@ -142,7 +142,7 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper, IERC3156FlashBorrower 
         address _pool
     ) Ownable(msg.sender) CurveDBRHelper(_pool) {
         exchangeProxy = payable(address(_exchangeProxy));
-        dola.approve(address(flash), type(uint).max);
+        _approveDola(address(flash), type(uint).max);
     }
 
     function setExchangeProxy(address _exchangeProxy) external onlyOwner {
