@@ -449,12 +449,13 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper, IERC3156FlashBorrower 
             if (sellTokenBal != 0) sellToken.transfer(_user, sellTokenBal);
         }
 
-        if (dola.balanceOf(address(this)) < _value)
-            revert DOLAInvalidRepay(_value, dola.balanceOf(address(this)));
+        uint256 balance = dola.balanceOf(address(this));
+        if (balance < _value)
+            revert DOLAInvalidRepay(_value, balance);
 
         // Send any extra DOLA to the sender (in case the collateral withdrawn and swapped exceeds the value to burn)
-        dola.transfer(_user, dola.balanceOf(address(this)) - _value);
-
+        if (balance > _value) dola.transfer(_user, balance - _value);
+    
         if (_dbrData.amountIn != 0) {
             dbr.transferFrom(_user, address(this), _dbrData.amountIn);
             _sellDbr(_dbrData.amountIn, _dbrData.minOut, _user);

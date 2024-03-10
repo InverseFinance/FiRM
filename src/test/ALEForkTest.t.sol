@@ -11,6 +11,7 @@ import "../Oracle.sol";
 import "./mocks/ERC20.sol";
 import "./mocks/BorrowContract.sol";
 import {ALE,Ownable} from "../util/ALE.sol";
+import {console} from "forge-std/console.sol";
 
 contract MockExchangeProxy {
     IOracle oracle;
@@ -101,7 +102,6 @@ contract ALEForkTest is FiRMForkTest {
 
         flash = IFlashMinter(address(ale.flash()));
         flash.setFlashLoanRate(0);
-
         vm.stopPrank();
     }
 
