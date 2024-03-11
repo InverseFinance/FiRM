@@ -49,9 +49,8 @@ contract VaultHelper {
         token.safeTransferFrom(msg.sender, address(this), assets);
         if (assets > vault.maxDeposit(address(this))) revert MaxDeposit(assets);
         shares = vault.deposit(assets, address(this));
-        uint256 actualShares = vault.balanceOf(address(this));
-        if (shares > actualShares) revert InsufficientShares();
-        market.deposit(recipient, actualShares);
+        if (shares == 0) revert InsufficientShares();
+        market.deposit(recipient, shares);
     }
 
 

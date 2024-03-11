@@ -100,7 +100,7 @@ contract StYEthMarketForkTest is MarketBaseForkTest {
         vm.expectRevert(abi.encodeWithSelector(VaultHelper.AddressZero.selector));
         helper.wrapAndDeposit(address(0), 10 ether);
 
-        vm.mockCall(address(stYEth),abi.encodeWithSelector(IERC20.balanceOf.selector, address(helper)), abi.encode(uint(0)));
+        vm.mockCall(address(stYEth),abi.encodeWithSelector(IERC4626.deposit.selector, 10 ether, address(helper)), abi.encode(uint(0)));
         vm.expectRevert(abi.encodeWithSelector(VaultHelper.InsufficientShares.selector));
         helper.wrapAndDeposit(user, 10 ether);
 
