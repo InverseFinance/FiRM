@@ -10,7 +10,7 @@ contract DolaPriceFeedTest is Test {
 
     function setUp() public {
         string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url); // FRAX < USDC at this block
+        vm.createSelectFork(url, 19720063); // FRAX < pyUSD at this block
         feed = new DolaPriceFeed();
     }
 
@@ -38,7 +38,7 @@ contract DolaPriceFeedTest is Test {
         assertEq(roundId, oracleRoundId);
         assertEq(lpUsdPrice, oracleLpToUsdPrice);
         assertEq(startedAt, oracleStartedAt);
-        assertEq(updatedAt, oracleUpdatedAt);
+        assertEq(updatedAt, block.timestamp);
         assertEq(answeredInRound, oracleAnsweredInRound);
     }
 
@@ -51,31 +51,33 @@ contract DolaPriceFeedTest is Test {
             uint80 clAnsweredInRound
         ) = feed.fraxToUsd().latestRoundData();
 
-        ( uint80 roundId, int256 dolaUsdPrice, uint startedAt, uint updatedAt, uint80 answeredInRound ) = feed.latestRoundData();
+        (
+            uint80 roundId,
+            int256 dolaUsdPrice,
+            uint startedAt,
+            uint updatedAt,
+            uint80 answeredInRound
+        ) = feed.latestRoundData();
 
-        uint256 estimDolaUsdPrice = uint256(feed.pyUSDFrax().get_virtual_price() * uint256(fraxUsdPrice) * 10**18 / feed.crvDOLA().price_oracle(0)) / 10**8;
+        uint256 estimDolaUsdPrice = uint256(
+            (feed.pyUSDFrax().get_virtual_price() *
+                uint256(fraxUsdPrice) *
+                10 ** 18) / feed.crvDOLA().price_oracle(0)
+        ) / 10 ** 8;
         assertEq(clRoundId, roundId);
         assertEq(clStartedAt, startedAt);
-        assertEq(clUpdatedAt, updatedAt);
+        assertEq(block.timestamp, updatedAt);
         assertEq(clAnsweredInRound, answeredInRound);
         assertEq(uint256(dolaUsdPrice), estimDolaUsdPrice);
-
     }
 
     function test_use_pyUSD_when_pyUSD_lt_frax() public {
-          // Set FRAX > than pyUSD
+        // Set FRAX > than pyUSD
         vm.mockCall(
             address(feed.fraxToUsd()),
             abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
-            abi.encode(
-                0,
-                110000000,
-                0,
-                block.timestamp,
-                0
-            )
+            abi.encode(0, 110000000, 0, block.timestamp, 0)
         );
-
 
         (
             uint80 clRoundId,
@@ -85,15 +87,24 @@ contract DolaPriceFeedTest is Test {
             uint80 clAnsweredInRound
         ) = feed.pyUsdToUsd().latestRoundData();
 
-        ( uint80 roundId, int256 dolaUsdPrice, uint startedAt, uint updatedAt, uint80 answeredInRound ) = feed.latestRoundData();
+        (
+            uint80 roundId,
+            int256 dolaUsdPrice,
+            uint startedAt,
+            uint updatedAt,
+            uint80 answeredInRound
+        ) = feed.latestRoundData();
 
-        uint256 estimDolaUsdPrice = uint256(feed.pyUSDFrax().get_virtual_price() * uint256(pyUsdPrice) * 10**18 / feed.crvDOLA().price_oracle(0)) / 10**8;
+        uint256 estimDolaUsdPrice = uint256(
+            (feed.pyUSDFrax().get_virtual_price() *
+                uint256(pyUsdPrice) *
+                10 ** 18) / feed.crvDOLA().price_oracle(0)
+        ) / 10 ** 8;
         assertEq(clRoundId, roundId);
         assertEq(clStartedAt, startedAt);
-        assertEq(clUpdatedAt, updatedAt);
+        assertEq(block.timestamp, updatedAt);
         assertEq(clAnsweredInRound, answeredInRound);
         assertEq(uint256(dolaUsdPrice), estimDolaUsdPrice);
-
     }
 
     function test_PyUSD_Out_of_bounds_use_Frax_when_pyUSD_lt_frax() public {
@@ -101,13 +112,7 @@ contract DolaPriceFeedTest is Test {
         vm.mockCall(
             address(feed.fraxToUsd()),
             abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
-            abi.encode(
-                0,
-                110000000,
-                0,
-                block.timestamp,
-                0
-            )
+            abi.encode(0, 110000000, 0, block.timestamp, 0)
         );
 
         (
@@ -138,7 +143,6 @@ contract DolaPriceFeedTest is Test {
             )
         );
 
-
         (
             uint80 roundId,
             int256 dolaUsdPrice,
@@ -149,39 +153,26 @@ contract DolaPriceFeedTest is Test {
 
         assertEq(clRoundId2, roundId);
         assertEq(clStartedAt2, startedAt);
-        assertEq(clUpdatedAt2, updatedAt);
+        assertEq(block.timestamp, updatedAt);
         assertEq(clAnsweredInRound2, answeredInRound);
 
-        (, int256 pyUsdFallback, , , ) = feed.pyUsdToUsdFallbackOracle();
-        console.log(uint(pyUsdFallback));
-  
-        int dolaPrice =  int(feed.pyUSDFrax().get_virtual_price() * uint256(fraxToUsd) * 10**18 / feed.crvDOLA().price_oracle(0)) / 10**8;
+        int dolaPrice = int(
+            (feed.pyUSDFrax().get_virtual_price() *
+                uint256(fraxToUsd) *
+                10 ** 18) / feed.crvDOLA().price_oracle(0)
+        ) / 10 ** 8;
         assertEq(uint256(dolaUsdPrice), uint256(dolaPrice));
         assertEq(uint256(dolaUsdPrice), uint(feed.latestAnswer()));
     }
 
-    function test_PyUSD_Out_of_bounds_use_pyUSD_fallback_when_pyUSD_lt_frax() public {
-        // Set FRAX > than pyUSD
-        vm.mockCall(
-            address(feed.fraxToUsd()),
-            abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
-            abi.encode(
-                0,
-                110000000,
-                0,
-                block.timestamp,
-                0
-            )
-        );
-
+    function test_PyUSD_Out_of_bounds_return_Frax() public {
         (
             uint80 clRoundId,
-            ,
+            int256 pyUsdPrice,
             uint clStartedAt,
             uint clUpdatedAt,
             uint80 clAnsweredInRound
         ) = feed.pyUsdToUsd().latestRoundData();
- 
 
         // Out of MAX bounds pyUSD/USD price
         vm.mockCall(
@@ -196,7 +187,6 @@ contract DolaPriceFeedTest is Test {
             )
         );
 
-
         (
             uint80 roundId,
             int256 dolaUsdPrice,
@@ -205,25 +195,23 @@ contract DolaPriceFeedTest is Test {
             uint80 answeredInRound
         ) = feed.latestRoundData();
 
-      
-        (uint80 roundIdFallback, int256 pyUsdFallback, uint256 startedAtFallback, uint256 updateAtFallback, uint256 answeredInRoundFallback ) = feed.pyUsdToUsdFallbackOracle();
-     
-        assertEq(roundIdFallback, roundId);
-        assertEq(startedAtFallback, startedAt);
-        assertEq(updateAtFallback, updatedAt);
-        assertEq(answeredInRoundFallback, answeredInRound);
-  
-        int dolaPrice =  int(feed.pyUSDFrax().get_virtual_price() * uint256(pyUsdFallback) * 10**18 / feed.crvDOLA().price_oracle(0)) / 10**8;
+        (, int256 fraxToUsd, , , ) = feed.fraxToUsd().latestRoundData();
+
+        assertEq(block.timestamp, updatedAt);
+
+        int dolaPrice = int(
+            (feed.pyUSDFrax().get_virtual_price() *
+                uint256(fraxToUsd) *
+                10 ** 18) / feed.crvDOLA().price_oracle(0)
+        ) / 10 ** 8;
         assertEq(uint256(dolaUsdPrice), uint256(dolaPrice));
-        console.log(uint256(dolaUsdPrice));
         assertEq(uint256(dolaUsdPrice), uint(feed.latestAnswer()));
     }
 
-
-    function test_Frax_Out_of_bounds_use_Frax_fallback_when_pyUSD_gt_frax() public {
+    function test_Frax_Out_of_bounds_return_pyUSD() public {
         (
             uint80 clRoundId,
-            ,
+            int256 fraxUsdPrice,
             uint clStartedAt,
             uint clUpdatedAt,
             uint80 clAnsweredInRound
@@ -242,7 +230,6 @@ contract DolaPriceFeedTest is Test {
             )
         );
 
-        
         (
             uint80 roundId,
             int256 dolaUsdPrice,
@@ -251,32 +238,49 @@ contract DolaPriceFeedTest is Test {
             uint80 answeredInRound
         ) = feed.latestRoundData();
 
-      
-        (uint80 roundIdFallback, int256 fraxUsdFallback, uint256 startedAtFallback, uint256 updateAtFallback, uint256 answeredInRoundFallback ) = feed.fraxToUsdFallbackOracle();
-        
-        assertEq(roundIdFallback, roundId);
-        assertEq(startedAtFallback, startedAt);
-        assertEq(updateAtFallback, updatedAt);
-        assertEq(answeredInRoundFallback, answeredInRound);
-    
-        
-        int dolaPrice =  int(feed.pyUSDFrax().get_virtual_price() * uint256(fraxUsdFallback) * 10**18 / feed.crvDOLA().price_oracle(0)) / 10**8;
+        (, int256 pyUsdPrice, , , ) = feed.pyUsdToUsd().latestRoundData();
+
+        assertEq(block.timestamp, updatedAt);
+
+        int dolaPrice = int(
+            (feed.pyUSDFrax().get_virtual_price() *
+                uint256(pyUsdPrice) *
+                10 ** 18) / feed.crvDOLA().price_oracle(0)
+        ) / 10 ** 8;
         assertEq(uint256(dolaUsdPrice), uint256(dolaPrice));
         assertEq(uint256(dolaUsdPrice), uint(feed.latestAnswer()));
     }
 
+    function test_isPriceOutOfBounds() public {
+        assertEq(feed.isPriceOutOfBounds(0, feed.pyUsdToUsd()), true);
+        assertEq(feed.isPriceOutOfBounds(0, feed.fraxToUsd()), true);
+        assertEq(
+            feed.isPriceOutOfBounds(
+                IAggregator(feed.pyUsdToUsd().aggregator()).maxAnswer(),
+                feed.pyUsdToUsd()
+            ),
+            true
+        );
+        assertEq(
+            feed.isPriceOutOfBounds(
+                IAggregator(feed.fraxToUsd().aggregator()).maxAnswer(),
+                feed.fraxToUsd()
+            ),
+            true
+        );
+    }
 
-    function test_setUsdcHeartbeat() public {
-        assertEq(feed.usdcHeartbeat(), 86400);
+    function test_setPyUSDHeartbeat() public {
+        assertEq(feed.pyUSDHeartbeat(), 86400);
 
         vm.expectRevert(DolaPriceFeed.OnlyGov.selector);
-        feed.setUsdcHeartbeat(100);
-        assertEq(feed.usdcHeartbeat(), 86400);
+        feed.setPyUSDHeartbeat(100);
+        assertEq(feed.pyUSDHeartbeat(), 86400);
 
         vm.prank(feed.gov());
-        feed.setUsdcHeartbeat(100);
-        assertEq(feed.usdcHeartbeat(), 100);
-    } 
+        feed.setPyUSDHeartbeat(100);
+        assertEq(feed.pyUSDHeartbeat(), 100);
+    }
 
     function test_setFraxHeartbeat() public {
         assertEq(feed.fraxHeartbeat(), 3600);
@@ -288,19 +292,7 @@ contract DolaPriceFeedTest is Test {
         vm.prank(feed.gov());
         feed.setFraxHeartbeat(100);
         assertEq(feed.fraxHeartbeat(), 100);
-    } 
-
-    function test_setCrvUSDHeartbeat() public {
-        assertEq(feed.crvUSDHeartbeat(), 24 hours);
-
-        vm.expectRevert(DolaPriceFeed.OnlyGov.selector);
-        feed.setCrvUSDHeartbeat(100);
-        assertEq(feed.crvUSDHeartbeat(), 24 hours);
-
-        vm.prank(feed.gov());
-        feed.setCrvUSDHeartbeat(100);
-        assertEq(feed.crvUSDHeartbeat(), 100);
-    } 
+    }
 
     function test_setGov() public {
         assertEq(feed.gov(), 0x926dF14a23BE491164dCF93f4c468A50ef659D5B);
@@ -345,7 +337,12 @@ contract DolaPriceFeedTest is Test {
 
         if (oracleMinToUsdPrice < clFraxToUsdPrice) {
             oracleLpToUsdPrice =
-                int(feed.pyUSDFrax().get_virtual_price() * uint256(oracleMinToUsdPrice) * 10**18 / feed.crvDOLA().price_oracle(0)) / 10**8;
+                int(
+                    (feed.pyUSDFrax().get_virtual_price() *
+                        uint256(oracleMinToUsdPrice) *
+                        10 ** 18) / feed.crvDOLA().price_oracle(0)
+                ) /
+                10 ** 8;
         } else {
             oracleRoundId = clRoundIdFrax;
             oracleMinToUsdPrice = clFraxToUsdPrice;
@@ -354,7 +351,12 @@ contract DolaPriceFeedTest is Test {
             oracleAnsweredInRound = clAnsweredInRoundFrax;
 
             oracleLpToUsdPrice =
-                int(feed.pyUSDFrax().get_virtual_price() * uint256(oracleMinToUsdPrice) * 10**18 / feed.crvDOLA().price_oracle(0)) / 10**8;
+                int(
+                    (feed.pyUSDFrax().get_virtual_price() *
+                        uint256(oracleMinToUsdPrice) *
+                        10 ** 18) / feed.crvDOLA().price_oracle(0)
+                ) /
+                10 ** 8;
         }
     }
 }
