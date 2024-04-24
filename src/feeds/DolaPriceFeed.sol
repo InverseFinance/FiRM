@@ -103,7 +103,9 @@ contract DolaPriceFeed {
         int256 minUsdPrice;
 
         // If FRAX price is lower or equal than pyUSD price, use FRAX price
-        if (fraxUsdPrice <= pyUsdPrice || pyUsdPrice == 0) {
+        if (
+            (fraxUsdPrice <= pyUsdPrice && updatedAtFrax > 0) || pyUsdPrice == 0
+        ) {
             minUsdPrice = fraxUsdPrice;
             roundId = roundIdFrax;
             startedAt = startedAtFrax;
@@ -121,7 +123,7 @@ contract DolaPriceFeed {
                     10 ** 18) / crvDOLA.price_oracle(0)
             ) / 10 ** 8,
             startedAt,
-            updatedAt == 0 ? updatedAt : block.timestamp,
+            updatedAt,
             answeredInRound
         );
     }
