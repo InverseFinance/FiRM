@@ -84,6 +84,7 @@ contract ERC4626AleHelper is ITransformHelper {
             address(this),
             amount
         );
+
         vault.approve(address(market), amount);
         assets = vault.redeem(amount, msg.sender, address(this));
     }
