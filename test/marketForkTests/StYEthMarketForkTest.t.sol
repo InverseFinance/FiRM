@@ -5,7 +5,7 @@ import "./MarketBaseForkTest.sol";
 import {Market} from "src/Market.sol";
 import {SimpleERC20Escrow} from "src/escrows/SimpleERC20Escrow.sol";
 import {StYEthPriceFeed} from "src/feeds/StYEthPriceFeed.sol";
-import {VaultHelper, IERC4626} from "src/escrows/VaultHelper.sol";
+import {VaultHelper, IERC4626} from "src/util/VaultHelper.sol";
 
 contract StYEthMarketForkTest is MarketBaseForkTest {
     SimpleERC20Escrow escrow;
