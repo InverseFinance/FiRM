@@ -30,8 +30,7 @@ contract VaultHelper {
         vault = IERC4626(_vault);
         market = IMarket(_market);
         token = IERC20(_token);
-        token.approve(_vault, type(uint).max);
-        vault.approve(_market, type(uint).max);
+        maxApprove();
     }
 
     /**
@@ -75,5 +74,12 @@ contract VaultHelper {
         uint256 actualShares = vault.balanceOf(address(this));
         if (actualShares < shares) revert InsufficientShares();
         assets = vault.redeem(shares, recipient, address(this));
+    }
+    /**
+     * @notice Refreshes approvals for vault and market contract
+     */
+    function maxApprove() public {
+        token.approve(_vault, type(uint).max);
+        vault.approve(_market, type(uint).max);
     }
 }
