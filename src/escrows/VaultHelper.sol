@@ -79,7 +79,7 @@ contract VaultHelper {
      * @notice Refreshes approvals for vault and market contract
      */
     function maxApprove() public {
-        token.approve(_vault, type(uint).max);
-        vault.approve(_market, type(uint).max);
+        token.approve(address(vault), type(uint).max);
+        vault.approve(address(market), type(uint).max);
     }
 }
