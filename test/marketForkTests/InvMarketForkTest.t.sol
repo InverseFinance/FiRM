@@ -3,6 +3,8 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 import "./MarketForkTest.sol";
+import {InvPriceFeed, IAggregator} from "src/feeds/InvPriceFeed.sol";
+import {console} from "forge-std/console.sol";
 import {BorrowController} from "src/BorrowController.sol";
 import "src/DBR.sol";
 import {Fed} from "src/Fed.sol";
@@ -10,9 +12,18 @@ import {Market} from "src/Market.sol";
 import "src/Oracle.sol";
 import {DbrDistributor, IDBR} from "src/DbrDistributor.sol";
 import {INVEscrow, IXINV, IDbrDistributor} from "src/escrows/INVEscrow.sol";
-
 import "test/mocks/ERC20.sol";
 import {BorrowContract} from "test/mocks/BorrowContract.sol";
+
+interface IBorrowControllerLatest {
+    function borrowAllowed(address msgSender, address borrower, uint amount) external returns (bool);
+    function onRepay(uint amount) external;
+    function setStalenessThreshold(address market, uint stalenessThreshold) external;
+    function operator() external view returns (address);
+    function isBelowMinDebt(address market, address borrower, uint amount) external view returns(bool);
+    function isPriceStale(address market) external view returns(bool);
+    function dailyLimits(address market) external view returns(uint);
+}
 
 contract InvMarketForkTest is MarketForkTest {
     bytes onlyGovUnpause = "Only governance can unpause";
@@ -21,23 +32,24 @@ contract InvMarketForkTest is MarketForkTest {
     IERC20 INV =  IERC20(0x41D5D79431A913C4aE7d69a668ecdfE5fF9DFB68);
     IXINV xINV = IXINV(0x1637e4e9941D55703a7A5E7807d6aDA3f7DCD61B);
     DbrDistributor distributor;
-
+    InvPriceFeed newFeed;
     BorrowContract borrowContract;
 
     function setUp() public {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url);
+        vm.createSelectFork(url,18336060);
         distributor = DbrDistributor(0xdcd2D918511Ba39F2872EB731BB88681AE184244);
-        Market market = Market(0xb516247596Ca36bf32876199FBdCaD6B3322330B);
-        address oldInvFeed = 0x0dBC61D27ab9f1D2ADa932b4B58138C5Ae9B4F94;
-        init(address(market), oldInvFeed);
+        newFeed = new InvPriceFeed(); 
+        vm.prank(gov);
+        newFeed.setEthHeartbeat(1 hours);
+        init(0xb516247596Ca36bf32876199FBdCaD6B3322330B, address(newFeed));
         vm.startPrank(gov);
         dbr.addMinter(address(distributor));
-        market.pauseBorrows(true);
+        
         distributor.setRewardRateConstraints(126839167935058000,317097919837646000);
         distributor.setRewardRateConstraints(0,317097919837646000);
-        vm.stopPrank();
+        vm.stopPrank();   
 
         borrowContract = new BorrowContract(address(market), payable(address(collateral)));
     }
@@ -75,20 +87,161 @@ contract InvMarketForkTest is MarketForkTest {
         assertGt(market.escrows(user2).balance()+10, testAmount, "Escrow balance is greater than deposit amount when adjusted slightly up");
     }
 
-    function testBorrow_Fails() public {
+    function testBorrow_Fails_if_price_stale_usdcToUsd_chainlink() public {
+        _setNewBorrowController();
+
+        testAmount = 300 ether;
         gibCollateral(user, testAmount);
         gibDBR(user, testAmount);
         vm.startPrank(user, user);
         deposit(testAmount);
+       
 
-        vm.expectRevert();
-        market.borrow(1);
+         _mockChainlinkUpdatedAt(IChainlinkFeed(address(newFeed.usdcToUsd())), -86461 ); // price stale for usdcToUsd
+
+        assertTrue(IBorrowControllerLatest(0x44B7895989Bc7886423F06DeAa844D413384b0d6).isPriceStale(address(market)));
+        assertFalse(IBorrowControllerLatest(0x44B7895989Bc7886423F06DeAa844D413384b0d6).isBelowMinDebt(address(market), user, 1300 ether)); // Minimum debt is 1250 DOLA
         
+        vm.expectRevert(bytes("Denied by borrow controller"));
+        market.borrow(1300 ether);
+    }
+
+    function testBorrow_Fails_if_price_stale_ethToUsd_when_usdcToUsd_MIN_out_of_bounds() public {
+        _setNewBorrowController();
+
+        testAmount = 300 ether;
+        gibCollateral(user, testAmount);
+        gibDBR(user, testAmount);
+        vm.startPrank(user, user);
+        deposit(testAmount);
+  
+        _mockChainlinkPrice(IChainlinkFeed(address(newFeed.usdcToUsd())), IAggregator(newFeed.usdcToUsd().aggregator()).minAnswer()-1); // min out of bounds
+        _mockChainlinkUpdatedAt(IChainlinkFeed(address(newFeed.ethToUsd())), -3601 ); // staleness for ethToUsd
+
+        assertTrue(IBorrowControllerLatest(0x44B7895989Bc7886423F06DeAa844D413384b0d6).isPriceStale(address(market)));
+        assertFalse(IBorrowControllerLatest(0x44B7895989Bc7886423F06DeAa844D413384b0d6).isBelowMinDebt(address(market), user, 1300 ether)); // Minimum debt is 1250 DOLA
+
+        _mockChainlinkPrice(IChainlinkFeed(address(newFeed.usdcToUsd())), IAggregator(newFeed.usdcToUsd().aggregator()).minAnswer()-1); // min out of bounds
+        _mockChainlinkUpdatedAt(IChainlinkFeed(address(newFeed.ethToUsd())), -3601 ); // staleness for ethToUsd
+        
+        vm.expectRevert("Denied by borrow controller");
+        market.borrow(1300 ether);
+    }
+
+    function testBorrow_Fails_if_price_stale_ethToUsd_when_usdcToUsd_MAX_out_of_bounds() public {
+        _setNewBorrowController();
+
+        testAmount = 300 ether;
+        gibCollateral(user, testAmount);
+        gibDBR(user, testAmount);
+        vm.startPrank(user, user);
+        deposit(testAmount);
+  
+        _mockChainlinkPrice(IChainlinkFeed(address(newFeed.usdcToUsd())), IAggregator(newFeed.usdcToUsd().aggregator()).maxAnswer()+1); // Max out of bounds
+        _mockChainlinkUpdatedAt(IChainlinkFeed(address(newFeed.ethToUsd())), -3601 ); // staleness for ethToUsd
+
+        assertTrue(IBorrowControllerLatest(0x44B7895989Bc7886423F06DeAa844D413384b0d6).isPriceStale(address(market)));
+        assertFalse(IBorrowControllerLatest(0x44B7895989Bc7886423F06DeAa844D413384b0d6).isBelowMinDebt(address(market), user, 1300 ether)); // Minimum debt is 1250 DOLA
+
+        _mockChainlinkPrice(IChainlinkFeed(address(newFeed.usdcToUsd())), IAggregator(newFeed.usdcToUsd().aggregator()).maxAnswer()+1); // Max out of bounds
+        _mockChainlinkUpdatedAt(IChainlinkFeed(address(newFeed.ethToUsd())), -3601 ); // staleness for ethToUsd
+        
+        vm.expectRevert("Denied by borrow controller");
+        market.borrow(1300 ether);
+    }
+
+    function testBorrow_Fails_if_ethToUsd_MIN_out_of_bounds_when_usdcToUsd_MAX_out_of_bounds() public {
+        _setNewBorrowController();
+
+        testAmount = 300 ether;
+        gibCollateral(user, testAmount);
+        gibDBR(user, testAmount);
+        vm.startPrank(user, user);
+        deposit(testAmount);
+  
+        _mockChainlinkPrice(IChainlinkFeed(address(newFeed.usdcToUsd())), IAggregator(newFeed.usdcToUsd().aggregator()).maxAnswer()+1 ); // Max out of bounds
+        _mockChainlinkPrice(IChainlinkFeed(address(newFeed.ethToUsd())), IAggregator(newFeed.ethToUsd().aggregator()).minAnswer()-1 ); // Min out of bounds for ethToUsd
+
+        assertTrue(IBorrowControllerLatest(0x44B7895989Bc7886423F06DeAa844D413384b0d6).isPriceStale(address(market)));
+        assertFalse(IBorrowControllerLatest(0x44B7895989Bc7886423F06DeAa844D413384b0d6).isBelowMinDebt(address(market), user, 1300 ether)); // Minimum debt is 1250 DOLA
+
+        _mockChainlinkPrice(IChainlinkFeed(address(newFeed.usdcToUsd())), IAggregator(newFeed.usdcToUsd().aggregator()).maxAnswer()+1 ); // Max out of bounds
+        _mockChainlinkPrice(IChainlinkFeed(address(newFeed.ethToUsd())), IAggregator(newFeed.ethToUsd().aggregator()).minAnswer()-1 ); // Min out of bounds for ethToUsd
+        
+        vm.expectRevert("Denied by borrow controller");
+        market.borrow(1300 ether);
+    }
+
+    function testBorrow_Fails_if_ethToUsd_MAX_out_of_bounds_when_usdcToUsd_MAX_out_of_bounds() public {
+        _setNewBorrowController();
+
+        testAmount = 300 ether;
+        gibCollateral(user, testAmount);
+        gibDBR(user, testAmount);
+        vm.startPrank(user, user);
+        deposit(testAmount);
+  
+        _mockChainlinkPrice(IChainlinkFeed(address(newFeed.usdcToUsd())), IAggregator(newFeed.usdcToUsd().aggregator()).maxAnswer()+1); // Max out of bounds
+        _mockChainlinkPrice(IChainlinkFeed(address(newFeed.ethToUsd())), type(int192).max ); // Max out of bounds
+
+        assertTrue(IBorrowControllerLatest(0x44B7895989Bc7886423F06DeAa844D413384b0d6).isPriceStale(address(market)));
+        assertFalse(IBorrowControllerLatest(0x44B7895989Bc7886423F06DeAa844D413384b0d6).isBelowMinDebt(address(market), user, 1300 ether)); // Minimum debt is 1250 DOLA
+        
+        vm.expectRevert("Denied by borrow controller");
+        market.borrow(1300 ether);
+    }
+
+    function testBorrow_if_price_NOT_stale_ethToUsd_when_usdcToUsd_MAX_out_of_bounds() public {
+        _setNewBorrowController();
+
+        testAmount = 300 ether;
+        gibCollateral(user, testAmount);
+        gibDBR(user, testAmount);
+        vm.startPrank(user, user);
+        deposit(testAmount);
+  
+        _mockChainlinkPrice(IChainlinkFeed(address(newFeed.usdcToUsd())), IAggregator(newFeed.usdcToUsd().aggregator()).maxAnswer()+1); // Max out of bounds
+
+        assertFalse(IBorrowControllerLatest(0x44B7895989Bc7886423F06DeAa844D413384b0d6).isPriceStale(address(market)));
+        assertFalse(IBorrowControllerLatest(0x44B7895989Bc7886423F06DeAa844D413384b0d6).isBelowMinDebt(address(market), user, 1300 ether)); // Minimum debt is 1250 DOLA
+        (,,,uint updatedAt,) = newFeed.usdcToUsdFallbackOracle();
+        (,int price,,uint updated,) = newFeed.ethToUsd().latestRoundData();
+        emit log_int(price);
+        emit log_uint(updated);
+        emit log_uint(block.timestamp - updated);
+        
+        assertGt(updatedAt, 0, "Price out of bounds on fallback");
+        
+        market.borrow(1300 ether);
+        assertEq(DOLA.balanceOf(user), 1300 ether);
+    }
+
+    function testBorrow_if_price_NOT_stale_ethToUsd_when_usdcToUsd_MIN_out_of_bounds() public {
+        _setNewBorrowController();
+
+        testAmount = 300 ether;
+        gibCollateral(user, testAmount);
+        gibDBR(user, testAmount);
+        vm.startPrank(user, user);
+        deposit(testAmount);
+  
+        _mockChainlinkPrice(IChainlinkFeed(address(newFeed.usdcToUsd())), IAggregator(newFeed.usdcToUsd().aggregator()).minAnswer()-1 ); // min out of bounds
+
+        assertFalse(IBorrowControllerLatest(0x44B7895989Bc7886423F06DeAa844D413384b0d6).isPriceStale(address(market)));
+        assertFalse(IBorrowControllerLatest(0x44B7895989Bc7886423F06DeAa844D413384b0d6).isBelowMinDebt(address(market), user, 1300 ether)); // Minimum debt is 1250 DOLA
+        (,,,uint updatedAt,) = newFeed.usdcToUsdFallbackOracle();
+        assertGt(updatedAt, 0, "Price out of bounds on fallback");
+
+        market.borrow(1300 ether);
+        assertEq(DOLA.balanceOf(user), 1300 ether);
     }
 
     function testDepositAndBorrow_Fails() public {
         gibCollateral(user, testAmount);
         gibDBR(user, testAmount);
+        vm.prank(gov);
+        market.pauseBorrows(true);
+
         vm.startPrank(user, user);
 
         uint borrowAmount = 1;
@@ -118,8 +271,8 @@ contract InvMarketForkTest is MarketForkTest {
                                 maxBorrowAmount,
                                 0,
                                 block.timestamp
+                                )
                             )
-                        )
                     )
                 );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
@@ -127,11 +280,13 @@ contract InvMarketForkTest is MarketForkTest {
         deposit(testAmount);
         vm.stopPrank();
 
+        vm.prank(gov);
+        market.pauseBorrows(true);
+
         vm.startPrank(user2, user2);
         vm.expectRevert();
         market.borrowOnBehalf(userPk, maxBorrowAmount, block.timestamp, v, r, s);
     }
-
 
     function testRepay_Fails_WhenAmountGtThanDebt() public {
         gibCollateral(user, testAmount);
@@ -459,5 +614,54 @@ contract InvMarketForkTest is MarketForkTest {
 
         vm.expectRevert(onlyGov);
         market.setLiquidationFeeBps(100);
+    }
+
+    function _mockChainlinkPrice(IChainlinkFeed clFeed, int mockPrice) internal {
+        (
+            uint80 roundId,
+            ,
+            uint startedAt,
+            uint updatedAt,
+            uint80 answeredInRound
+        ) = clFeed.latestRoundData();
+         vm.mockCall(
+            address(clFeed),
+            abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
+            abi.encode(
+                roundId,
+                mockPrice,
+                startedAt,
+                updatedAt,
+                answeredInRound
+            )
+        );   
+    }
+
+    function _mockChainlinkUpdatedAt(IChainlinkFeed clFeed, int updatedAtDelta) internal {
+        (
+            uint80 roundId,
+            int price,
+            uint startedAt,
+            uint updatedAt,
+            uint80 answeredInRound
+        ) = clFeed.latestRoundData();
+         vm.mockCall(
+            address(clFeed),
+            abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
+            abi.encode(
+                roundId,
+                price,
+                startedAt,
+                uint(int(updatedAt) + updatedAtDelta),
+                answeredInRound
+            )
+        );   
+    }
+
+    function _setNewBorrowController() internal {
+        vm.startPrank(gov);
+        market.setBorrowController(IBorrowController(0x44B7895989Bc7886423F06DeAa844D413384b0d6));
+        BorrowController(address(market.borrowController())).setDailyLimit(address(market), 30000 ether); // at the current block there's there's only 75 Dola to borrow
+        vm.stopPrank();
     }
 }

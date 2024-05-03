@@ -81,15 +81,14 @@ contract CvxFxsMarketForkTest is MarketForkTest {
         uint initialDolaBalance = DOLA.balanceOf(user);
         deposit(testAmount);
 
-        uint borrowAmount = getMaxBorrowAmount(testAmount);
+        uint borrowAmount = market.getCreditLimit(user);
         uint timestamp = block.timestamp;
-        vm.warp(timestamp + 1_000_000);
         uint dbrBal = dbr.balanceOf(user);
         market.borrow(borrowAmount);
         assertEq(dbrBal, testAmount, "DBR balance burned immediately after borrow");
-        vm.warp(timestamp + 1_000_001);
+        vm.warp(timestamp + 1000);
         dbr.accrueDueTokens(user);
-        assertEq(dbr.balanceOf(user), dbrBal - borrowAmount / 365 days, "DBR balance didn't drop by 1 second worth");
+        assertEq(dbr.balanceOf(user), dbrBal - borrowAmount * 1000 / 365 days, "DBR balance didn't drop by 1000 seconds worth");
 
         assertEq(DOLA.balanceOf(user), initialDolaBalance + borrowAmount, "User balance did not increase by borrowAmount");
     }
