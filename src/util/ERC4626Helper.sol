@@ -2,34 +2,24 @@
 pragma solidity ^0.8.13;
 
 import {IERC4626} from "lib/openzeppelin-contracts/contracts/interfaces/IERC4626.sol";
-import {IERC20} from "lib/openzeppelin-contracts/contracts/interfaces/IERC20.sol";
 import {IMarket} from "src/interfaces/IMarket.sol";
-import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
-import {ITransformHelper} from "src/interfaces/ITransformHelper.sol";
+import {BaseHelper, SafeERC20, IERC20} from "src/util/BaseHelper.sol";
 
 /**
-@title ERC4626 Accelerated Leverage Engine Helper
-@notice This contract is a generalized ALE helper contract for an ERC4626 vault market. 
-@dev This contract is used by the ALE to interact with the ERC4626 vault and market.
-**/
+ * @title ERC4626 Accelerated Leverage Engine Helper
+ * @notice This contract is a generalized ALE helper contract for an ERC4626 vault market.
+ * @dev This contract is used by the ALE to interact with the ERC4626 vault and market.
+ * Can also be used by anyone to perform wrap/unwrap and deposit/withdraw operations.
+ **/
 
-// TODO: add events, abstract base contract instead of interface
-contract ERC4626AleHelper is ITransformHelper {
+contract ERC4626AleHelperNew is BaseHelper {
     using SafeERC20 for IERC20;
 
     error InsufficientShares();
-    error AddressZero();
-    error NotGov();
-    error NotPendingGov();
 
     IMarket public immutable market;
     IERC20 public immutable underlying;
     IERC4626 public immutable vault;
-    address public gov;
-    address public pendingGov;
-
-    event NewGov(address gov);
-    event NewPendingGov(address pendingGov);
 
     /** @dev Constructor
     @param _vault The address of the ERC4626 vault
@@ -41,17 +31,12 @@ contract ERC4626AleHelper is ITransformHelper {
         address _vault,
         address _market,
         address _underlying,
-        address _gov
-    ) {
+        address _gov,
+        address _guardian
+    ) BaseHelper(_gov, _guardian) {
         vault = IERC4626(_vault);
         market = IMarket(_market);
         underlying = IERC20(_underlying);
-        gov = _gov;
-    }
-
-    modifier onlyGov() {
-        if (msg.sender != gov) revert NotGov();
-        _;
     }
 
     /**
@@ -63,10 +48,24 @@ contract ERC4626AleHelper is ITransformHelper {
     function transformToCollateral(
         uint256 amount,
         bytes calldata data
-    ) external returns (uint256 shares) {
+    ) external override returns (uint256 shares) {
+        shares = transformToCollateral(amount, msg.sender, data);
+    }
+
+    /**
+     * @notice Deposits the underlying token into the ERC4626 vault and returns the received ERC4626 token.
+     * @dev Use custom recipient address.
+     * @param amount The amount of underlying token to be deposited.
+     * @param recipient The address on behalf of which the shares are deposited.
+     */
+    function transformToCollateral(
+        uint256 amount,
+        address recipient,
+        bytes calldata data
+    ) public override returns (uint256 shares) {
         underlying.safeTransferFrom(msg.sender, address(this), amount);
         underlying.approve(address(vault), amount);
-        shares = vault.deposit(amount, address(this));
+        shares = vault.deposit(amount, recipient);
     }
 
     /**
@@ -79,6 +78,14 @@ contract ERC4626AleHelper is ITransformHelper {
         uint256 amount,
         bytes calldata data
     ) external override returns (uint256 assets) {
+        assets = transformFromCollateral(amount, msg.sender, data);
+    }
+
+    function transformFromCollateral(
+        uint256 amount,
+        address recipient,
+        bytes calldata data
+    ) public override returns (uint256 assets) {
         IERC20(address(vault)).safeTransferFrom(
             msg.sender,
             address(this),
@@ -86,7 +93,7 @@ contract ERC4626AleHelper is ITransformHelper {
         );
 
         vault.approve(address(market), amount);
-        assets = vault.redeem(amount, msg.sender, address(this));
+        assets = vault.redeem(amount, recipient, address(this));
     }
 
     /**
@@ -99,10 +106,8 @@ contract ERC4626AleHelper is ITransformHelper {
         uint256 assets,
         address recipient,
         bytes calldata data
-    ) external returns (uint256 shares) {
-        underlying.safeTransferFrom(msg.sender, address(this), assets);
-        underlying.approve(address(vault), assets);
-        shares = vault.deposit(assets, address(this));
+    ) external override returns (uint256 shares) {
+        shares = transformToCollateral(assets, address(this), data);
 
         uint256 actualShares = vault.balanceOf(address(this));
         if (shares > actualShares) revert InsufficientShares();
@@ -146,6 +151,7 @@ contract ERC4626AleHelper is ITransformHelper {
     function assetToCollateralRatio()
         external
         view
+        override
         returns (uint256 collateralAmount)
     {
         return vault.convertToShares(10 ** vault.decimals());
@@ -158,7 +164,7 @@ contract ERC4626AleHelper is ITransformHelper {
      */
     function assetToCollateral(
         uint256 assetAmount
-    ) external view returns (uint256 collateralAmount) {
+    ) external view override returns (uint256 collateralAmount) {
         return vault.convertToShares(assetAmount);
     }
 
@@ -169,40 +175,7 @@ contract ERC4626AleHelper is ITransformHelper {
      */
     function collateralToAsset(
         uint256 collateralAmount
-    ) external view returns (uint256 assetAmount) {
+    ) external view override returns (uint256 assetAmount) {
         return vault.convertToAssets(collateralAmount);
-    }
-
-    /**
-     * @notice Sweep any ERC20 token from the contract.
-     * @dev Only callable by gov.
-     * @param _token The address of the ERC20 token to be swept.
-     */
-    function sweep(address _token) external onlyGov {
-        IERC20(_token).safeTransfer(
-            gov,
-            IERC20(_token).balanceOf(address(this))
-        );
-    }
-
-    /**
-     * @notice Sets the pendingGov, which can claim gov role.
-     * @dev Only callable by gov
-     * @param _pendingGov The address of the pendingGov
-     */
-    function setPendingGov(address _pendingGov) external onlyGov {
-        pendingGov = _pendingGov;
-        emit NewPendingGov(_pendingGov);
-    }
-
-    /**
-     * @notice Claims the gov role
-     * @dev Only callable by pendingGov
-     */
-    function claimPendingGov() external {
-        if (msg.sender != pendingGov) revert NotPendingGov();
-        gov = pendingGov;
-        pendingGov = address(0);
-        emit NewGov(gov);
     }
 }

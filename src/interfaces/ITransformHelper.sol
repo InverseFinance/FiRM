@@ -12,7 +12,13 @@ interface ITransformHelper {
     function transformToCollateral(
         uint amount,
         bytes calldata data
-    ) external returns (uint);
+    ) external returns (uint256 collateralAmount);
+
+    function transformToCollateral(
+        uint amount,
+        address recipient,
+        bytes calldata data
+    ) external returns (uint256 collateralAmount);
 
     function transformToCollateralAndDeposit(
         uint amount,
@@ -22,6 +28,12 @@ interface ITransformHelper {
 
     function transformFromCollateral(
         uint amount,
+        bytes calldata data
+    ) external returns (uint);
+
+    function transformFromCollateral(
+        uint amount,
+        address recipient,
         bytes calldata data
     ) external returns (uint);
 
