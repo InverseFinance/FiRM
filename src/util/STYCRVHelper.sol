@@ -7,7 +7,7 @@ import "src/interfaces/IDola.sol";
 import "src/interfaces/ITransformHelper.sol";
 import "src/interfaces/ISTYCRV.sol";
 import {Ownable} from "lib/openzeppelin-contracts/contracts/access/Ownable.sol";
-import {ReentrancyGuard} from "lib/openzeppelin-contracts/contracts/security/ReentrancyGuard.sol";
+import {ReentrancyGuard} from "lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
 
 // st-yCRV helper
 contract STYCRVHelper is Ownable, ReentrancyGuard {
@@ -15,7 +15,7 @@ contract STYCRVHelper is Ownable, ReentrancyGuard {
     error NotEnoughShares();
     error DepositFailed(uint256 expected, uint256 received);
     error WithdrawFailed(uint256 expected, uint256 received);
-   
+
     uint256 public constant scale = 1e18;
     ISTYCRV public constant vault =
         ISTYCRV(0x27B5739e22ad9033bcBf192059122d163b60349D); // st-yCRV
@@ -50,7 +50,8 @@ contract STYCRVHelper is Ownable, ReentrancyGuard {
         uint256 _value,
         bytes calldata _helperData
     ) external nonReentrant returns (uint256 collateralAmount) {
-        if(_value > vault.availableDepositLimit()) revert DepositLimitExceeded();
+        if (_value > vault.availableDepositLimit())
+            revert DepositLimitExceeded();
 
         underlying.transferFrom(msg.sender, address(this), _value);
 
@@ -58,7 +59,7 @@ contract STYCRVHelper is Ownable, ReentrancyGuard {
 
         // Transform underlying to collateral
         collateralAmount = vault.deposit(_value, msg.sender);
-        
+
         if (collateralAmount < estimateAmount)
             revert DepositFailed(estimateAmount, collateralAmount);
     }
@@ -79,7 +80,7 @@ contract STYCRVHelper is Ownable, ReentrancyGuard {
 
         underlyingAmount = vault.withdraw(_value, msg.sender, maxLoss);
 
-        if (underlyingAmount < estimateAmount) 
+        if (underlyingAmount < estimateAmount)
             revert WithdrawFailed(estimateAmount, underlyingAmount);
     }
 
@@ -90,7 +91,8 @@ contract STYCRVHelper is Ownable, ReentrancyGuard {
         uint assetAmount
     ) public view returns (uint collateralAmount) {
         uint totalSupply = vault.totalSupply();
-        if (totalSupply > 0) return assetAmount * totalSupply / getFreeFunds();
+        if (totalSupply > 0)
+            return (assetAmount * totalSupply) / getFreeFunds();
         return assetAmount;
     }
 
@@ -151,13 +153,14 @@ contract STYCRVHelper is Ownable, ReentrancyGuard {
     }
 
     function calculateLockedProfit() public view returns (uint256) {
-        uint256 lockedFundsRatio = (block.timestamp - vault.lastReport()) * vault.lockedProfitDegradation(); 
+        uint256 lockedFundsRatio = (block.timestamp - vault.lastReport()) *
+            vault.lockedProfitDegradation();
 
-        if (lockedFundsRatio < 10**18) {
+        if (lockedFundsRatio < 10 ** 18) {
             uint256 lockedProfit = vault.lockedProfit();
 
-            return lockedProfit  - (lockedFundsRatio * lockedProfit / 10**18);
-        }
-        else return 0;
+            return
+                lockedProfit - ((lockedFundsRatio * lockedProfit) / 10 ** 18);
+        } else return 0;
     }
 }

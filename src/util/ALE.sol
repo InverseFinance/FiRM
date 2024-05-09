@@ -6,7 +6,7 @@ import "src/interfaces/IERC20.sol";
 import "src/interfaces/ITransformHelper.sol";
 import "src/util/CurveDBRHelper.sol";
 import {Ownable} from "lib/openzeppelin-contracts/contracts/access/Ownable.sol";
-import {ReentrancyGuard} from "lib/openzeppelin-contracts/contracts/security/ReentrancyGuard.sol";
+import {ReentrancyGuard} from "lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
 
 interface IDBR {
     function markets(address) external view returns (bool);
@@ -27,7 +27,12 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
     error TotalSupplyChanged(uint256 expected, uint256 actual);
     error CollateralIsZero();
     error NoMarket(address market);
-    error WrongCollateral(address market, address buySellToken, address collateral, address helper);
+    error WrongCollateral(
+        address market,
+        address buySellToken,
+        address collateral,
+        address helper
+    );
 
     // 0x ExchangeProxy address.
     // See https://docs.0x.org/developer-resources/contract-addresses
@@ -58,23 +63,32 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         address indexed market,
         address indexed account,
         uint256 dolaFlashMinted, // DOLA flash minted for buying collateral only
-        uint256 collateralDeposited, // amount of collateral deposited into the escrow    
-        uint256 dolaBorrowed,  // amount of DOLA borrowed on behalf of the user
-        uint256 dolaForDBR   // amount of DOLA used for buying DBR
+        uint256 collateralDeposited, // amount of collateral deposited into the escrow
+        uint256 dolaBorrowed, // amount of DOLA borrowed on behalf of the user
+        uint256 dolaForDBR // amount of DOLA used for buying DBR
     );
 
     event LeverageDown(
         address indexed market,
         address indexed account,
         uint256 dolaFlashMinted, // Flash minted DOLA for repaying leverage only
-        uint256 collateralSold,  // amount of collateral/underlying sold
-        uint256 dolaUserRepaid,  // amount of DOLA deposited by the user as part of the repay
-        uint256 dbrSoldForDola   // amount of DBR sold for DOLA
+        uint256 collateralSold, // amount of collateral/underlying sold
+        uint256 dolaUserRepaid, // amount of DOLA deposited by the user as part of the repay
+        uint256 dbrSoldForDola // amount of DBR sold for DOLA
     );
 
-    event Deposit(address indexed market, address indexed account, uint256 depositAmount);
+    event Deposit(
+        address indexed market,
+        address indexed account,
+        uint256 depositAmount
+    );
 
-    event NewMarket(address indexed market, address indexed buySellToken, address collateral, address indexed helper);
+    event NewMarket(
+        address indexed market,
+        address indexed buySellToken,
+        address collateral,
+        address indexed helper
+    );
 
     event NewHelper(address indexed market, address indexed helper);
 
@@ -113,14 +127,30 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         address _collateral,
         address _helper
     ) external onlyOwner {
-        if(!DBR.markets(_market)) revert NoMarket(_market);
+        if (!DBR.markets(_market)) revert NoMarket(_market);
 
-        if(_helper == address(0)) {
-            if(_buySellToken != IMarket(_market).collateral() || _collateral != IMarket(_market).collateral()) {
-                revert WrongCollateral(_market, _buySellToken, _collateral, _helper);
+        if (_helper == address(0)) {
+            if (
+                _buySellToken != IMarket(_market).collateral() ||
+                _collateral != IMarket(_market).collateral()
+            ) {
+                revert WrongCollateral(
+                    _market,
+                    _buySellToken,
+                    _collateral,
+                    _helper
+                );
             }
-        } else if (_helper != address(0) && _collateral != IMarket(_market).collateral()) {
-            revert WrongCollateral(_market, _buySellToken, _collateral, _helper);
+        } else if (
+            _helper != address(0) &&
+            _collateral != IMarket(_market).collateral()
+        ) {
+            revert WrongCollateral(
+                _market,
+                _buySellToken,
+                _collateral,
+                _helper
+            );
         }
 
         markets[_market].buySellToken = IERC20(_buySellToken);
@@ -129,7 +159,7 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
 
         if (_buySellToken != _collateral) {
             IERC20(_collateral).approve(_market, type(uint256).max);
-        } 
+        }
 
         if (_helper != address(0)) {
             markets[_market].helper = ITransformHelper(_helper);
@@ -147,7 +177,8 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         address _market,
         address _helper
     ) external onlyOwner {
-        if (address(markets[_market].buySellToken) == address(0)) revert MarketNotSet(_market);
+        if (address(markets[_market].buySellToken) == address(0))
+            revert MarketNotSet(_market);
 
         address oldHelper = address(markets[_market].helper);
         if (oldHelper != address(0)) {
@@ -156,12 +187,11 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         }
 
         markets[_market].helper = ITransformHelper(_helper);
-        
+
         if (_helper != address(0)) {
             markets[_market].buySellToken.approve(_helper, type(uint256).max);
             markets[_market].collateral.approve(_helper, type(uint256).max);
         }
-     
 
         emit NewHelper(_market, _helper);
     }
@@ -198,8 +228,10 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         if (!success) revert SwapFailed();
 
         // Actual collateral/buyToken bought
-        uint256 collateralAmount = markets[_market].buySellToken.balanceOf(address(this));
-        if(collateralAmount == 0) revert CollateralIsZero();
+        uint256 collateralAmount = markets[_market].buySellToken.balanceOf(
+            address(this)
+        );
+        if (collateralAmount == 0) revert CollateralIsZero();
 
         // If there's a helper contract, the buyToken has to be transformed
         if (address(markets[_market].helper) != address(0)) {
@@ -234,7 +266,14 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         if (address(this).balance > 0)
             payable(msg.sender).transfer(address(this).balance);
 
-        emit LeverageUp(_market, msg.sender, _value, collateralAmount, _dbrData.dola, _dbrData.amountIn);
+        emit LeverageUp(
+            _market,
+            msg.sender,
+            _value,
+            collateralAmount,
+            _dbrData.dola,
+            _dbrData.amountIn
+        );
     }
 
     /// @notice Deposit collateral and instantly leverage user position by minting DOLA, buying collateral, deposting into the user escrow and borrow DOLA on behalf to repay the minted DOLA
@@ -298,7 +337,13 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
 
         IERC20 sellToken = markets[_market].buySellToken;
 
-        _repayAndWithdraw(_value, _collateralAmount, _permit, _dbrData, IMarket(_market));
+        _repayAndWithdraw(
+            _value,
+            _collateralAmount,
+            _permit,
+            _dbrData,
+            IMarket(_market)
+        );
 
         // If there's a helper contract, the collateral has to be transformed
         if (address(markets[_market].helper) != address(0)) {
@@ -356,7 +401,14 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         if (address(this).balance > 0)
             payable(msg.sender).transfer(address(this).balance);
 
-       emit LeverageDown(_market, msg.sender, _value, _collateralAmount, _dbrData.dola, _dbrData.amountIn);
+        emit LeverageDown(
+            _market,
+            msg.sender,
+            _value,
+            _collateralAmount,
+            _dbrData.dola,
+            _dbrData.amountIn
+        );
     }
 
     /// @notice Mint DOLA to this contract and approve the spender
@@ -398,7 +450,10 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         );
 
         if (dola.balanceOf(address(this)) < dolaToBorrow)
-            revert DOLAInvalidBorrow(dolaToBorrow,dola.balanceOf(address(this)));
+            revert DOLAInvalidBorrow(
+                dolaToBorrow,
+                dola.balanceOf(address(this))
+            );
     }
 
     /// @notice Repay DOLA loan and withdraw collateral from the escrow
@@ -456,7 +511,10 @@ contract ALE is Ownable, ReentrancyGuard, CurveDBRHelper {
         );
 
         if (sellToken.balanceOf(address(this)) < assetAmount)
-            revert WithdrawFailed(assetAmount,sellToken.balanceOf(address(this)));
+            revert WithdrawFailed(
+                assetAmount,
+                sellToken.balanceOf(address(this))
+            );
 
         return assetAmount;
     }

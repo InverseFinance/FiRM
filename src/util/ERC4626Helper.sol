@@ -12,32 +12,32 @@ import {BaseHelper, SafeERC20, IERC20} from "src/util/BaseHelper.sol";
  * Can also be used by anyone to perform wrap/unwrap and deposit/withdraw operations.
  **/
 
-contract ERC4626AleHelperNew is BaseHelper {
+contract ERC4626AleHelper is BaseHelper {
     using SafeERC20 for IERC20;
 
     error InsufficientShares();
+    error MarketNotSet(address market);
 
-    IMarket public immutable market;
-    IERC20 public immutable underlying;
-    IERC4626 public immutable vault;
+    struct Vault {
+        IERC4626 vault;
+        IERC20 underlying;
+    }
+
+    event MarketSet(
+        address indexed market,
+        address indexed underlying,
+        address indexed vault
+    );
+    event MarketPaused(address indexed market);
+
+    /// @notice Mapping of market addresses to their associated vaults.
+    mapping(address => Vault) public markets;
 
     /** @dev Constructor
-    @param _vault The address of the ERC4626 vault
-    @param _market The address of the market
-    @param _underlying The address of the ERC20 underlying;
     @param _gov The address of Inverse Finance governance
+    @param _guardian The address of the guardian
     **/
-    constructor(
-        address _vault,
-        address _market,
-        address _underlying,
-        address _gov,
-        address _guardian
-    ) BaseHelper(_gov, _guardian) {
-        vault = IERC4626(_vault);
-        market = IMarket(_market);
-        underlying = IERC20(_underlying);
-    }
+    constructor(address _gov, address _guardian) BaseHelper(_gov, _guardian) {}
 
     /**
      * @notice Deposits the underlying token into the ERC4626 vault and returns the received ERC4626 token.
@@ -63,6 +63,12 @@ contract ERC4626AleHelperNew is BaseHelper {
         address recipient,
         bytes calldata data
     ) public override returns (uint256 shares) {
+        address market = abi.decode(data, (address));
+        _revertIfMarketNotSet(market);
+
+        IERC20 underlying = markets[market].underlying;
+        IERC4626 vault = markets[market].vault;
+
         underlying.safeTransferFrom(msg.sender, address(this), amount);
         underlying.approve(address(vault), amount);
         shares = vault.deposit(amount, recipient);
@@ -86,13 +92,18 @@ contract ERC4626AleHelperNew is BaseHelper {
         address recipient,
         bytes calldata data
     ) public override returns (uint256 assets) {
+        address market = abi.decode(data, (address));
+        _revertIfMarketNotSet(market);
+
+        IERC4626 vault = markets[market].vault;
+
         IERC20(address(vault)).safeTransferFrom(
             msg.sender,
             address(this),
             amount
         );
 
-        vault.approve(address(market), amount);
+        vault.approve(market, amount);
         assets = vault.redeem(amount, recipient, address(this));
     }
 
@@ -107,13 +118,18 @@ contract ERC4626AleHelperNew is BaseHelper {
         address recipient,
         bytes calldata data
     ) external override returns (uint256 shares) {
+        address market = abi.decode(data, (address));
+        _revertIfMarketNotSet(market);
+
+        IERC4626 vault = markets[market].vault;
+
         shares = transformToCollateral(assets, address(this), data);
 
         uint256 actualShares = vault.balanceOf(address(this));
         if (shares > actualShares) revert InsufficientShares();
 
-        vault.approve(address(market), actualShares);
-        market.deposit(recipient, actualShares);
+        vault.approve(market, actualShares);
+        IMarket(market).deposit(recipient, actualShares);
     }
 
     /**
@@ -129,7 +145,12 @@ contract ERC4626AleHelperNew is BaseHelper {
         Permit calldata permit,
         bytes calldata data
     ) external override returns (uint256 assets) {
-        market.withdrawOnBehalf(
+        address market = abi.decode(data, (address));
+        _revertIfMarketNotSet(market);
+
+        IERC4626 vault = markets[market].vault;
+
+        IMarket(market).withdrawOnBehalf(
             msg.sender,
             amount,
             permit.deadline,
@@ -140,7 +161,7 @@ contract ERC4626AleHelperNew is BaseHelper {
         uint256 actualShares = vault.balanceOf(address(this));
         if (actualShares < amount) revert InsufficientShares();
 
-        vault.approve(address(market), actualShares);
+        vault.approve(market, actualShares);
         assets = vault.redeem(actualShares, recipient, address(this));
     }
 
@@ -148,12 +169,11 @@ contract ERC4626AleHelperNew is BaseHelper {
      * @notice Return current asset to collateral ratio.
      * @return collateralAmount The amount of collateral for 1 unit of asset.
      */
-    function assetToCollateralRatio()
-        external
-        view
-        override
-        returns (uint256 collateralAmount)
-    {
+    function assetToCollateralRatio(
+        address market
+    ) external view override returns (uint256 collateralAmount) {
+        _revertIfMarketNotSet(market);
+        IERC4626 vault = markets[market].vault;
         return vault.convertToShares(10 ** vault.decimals());
     }
 
@@ -163,8 +183,11 @@ contract ERC4626AleHelperNew is BaseHelper {
      * @return collateralAmount The amount of collateral for the given asset amount.
      */
     function assetToCollateral(
+        address market,
         uint256 assetAmount
     ) external view override returns (uint256 collateralAmount) {
+        _revertIfMarketNotSet(market);
+        IERC4626 vault = markets[market].vault;
         return vault.convertToShares(assetAmount);
     }
 
@@ -174,8 +197,48 @@ contract ERC4626AleHelperNew is BaseHelper {
      * @return assetAmount The amount of asset for the given collateral amount.
      */
     function collateralToAsset(
+        address market,
         uint256 collateralAmount
     ) external view override returns (uint256 assetAmount) {
+        _revertIfMarketNotSet(market);
+        IERC4626 vault = markets[market].vault;
         return vault.convertToAssets(collateralAmount);
+    }
+
+    function _revertIfMarketNotSet(address market) internal view {
+        if (
+            markets[market].vault == IERC4626(address(0)) ||
+            markets[market].underlying == IERC20(address(0))
+        ) revert MarketNotSet(market);
+    }
+
+    /**
+     * @notice Set the market address and its associated vault and underlying token.
+     * @dev Only callable by the governance.
+     * @param marketAddress The address of the market.
+     * @param underlyingAddress The address of the underlying token.
+     * @param vaultAddress The address of the ERC4626 vault.
+     */
+    function setMarket(
+        address marketAddress,
+        address underlyingAddress,
+        address vaultAddress
+    ) external onlyGov {
+        markets[marketAddress] = Vault({
+            vault: IERC4626(vaultAddress),
+            underlying: IERC20(underlyingAddress)
+        });
+        emit MarketSet(marketAddress, underlyingAddress, vaultAddress);
+    }
+
+    /**
+     * @notice Pause the market by setting the vault and underlying token to address(0).
+     * @dev Only callable by the governance or the guardian.
+     * @param market The address of the market to be paused.
+     */
+    function pauseMarket(address market) external onlyGuardianOrGov {
+        markets[market].vault = IERC4626(address(0));
+        markets[market].underlying = IERC20(address(0));
+        emit MarketPaused(market);
     }
 }

@@ -10,50 +10,51 @@ interface ITransformHelper {
     }
 
     function transformToCollateral(
-        uint amount,
+        uint256 amount,
         bytes calldata data
     ) external returns (uint256 collateralAmount);
 
     function transformToCollateral(
-        uint amount,
+        uint256 amount,
         address recipient,
         bytes calldata data
     ) external returns (uint256 collateralAmount);
 
     function transformToCollateralAndDeposit(
-        uint amount,
+        uint256 amount,
         address recipient,
         bytes calldata data
     ) external returns (uint256 collateralAmount);
 
     function transformFromCollateral(
-        uint amount,
+        uint256 amount,
         bytes calldata data
-    ) external returns (uint);
+    ) external returns (uint256);
 
     function transformFromCollateral(
-        uint amount,
+        uint256 amount,
         address recipient,
         bytes calldata data
-    ) external returns (uint);
+    ) external returns (uint256);
 
     function withdrawAndTransformFromCollateral(
-        uint amount,
+        uint256 amount,
         address recipient,
         Permit calldata permit,
         bytes calldata data
     ) external returns (uint256 underlyingAmount);
 
-    function assetToCollateralRatio()
-        external
-        view
-        returns (uint collateralAmount);
+    function assetToCollateralRatio(
+        address market
+    ) external view returns (uint256 collateralAmount);
 
     function assetToCollateral(
-        uint assetAmount
-    ) external view returns (uint collateralAmount);
+        address market,
+        uint256 assetAmount
+    ) external view returns (uint256 collateralAmount);
 
     function collateralToAsset(
-        uint collateralAmount
-    ) external view returns (uint assetAmount);
+        address market,
+        uint256 collateralAmount
+    ) external view returns (uint256 assetAmount);
 }
