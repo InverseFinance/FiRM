@@ -12,7 +12,7 @@ import {BaseHelper, SafeERC20, IERC20} from "src/util/BaseHelper.sol";
  * Can also be used by anyone to perform wrap/unwrap and deposit/withdraw operations.
  **/
 
-contract ERC4626AleHelper is BaseHelper {
+contract ERC4626Helper is BaseHelper {
     using SafeERC20 for IERC20;
 
     error InsufficientShares();
