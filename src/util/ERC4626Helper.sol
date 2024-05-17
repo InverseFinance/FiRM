@@ -171,7 +171,7 @@ contract ERC4626Helper is BaseHelper {
      */
     function assetToCollateralRatio(
         address market
-    ) external view override returns (uint256 collateralAmount) {
+    ) external view returns (uint256 collateralAmount) {
         _revertIfMarketNotSet(market);
         IERC4626 vault = markets[market].vault;
         return vault.convertToShares(10 ** vault.decimals());
@@ -185,7 +185,7 @@ contract ERC4626Helper is BaseHelper {
     function assetToCollateral(
         address market,
         uint256 assetAmount
-    ) external view override returns (uint256 collateralAmount) {
+    ) external view returns (uint256 collateralAmount) {
         _revertIfMarketNotSet(market);
         IERC4626 vault = markets[market].vault;
         return vault.convertToShares(assetAmount);
@@ -199,7 +199,7 @@ contract ERC4626Helper is BaseHelper {
     function collateralToAsset(
         address market,
         uint256 collateralAmount
-    ) external view override returns (uint256 assetAmount) {
+    ) external view returns (uint256 assetAmount) {
         _revertIfMarketNotSet(market);
         IERC4626 vault = markets[market].vault;
         return vault.convertToAssets(collateralAmount);

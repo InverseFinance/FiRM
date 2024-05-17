@@ -11,7 +11,7 @@ import {ALE} from "../util/ALE.sol";
 import {ERC4626Helper} from "src/util/ERC4626Helper.sol";
 import {ITransformHelper} from "src/interfaces/ITransformHelper.sol";
 import {console} from "forge-std/console.sol";
-import {IERC4626} from "lib/openzeppelin-contracts/contracts/interfaces/IERC4626.sol";
+import {BaseHelperForkTest, IERC4626} from "src/test/BaseHelperForkTest.t.sol";
 
 interface IErc20 is IERC20 {
     function approve(address beneficiary, uint amount) external;
@@ -61,7 +61,7 @@ contract MockExchangeProxy {
     }
 }
 
-contract ALEsFrax4626HelperForkTest is Test {
+contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
     using stdStorage for StdStorage;
 
     //Market deployment:
@@ -74,9 +74,9 @@ contract ALEsFrax4626HelperForkTest is Test {
     address user2 = address(0x70);
     address replenisher = address(0x71);
     address collatHolder = address(0x577eBC5De943e35cdf9ECb5BbE1f7D7CB6c7C647); // sty CRV
-    address gov = address(0x926dF14a23BE491164dCF93f4c468A50ef659D5B);
-    address chair = address(0x8F97cCA30Dbe80e7a8B462F1dD1a51C32accDfC8);
-    address pauseGuardian = address(0xE3eD95e130ad9E15643f5A5f232a3daE980784cd);
+    //address gov = address(0x926dF14a23BE491164dCF93f4c468A50ef659D5B);
+    // address chair = address(0x8F97cCA30Dbe80e7a8B462F1dD1a51C32accDfC8);
+    // address pauseGuardian = address(0xE3eD95e130ad9E15643f5A5f232a3daE980784cd);
     address curvePool = address(0x056ef502C1Fc5335172bc95EC4cAE16C2eB9b5b6); // DBR/DOLA pool
 
     address sFraxHolder = 0x440888714A6afeD60ff44e9975A96E6a36f7Fac4;
@@ -106,32 +106,25 @@ contract ALEsFrax4626HelperForkTest is Test {
     uint liquidationBonusBps;
     uint replenishmentPriceBps;
 
-    uint testAmount = 1 ether;
+    function getBlockNumber() public view override returns (uint256) {
+        return 19884238;
+    }
 
-    bytes onlyChair = "ONLY CHAIR";
-    bytes onlyGov = "Only gov can call this function";
-    bytes onlyLender = "Only lender can recall";
-    bytes onlyOperator = "ONLY OPERATOR";
+    function setUp() public override {
+        super.setUp();
 
-    function setUp() public {
-        string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url, 19884238);
-
-        DOLA = IMintable(0x865377367054516e17014CcdED1e7d814EDC9ce4);
-        market = Market(0xFEA3A862eE4b3F9b6015581d6d2D25AF816C54f1); // sFrax
-        feed = IChainlinkFeed(0x90787a14B3D30E4865C9cF7b61B6FC04533A5F48); // sFraxFeed
-        borrowController = BorrowController(
-            0x44B7895989Bc7886423F06DeAa844D413384b0d6
-        );
-        dbr = DolaBorrowingRights(0xAD038Eb671c44b853887A7E32528FaB35dC5D710);
+        DOLA = IMintable(dolaAddr);
+        market = Market(sFraxMarketAddr); // sFrax
+        feed = IChainlinkFeed(sFraxFeedAddr); // sFraxFeed
+        borrowController = BorrowController(borrowControllerAddr);
+        dbr = DolaBorrowingRights(dbrAddr);
 
         replenishmentIncentiveBps = market.replenishmentIncentiveBps();
         liquidationBonusBps = market.liquidationIncentiveBps();
         replenishmentPriceBps = dbr.replenishmentPriceBps();
 
-        helper = new ERC4626Helper(address(this), address(this));
-        helper.setMarket(address(market), address(frax), address(sFrax));
-        address feedfrax = 0xB9E1E3A9feFf48998E45Fa90847ed4D467E8BcfD; // frax/usd chainlink feed
+        helper = new ERC4626Helper(gov, pauseGuardian);
+        initBase(address(helper));
 
         exchangeProxy = new MockExchangeProxy(
             address(market.oracle()),
@@ -139,7 +132,7 @@ contract ALEsFrax4626HelperForkTest is Test {
         );
 
         vm.startPrank(gov);
-        market.pauseBorrows(false);
+        helper.setMarket(address(market), address(frax), address(sFrax));
         dbr.addMarket(address(market));
         DOLA.mint(address(market), 1000000e18);
         vm.stopPrank();
@@ -147,7 +140,7 @@ contract ALEsFrax4626HelperForkTest is Test {
         ale = new ALE(address(exchangeProxy), triDBR);
         ale.setMarket(
             address(market),
-            frax,
+            fraxAddr,
             address(market.collateral()),
             address(helper)
         );
@@ -182,9 +175,8 @@ contract ALEsFrax4626HelperForkTest is Test {
         fed.changeSupplyCeiling(type(uint).max);
         oracle.setFeed(address(collateral), feed, 18);
 
-        oracle.setFeed(frax, IChainlinkFeed(address(feedfrax)), 18);
+        oracle.setFeed(frax, IChainlinkFeed(address(fraxUsdFeedAddr)), 18);
         borrowController.allow(address(ale));
-        //borrowController.allow(address(market));
         DOLA.addMinter(address(ale));
         vm.stopPrank();
 

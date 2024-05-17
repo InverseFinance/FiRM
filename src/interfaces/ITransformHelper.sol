@@ -44,17 +44,16 @@ interface ITransformHelper {
         bytes calldata data
     ) external returns (uint256 underlyingAmount);
 
-    function assetToCollateralRatio(
-        address market
-    ) external view returns (uint256 collateralAmount);
+    function assetToCollateralRatio()
+        external
+        view
+        returns (uint256 collateralAmount);
 
     function assetToCollateral(
-        address market,
         uint256 assetAmount
     ) external view returns (uint256 collateralAmount);
 
     function collateralToAsset(
-        address market,
         uint256 collateralAmount
     ) external view returns (uint256 assetAmount);
 }

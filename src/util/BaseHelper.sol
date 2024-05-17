@@ -55,13 +55,17 @@ abstract contract BaseHelper is ITransformHelper {
     function transformToCollateral(
         uint256 amount,
         bytes calldata data
-    ) external virtual returns (uint256 shares) {}
+    ) external virtual returns (uint256 shares) {
+        revert NotImplemented();
+    }
 
     function transformToCollateral(
         uint256 amount,
         address recipient,
         bytes calldata data
-    ) external virtual returns (uint256 shares) {}
+    ) external virtual returns (uint256 shares) {
+        revert NotImplemented();
+    }
 
     /**
      * @notice Transform the collateral token for the associated underlying token.
@@ -72,26 +76,34 @@ abstract contract BaseHelper is ITransformHelper {
     function transformFromCollateral(
         uint256 amount,
         bytes calldata data
-    ) external virtual returns (uint256 assets) {}
+    ) external virtual returns (uint256 assets) {
+        revert NotImplemented();
+    }
 
     function transformFromCollateral(
         uint256 amount,
         address recipient,
         bytes calldata data
-    ) external virtual returns (uint256 assets) {}
+    ) external virtual returns (uint256 assets) {
+        revert NotImplemented();
+    }
 
     function transformToCollateralAndDeposit(
         uint256 assets,
         address recipient,
         bytes calldata data
-    ) external virtual returns (uint256 shares) {}
+    ) external virtual returns (uint256 shares) {
+        revert NotImplemented();
+    }
 
     function withdrawAndTransformFromCollateral(
         uint256 amount,
         address recipient,
         Permit calldata permit,
         bytes calldata data
-    ) external virtual override returns (uint256 assets) {}
+    ) external virtual override returns (uint256 assets) {
+        revert NotImplemented();
+    }
 
     /**
      * @notice Return current asset to collateral ratio.
@@ -102,7 +114,9 @@ abstract contract BaseHelper is ITransformHelper {
         view
         virtual
         returns (uint256 collateralAmount)
-    {}
+    {
+        revert NotImplemented();
+    }
 
     /**
      * @notice Estimate the amount of collateral for a given amount of asset.
@@ -111,7 +125,9 @@ abstract contract BaseHelper is ITransformHelper {
      */
     function assetToCollateral(
         uint256 assetAmount
-    ) external view virtual returns (uint256 collateralAmount) {}
+    ) external view virtual returns (uint256 collateralAmount) {
+        revert NotImplemented();
+    }
 
     /**
      * @notice Estimate the amount of asset for a given amount of collateral.
@@ -120,7 +136,9 @@ abstract contract BaseHelper is ITransformHelper {
      */
     function collateralToAsset(
         uint256 collateralAmount
-    ) external view virtual returns (uint256 assetAmount) {}
+    ) external view virtual returns (uint256 assetAmount) {
+        revert NotImplemented();
+    }
 
     /**
      * @notice Sweep any ERC20 token from the contract.
