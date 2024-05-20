@@ -18,17 +18,18 @@ contract ConfigAddr {
     // Assets
     address sFraxAddr = address(0xA663B02CF0a4b149d2aD41910CB81e23e1c41c32);
     address fraxAddr = address(0x853d955aCEf822Db058eb8505911ED77F175b99e);
-    
+    address styEthAddr = address(0x583019fF0f430721aDa9cfb4fac8F06cA104d0B4);
+    address yEthAddr = address(0x1BED97CBC3c24A4fb5C069C6E311a967386131f7);
 
     // FiRM Markets
     address crvMarketAddr = address(0x63fAd99705a255fE2D500e498dbb3A9aE5AA1Ee8);
     address sFraxMarketAddr = address(0xFEA3A862eE4b3F9b6015581d6d2D25AF816C54f1);
-    address styETHMarketAddr = address(0x0c0bb843FAbda441edeFB93331cFff8EC92bD168);
+    address styEthMarketAddr = address(0x0c0bb843FAbda441edeFB93331cFff8EC92bD168);
     
     // Chainlink
     address crvUsdFeedAddr = address(0xCd627aA160A6fA45Eb793D19Ef54f5062F20f33f);
     address fraxUsdFeedAddr = address(0xB9E1E3A9feFf48998E45Fa90847ed4D467E8BcfD);
-    
+   
     // Curve Pools
     address triDBRAddr = address(0xC7DE47b9Ca2Fc753D6a2F167D8b3e19c6D18b19a);
     // Balancer Pools

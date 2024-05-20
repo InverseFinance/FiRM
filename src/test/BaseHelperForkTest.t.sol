@@ -6,6 +6,7 @@ import "../BorrowController.sol";
 import "../DBR.sol";
 import "../Fed.sol";
 import "../Oracle.sol";
+import {IOracle} from "../Market.sol";
 import {ALE} from "../util/ALE.sol";
 import {ITransformHelper} from "src/interfaces/ITransformHelper.sol";
 import {console} from "forge-std/console.sol";
@@ -13,6 +14,38 @@ import {IERC4626} from "lib/openzeppelin-contracts/contracts/interfaces/IERC4626
 import {ConfigAddr} from "src/test/ConfigAddr.sol";
 import {BaseHelper} from "src/util/BaseHelper.sol";
 import {IERC20} from "lib/openzeppelin-contracts/contracts/interfaces/IERC20.sol";
+
+contract MockExchangeProxy {
+    IOracle oracle;
+    IERC20 dola;
+
+    constructor(address _oracle, address _dola) {
+        oracle = IOracle(_oracle);
+        dola = IERC20(_dola);
+    }
+
+    function swapDolaIn(
+        IERC20 collateral,
+        uint256 dolaAmount
+    ) external returns (bool success, bytes memory ret) {
+        dola.transferFrom(msg.sender, address(this), dolaAmount);
+        uint256 collateralAmount = (dolaAmount * 1e18) /
+            oracle.viewPrice(address(collateral), 0);
+        collateral.transfer(msg.sender, collateralAmount);
+        success = true;
+    }
+
+    function swapDolaOut(
+        IERC20 collateral,
+        uint256 collateralAmount
+    ) external returns (bool success, bytes memory ret) {
+        collateral.transferFrom(msg.sender, address(this), collateralAmount);
+        uint256 dolaAmount = (collateralAmount *
+            oracle.viewPrice(address(collateral), 0)) / 1e18;
+        dola.transfer(msg.sender, dolaAmount);
+        success = true;
+    }
+}
 
 abstract contract BaseHelperForkTest is Test, ConfigAddr {
     using stdStorage for StdStorage;
