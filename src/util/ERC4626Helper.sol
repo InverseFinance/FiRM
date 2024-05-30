@@ -28,7 +28,7 @@ contract ERC4626Helper is BaseHelper {
         address indexed underlying,
         address indexed vault
     );
-    event MarketPaused(address indexed market);
+    event MarketRemoved(address indexed market);
 
     /// @notice Mapping of market addresses to their associated vaults.
     mapping(address => Vault) public markets;
@@ -232,13 +232,13 @@ contract ERC4626Helper is BaseHelper {
     }
 
     /**
-     * @notice Pause the market by setting the vault and underlying token to address(0).
+     * @notice Remove the market by setting the vault and underlying token to address(0).
      * @dev Only callable by the governance or the guardian.
-     * @param market The address of the market to be paused.
+     * @param market The address of the market to be removed.
      */
-    function pauseMarket(address market) external onlyGuardianOrGov {
+    function removeMarket(address market) external onlyGuardianOrGov {
         markets[market].vault = IERC4626(address(0));
         markets[market].underlying = IERC20(address(0));
-        emit MarketPaused(market);
+        emit MarketRemoved(market);
     }
 }

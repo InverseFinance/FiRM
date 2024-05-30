@@ -4,47 +4,21 @@ pragma solidity ^0.8.13;
 import {IERC20} from "lib/openzeppelin-contracts/contracts/interfaces/IERC20.sol";
 import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ITransformHelper} from "src/interfaces/ITransformHelper.sol";
+import {Sweepable} from "src/util/Sweepable.sol";
 
 /**
  * @title Base Helper
  * @notice This contract is a base helper contract for the ALE and markets.
  * @dev Base contract to be inherited in each helper contract.
  */
-abstract contract BaseHelper is ITransformHelper {
-    using SafeERC20 for IERC20;
-
-    error NotGov();
-    error NotPendingGov();
-    error NotGuardianOrGov();
+abstract contract BaseHelper is ITransformHelper, Sweepable {
     error NotImplemented();
-
-    address public gov;
-    address public pendingGov;
-    address public guardian;
-
-    event NewGov(address gov);
-    event NewPendingGov(address pendingGov);
-    event NewGuardian(address guardian);
 
     /** @dev Constructor
     @param _gov The address of Inverse Finance governance
     @param _guardian The address of the guardian
     **/
-    constructor(address _gov, address _guardian) {
-        gov = _gov;
-        guardian = _guardian;
-    }
-
-    modifier onlyGov() {
-        if (msg.sender != gov) revert NotGov();
-        _;
-    }
-
-    modifier onlyGuardianOrGov() {
-        if (msg.sender != guardian || msg.sender != gov)
-            revert NotGuardianOrGov();
-        _;
-    }
+    constructor(address _gov, address _guardian) Sweepable(_gov, _guardian) {}
 
     /**
      * @notice Transforms the underlying token into the collateral token.
@@ -138,48 +112,5 @@ abstract contract BaseHelper is ITransformHelper {
         uint256 collateralAmount
     ) external view virtual returns (uint256 assetAmount) {
         revert NotImplemented();
-    }
-
-    /**
-     * @notice Sweep any ERC20 token from the contract.
-     * @dev Only callable by gov.
-     * @param _token The address of the ERC20 token to be swept.
-     */
-    function sweep(address _token) external onlyGov {
-        IERC20(_token).safeTransfer(
-            gov,
-            IERC20(_token).balanceOf(address(this))
-        );
-    }
-
-    /**
-     * @notice Sets the pendingGov, which can claim gov role.
-     * @dev Only callable by gov
-     * @param _pendingGov The address of the pendingGov
-     */
-    function setPendingGov(address _pendingGov) external onlyGov {
-        pendingGov = _pendingGov;
-        emit NewPendingGov(_pendingGov);
-    }
-
-    /**
-     * @notice Claims the gov role
-     * @dev Only callable by pendingGov
-     */
-    function claimPendingGov() external {
-        if (msg.sender != pendingGov) revert NotPendingGov();
-        gov = pendingGov;
-        pendingGov = address(0);
-        emit NewGov(gov);
-    }
-
-    /**
-     * @notice Sets the guardian role
-     * @dev Only callable by gov
-     * @param _guardian The address of the guardian
-     */
-    function setGuardian(address _guardian) external onlyGov {
-        guardian = _guardian;
-        emit NewGuardian(_guardian);
     }
 }

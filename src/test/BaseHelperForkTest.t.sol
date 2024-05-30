@@ -12,6 +12,7 @@ import {IERC4626} from "lib/openzeppelin-contracts/contracts/interfaces/IERC4626
 import {ConfigAddr} from "src/test/ConfigAddr.sol";
 import {BaseHelper} from "src/util/BaseHelper.sol";
 import {IERC20} from "lib/openzeppelin-contracts/contracts/interfaces/IERC20.sol";
+import {Governable} from "src/util/Governable.sol";
 
 contract MockExchangeProxy {
     IOracle oracle;
@@ -74,7 +75,7 @@ abstract contract BaseHelperForkTest is Test, ConfigAddr {
         assertEq(base.gov(), gov);
 
         vm.expectRevert(
-            abi.encodeWithSelector(BaseHelper.NotPendingGov.selector)
+            abi.encodeWithSelector(Governable.NotPendingGov.selector)
         );
         base.claimPendingGov();
         vm.stopPrank();
@@ -92,7 +93,7 @@ abstract contract BaseHelperForkTest is Test, ConfigAddr {
         base.setGuardian(newGuardian);
         assertEq(base.guardian(), newGuardian);
 
-        vm.expectRevert(abi.encodeWithSelector(BaseHelper.NotGov.selector));
+        vm.expectRevert(abi.encodeWithSelector(Governable.NotGov.selector));
         base.setGuardian(newGuardian);
     }
 
@@ -115,7 +116,7 @@ abstract contract BaseHelperForkTest is Test, ConfigAddr {
         assertEq(IERC20(dolaAddr).balanceOf(address(base)), amount);
         assertEq(IERC20(fraxAddr).balanceOf(gov), govBalFrax + amount);
 
-        vm.expectRevert(abi.encodeWithSelector(BaseHelper.NotGov.selector));
+        vm.expectRevert(abi.encodeWithSelector(Governable.NotGov.selector));
         base.sweep(dolaAddr);
 
         vm.prank(gov);
