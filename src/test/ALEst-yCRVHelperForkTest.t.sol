@@ -2,33 +2,30 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "../BorrowController.sol";
+import {BorrowController} from "src/BorrowController.sol";
 import "../DBR.sol";
-import "../Fed.sol";
-import "../Market.sol";
-import "../Oracle.sol";
+import {Market, IBorrowController} from "src/Market.sol";
+import {Oracle, IChainlinkFeed} from "src/Oracle.sol";
+import {Fed, IMarket} from "src/Fed.sol";
 import {ALE} from "../util/ALE.sol";
 import {STYCRVHelper} from "../util/STYCRVHelper.sol";
-import {YCRVFeed} from "./mocks/YCRVFeed.sol";
+import {YCRVFeed} from "test/mocks/YCRVFeed.sol";
 import {ISTYCRV} from "../interfaces/ISTYCRV.sol";
 import {console} from "forge-std/console.sol";
+import {IERC20} from "lib/openzeppelin-contracts/contracts/interfaces/IERC20.sol";
 
-interface IErc20 is IERC20 {
-    function approve(address beneficiary, uint amount) external;
-}
-
-interface IMintable is IErc20 {
+interface IMintable is IERC20 {
     function mint(address receiver, uint amount) external;
 
     function addMinter(address minter) external;
 }
 
 contract MockExchangeProxy {
-    IOracle oracle;
+    Oracle oracle;
     IERC20 dola;
 
     constructor(address _oracle, address _dola) {
-        oracle = IOracle(_oracle);
+        oracle = Oracle(_oracle);
         dola = IERC20(_dola);
     }
 
@@ -80,11 +77,11 @@ contract ALEHelperForkTest is Test {
 
     //ERC-20s
     IMintable DOLA;
-    IErc20 collateral;
+    IERC20 collateral;
 
     //FiRM
     Oracle oracle;
-    IEscrow escrowImplementation;
+
     DolaBorrowingRights dbr;
     Fed fed;
 
@@ -145,9 +142,8 @@ contract ALEHelperForkTest is Test {
 
         //FiRM
         oracle = Oracle(address(market.oracle()));
-        escrowImplementation = IEscrow(market.escrowImplementation());
         fed = Fed(market.lender());
-        collateral = IErc20(address(market.collateral()));
+        collateral = IERC20(address(market.collateral()));
 
         vm.label(user, "user");
         vm.label(user2, "user2");
@@ -179,7 +175,7 @@ contract ALEHelperForkTest is Test {
         address userPk
     ) internal {
         assertApproxEqAbs(
-            IErc20(styCRV).balanceOf(address(market.predictEscrow(userPk))),
+            IERC20(styCRV).balanceOf(address(market.predictEscrow(userPk))),
             stYCRVDeposit + collateralToSwap,
             1
         );
@@ -207,7 +203,7 @@ contract ALEHelperForkTest is Test {
 
         vm.startPrank(userPk, userPk);
         // Initial CRV deposit
-        IErc20(styCRV).approve(address(market), styCRVAmount);
+        IERC20(styCRV).approve(address(market), styCRVAmount);
         market.deposit(styCRVAmount);
 
         // Sign Message for borrow on behalf
@@ -253,7 +249,7 @@ contract ALEHelperForkTest is Test {
 
         // Balance in escrow is equal to the collateral deposited + the extra collateral swapped from the leverage
         assertApproxEqAbs(
-            IErc20(styCRV).balanceOf(address(market.predictEscrow(userPk))),
+            IERC20(styCRV).balanceOf(address(market.predictEscrow(userPk))),
             styCRVAmount +
                 helper.assetToCollateral(
                     _convertDolaToUnderlying(maxBorrowAmount)
@@ -283,7 +279,7 @@ contract ALEHelperForkTest is Test {
 
         vm.startPrank(userPk, userPk);
         // Initial st-yCRV deposit
-        IErc20(styCRV).approve(address(market), styCRVAmount);
+        IERC20(styCRV).approve(address(market), styCRVAmount);
         market.deposit(styCRVAmount);
 
         // Calculate the amount of DOLA needed to borrow to buy the DBR needed to cover for the borrowing period
@@ -358,7 +354,7 @@ contract ALEHelperForkTest is Test {
 
         vm.startPrank(userPk, userPk);
         // Initial styCRV deposit
-        IErc20(styCRV).approve(address(market), styCRVAmount);
+        IERC20(styCRV).approve(address(market), styCRVAmount);
         market.deposit(styCRVAmount);
         market.borrow(borrowAmount);
         vm.stopPrank();
@@ -458,7 +454,7 @@ contract ALEHelperForkTest is Test {
 
         vm.startPrank(userPk, userPk);
         // Initial styCRV deposit
-        IErc20(styCRV).approve(address(market), styCRVAmount);
+        IERC20(styCRV).approve(address(market), styCRVAmount);
         market.deposit(styCRVAmount);
         market.borrow(borrowAmount);
         vm.stopPrank();
@@ -540,14 +536,14 @@ contract ALEHelperForkTest is Test {
         IERC20(yCRV).transfer(userPk, yCRVAmount);
 
         vm.startPrank(userPk, userPk);
-        IErc20(yCRV).approve(address(helper), yCRVAmount);
+        IERC20(yCRV).approve(address(helper), yCRVAmount);
         helper.transformToCollateralAndDeposit(yCRVAmount, "");
 
         assertEq(IERC20(yCRV).balanceOf(userPk), 0);
         Market market = Market(address(helper.market()));
 
         assertEq(
-            IErc20(styCRV).balanceOf(address(market.predictEscrow(userPk))),
+            IERC20(styCRV).balanceOf(address(market.predictEscrow(userPk))),
             helper.assetToCollateral(yCRVAmount)
         );
     }
@@ -563,11 +559,11 @@ contract ALEHelperForkTest is Test {
         IERC20(yCRV).transfer(userPk, yCRVAmount);
 
         vm.startPrank(userPk, userPk);
-        IErc20(yCRV).approve(address(helper), yCRVAmount);
+        IERC20(yCRV).approve(address(helper), yCRVAmount);
         helper.transformToCollateralAndDeposit(yCRVAmount, "");
 
         Market market = Market(address(helper.market())); // actual Mainnet market for helper contract
-        uint256 amountToWithdraw = IErc20(styCRV).balanceOf(
+        uint256 amountToWithdraw = IERC20(styCRV).balanceOf(
             address(market.predictEscrow(userPk))
         ) / 10;
 
@@ -710,7 +706,7 @@ contract ALEHelperForkTest is Test {
 
         vm.startPrank(userPk, userPk);
         // Initial CRV deposit
-        IErc20(styCRV).approve(address(market), styCRVAmount);
+        IERC20(styCRV).approve(address(market), styCRVAmount);
         market.deposit(styCRVAmount);
 
         // Sign Message for borrow on behalf

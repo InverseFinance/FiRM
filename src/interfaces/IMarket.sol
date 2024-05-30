@@ -36,4 +36,6 @@ interface IMarket {
     function borrowPaused() external view returns (bool);
 
     function oracle() external view returns (address);
+
+    function escrows(address) external view returns (address);
 }

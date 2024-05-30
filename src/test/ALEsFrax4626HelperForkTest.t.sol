@@ -2,22 +2,19 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "../BorrowController.sol";
+import {BorrowController} from "src/BorrowController.sol";
 import "../DBR.sol";
-import "../Fed.sol";
-import "../Market.sol";
-import "../Oracle.sol";
+import {Market, IBorrowController} from "src/Market.sol";
+import {Oracle, IChainlinkFeed} from "src/Oracle.sol";
+import {Fed, IMarket} from "src/Fed.sol";
 import {ALE} from "../util/ALE.sol";
 import {ERC4626Helper} from "src/util/ERC4626Helper.sol";
 import {ITransformHelper} from "src/interfaces/ITransformHelper.sol";
 import {console} from "forge-std/console.sol";
 import {BaseHelperForkTest, IERC4626, MockExchangeProxy} from "src/test/BaseHelperForkTest.t.sol";
+import {IERC20} from "lib/openzeppelin-contracts/contracts/interfaces/IERC20.sol";
 
-interface IErc20 is IERC20 {
-    function approve(address beneficiary, uint amount) external;
-}
-
-interface IMintable is IErc20 {
+interface IMintable is IERC20 {
     function mint(address receiver, uint amount) external;
 
     function addMinter(address minter) external;
@@ -42,11 +39,10 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
 
     //ERC-20s
     IMintable DOLA;
-    IErc20 collateral;
+    IERC20 collateral;
 
     //FiRM
     Oracle oracle;
-    IEscrow escrowImplementation;
     DolaBorrowingRights dbr;
     Fed fed;
 
@@ -92,9 +88,8 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
         vm.stopPrank();
         //FiRM
         oracle = Oracle(address(market.oracle()));
-        escrowImplementation = IEscrow(market.escrowImplementation());
         fed = Fed(market.lender());
-        collateral = IErc20(address(market.collateral()));
+        collateral = IERC20(address(market.collateral()));
 
         vm.startPrank(gov, gov);
         market.setBorrowController(
@@ -127,7 +122,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
         address userPk
     ) internal {
         assertApproxEqAbs(
-            IErc20(sFraxAddr).balanceOf(address(market.predictEscrow(userPk))),
+            IERC20(sFraxAddr).balanceOf(address(market.predictEscrow(userPk))),
             sFraxDeposit + collateralToSwap,
             1
         );
@@ -159,7 +154,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
 
         vm.startPrank(userPk, userPk);
         // Initial CRV deposit
-        IErc20(sFraxAddr).approve(address(market), sFraxAmount);
+        IERC20(sFraxAddr).approve(address(market), sFraxAmount);
         market.deposit(sFraxAmount);
 
         // Sign Message for borrow on behalf
@@ -207,7 +202,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
         // market.borrow(10 ether);
         // // Balance in escrow is equal to the collateral deposited + the extra collateral swapped from the leverage
         assertApproxEqAbs(
-            IErc20(sFraxAddr).balanceOf(address(market.predictEscrow(userPk))),
+            IERC20(sFraxAddr).balanceOf(address(market.predictEscrow(userPk))),
             sFraxAmount +
                 helper.assetToCollateral(
                     address(market),
@@ -239,7 +234,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
 
         vm.startPrank(userPk, userPk);
         // Initial st-frax deposit
-        IErc20(sFraxAddr).approve(address(market), sFraxAmount);
+        IERC20(sFraxAddr).approve(address(market), sFraxAmount);
         market.deposit(sFraxAmount);
 
         // Calculate the amount of DOLA needed to borrow to buy the DBR needed to cover for the borrowing period
@@ -314,7 +309,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
 
         vm.startPrank(userPk, userPk);
         // Initial sFrax deposit
-        IErc20(sFraxAddr).approve(address(market), sFraxAmount);
+        IERC20(sFraxAddr).approve(address(market), sFraxAmount);
         market.deposit(sFraxAmount);
         market.borrow(borrowAmount);
         vm.stopPrank();
@@ -414,7 +409,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
 
         vm.startPrank(userPk, userPk);
         // Initial sFrax deposit
-        IErc20(sFraxAddr).approve(address(market), sFraxAmount);
+        IERC20(sFraxAddr).approve(address(market), sFraxAmount);
         market.deposit(sFraxAmount);
         market.borrow(borrowAmount);
         vm.stopPrank();
@@ -496,7 +491,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
         IERC20(fraxAddr).transfer(userPk, fraxAmount);
 
         vm.startPrank(userPk, userPk);
-        IErc20(fraxAddr).approve(address(helper), fraxAmount);
+        IERC20(fraxAddr).approve(address(helper), fraxAmount);
         helper.transformToCollateralAndDeposit(
             fraxAmount,
             userPk,
@@ -506,7 +501,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
         assertEq(IERC20(fraxAddr).balanceOf(userPk), 0);
 
         assertEq(
-            IErc20(sFraxAddr).balanceOf(address(market.predictEscrow(userPk))),
+            IERC20(sFraxAddr).balanceOf(address(market.predictEscrow(userPk))),
             helper.assetToCollateral(address(market), fraxAmount)
         );
     }
@@ -522,7 +517,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
         IERC20(fraxAddr).transfer(userPk, fraxAmount);
 
         vm.startPrank(userPk, userPk);
-        IErc20(fraxAddr).approve(address(helper), fraxAmount);
+        IERC20(fraxAddr).approve(address(helper), fraxAmount);
         helper.transformToCollateralAndDeposit(
             fraxAmount,
             userPk,
@@ -530,7 +525,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
         );
 
         //Market market = Market(address(helper.market())); // actual Mainnet market for helper contract
-        uint256 amountToWithdraw = IErc20(sFraxAddr).balanceOf(
+        uint256 amountToWithdraw = IERC20(sFraxAddr).balanceOf(
             address(market.predictEscrow(userPk))
         ) / 10;
 
@@ -687,7 +682,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
 
         vm.startPrank(userPk, userPk);
         // Initial CRV deposit
-        IErc20(sFraxAddr).approve(address(market), sFraxAmount);
+        IERC20(sFraxAddr).approve(address(market), sFraxAmount);
         market.deposit(sFraxAmount);
 
         // Sign Message for borrow on behalf

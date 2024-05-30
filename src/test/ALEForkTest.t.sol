@@ -2,15 +2,11 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "./FiRMForkTest.sol";
-import "../BorrowController.sol";
+import "test/marketForkTests/MarketForkTest.sol";
 import "../DBR.sol";
-import "../Fed.sol";
-import "../Market.sol";
-import "../Oracle.sol";
-import "./mocks/ERC20.sol";
-import "./mocks/BorrowContract.sol";
+import "test/mocks/ERC20.sol";
 import {ALE} from "../util/ALE.sol";
+import {ConfigAddr} from "src/test/ConfigAddr.sol";
 
 contract MockExchangeProxy {
     IOracle oracle;
@@ -44,7 +40,7 @@ contract MockExchangeProxy {
     }
 }
 
-contract ALEForkTest is FiRMForkTest {
+contract ALEForkTest is MarketForkTest {
     bytes onlyGovUnpause = "Only governance can unpause";
     bytes onlyPauseGuardianOrGov =
         "Only pause guardian or governance can pause";
@@ -53,8 +49,6 @@ contract ALEForkTest is FiRMForkTest {
 
     error NothingToDeposit();
 
-    BorrowContract borrowContract;
-    IERC20 WETH;
     MockExchangeProxy exchangeProxy;
     ALE ale;
     address triDBR = 0xC7DE47b9Ca2Fc753D6a2F167D8b3e19c6D18b19a;
@@ -62,8 +56,8 @@ contract ALEForkTest is FiRMForkTest {
     function setUp() public {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url,18164420);
-        init();
+        vm.createSelectFork(url, 18164420);
+        init(crvMarketAddr, crvUsdFeedAddr);
 
         vm.prank(gov);
         market.pauseBorrows(false);
@@ -71,11 +65,6 @@ contract ALEForkTest is FiRMForkTest {
         vm.startPrank(chair, chair);
         fed.expansion(IMarket(address(market)), 100_000e18);
         vm.stopPrank();
-
-        borrowContract = new BorrowContract(
-            address(market),
-            payable(address(market.collateral()))
-        );
 
         exchangeProxy = new MockExchangeProxy(
             address(market.oracle()),
@@ -85,7 +74,7 @@ contract ALEForkTest is FiRMForkTest {
         ale = new ALE(address(exchangeProxy), triDBR);
         // ALE setup
         vm.prank(gov);
-        DOLA.addMinter(address(ale));  
+        DOLA.addMinter(address(ale));
 
         ale.setMarket(
             address(market),
@@ -115,18 +104,24 @@ contract ALEForkTest is FiRMForkTest {
         return totalDola;
     }
 
-    function test_depositAndLeveragePosition_buyDBR(uint256 crvTestAmount) public {
+    function test_depositAndLeveragePosition_buyDBR(
+        uint256 crvTestAmount
+    ) public {
         vm.assume(crvTestAmount < 50000 ether);
         vm.assume(crvTestAmount > 0.000001 ether);
         // We are going to deposit and leverage the position
-      //  uint crvTestAmount = 13606;
+        //  uint crvTestAmount = 13606;
         address userPk = vm.addr(1);
-        gibWeth(userPk, crvTestAmount);
+        deal(address(market.collateral()), userPk, crvTestAmount);
 
         uint maxBorrowAmount = getMaxBorrowAmount(crvTestAmount) / 10; // we want to borrow only 10% of the max amount to exchange
 
         // recharge mocked proxy for swap, we need to swap DOLA to collateral
-        gibWeth(address(exchangeProxy), convertDolaToCollat(maxBorrowAmount));
+        deal(
+            address(market.collateral()),
+            address(exchangeProxy),
+            convertDolaToCollat(maxBorrowAmount)
+        );
 
         vm.startPrank(userPk, userPk);
 
@@ -195,16 +190,22 @@ contract ALEForkTest is FiRMForkTest {
         assertGt(dbr.balanceOf(userPk), (dbrAmount * 98) / 100);
     }
 
-    function test_fail_depositAndLeveragePosition_buyDBR_with_ZERO_deposit() public {
+    function test_fail_depositAndLeveragePosition_buyDBR_with_ZERO_deposit()
+        public
+    {
         // We are going to deposit and leverage the position
         uint crvTestAmount = 1 ether;
         address userPk = vm.addr(1);
-        gibWeth(userPk, crvTestAmount);
+        deal(address(market.collateral()), userPk, crvTestAmount);
 
         uint maxBorrowAmount = getMaxBorrowAmount(crvTestAmount) / 10; // we want to borrow only 10% of the max amount to exchange
 
         // recharge mocked proxy for swap, we need to swap DOLA to collateral
-        gibWeth(address(exchangeProxy), convertDolaToCollat(maxBorrowAmount));
+        deal(
+            address(market.collateral()),
+            address(exchangeProxy),
+            convertDolaToCollat(maxBorrowAmount)
+        );
 
         vm.startPrank(userPk, userPk);
 
@@ -239,8 +240,7 @@ contract ALEForkTest is FiRMForkTest {
             dolaForDBR,
             (dbrAmount * 98) / 100, // DBR buy,
             0 // Dola to borrow and withdraw after leverage
-        ); 
-        
+        );
 
         bytes memory swapData = abi.encodeWithSelector(
             MockExchangeProxy.swapDolaIn.selector,
@@ -251,7 +251,6 @@ contract ALEForkTest is FiRMForkTest {
         assertEq(dbr.balanceOf(userPk), 0);
 
         collateral.approve(address(ale), crvTestAmount);
-
 
         // We try to set 0 as initial deposit, reverts
         vm.expectRevert(NothingToDeposit.selector);
@@ -273,12 +272,16 @@ contract ALEForkTest is FiRMForkTest {
         uint dolaToWithdraw = 100 ether;
 
         address userPk = vm.addr(1);
-        gibWeth(userPk, crvTestAmount);
+        deal(address(market.collateral()), userPk, crvTestAmount);
 
         uint maxBorrowAmount = getMaxBorrowAmount(crvTestAmount);
 
         // recharge mocked proxy for swap, we need to swap DOLA to collateral
-        gibWeth(address(exchangeProxy), convertDolaToCollat(maxBorrowAmount + dolaToWithdraw));
+        deal(
+            address(market.collateral()),
+            address(exchangeProxy),
+            convertDolaToCollat(maxBorrowAmount + dolaToWithdraw)
+        );
 
         vm.startPrank(userPk, userPk);
         // Initial CRV deposit
@@ -315,7 +318,7 @@ contract ALEForkTest is FiRMForkTest {
             dolaForDBR,
             (dbrAmount * 98) / 100, // DBR buy
             dolaToWithdraw // Dola to borrow and withdraw after leverage
-        ); 
+        );
 
         bytes memory swapData = abi.encodeWithSelector(
             MockExchangeProxy.swapDolaIn.selector,
@@ -340,7 +343,7 @@ contract ALEForkTest is FiRMForkTest {
             collateral.balanceOf(address(market.predictEscrow(userPk))),
             crvTestAmount + convertDolaToCollat(maxBorrowAmount)
         );
-        assertEq(DOLA.balanceOf(userPk), dolaToWithdraw); 
+        assertEq(DOLA.balanceOf(userPk), dolaToWithdraw);
 
         assertGt(dbr.balanceOf(userPk), (dbrAmount * 98) / 100);
     }
@@ -349,12 +352,16 @@ contract ALEForkTest is FiRMForkTest {
         // We are going to deposit some CRV, then leverage the position
         uint crvTestAmount = 1 ether;
         address userPk = vm.addr(1);
-        gibWeth(userPk, crvTestAmount);
+        deal(address(market.collateral()), userPk, crvTestAmount);
 
         uint maxBorrowAmount = getMaxBorrowAmount(crvTestAmount);
 
         // recharge mocked proxy for swap, we need to swap DOLA to collateral
-        gibWeth(address(exchangeProxy), convertDolaToCollat(maxBorrowAmount));
+        deal(
+            address(market.collateral()),
+            address(exchangeProxy),
+            convertDolaToCollat(maxBorrowAmount)
+        );
 
         vm.startPrank(userPk, userPk);
         // Initial CRV deposit
@@ -391,7 +398,7 @@ contract ALEForkTest is FiRMForkTest {
             dolaForDBR,
             (dbrAmount * 98) / 100, // DBR buy
             0 // Dola to borrow and withdraw after leverage
-        ); 
+        );
 
         bytes memory swapData = abi.encodeWithSelector(
             MockExchangeProxy.swapDolaIn.selector,
@@ -424,7 +431,7 @@ contract ALEForkTest is FiRMForkTest {
     function test_deleveragePosition_sellDBR() public {
         uint crvTestAmount = 1 ether;
         address userPk = vm.addr(1);
-        gibWeth(userPk, crvTestAmount);
+        deal(address(market.collateral()), userPk, crvTestAmount);
         gibDBR(userPk, crvTestAmount);
 
         // Max Amount borrowable is the one available from collateral amount +
@@ -477,7 +484,11 @@ contract ALEForkTest is FiRMForkTest {
 
         ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
 
-        ALE.DBRHelper memory dbrData = ALE.DBRHelper(dbr.balanceOf(userPk), 0, 0); // Sell DBR
+        ALE.DBRHelper memory dbrData = ALE.DBRHelper(
+            dbr.balanceOf(userPk),
+            0,
+            0
+        ); // Sell DBR
 
         bytes memory swapData = abi.encodeWithSelector(
             MockExchangeProxy.swapDolaOut.selector,
@@ -513,7 +524,7 @@ contract ALEForkTest is FiRMForkTest {
     function test_deleveragePosition_withdrawALL_sellDBR() public {
         uint crvTestAmount = 1 ether;
         address userPk = vm.addr(1);
-        gibWeth(userPk, crvTestAmount);
+        deal(address(market.collateral()), userPk, crvTestAmount);
         gibDBR(userPk, crvTestAmount);
 
         // Max Amount borrowable is the one available from collateral amount +
@@ -522,10 +533,7 @@ contract ALEForkTest is FiRMForkTest {
 
         // recharge mocked proxy for swap, we need to swap collateral to DOLA
         vm.startPrank(gov);
-        DOLA.mint(
-            address(exchangeProxy),
-            convertCollatToDola(crvTestAmount)
-        );
+        DOLA.mint(address(exchangeProxy), convertCollatToDola(crvTestAmount));
         vm.stopPrank();
 
         vm.startPrank(userPk, userPk);
@@ -566,12 +574,16 @@ contract ALEForkTest is FiRMForkTest {
 
         ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
 
-        ALE.DBRHelper memory dbrData = ALE.DBRHelper(dbr.balanceOf(userPk), 0, 0); // Sell DBR
+        ALE.DBRHelper memory dbrData = ALE.DBRHelper(
+            dbr.balanceOf(userPk),
+            0,
+            0
+        ); // Sell DBR
 
         bytes memory swapData = abi.encodeWithSelector(
             MockExchangeProxy.swapDolaOut.selector,
             collateral,
-            amountToWithdraw/2
+            amountToWithdraw / 2
         );
 
         dbr.approve(address(ale), dbr.balanceOf(userPk));
@@ -600,7 +612,7 @@ contract ALEForkTest is FiRMForkTest {
 
         assertEq(dbr.balanceOf(userPk), 0);
 
-        assertEq(collateral.balanceOf(userPk), amountToWithdraw /2);
+        assertEq(collateral.balanceOf(userPk), amountToWithdraw / 2);
     }
 
     function test_max_leveragePosition() public {
@@ -608,7 +620,7 @@ contract ALEForkTest is FiRMForkTest {
 
         uint crvTestAmount = 1 ether;
         address userPk = vm.addr(1);
-        gibWeth(userPk, crvTestAmount);
+        deal(address(market.collateral()), userPk, crvTestAmount);
         gibDBR(userPk, crvTestAmount);
 
         // Max Amount borrowable is the one available from collateral amount +
@@ -616,7 +628,11 @@ contract ALEForkTest is FiRMForkTest {
         uint maxBorrowAmount = getMaxLeverageBorrowAmount(crvTestAmount, 100);
 
         // recharge mocked proxy for swap, we need to swap DOLA to collateral
-        gibWeth(address(exchangeProxy), convertDolaToCollat(maxBorrowAmount));
+        deal(
+            address(market.collateral()),
+            address(exchangeProxy),
+            convertDolaToCollat(maxBorrowAmount)
+        );
 
         vm.startPrank(userPk, userPk);
         // Initial CRV deposit
@@ -675,9 +691,9 @@ contract ALEForkTest is FiRMForkTest {
         // We are going to deposit some CRV, then fully leverage the position
         vm.assume(crvTestAmount < 40000 ether);
         vm.assume(crvTestAmount > 0.00000001 ether);
-     
+
         address userPk = vm.addr(1);
-        gibWeth(userPk, crvTestAmount);
+        deal(address(market.collateral()), userPk, crvTestAmount);
         gibDBR(userPk, crvTestAmount);
 
         // Max Amount borrowable is the one available from collateral amount +
@@ -755,14 +771,16 @@ contract ALEForkTest is FiRMForkTest {
         assertEq(DOLA.balanceOf(userPk), convertCollatToDola(crvTestAmount));
     }
 
-    function test_max_leverageAndDeleveragePosition(uint256 crvTestAmount) public {
+    function test_max_leverageAndDeleveragePosition(
+        uint256 crvTestAmount
+    ) public {
         // We are going to deposit some CRV, then fully leverage the position
         // and then fully deleverage it (withdrawing ALL the collateral)
         vm.assume(crvTestAmount < 40000 ether);
         vm.assume(crvTestAmount > 0.00000001 ether);
 
         address userPk = vm.addr(1);
-        gibWeth(userPk, crvTestAmount);
+        deal(address(market.collateral()), userPk, crvTestAmount);
         gibDBR(userPk, crvTestAmount);
 
         // Max Amount borrowable is the one available from collateral amount +
@@ -770,7 +788,11 @@ contract ALEForkTest is FiRMForkTest {
         uint maxBorrowAmount = getMaxLeverageBorrowAmount(crvTestAmount, 100);
 
         // recharge proxy for swap, we need to swap DOLA to collateral
-        gibWeth(address(exchangeProxy), convertDolaToCollat(maxBorrowAmount));
+        deal(
+            address(market.collateral()),
+            address(exchangeProxy),
+            convertDolaToCollat(maxBorrowAmount)
+        );
         // we also need to mint DOLA into the swap mock bc we will swap ALL the collateral, not only the one added from the leverage
         vm.startPrank(gov);
         DOLA.mint(address(exchangeProxy), convertCollatToDola(crvTestAmount));
@@ -880,7 +902,7 @@ contract ALEForkTest is FiRMForkTest {
     function test_deleveragePosition_if_collateral_no_debt() public {
         uint crvTestAmount = 1 ether;
         address userPk = vm.addr(1);
-        gibWeth(userPk, crvTestAmount);
+        deal(address(market.collateral()), userPk, crvTestAmount);
         gibDBR(userPk, crvTestAmount);
 
         // recharge mocked proxy for swap, we need to swap collateral to DOLA
@@ -947,13 +969,17 @@ contract ALEForkTest is FiRMForkTest {
         // We are going to deposit some CRV, then leverage the position
         uint crvTestAmount = 1 ether;
         address userPk = vm.addr(1);
-        gibWeth(userPk, crvTestAmount);
+        deal(address(market.collateral()), userPk, crvTestAmount);
         gibDBR(userPk, crvTestAmount);
 
         uint maxBorrowAmount = getMaxBorrowAmount(crvTestAmount);
 
         // recharge mocked proxy for swap, we need to swap DOLA to collateral
-        gibWeth(address(exchangeProxy), convertDolaToCollat(maxBorrowAmount));
+        deal(
+            address(market.collateral()),
+            address(exchangeProxy),
+            convertDolaToCollat(maxBorrowAmount)
+        );
 
         vm.startPrank(userPk, userPk);
 
@@ -1003,7 +1029,7 @@ contract ALEForkTest is FiRMForkTest {
     function test_fail_deleveragePosition_if_no_collateral() public {
         uint crvTestAmount = 1 ether;
         address userPk = vm.addr(1);
-        gibWeth(userPk, crvTestAmount);
+        deal(address(market.collateral()), userPk, crvTestAmount);
         gibDBR(userPk, crvTestAmount);
 
         // recharge mocked proxy for swap, we need to swap collateral to DOLA
@@ -1064,7 +1090,7 @@ contract ALEForkTest is FiRMForkTest {
 
         uint crvTestAmount = 1 ether;
         address userPk = vm.addr(1);
-        gibWeth(userPk, crvTestAmount);
+        deal(address(market.collateral()), userPk, crvTestAmount);
         gibDBR(userPk, crvTestAmount);
 
         // Max Amount borrowable is the one available from collateral amount +
@@ -1072,7 +1098,11 @@ contract ALEForkTest is FiRMForkTest {
         uint maxBorrowAmount = getMaxLeverageBorrowAmount(crvTestAmount, 100);
 
         // recharge mocked proxy for swap, we need to swap DOLA to collateral
-        gibWeth(address(exchangeProxy), convertDolaToCollat(maxBorrowAmount));
+        deal(
+            address(market.collateral()),
+            address(exchangeProxy),
+            convertDolaToCollat(maxBorrowAmount)
+        );
 
         vm.startPrank(userPk, userPk);
         // Initial CRV deposit
@@ -1133,43 +1163,105 @@ contract ALEForkTest is FiRMForkTest {
     function test_fail_setMarket_NoMarket() public {
         address fakeMarket = address(0x69);
 
-        vm.expectRevert(abi.encodeWithSelector(ALE.NoMarket.selector, fakeMarket));
-        ale.setMarket(fakeMarket,address(0),address(0),address(0));
+        vm.expectRevert(
+            abi.encodeWithSelector(ALE.NoMarket.selector, fakeMarket)
+        );
+        ale.setMarket(fakeMarket, address(0), address(0), address(0));
     }
 
     function test_fail_setMarket_WrongCollateral_NoHelper() public {
         ale.updateMarketHelper(address(market), address(0));
-        
+
         address fakeCollateral = address(0x69);
 
-        vm.expectRevert(abi.encodeWithSelector(ALE.WrongCollateral.selector,address(market), fakeCollateral, address(0), address(0)));
-        ale.setMarket(address(market),fakeCollateral,address(0),address(0));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ALE.WrongCollateral.selector,
+                address(market),
+                fakeCollateral,
+                address(0),
+                address(0)
+            )
+        );
+        ale.setMarket(address(market), fakeCollateral, address(0), address(0));
 
-        vm.expectRevert(abi.encodeWithSelector(ALE.WrongCollateral.selector,address(market), address(0), fakeCollateral,address(0)));
-        ale.setMarket(address(market),address(0), fakeCollateral,address(0));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ALE.WrongCollateral.selector,
+                address(market),
+                address(0),
+                fakeCollateral,
+                address(0)
+            )
+        );
+        ale.setMarket(address(market), address(0), fakeCollateral, address(0));
 
-        vm.expectRevert(abi.encodeWithSelector(ALE.WrongCollateral.selector,address(market), fakeCollateral, fakeCollateral,address(0)));
-        ale.setMarket(address(market),fakeCollateral, fakeCollateral,address(0));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ALE.WrongCollateral.selector,
+                address(market),
+                fakeCollateral,
+                fakeCollateral,
+                address(0)
+            )
+        );
+        ale.setMarket(
+            address(market),
+            fakeCollateral,
+            fakeCollateral,
+            address(0)
+        );
     }
 
     function test_fail_setMarket_WrongCollateral_WithHelper() public {
         address fakeCollateral = address(0x69);
         address dummyHelper = address(0x70);
-        vm.expectRevert(abi.encodeWithSelector(ALE.WrongCollateral.selector,address(market), fakeCollateral, address(0), dummyHelper));
-        ale.setMarket(address(market),fakeCollateral,address(0),dummyHelper);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ALE.WrongCollateral.selector,
+                address(market),
+                fakeCollateral,
+                address(0),
+                dummyHelper
+            )
+        );
+        ale.setMarket(address(market), fakeCollateral, address(0), dummyHelper);
 
-        vm.expectRevert(abi.encodeWithSelector(ALE.WrongCollateral.selector,address(market), address(0), fakeCollateral, dummyHelper));
-        ale.setMarket(address(market),address(0), fakeCollateral, dummyHelper);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ALE.WrongCollateral.selector,
+                address(market),
+                address(0),
+                fakeCollateral,
+                dummyHelper
+            )
+        );
+        ale.setMarket(address(market), address(0), fakeCollateral, dummyHelper);
 
-        vm.expectRevert(abi.encodeWithSelector(ALE.WrongCollateral.selector,address(market), fakeCollateral, fakeCollateral, dummyHelper));
-        ale.setMarket(address(market),fakeCollateral, fakeCollateral, dummyHelper);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ALE.WrongCollateral.selector,
+                address(market),
+                fakeCollateral,
+                fakeCollateral,
+                dummyHelper
+            )
+        );
+        ale.setMarket(
+            address(market),
+            fakeCollateral,
+            fakeCollateral,
+            dummyHelper
+        );
     }
 
     function test_fail_updateMarketHelper_NoMarket() public {
         address wrongMarket = address(0x69);
         address newHelper = address(0x70);
 
-        vm.expectRevert(abi.encodeWithSelector(ALE.MarketNotSet.selector, wrongMarket));
+        vm.expectRevert(
+            abi.encodeWithSelector(ALE.MarketNotSet.selector, wrongMarket)
+        );
         ale.updateMarketHelper(wrongMarket, newHelper);
     }
 }

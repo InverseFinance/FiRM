@@ -2,18 +2,18 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "./FiRMForkTest.sol";
-import "../BorrowController.sol";
+import "test/marketForkTests/MarketForkTest.sol";
+//import "../BorrowController.sol";
 import "../DBR.sol";
-import "../Fed.sol";
-import "../Market.sol";
-import "../Oracle.sol";
-import "./mocks/ERC20.sol";
-import "./mocks/BorrowContract.sol";
+// import "../Fed.sol";
+// import "../Market.sol";
+// import "../Oracle.sol";
+import "test/mocks/ERC20.sol";
+import "test/mocks/BorrowContract.sol";
 import {ALE} from "../util/ALE.sol";
 import {STYCRVHelper} from "../util/STYCRVHelper.sol";
-import {STYCRVFeed} from "./mocks/STYCRVFeed.sol";
-import {YCRVFeed} from "./mocks/YCRVFeed.sol";
+import {STYCRVFeed} from "test/mocks/STYCRVFeed.sol";
+import {YCRVFeed} from "test/mocks/YCRVFeed.sol";
 import {ITransformHelper} from "../interfaces/ITransformHelper.sol";
 
 contract MockExchangeProxy {
@@ -48,7 +48,7 @@ contract MockExchangeProxy {
     }
 }
 
-contract ALEHelperTest is FiRMForkTest {
+contract ALEHelperTest is MarketForkTest {
     bytes onlyGovUnpause = "Only governance can unpause";
     bytes onlyPauseGuardianOrGov =
         "Only pause guardian or governance can pause";
@@ -70,15 +70,17 @@ contract ALEHelperTest is FiRMForkTest {
     address styCRVHolder = 0x577eBC5De943e35cdf9ECb5BbE1f7D7CB6c7C647;
     address yCRVHolder = 0xEE8fe4827ea1ad40e6960dDce84A97360D60dac2;
     address triDBR = 0xC7DE47b9Ca2Fc753D6a2F167D8b3e19c6D18b19a;
+    uint replenishmentIncentiveBps;
 
     function setUp() public {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
         vm.createSelectFork(url, 18171234);
-        init();
+        //init();
         helper = new STYCRVHelper();
         feedSTYCRV = new STYCRVFeed();
         feedYCRV = new YCRVFeed();
+
         // Deploy st-yCRV Market
         initialize(
             collateralFactorBps,
@@ -90,7 +92,7 @@ contract ALEHelperTest is FiRMForkTest {
         vm.startPrank(chair, chair);
         fed.expansion(IMarket(address(styCRVmarket)), 100_000e18);
         vm.stopPrank();
-
+        replenishmentIncentiveBps = market.replenishmentIncentiveBps();
         borrowContract = new BorrowContract(
             address(styCRVmarket),
             payable(address(styCRVmarket.collateral()))
@@ -105,7 +107,7 @@ contract ALEHelperTest is FiRMForkTest {
         // ALE setup
         vm.prank(gov);
         DOLA.addMinter(address(ale));
-        
+
         ale.setMarket(
             address(styCRVmarket),
             yCRV,
@@ -186,40 +188,42 @@ contract ALEHelperTest is FiRMForkTest {
                 styCRVmarket.collateralFactorBps()) / 10_000;
     }
 
-    function test_transformToCollateralAndDeposit() public  {
+    function test_transformToCollateralAndDeposit() public {
         uint256 yCRVAmount = 1 ether;
         address userPk = vm.addr(1);
         vm.prank(yCRVHolder);
         IERC20(yCRV).transfer(userPk, yCRVAmount);
 
         vm.startPrank(userPk, userPk);
-        IErc20(yCRV).approve(address(helper), yCRVAmount);
-        helper.transformToCollateralAndDeposit(yCRVAmount,"");
+        IERC20(yCRV).approve(address(helper), yCRVAmount);
+        helper.transformToCollateralAndDeposit(yCRVAmount, "");
 
-        assertEq(IERC20(yCRV).balanceOf(userPk),0);
+        assertEq(IERC20(yCRV).balanceOf(userPk), 0);
         Market market = Market(address(helper.market())); // actual Mainnet market for helper contract
 
         assertApproxEqAbs(
-            IErc20(styCRV).balanceOf(address(market.predictEscrow(userPk))),
+            IERC20(styCRV).balanceOf(address(market.predictEscrow(userPk))),
             helper.assetToCollateral(yCRVAmount),
             1
         );
     }
 
-    function test_withdrawAndTransformFromCollateral() public  {
+    function test_withdrawAndTransformFromCollateral() public {
         uint256 yCRVAmount = 1 ether;
-         address userPk = vm.addr(1);
+        address userPk = vm.addr(1);
         vm.prank(yCRVHolder);
         IERC20(yCRV).transfer(userPk, yCRVAmount);
 
         vm.startPrank(userPk, userPk);
-        IErc20(yCRV).approve(address(helper), yCRVAmount);
-        helper.transformToCollateralAndDeposit(yCRVAmount,"");
+        IERC20(yCRV).approve(address(helper), yCRVAmount);
+        helper.transformToCollateralAndDeposit(yCRVAmount, "");
 
         Market market = Market(address(helper.market())); // actual Mainnet market for helper contract
-        uint256 amountToWithdraw = IErc20(styCRV).balanceOf(address(market.predictEscrow(userPk))) / 10;
+        uint256 amountToWithdraw = IERC20(styCRV).balanceOf(
+            address(market.predictEscrow(userPk))
+        ) / 10;
 
-          bytes32 hash = keccak256(
+        bytes32 hash = keccak256(
             abi.encodePacked(
                 "\x19\x01",
                 market.DOMAIN_SEPARATOR(),
@@ -239,10 +243,15 @@ contract ALEHelperTest is FiRMForkTest {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
-        STYCRVHelper.Permit memory permit = STYCRVHelper.Permit(block.timestamp, v, r, s);
+        STYCRVHelper.Permit memory permit = STYCRVHelper.Permit(
+            block.timestamp,
+            v,
+            r,
+            s
+        );
 
-        assertEq(IERC20(yCRV).balanceOf(userPk),0);
-        
+        assertEq(IERC20(yCRV).balanceOf(userPk), 0);
+
         helper.withdrawAndTransformFromCollateral(amountToWithdraw, permit, "");
 
         assertApproxEqAbs(
@@ -250,7 +259,6 @@ contract ALEHelperTest is FiRMForkTest {
             helper.collateralToAsset(amountToWithdraw),
             1
         );
-
     }
 
     function test_leveragePosition() public {
@@ -273,7 +281,7 @@ contract ALEHelperTest is FiRMForkTest {
 
         vm.startPrank(userPk, userPk);
         // Initial CRV deposit
-        IErc20(styCRV).approve(address(styCRVmarket), styCRVAmount);
+        IERC20(styCRV).approve(address(styCRVmarket), styCRVAmount);
         styCRVmarket.deposit(styCRVAmount);
 
         // Sign Message for borrow on behalf
@@ -319,7 +327,7 @@ contract ALEHelperTest is FiRMForkTest {
 
         // Balance in escrow is equal to the collateral deposited + the extra collateral swapped from the leverage
         assertApproxEqAbs(
-            IErc20(styCRV).balanceOf(
+            IERC20(styCRV).balanceOf(
                 address(styCRVmarket.predictEscrow(userPk))
             ),
             styCRVAmount +
@@ -351,7 +359,7 @@ contract ALEHelperTest is FiRMForkTest {
 
         vm.startPrank(userPk, userPk);
         // Initial st-yCRV deposit
-        IErc20(styCRV).approve(address(styCRVmarket), styCRVAmount);
+        IERC20(styCRV).approve(address(styCRVmarket), styCRVAmount);
         styCRVmarket.deposit(styCRVAmount);
 
         // Calculate the amount of DOLA needed to borrow to buy the DBR needed to cover for the borrowing period
@@ -421,7 +429,9 @@ contract ALEHelperTest is FiRMForkTest {
         vm.prank(styCRVHolder);
         IERC20(styCRV).transfer(userPk, styCRVAmount);
 
-        uint maxBorrowAmount = _getMaxBorrowAmount(styCRVAmount + dolaToWithdraw);
+        uint maxBorrowAmount = _getMaxBorrowAmount(
+            styCRVAmount + dolaToWithdraw
+        );
 
         uint256 yCRVAmount = helper.collateralToAsset(
             _convertDolaToCollat(maxBorrowAmount)
@@ -433,7 +443,7 @@ contract ALEHelperTest is FiRMForkTest {
 
         vm.startPrank(userPk, userPk);
         // Initial st-yCRV deposit
-        IErc20(styCRV).approve(address(styCRVmarket), styCRVAmount);
+        IERC20(styCRV).approve(address(styCRVmarket), styCRVAmount);
         styCRVmarket.deposit(styCRVAmount);
 
         // Calculate the amount of DOLA needed to borrow to buy the DBR needed to cover for the borrowing period
@@ -495,28 +505,31 @@ contract ALEHelperTest is FiRMForkTest {
 
     function test_depositAndleveragePosition_buyDBR() public {
         // We are going to deposit and convert some yCRV and leverage the position
-       // uint deposityCRVAmount = 1 ether;
+        // uint deposityCRVAmount = 1 ether;
         address userPk = vm.addr(1);
         vm.prank(yCRVHolder);
         IERC20(yCRV).transfer(userPk, 1 ether);
 
         uint stYCRVDeposit = helper.assetToCollateral(1 ether);
         uint maxBorrowAmount = _getMaxBorrowAmount(stYCRVDeposit);
-      
+
         // recharge mocked proxy for swap, we need to swap DOLA to unwrapped collateral
         vm.startPrank(yCRVHolder);
         uint collateralToSwap = _convertDolaToCollat(maxBorrowAmount);
-     
+
         uint underlyingAmountToSwap = helper.collateralToAsset(
             collateralToSwap
         );
-   
-        IERC20(yCRV).transfer(address(exchangeProxy), underlyingAmountToSwap + 2); // 2 rounding when calculating it
+
+        IERC20(yCRV).transfer(
+            address(exchangeProxy),
+            underlyingAmountToSwap + 2
+        ); // 2 rounding when calculating it
         vm.stopPrank();
-        
+
         vm.startPrank(userPk, userPk);
         // Approve for initial yCRV deposit
-        IErc20(yCRV).approve(address(ale), 1 ether);
+        IERC20(yCRV).approve(address(ale), 1 ether);
 
         // Calculate the amount of DOLA needed to borrow to buy the DBR needed to cover for the borrowing period
         (uint256 dolaForDBR, uint256 dbrAmount) = ale
@@ -573,11 +586,10 @@ contract ALEHelperTest is FiRMForkTest {
 
     function checkEq(uint stYCRVDeposit, uint collateralToSwap) internal {
         assertApproxEqAbs(
-            IErc20(styCRV).balanceOf(
+            IERC20(styCRV).balanceOf(
                 address(0x47F7E5B14dcD7b717182a86259EadAA8A9Bf894A)
             ),
-            stYCRVDeposit +
-                collateralToSwap,
+            stYCRVDeposit + collateralToSwap,
             1
         );
     }
@@ -595,28 +607,21 @@ contract ALEHelperTest is FiRMForkTest {
 
         vm.startPrank(userPk, userPk);
         // Initial styCRV deposit
-        IErc20(styCRV).approve(address(styCRVmarket), styCRVAmount);
+        IERC20(styCRV).approve(address(styCRVmarket), styCRVAmount);
         styCRVmarket.deposit(styCRVAmount);
         styCRVmarket.borrow(borrowAmount);
         vm.stopPrank();
 
         address userEscrow = address(styCRVmarket.predictEscrow(userPk));
-        assertEq(
-            IERC20(styCRV).balanceOf(
-                userEscrow
-            ),
-            styCRVAmount
-        );
+        assertEq(IERC20(styCRV).balanceOf(userEscrow), styCRVAmount);
         assertEq(DOLA.balanceOf(userPk), borrowAmount);
 
         // We are going to withdraw only 1/10 of the collateral to deleverage
-        uint256 amountToWithdraw = IERC20(styCRV).balanceOf(
-            userEscrow
-        ) / 10;
+        uint256 amountToWithdraw = IERC20(styCRV).balanceOf(userEscrow) / 10;
         uint256 dolaAmountForSwap = _convertUnderlyingToDola(
             helper.collateralToAsset(amountToWithdraw)
         );
-        
+
         // recharge mocked proxy for swap, we need to swap DOLA to unwrapped collateral
         vm.startPrank(gov);
         DOLA.mint(address(exchangeProxy), dolaAmountForSwap);
@@ -666,9 +671,7 @@ contract ALEHelperTest is FiRMForkTest {
 
         // Some collateral has been withdrawn
         assertEq(
-            IERC20(styCRV).balanceOf(
-                userEscrow
-            ),
+            IERC20(styCRV).balanceOf(userEscrow),
             styCRVAmount - amountToWithdraw
         );
         // User still has dola but has some debt repaid
@@ -688,7 +691,7 @@ contract ALEHelperTest is FiRMForkTest {
 
         vm.startPrank(userPk, userPk);
         // Initial styCRV deposit
-        IErc20(styCRV).approve(address(styCRVmarket), styCRVAmount);
+        IERC20(styCRV).approve(address(styCRVmarket), styCRVAmount);
         styCRVmarket.deposit(styCRVAmount);
         styCRVmarket.borrow(borrowAmount);
         vm.stopPrank();
@@ -737,7 +740,11 @@ contract ALEHelperTest is FiRMForkTest {
 
         ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
 
-        ALE.DBRHelper memory dbrData = ALE.DBRHelper(dbr.balanceOf(userPk), 0, 0); // sell all DBR
+        ALE.DBRHelper memory dbrData = ALE.DBRHelper(
+            dbr.balanceOf(userPk),
+            0,
+            0
+        ); // sell all DBR
 
         bytes memory swapData = abi.encodeWithSelector(
             MockExchangeProxy.swapDolaOut.selector,
