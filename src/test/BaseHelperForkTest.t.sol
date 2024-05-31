@@ -10,7 +10,7 @@ import {ITransformHelper} from "src/interfaces/ITransformHelper.sol";
 import {console} from "forge-std/console.sol";
 import {IERC4626} from "lib/openzeppelin-contracts/contracts/interfaces/IERC4626.sol";
 import {ConfigAddr} from "src/test/ConfigAddr.sol";
-import {BaseHelper} from "src/util/BaseHelper.sol";
+import {Sweepable} from "src/util/Sweepable.sol";
 import {IERC20} from "lib/openzeppelin-contracts/contracts/interfaces/IERC20.sol";
 import {Governable} from "src/util/Governable.sol";
 
@@ -49,7 +49,7 @@ contract MockExchangeProxy {
 abstract contract BaseHelperForkTest is Test, ConfigAddr {
     using stdStorage for StdStorage;
 
-    BaseHelper base;
+    Sweepable base;
 
     function getBlockNumber() public view virtual returns (uint256) {
         return 19084238; // Random block number
@@ -61,7 +61,7 @@ abstract contract BaseHelperForkTest is Test, ConfigAddr {
     }
 
     function initBase(address helper) public {
-        base = BaseHelper(helper);
+        base = Sweepable(helper);
     }
 
     function test_setPendingGov() public {

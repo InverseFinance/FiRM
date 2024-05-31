@@ -3,7 +3,8 @@ pragma solidity ^0.8.13;
 
 import {IERC4626} from "lib/openzeppelin-contracts/contracts/interfaces/IERC4626.sol";
 import {IMarket} from "src/interfaces/IMarket.sol";
-import {BaseHelper, SafeERC20, IERC20} from "src/util/BaseHelper.sol";
+import {Sweepable, SafeERC20, IERC20} from "src/util/Sweepable.sol";
+import {ITransformHelper} from "src/interfaces/ITransformHelper.sol";
 
 /**
  * @title ERC4626 Accelerated Leverage Engine Helper
@@ -12,11 +13,12 @@ import {BaseHelper, SafeERC20, IERC20} from "src/util/BaseHelper.sol";
  * Can also be used by anyone to perform wrap/unwrap and deposit/withdraw operations.
  **/
 
-contract ERC4626Helper is BaseHelper {
+contract ERC4626Helper is Sweepable, ITransformHelper {
     using SafeERC20 for IERC20;
 
     error InsufficientShares();
     error MarketNotSet(address market);
+    error NotImplemented();
 
     struct Vault {
         IERC4626 vault;
@@ -37,12 +39,13 @@ contract ERC4626Helper is BaseHelper {
     @param _gov The address of Inverse Finance governance
     @param _guardian The address of the guardian
     **/
-    constructor(address _gov, address _guardian) BaseHelper(_gov, _guardian) {}
+    constructor(address _gov, address _guardian) Sweepable(_gov, _guardian) {}
 
     /**
      * @notice Deposits the underlying token into the ERC4626 vault and returns the received ERC4626 token.
      * @dev Used by the ALE but can be called by anyone.
      * @param amount The amount of underlying token to be deposited.
+     * @param data The encoded address of the market.
      * @return shares The amount of ERC4626 token received.
      */
     function transformToCollateral(
@@ -57,6 +60,8 @@ contract ERC4626Helper is BaseHelper {
      * @dev Use custom recipient address.
      * @param amount The amount of underlying token to be deposited.
      * @param recipient The address on behalf of which the shares are deposited.
+     * @param data The encoded address of the market.
+     * @return shares The amount of ERC4626 token received.
      */
     function transformToCollateral(
         uint256 amount,
@@ -78,6 +83,7 @@ contract ERC4626Helper is BaseHelper {
      * @notice Redeems the ERC4626 token for the associated underlying token.
      * @dev Used by the ALE but can be called by anyone.
      * @param amount The amount of ERC4626 token to be redeemed.
+     * @param data The encoded address of the market.
      * @return assets The amount of underlying token redeemed.
      */
     function transformFromCollateral(
@@ -87,6 +93,14 @@ contract ERC4626Helper is BaseHelper {
         assets = transformFromCollateral(amount, msg.sender, data);
     }
 
+    /**
+     * @notice Redeems the ERC4626 token for the associated underlying token.
+     * @dev Use custom recipient address.
+     * @param amount The amount of ERC4626 token to be redeemed.
+     * @param recipient The address to which the underlying token is transferred.
+     * @param data The encoded address of the market.
+     * @return assets The amount of underlying token redeemed.
+     */
     function transformFromCollateral(
         uint256 amount,
         address recipient,
@@ -111,6 +125,7 @@ contract ERC4626Helper is BaseHelper {
      * @notice Deposit the associated underlying token into the ERC4626 vault and deposit the received shares for recipient.
      * @param assets The amount of underlying token to be transferred.
      * @param recipient The address on behalf of which the shares are deposited.
+     * @param data The encoded address of the market.
      * @return shares The amount of ERC4626 token deposited into the market.
      */
     function transformToCollateralAndDeposit(
@@ -137,6 +152,7 @@ contract ERC4626Helper is BaseHelper {
      * @param amount The amount of ERC4626 token to be withdrawn from the market.
      * @param recipient The address to which the underlying token is transferred.
      * @param permit The permit data for the Market.
+     * @param data The encoded address of the market.
      * @return assets The amount of underlying token withdrawn from the ERC4626 vault.
      */
     function withdrawAndTransformFromCollateral(
@@ -179,6 +195,7 @@ contract ERC4626Helper is BaseHelper {
 
     /**
      * @notice Estimate the amount of collateral for a given amount of asset.
+     * @param market The address of the market.
      * @param assetAmount The amount of asset to be converted.
      * @return collateralAmount The amount of collateral for the given asset amount.
      */
@@ -193,6 +210,7 @@ contract ERC4626Helper is BaseHelper {
 
     /**
      * @notice Estimate the amount of asset for a given amount of collateral.
+     * @param market The address of the market.
      * @param collateralAmount The amount of collateral to be converted.
      * @return assetAmount The amount of asset for the given collateral amount.
      */
@@ -240,5 +258,40 @@ contract ERC4626Helper is BaseHelper {
         markets[market].vault = IERC4626(address(0));
         markets[market].underlying = IERC20(address(0));
         emit MarketRemoved(market);
+    }
+
+    /**
+     * @notice Return current asset to collateral ratio.
+     * @return collateralAmount The amount of collateral for 1 unit of asset.
+     */
+    function assetToCollateralRatio()
+        external
+        view
+        virtual
+        returns (uint256 collateralAmount)
+    {
+        revert NotImplemented();
+    }
+
+    /**
+     * @notice Estimate the amount of collateral for a given amount of asset.
+     * @param assetAmount The amount of asset to be converted.
+     * @return collateralAmount The amount of collateral for the given asset amount.
+     */
+    function assetToCollateral(
+        uint256 assetAmount
+    ) external view virtual returns (uint256 collateralAmount) {
+        revert NotImplemented();
+    }
+
+    /**
+     * @notice Estimate the amount of asset for a given amount of collateral.
+     * @param collateralAmount The amount of collateral to be converted.
+     * @return assetAmount The amount of asset for the given collateral amount.
+     */
+    function collateralToAsset(
+        uint256 collateralAmount
+    ) external view virtual returns (uint256 assetAmount) {
+        revert NotImplemented();
     }
 }
