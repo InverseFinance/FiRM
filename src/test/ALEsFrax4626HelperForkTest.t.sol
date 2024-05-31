@@ -9,7 +9,7 @@ import {Oracle, IChainlinkFeed} from "src/Oracle.sol";
 import {Fed, IMarket} from "src/Fed.sol";
 import {ALE} from "../util/ALE.sol";
 import {ERC4626Helper} from "src/util/ERC4626Helper.sol";
-import {ITransformHelper} from "src/interfaces/ITransformHelper.sol";
+import {IMultiMarketTransformHelper} from "src/interfaces/IMultiMarketTransformHelper.sol";
 import {console} from "forge-std/console.sol";
 import {BaseHelperForkTest, IERC4626, MockExchangeProxy} from "src/test/BaseHelperForkTest.t.sol";
 import {IERC20} from "lib/openzeppelin-contracts/contracts/interfaces/IERC20.sol";
@@ -549,12 +549,13 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
-        ITransformHelper.Permit memory permit = ITransformHelper.Permit(
-            block.timestamp,
-            v,
-            r,
-            s
-        );
+        IMultiMarketTransformHelper.Permit
+            memory permit = IMultiMarketTransformHelper.Permit(
+                block.timestamp,
+                v,
+                r,
+                s
+            );
 
         assertEq(IERC20(fraxAddr).balanceOf(userPk), 0);
 

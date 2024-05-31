@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 import {IERC4626} from "lib/openzeppelin-contracts/contracts/interfaces/IERC4626.sol";
 import {IMarket} from "src/interfaces/IMarket.sol";
 import {Sweepable, SafeERC20, IERC20} from "src/util/Sweepable.sol";
-import {ITransformHelper} from "src/interfaces/ITransformHelper.sol";
+import {IMultiMarketTransformHelper} from "src/interfaces/IMultiMarketTransformHelper.sol";
 
 /**
  * @title ERC4626 Accelerated Leverage Engine Helper
@@ -13,7 +13,7 @@ import {ITransformHelper} from "src/interfaces/ITransformHelper.sol";
  * Can also be used by anyone to perform wrap/unwrap and deposit/withdraw operations.
  **/
 
-contract ERC4626Helper is Sweepable, ITransformHelper {
+contract ERC4626Helper is Sweepable, IMultiMarketTransformHelper {
     using SafeERC20 for IERC20;
 
     error InsufficientShares();
@@ -258,40 +258,5 @@ contract ERC4626Helper is Sweepable, ITransformHelper {
         markets[market].vault = IERC4626(address(0));
         markets[market].underlying = IERC20(address(0));
         emit MarketRemoved(market);
-    }
-
-    /**
-     * @notice Return current asset to collateral ratio.
-     * @return collateralAmount The amount of collateral for 1 unit of asset.
-     */
-    function assetToCollateralRatio()
-        external
-        view
-        virtual
-        returns (uint256 collateralAmount)
-    {
-        revert NotImplemented();
-    }
-
-    /**
-     * @notice Estimate the amount of collateral for a given amount of asset.
-     * @param assetAmount The amount of asset to be converted.
-     * @return collateralAmount The amount of collateral for the given asset amount.
-     */
-    function assetToCollateral(
-        uint256 assetAmount
-    ) external view virtual returns (uint256 collateralAmount) {
-        revert NotImplemented();
-    }
-
-    /**
-     * @notice Estimate the amount of asset for a given amount of collateral.
-     * @param collateralAmount The amount of collateral to be converted.
-     * @return assetAmount The amount of asset for the given collateral amount.
-     */
-    function collateralToAsset(
-        uint256 collateralAmount
-    ) external view virtual returns (uint256 assetAmount) {
-        revert NotImplemented();
     }
 }
