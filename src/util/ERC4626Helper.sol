@@ -96,6 +96,7 @@ contract ERC4626Helper is Sweepable, IMultiMarketTransformHelper {
     /**
      * @notice Redeems the ERC4626 token for the associated underlying token.
      * @dev Use custom recipient address.
+     * Helper function following the inherited interface but in this case is better to redeem directly on the vault to save gas.
      * @param amount The amount of ERC4626 token to be redeemed.
      * @param recipient The address to which the underlying token is transferred.
      * @param data The encoded address of the market.
@@ -117,7 +118,6 @@ contract ERC4626Helper is Sweepable, IMultiMarketTransformHelper {
             amount
         );
 
-        vault.approve(market, amount);
         assets = vault.redeem(amount, recipient, address(this));
     }
 
@@ -177,56 +177,13 @@ contract ERC4626Helper is Sweepable, IMultiMarketTransformHelper {
         uint256 actualShares = vault.balanceOf(address(this));
         if (actualShares < amount) revert InsufficientShares();
 
-        vault.approve(market, actualShares);
         assets = vault.redeem(actualShares, recipient, address(this));
-    }
-
-    /**
-     * @notice Return current asset to collateral ratio.
-     * @return collateralAmount The amount of collateral for 1 unit of asset.
-     */
-    function assetToCollateralRatio(
-        address market
-    ) external view returns (uint256 collateralAmount) {
-        _revertIfMarketNotSet(market);
-        IERC4626 vault = markets[market].vault;
-        return vault.convertToShares(10 ** vault.decimals());
-    }
-
-    /**
-     * @notice Estimate the amount of collateral for a given amount of asset.
-     * @param market The address of the market.
-     * @param assetAmount The amount of asset to be converted.
-     * @return collateralAmount The amount of collateral for the given asset amount.
-     */
-    function assetToCollateral(
-        address market,
-        uint256 assetAmount
-    ) external view returns (uint256 collateralAmount) {
-        _revertIfMarketNotSet(market);
-        IERC4626 vault = markets[market].vault;
-        return vault.convertToShares(assetAmount);
-    }
-
-    /**
-     * @notice Estimate the amount of asset for a given amount of collateral.
-     * @param market The address of the market.
-     * @param collateralAmount The amount of collateral to be converted.
-     * @return assetAmount The amount of asset for the given collateral amount.
-     */
-    function collateralToAsset(
-        address market,
-        uint256 collateralAmount
-    ) external view returns (uint256 assetAmount) {
-        _revertIfMarketNotSet(market);
-        IERC4626 vault = markets[market].vault;
-        return vault.convertToAssets(collateralAmount);
     }
 
     function _revertIfMarketNotSet(address market) internal view {
         if (
-            markets[market].vault == IERC4626(address(0)) ||
-            markets[market].underlying == IERC20(address(0))
+            address(markets[market].vault) == address(0) ||
+            address(markets[market].underlying) == address(0)
         ) revert MarketNotSet(market);
     }
 
