@@ -8,7 +8,7 @@ import {Market, IBorrowController} from "src/Market.sol";
 import {Oracle, IChainlinkFeed} from "src/Oracle.sol";
 import {Fed, IMarket} from "src/Fed.sol";
 import {ALE} from "../util/ALE.sol";
-import {ERC4626Helper} from "src/util/ERC4626Helper.sol";
+import {ERC4626Helper, IERC4626} from "src/util/ERC4626Helper.sol";
 import {IMultiMarketTransformHelper} from "src/interfaces/IMultiMarketTransformHelper.sol";
 import {console} from "forge-std/console.sol";
 import {BaseHelperForkTest, IERC4626, MockExchangeProxy} from "src/test/BaseHelperForkTest.t.sol";
@@ -144,8 +144,8 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
         console.log(maxBorrowAmount, "maxBorrowAmount");
         console.log(_convertCollatToDola(sFraxAmount), "maxBorrowAmount");
         console.log(market.collateralFactorBps(), "collateralFactorBps");
-        uint256 fraxAmount = helper.collateralToAsset(
-            address(market),
+
+        uint256 fraxAmount = IERC4626(sFraxAddr).convertToAssets(
             _convertDolaToCollat(maxBorrowAmount)
         );
         // recharge mocked proxy for swap, we need to swap DOLA to unwrapped collateral
@@ -204,8 +204,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
         assertApproxEqAbs(
             IERC20(sFraxAddr).balanceOf(address(market.predictEscrow(userPk))),
             sFraxAmount +
-                helper.assetToCollateral(
-                    address(market),
+                IERC4626(sFraxAddr).convertToShares(
                     _convertDolaToUnderlying(maxBorrowAmount)
                 ),
             1
@@ -223,8 +222,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
 
         uint maxBorrowAmount = _getMaxBorrowAmount(sFraxAmount);
 
-        uint256 fraxAmount = helper.collateralToAsset(
-            address(market),
+        uint256 fraxAmount = IERC4626(sFraxAddr).convertToAssets(
             _convertDolaToCollat(maxBorrowAmount)
         );
 
@@ -326,7 +324,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
         ) / 10;
 
         uint256 dolaAmountForSwap = _convertUnderlyingToDola(
-            helper.collateralToAsset(address(market), amountToWithdraw)
+            IERC4626(sFraxAddr).convertToAssets(amountToWithdraw)
         );
 
         // recharge mocked proxy for swap, we need to swap DOLA to unwrapped collateral
@@ -365,7 +363,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
         bytes memory swapData = abi.encodeWithSelector(
             MockExchangeProxy.swapDolaOut.selector,
             fraxAddr,
-            helper.collateralToAsset(address(market), amountToWithdraw)
+            IERC4626(sFraxAddr).convertToAssets(amountToWithdraw)
         );
 
         vm.startPrank(userPk, userPk);
@@ -421,7 +419,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
         // We are going to withdraw only 1/10 of the collateral to deleverage
         uint256 amountToWithdraw = IERC20(sFraxAddr).balanceOf(userEscrow) / 10;
         uint256 dolaAmountForSwap = _convertUnderlyingToDola(
-            helper.collateralToAsset(address(market), amountToWithdraw)
+            IERC4626(sFraxAddr).convertToAssets(amountToWithdraw)
         );
 
         // recharge mocked proxy for swap, we need to swap DOLA to unwrapped collateral
@@ -456,7 +454,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
         bytes memory swapData = abi.encodeWithSelector(
             MockExchangeProxy.swapDolaOut.selector,
             fraxAddr,
-            helper.collateralToAsset(address(market), amountToWithdraw)
+            IERC4626(sFraxAddr).convertToAssets(amountToWithdraw)
         );
 
         vm.startPrank(userPk, userPk);
@@ -502,7 +500,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
 
         assertEq(
             IERC20(sFraxAddr).balanceOf(address(market.predictEscrow(userPk))),
-            helper.assetToCollateral(address(market), fraxAmount)
+            IERC4626(sFraxAddr).convertToShares(fraxAmount)
         );
     }
 
@@ -568,7 +566,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
 
         assertApproxEqAbs(
             IERC20(fraxAddr).balanceOf(userPk),
-            helper.collateralToAsset(address(market), amountToWithdraw),
+            IERC4626(sFraxAddr).convertToAssets(amountToWithdraw),
             1
         );
     }
@@ -656,10 +654,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
             .checked_write(uint256(0));
 
         uint256 assetAmount = 1 ether;
-        assertEq(
-            assetAmount,
-            helper.assetToCollateral(address(market), assetAmount)
-        );
+        assertEq(assetAmount, IERC4626(sFraxAddr).convertToShares(assetAmount));
     }
 
     function test_fail_collateral_is_zero_leveragePosition() public {
@@ -673,8 +668,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
 
         uint maxBorrowAmount = _getMaxBorrowAmount(sFraxAmount);
 
-        uint256 fraxAmount = helper.collateralToAsset(
-            address(market),
+        uint256 fraxAmount = IERC4626(sFraxAddr).convertToAssets(
             _convertDolaToCollat(maxBorrowAmount)
         );
         // recharge mocked proxy for swap, we need to swap DOLA to unwrapped collateral
@@ -737,14 +731,14 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
     }
 
     function _convertCollatToDola(uint amount) internal view returns (uint) {
-        uint256 underlying = helper.collateralToAsset(address(market), amount);
+        uint256 underlying = IERC4626(sFraxAddr).convertToAssets(amount);
         return _convertUnderlyingToDola(underlying);
     }
 
     function _convertDolaToCollat(uint amount) internal view returns (uint) {
         uint256 underlying = _convertDolaToUnderlying(amount);
         console.log(underlying, "underlying");
-        return helper.assetToCollateral(address(market), underlying);
+        return IERC4626(sFraxAddr).convertToShares(underlying);
     }
 
     function _convertDolaToUnderlying(

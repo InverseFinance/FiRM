@@ -139,8 +139,7 @@ contract ALEstYETH4626HelperForkTest is BaseHelperForkTest {
 
         uint maxBorrowAmount = _getMaxBorrowAmount(styETHAmount);
 
-        uint256 yETHAmount = helper.collateralToAsset(
-            address(market),
+        uint256 yETHAmount = IERC4626(styEthAddr).convertToAssets(
             _convertDolaToCollat(maxBorrowAmount)
         );
         // recharge mocked proxy for swap, we need to swap DOLA to unwrapped collateral
@@ -199,8 +198,7 @@ contract ALEstYETH4626HelperForkTest is BaseHelperForkTest {
         assertApproxEqAbs(
             IERC20(styEthAddr).balanceOf(address(market.predictEscrow(userPk))),
             styETHAmount +
-                helper.assetToCollateral(
-                    address(market),
+                IERC4626(styEthAddr).convertToShares(
                     _convertDolaToUnderlying(maxBorrowAmount)
                 ),
             1
@@ -218,8 +216,7 @@ contract ALEstYETH4626HelperForkTest is BaseHelperForkTest {
 
         uint maxBorrowAmount = _getMaxBorrowAmount(styETHAmount);
 
-        uint256 yETHAmount = helper.collateralToAsset(
-            address(market),
+        uint256 yETHAmount = IERC4626(styEthAddr).convertToAssets(
             _convertDolaToCollat(maxBorrowAmount)
         );
 
@@ -321,7 +318,7 @@ contract ALEstYETH4626HelperForkTest is BaseHelperForkTest {
         ) / 10;
 
         uint256 dolaAmountForSwap = _convertUnderlyingToDola(
-            helper.collateralToAsset(address(market), amountToWithdraw)
+            IERC4626(styEthAddr).convertToAssets(amountToWithdraw)
         );
 
         // recharge mocked proxy for swap, we need to swap DOLA to unwrapped collateral
@@ -360,7 +357,7 @@ contract ALEstYETH4626HelperForkTest is BaseHelperForkTest {
         bytes memory swapData = abi.encodeWithSelector(
             MockExchangeProxy.swapDolaOut.selector,
             yEthAddr,
-            helper.collateralToAsset(address(market), amountToWithdraw)
+            IERC4626(styEthAddr).convertToAssets(amountToWithdraw)
         );
 
         vm.startPrank(userPk, userPk);
@@ -417,7 +414,7 @@ contract ALEstYETH4626HelperForkTest is BaseHelperForkTest {
         uint256 amountToWithdraw = IERC20(styEthAddr).balanceOf(userEscrow) /
             10;
         uint256 dolaAmountForSwap = _convertUnderlyingToDola(
-            helper.collateralToAsset(address(market), amountToWithdraw)
+            IERC4626(styEthAddr).convertToAssets(amountToWithdraw)
         );
 
         // recharge mocked proxy for swap, we need to swap DOLA to unwrapped collateral
@@ -452,7 +449,7 @@ contract ALEstYETH4626HelperForkTest is BaseHelperForkTest {
         bytes memory swapData = abi.encodeWithSelector(
             MockExchangeProxy.swapDolaOut.selector,
             yEthAddr,
-            helper.collateralToAsset(address(market), amountToWithdraw)
+            IERC4626(styEthAddr).convertToAssets(amountToWithdraw)
         );
 
         vm.startPrank(userPk, userPk);
@@ -498,7 +495,7 @@ contract ALEstYETH4626HelperForkTest is BaseHelperForkTest {
 
         assertEq(
             IERC20(styEthAddr).balanceOf(address(market.predictEscrow(userPk))),
-            helper.assetToCollateral(address(market), yETHAmount)
+            IERC4626(styEthAddr).convertToShares(yETHAmount)
         );
     }
 
@@ -564,7 +561,7 @@ contract ALEstYETH4626HelperForkTest is BaseHelperForkTest {
 
         assertApproxEqAbs(
             IERC20(yEthAddr).balanceOf(userPk),
-            helper.collateralToAsset(address(market), amountToWithdraw),
+            IERC4626(styEthAddr).convertToAssets(amountToWithdraw),
             1
         );
     }
@@ -654,7 +651,7 @@ contract ALEstYETH4626HelperForkTest is BaseHelperForkTest {
         uint256 assetAmount = 1 ether;
         assertEq(
             assetAmount,
-            helper.assetToCollateral(address(market), assetAmount)
+            IERC4626(styEthAddr).convertToShares(assetAmount)
         );
     }
 
@@ -669,8 +666,7 @@ contract ALEstYETH4626HelperForkTest is BaseHelperForkTest {
 
         uint maxBorrowAmount = _getMaxBorrowAmount(styETHAmount);
 
-        uint256 yETHAmount = helper.collateralToAsset(
-            address(market),
+        uint256 yETHAmount = IERC4626(styEthAddr).convertToAssets(
             _convertDolaToCollat(maxBorrowAmount)
         );
         // recharge mocked proxy for swap, we need to swap DOLA to unwrapped collateral
@@ -733,14 +729,14 @@ contract ALEstYETH4626HelperForkTest is BaseHelperForkTest {
     }
 
     function _convertCollatToDola(uint amount) internal view returns (uint) {
-        uint256 underlying = helper.collateralToAsset(address(market), amount);
+        uint256 underlying = IERC4626(styEthAddr).convertToAssets(amount);
         return _convertUnderlyingToDola(underlying);
     }
 
     function _convertDolaToCollat(uint amount) internal view returns (uint) {
         uint256 underlying = _convertDolaToUnderlying(amount);
         console.log(underlying, "underlying");
-        return helper.assetToCollateral(address(market), underlying);
+        return IERC4626(styEthAddr).convertToShares(underlying);
     }
 
     function _convertDolaToUnderlying(
