@@ -140,7 +140,8 @@ contract DolaFraxBPEscrow {
             YearnVaultV2Helper.collateralToAsset(
                 yearn,
                 yearn.balanceOf(address(this))
-            );
+            ) +
+            token.balanceOf(address(this));
     }
 
     /**
