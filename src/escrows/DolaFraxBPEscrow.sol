@@ -5,34 +5,8 @@ import {IYearnVaultV2} from "src/interfaces/IYearnVaultV2.sol";
 import {YearnVaultV2Helper} from "src/util/YearnVaultV2Helper.sol";
 
 interface IConvexBooster {
-    //get balance of an address
-    function balanceOf(address _account) external view returns (uint256);
-
     //withdraw to a convex tokenized deposit
     function withdraw(uint256 pid, uint256 _amount) external;
-
-    //claim rewards
-    function getReward(address claimant) external;
-
-    //claim rewards and forward to address
-    function getReward(address claimant, address forwardTo) external;
-
-    //stake convex curve
-    function stake(uint256 _amount) external;
-
-    //sets the weight of gov token to receive, can be set between 0 and 10000
-    function setRewardWeight(uint govTokenBps) external;
-
-    //get the reward weight of a specific address
-    function userRewardWeight(address user) external view returns (uint256);
-
-    //get number of reward tokens
-    function rewardLength() external view returns (uint);
-
-    //get reward address, reward group, reward integral and reward remaining
-    function rewards(
-        uint index
-    ) external view returns (address, uint8, uint128, uint128);
 
     function deposit(uint256 pid, uint256 amount, bool stake) external;
 }
@@ -51,6 +25,14 @@ interface IRewardPool {
     ) external returns (bool);
 
     function balanceOf(address account) external view returns (uint256);
+
+    function extraRewardsLength() external view returns (uint);
+
+    function rewardToken() external view returns (address);
+
+    function rewards(
+        uint256 index
+    ) external view returns (address, uint256, uint256, uint256);
 }
 
 contract DolaFraxBPEscrow {
@@ -73,9 +55,13 @@ contract DolaFraxBPEscrow {
         IConvexBooster(0xF403C135812408BFbE8713b5A23a04b3D48AAE31);
     IERC20 public constant depositToken =
         IERC20(0xf7eCC27CC9DB5d28110AF2d89b176A6623c7E351);
-    IYearnVaultV2 public yearn =
+    IYearnVaultV2 public constant yearn =
         IYearnVaultV2(0xe5F625e8f4D2A038AE9583Da254945285E5a77a4);
+    IERC20 constant cvx = IERC20(0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B);
+    IERC20 constant crv = IERC20(0xD533a949740bb3306d119CC777fa900bA034cd52);
+
     address public beneficiary;
+
     mapping(address => bool) public allowlist;
 
     modifier onlyBeneficiary() {
@@ -169,18 +155,26 @@ contract DolaFraxBPEscrow {
     */
     function claimTo(address to) public onlyBeneficiaryOrAllowlist {
         //Claim rewards
-        rewardPool.getReward(to, true);
+        rewardPool.getReward(address(this), true);
+        //Send crv balance
+        uint256 crvBal = crv.balanceOf(address(this));
+        if (crvBal != 0) crv.safeTransfer(to, crvBal);
+        //Send cvx balance
+        uint256 cvxBal = cvx.balanceOf(address(this));
+        if (cvxBal != 0) cvx.safeTransfer(to, cvxBal);
 
-        // //Send contract balance of rewards
-        // uint rewardLength = rewardPool.rewardLength();
-        // for (uint rewardIndex; rewardIndex < rewardLength; ++rewardIndex) {
-        //     (address rewardToken, , , ) = rewardPool.rewards(rewardIndex);
-        //     uint rewardBal = IERC20(rewardToken).balanceOf(address(this));
-        //     if (rewardBal > 0) {
-        //         //Use safe transfer in case bad reward token is added
-        //         IERC20(rewardToken).safeTransfer(to, rewardBal);
-        //     }
-        // }
+        //Send contract balance of extra rewards
+        uint rewardLength = rewardPool.extraRewardsLength();
+
+        for (uint rewardIndex; rewardIndex < rewardLength; rewardIndex++) {
+            (address rewardToken, , , ) = rewardPool.rewards(rewardIndex);
+            uint rewardBal = IERC20(rewardToken).balanceOf(address(this));
+
+            if (rewardBal > 0) {
+                //Use safe transfer in case bad reward token is added
+                IERC20(rewardToken).safeTransfer(to, rewardBal);
+            }
+        }
     }
 
     /**

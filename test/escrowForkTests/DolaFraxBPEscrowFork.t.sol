@@ -184,6 +184,48 @@ contract DolaFraxBPEscrowForkTest is Test {
         );
     }
 
+    function test_fail_depositToConvex_if_already_deposit_to_Yearn() public {
+        uint256 amount = 1 ether;
+
+        vm.prank(holder, holder);
+        dolaFraxBP.transfer(address(escrow), amount);
+        vm.prank(beneficiary, beneficiary);
+        escrow.depositToConvex();
+
+        vm.prank(holder, holder);
+        dolaFraxBP.transfer(address(escrow), amount);
+
+        vm.prank(beneficiary, beneficiary);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                DolaFraxBPEscrow.CannotDepositToYearn.selector,
+                amount
+            )
+        );
+        escrow.depositToYearn();
+    }
+
+    function test_fail_depositToYearn_if_already_deposit_to_Convex() public {
+        uint256 amount = 1 ether;
+
+        vm.prank(holder, holder);
+        dolaFraxBP.transfer(address(escrow), amount);
+        vm.prank(beneficiary, beneficiary);
+        escrow.depositToYearn();
+
+        vm.prank(holder, holder);
+        dolaFraxBP.transfer(address(escrow), amount);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                DolaFraxBPEscrow.CannotDepositToConvex.selector,
+                yearn.balanceOf(address(escrow))
+            )
+        );
+        vm.prank(beneficiary, beneficiary);
+        escrow.depositToConvex();
+    }
+
     function test_Pay_successful_when_contract_has_staked_DolaFraxBP() public {
         uint256 amount = 1 ether;
         vm.prank(holder, holder);
@@ -222,32 +264,31 @@ contract DolaFraxBPEscrowForkTest is Test {
         escrow.pay(beneficiary, 1 ether);
     }
 
-    // function testClaim_successful_when_called_by_beneficiary() public {
-    //     uint crvBalanceBefore = crv.balanceOf(beneficiary);
-    //     uint cvxBalanceBefore = cvx.balanceOf(beneficiary);
-    //     //uint threeCrvBalanceBefore = threeCrv.balanceOf(beneficiary);
-    //     vm.prank(holder, holder);
-    //     dolaFraxBP.transfer(address(escrow), 1 ether);
+    function testClaim_successful_when_called_by_beneficiary() public {
+        uint crvBalanceBefore = crv.balanceOf(beneficiary);
+        uint cvxBalanceBefore = cvx.balanceOf(beneficiary);
 
-    //     vm.prank(beneficiary, beneficiary);
-    //     escrow.depositToConvex();
+        vm.prank(holder, holder);
+        dolaFraxBP.transfer(address(escrow), 1 ether);
 
-    //     vm.warp(block.timestamp + 14 days);
-    //     vm.prank(beneficiary);
-    //     escrow.claim();
+        vm.prank(beneficiary, beneficiary);
+        escrow.depositToConvex();
 
-    //     assertGt(
-    //         crv.balanceOf(beneficiary),
-    //         crvBalanceBefore,
-    //         "Did not get CRV reward"
-    //     );
-    //     assertGt(
-    //         cvx.balanceOf(beneficiary),
-    //         cvxBalanceBefore,
-    //         "Did not get CVX reward"
-    //     );
-    //     // assertEq(threeCrv.balanceOf(beneficiary), threeCrvBalanceBefore);
-    // }
+        vm.warp(block.timestamp + 30 days);
+        vm.prank(beneficiary);
+        escrow.claim();
+
+        assertGt(
+            crv.balanceOf(beneficiary),
+            crvBalanceBefore,
+            "Did not get CRV reward"
+        );
+        assertGt(
+            cvx.balanceOf(beneficiary),
+            cvxBalanceBefore,
+            "Did not get CVX reward"
+        );
+    }
 
     // function testClaim_successful_whenForcedToClaim() public {
     //     uint crvBalanceBefore = crv.balanceOf(beneficiary);
