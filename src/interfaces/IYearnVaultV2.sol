@@ -11,6 +11,8 @@ interface IYearnVaultV2 {
         address recipient
     ) external returns (uint256);
 
+    function withdraw(uint256 amount) external returns (uint256);
+
     function totalSupply() external view returns (uint256);
 
     function pricePerShare() external view returns (uint256);
