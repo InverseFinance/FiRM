@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
+
 import "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IYearnVaultV2} from "src/interfaces/IYearnVaultV2.sol";
 import {YearnVaultV2Helper} from "src/util/YearnVaultV2Helper.sol";
 
 interface IConvexBooster {
-    //withdraw to a convex tokenized deposit
     function withdraw(uint256 pid, uint256 _amount) external;
 
     function deposit(uint256 pid, uint256 amount, bool stake) external;
@@ -23,6 +23,8 @@ interface IRewardPool {
         address account,
         bool claimExtras
     ) external returns (bool);
+
+    function getReward() external returns (bool);
 
     function balanceOf(address account) external view returns (uint256);
 
@@ -44,11 +46,9 @@ contract DolaFraxBPEscrow {
     error OnlyBeneficiaryOrAllowlist();
     error CannotDepositToConvex(uint256 yearnAmount);
     error CannotDepositToYearn(uint256 convexAmount);
-    address public market;
-    IERC20 public token;
-    uint public stakedBalance;
-    uint public yStakedBalance;
-    uint256 public pid = 115;
+
+    uint256 public constant pid = 115;
+
     IRewardPool public constant rewardPool =
         IRewardPool(0x0404d05F3992347d2f0dC3a97bdd147D77C85c1c);
     IConvexBooster public constant booster =
@@ -57,9 +57,14 @@ contract DolaFraxBPEscrow {
         IERC20(0xf7eCC27CC9DB5d28110AF2d89b176A6623c7E351);
     IYearnVaultV2 public constant yearn =
         IYearnVaultV2(0xe5F625e8f4D2A038AE9583Da254945285E5a77a4);
-    IERC20 constant cvx = IERC20(0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B);
-    IERC20 constant crv = IERC20(0xD533a949740bb3306d119CC777fa900bA034cd52);
+    IERC20 public constant cvx =
+        IERC20(0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B);
+    IERC20 public constant crv =
+        IERC20(0xD533a949740bb3306d119CC777fa900bA034cd52);
 
+    address public market;
+    IERC20 public token;
+    uint256 public stakedBalance;
     address public beneficiary;
 
     mapping(address => bool) public allowlist;
@@ -87,15 +92,14 @@ contract DolaFraxBPEscrow {
         if (market != address(0)) revert AlreadyInitialized();
         market = msg.sender;
         token = _token;
-        token.approve(address(rewardPool), type(uint).max);
         token.approve(address(booster), type(uint).max);
         token.approve(address(yearn), type(uint).max);
-        //rewardPool.setRewardWeight(rewardPool.userRewardWeight(_beneficiary));
         beneficiary = _beneficiary;
     }
 
     /**
     @notice Withdraws the wrapped token from the reward pool and transfers the associated ERC20 token to a recipient.
+    @dev Will first try to pay from the escrow balance, if not enough or any, will try to pay the missing amount from convex, then from yearn if needed
     @param recipient The address to receive payment from the escrow
     @param amount The amount of ERC20 token to be transferred.
     */
@@ -103,7 +107,7 @@ contract DolaFraxBPEscrow {
         if (msg.sender != market) revert OnlyMarket();
         uint256 tokenBal = token.balanceOf(address(this));
         uint256 missingAmount = amount - tokenBal;
-        // If there are enought tokens in the escrow, transfer the amount
+        // If there are enough tokens in the escrow, transfer the amount
         if (tokenBal >= amount) {
             token.safeTransfer(recipient, amount);
         } else if (stakedBalance >= missingAmount) {
@@ -120,12 +124,12 @@ contract DolaFraxBPEscrow {
             // If there are enough tokens in Yearn, withdraw the amount from Yearn
             uint256 withdrawAmount = YearnVaultV2Helper.assetToCollateral(
                 yearn,
-                amount
+                missingAmount
             );
             // Withdraw from Yearn
-            yearn.withdraw(withdrawAmount, address(this));
+            uint256 assetAmount = yearn.withdraw(withdrawAmount, address(this));
             // Transfer the amount to the recipient
-            token.safeTransfer(recipient, amount);
+            token.safeTransfer(recipient, assetAmount + tokenBal);
         }
     }
 
@@ -164,9 +168,9 @@ contract DolaFraxBPEscrow {
         if (cvxBal != 0) cvx.safeTransfer(to, cvxBal);
 
         //Send contract balance of extra rewards
-        uint rewardLength = rewardPool.extraRewardsLength();
-
-        for (uint rewardIndex; rewardIndex < rewardLength; rewardIndex++) {
+        uint256 rewardLength = rewardPool.extraRewardsLength();
+        if (rewardLength == 0) return;
+        for (uint256 rewardIndex; rewardIndex < rewardLength; rewardIndex++) {
             (address rewardToken, , , ) = rewardPool.rewards(rewardIndex);
             uint rewardBal = IERC20(rewardToken).balanceOf(address(this));
 
@@ -203,6 +207,10 @@ contract DolaFraxBPEscrow {
         emit AllowClaim(allowee, false);
     }
 
+    /**
+     * @notice Deposit token balance in the escrow into Convex
+     * @dev Cannot deposit if there are Yearn tokens in the escrow (only 1 strategy at a time)
+     */
     function depositToConvex() external onlyBeneficiary {
         if (yearn.balanceOf(address(this)) > 0)
             revert CannotDepositToConvex(yearn.balanceOf(address(this)));
@@ -211,15 +219,26 @@ contract DolaFraxBPEscrow {
         booster.deposit(pid, tokenBal, true);
     }
 
+    /**
+     * @notice Deposit token balance in the escrow into Yearn
+     * @dev Cannot deposit if there are Convex tokens in the escrow (only 1 strategy at a time)
+     */
     function depositToYearn() external onlyBeneficiary {
         if (stakedBalance > 0) revert CannotDepositToYearn(stakedBalance);
         yearn.deposit(token.balanceOf(address(this)), address(this));
     }
 
+    /**
+     * @notice Withdraw all tokens from Yearn
+     */
     function withdrawFromYearn() external onlyBeneficiary {
         yearn.withdraw(yearn.balanceOf(address(this)), address(this));
     }
 
+    /**
+     * @notice Withdraw all tokens from Convex
+     
+     */
     function withdrawFromConvex() external onlyBeneficiary {
         uint256 amount = stakedBalance;
         stakedBalance = 0;

@@ -6,9 +6,6 @@ import "src/interfaces/IERC20.sol";
 import "src/interfaces/IYearnVaultV2.sol";
 
 library YearnVaultV2Helper {
-    error DepositLimitExceeded();
-    error NotEnoughShares();
-
     uint256 public constant scale = 1e18;
 
     /// @notice View function to calculate collateral amount from asset amount
