@@ -6,6 +6,7 @@ import {IYearnVaultV2} from "src/interfaces/IYearnVaultV2.sol";
 import {YearnVaultV2Helper} from "src/util/YearnVaultV2Helper.sol";
 import {IRewardPool} from "src/interfaces/IRewardPool.sol";
 import {IConvexBooster} from "src/interfaces/IConvexBooster.sol";
+import {IVirtualBalanceRewardPool} from "src/interfaces/IVirtualBalanceRewardPool.sol";
 
 contract DolaFraxBPEscrow {
     using SafeERC20 for IERC20;
@@ -138,13 +139,15 @@ contract DolaFraxBPEscrow {
         //Send contract balance of extra rewards
         uint256 rewardLength = rewardPool.extraRewardsLength();
         if (rewardLength == 0) return;
-        for (uint256 rewardIndex; rewardIndex < rewardLength; rewardIndex++) {
-            (address rewardToken, , , ) = rewardPool.rewards(rewardIndex);
-            uint256 rewardBal = IERC20(rewardToken).balanceOf(address(this));
-
+        for (uint rewardIndex; rewardIndex < rewardLength; ++rewardIndex) {
+            IVirtualBalanceRewardPool virtualReward = IVirtualBalanceRewardPool(
+                rewardPool.extraRewards(rewardIndex)
+            );
+            IERC20 rewardToken = virtualReward.rewardToken();
+            uint rewardBal = rewardToken.balanceOf(address(this));
             if (rewardBal > 0) {
                 //Use safe transfer in case bad reward token is added
-                IERC20(rewardToken).safeTransfer(to, rewardBal);
+                rewardToken.safeTransfer(to, rewardBal);
             }
         }
     }

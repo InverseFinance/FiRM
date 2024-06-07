@@ -21,7 +21,5 @@ interface IRewardPool {
 
     function rewardToken() external view returns (address);
 
-    function rewards(
-        uint256 index
-    ) external view returns (address, uint256, uint256, uint256);
+    function extraRewards(uint256 index) external view returns (address);
 }

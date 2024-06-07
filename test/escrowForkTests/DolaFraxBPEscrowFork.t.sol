@@ -6,6 +6,21 @@ import "forge-std/Test.sol";
 import "src/escrows/DolaFraxBPEscrow.sol";
 import {YearnVaultV2Helper} from "src/util/YearnVaultV2Helper.sol";
 import {console} from "forge-std/console.sol";
+import {RewardHook} from "test/mocks/RewardHook.sol";
+
+interface IExtraRewardStashV3 {
+    function setExtraReward(address _token) external;
+
+    function setRewardHook(address hook) external;
+
+    function operator() external view returns (address);
+
+    function stashRewards() external returns (bool);
+}
+
+interface IMintable is IERC20 {
+    function mint(address to, uint256 amount) external;
+}
 
 contract DolaFraxBPEscrowForkTest is Test {
     address market = address(0xA);
@@ -25,12 +40,35 @@ contract DolaFraxBPEscrowForkTest is Test {
     IYearnVaultV2 public yearn =
         IYearnVaultV2(0xe5F625e8f4D2A038AE9583Da254945285E5a77a4);
 
+    address gov = address(0x926dF14a23BE491164dCF93f4c468A50ef659D5B);
+    IMintable dola = IMintable(0x865377367054516e17014CcdED1e7d814EDC9ce4);
+
+    address operatorOwner = 0x3cE6408F923326f81A7D7929952947748180f1E6; //Booster owner
+    address stash = 0xe5A980F96c791c8Ea56c2585840Cab571441510e; //setExtraReward(token)
+    address gauge = 0xBE266d68Ce3dDFAb366Bb866F4353B6FC42BA43c;
+    uint256 pid = 115;
     DolaFraxBPEscrow escrow;
 
     function setUp() public {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
         vm.createSelectFork(url, 20020781);
+
+        // Setup Dola reward
+        vm.prank(operatorOwner);
+        IExtraRewardStashV3(stash).setExtraReward(address(dola));
+
+        RewardHook hook = new RewardHook(stash, address(dola));
+
+        vm.prank(operatorOwner);
+        IExtraRewardStashV3(stash).setRewardHook(address(hook));
+
+        // Send rewards
+        vm.prank(gov);
+        dola.mint(address(hook), 100 ether);
+
+        vm.prank(operatorOwner);
+        booster.earmarkRewards(pid);
 
         escrow = new DolaFraxBPEscrow();
         vm.prank(market, market);
@@ -649,6 +687,11 @@ contract DolaFraxBPEscrowForkTest is Test {
             cvxBalanceBefore,
             "Did not get CVX reward"
         );
+        assertGt(
+            dola.balanceOf(address(beneficiary)),
+            0,
+            "Did not get Dola reward"
+        );
     }
 
     function test_Claim_successful_whenForcedToClaim() public {
@@ -676,6 +719,11 @@ contract DolaFraxBPEscrowForkTest is Test {
             cvxBalanceBefore,
             "Did not get CVX reward"
         );
+        assertGt(
+            dola.balanceOf(address(beneficiary)),
+            0,
+            "Did not get Dola reward"
+        );
     }
 
     function test_ClaimTo_successful_whenCalledByBeneficiary() public {
@@ -690,6 +738,11 @@ contract DolaFraxBPEscrowForkTest is Test {
 
         vm.warp(block.timestamp + 30 days);
 
+        assertEq(
+            dola.balanceOf(address(beneficiary)),
+            0,
+            "Dola balance is not 0"
+        );
         vm.prank(beneficiary);
         escrow.claimTo(beneficiary);
 
@@ -702,6 +755,11 @@ contract DolaFraxBPEscrowForkTest is Test {
             cvx.balanceOf(address(beneficiary)),
             cvxBalanceBefore,
             "Did not get CVX reward"
+        );
+        assertGt(
+            dola.balanceOf(address(beneficiary)),
+            0,
+            "Did not get Dola reward"
         );
     }
 
@@ -732,6 +790,7 @@ contract DolaFraxBPEscrowForkTest is Test {
             cvxBalanceBefore,
             "Did not get CVX reward"
         );
+        assertGt(dola.balanceOf(address(friend)), 0, "Did not get Dola reward");
     }
 
     function test_ClaimTo_fails_whenAllowlistedAddressIsDisallowed() public {
