@@ -53,8 +53,6 @@ contract DolaFraxBPEscrow {
         IRewardPool(0x0404d05F3992347d2f0dC3a97bdd147D77C85c1c);
     IConvexBooster public constant booster =
         IConvexBooster(0xF403C135812408BFbE8713b5A23a04b3D48AAE31);
-    IERC20 public constant depositToken =
-        IERC20(0xf7eCC27CC9DB5d28110AF2d89b176A6623c7E351);
     IYearnVaultV2 public constant yearn =
         IYearnVaultV2(0xe5F625e8f4D2A038AE9583Da254945285E5a77a4);
     IERC20 public constant cvx =
