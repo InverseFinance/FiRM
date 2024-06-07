@@ -140,7 +140,7 @@ contract DolaFraxBPEscrow {
         if (rewardLength == 0) return;
         for (uint256 rewardIndex; rewardIndex < rewardLength; rewardIndex++) {
             (address rewardToken, , , ) = rewardPool.rewards(rewardIndex);
-            uint rewardBal = IERC20(rewardToken).balanceOf(address(this));
+            uint256 rewardBal = IERC20(rewardToken).balanceOf(address(this));
 
             if (rewardBal > 0) {
                 //Use safe transfer in case bad reward token is added
@@ -182,7 +182,7 @@ contract DolaFraxBPEscrow {
     function depositToConvex() external onlyBeneficiary {
         if (yearn.balanceOf(address(this)) > 0)
             revert CannotDepositToConvex(yearn.balanceOf(address(this)));
-        uint tokenBal = token.balanceOf(address(this));
+        uint256 tokenBal = token.balanceOf(address(this));
         stakedBalance += tokenBal;
         booster.deposit(pid, tokenBal, true);
     }
@@ -205,7 +205,7 @@ contract DolaFraxBPEscrow {
         onlyBeneficiary
         returns (uint256 lpAmount)
     {
-        lpAmount = _fullWithdrawFromYearn();
+        return _fullWithdrawFromYearn();
     }
 
     /**
@@ -217,7 +217,7 @@ contract DolaFraxBPEscrow {
         onlyBeneficiary
         returns (uint256 lpAmount)
     {
-        lpAmount = _fullWithdrawFromConvex();
+        return _fullWithdrawFromConvex();
     }
 
     /**
