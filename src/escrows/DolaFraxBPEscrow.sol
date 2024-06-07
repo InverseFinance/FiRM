@@ -4,38 +4,8 @@ pragma solidity ^0.8.13;
 import "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IYearnVaultV2} from "src/interfaces/IYearnVaultV2.sol";
 import {YearnVaultV2Helper} from "src/util/YearnVaultV2Helper.sol";
-
-interface IConvexBooster {
-    function withdraw(uint256 pid, uint256 _amount) external;
-
-    function deposit(uint256 pid, uint256 amount, bool stake) external;
-}
-
-interface IRewardPool {
-    function withdraw(uint256 amount, bool claim) external returns (bool);
-
-    function withdrawAndUnwrap(
-        uint256 amount,
-        bool claim
-    ) external returns (bool);
-
-    function getReward(
-        address account,
-        bool claimExtras
-    ) external returns (bool);
-
-    function getReward() external returns (bool);
-
-    function balanceOf(address account) external view returns (uint256);
-
-    function extraRewardsLength() external view returns (uint);
-
-    function rewardToken() external view returns (address);
-
-    function rewards(
-        uint256 index
-    ) external view returns (address, uint256, uint256, uint256);
-}
+import {IRewardPool} from "src/interfaces/IRewardPool.sol";
+import {IConvexBooster} from "src/interfaces/IConvexBooster.sol";
 
 contract DolaFraxBPEscrow {
     using SafeERC20 for IERC20;
@@ -228,18 +198,71 @@ contract DolaFraxBPEscrow {
 
     /**
      * @notice Withdraw all tokens from Yearn
+     * @return lpAmount The amount of tokens withdrawn from Yearn
      */
-    function withdrawFromYearn() external onlyBeneficiary {
-        yearn.withdraw(yearn.balanceOf(address(this)), address(this));
+    function withdrawFromYearn()
+        external
+        onlyBeneficiary
+        returns (uint256 lpAmount)
+    {
+        lpAmount = _fullWithdrawFromYearn();
     }
 
     /**
      * @notice Withdraw all tokens from Convex
-     
+     * @return lpAmount The amount of tokens withdrawn from Convex
      */
-    function withdrawFromConvex() external onlyBeneficiary {
-        uint256 amount = stakedBalance;
+    function withdrawFromConvex()
+        external
+        onlyBeneficiary
+        returns (uint256 lpAmount)
+    {
+        lpAmount = _fullWithdrawFromConvex();
+    }
+
+    /**
+     * @notice Move all tokens deposited into Convex to Yearn
+     * @dev Will move all tokens from Convex to Yearn, including extra lp tokens that might be in the escrow if useAll is true
+     * @param useAll If true, deposit the full balance in the escrow
+     * @return lpAmount The amount of tokens deposited into Yearn
+     */
+    function moveFromConvexToYearn(
+        bool useAll
+    ) external onlyBeneficiary returns (uint256 lpAmount) {
+        lpAmount = _fullWithdrawFromConvex();
+
+        if (useAll) lpAmount = token.balanceOf(address(this));
+
+        yearn.deposit(lpAmount, address(this));
+    }
+
+    /**
+     * @notice Move all tokens deposited into Yearn to Convex
+     * @dev Will move all tokens from Yearn to Convex, including extra lp tokens that might be in the escrow if useAll is true
+     * @param useAll If true, deposit the full balance in the escrow
+     * @return lpAmount The amount of tokens deposited into Convex
+     */
+    function moveFromYearnToConvex(
+        bool useAll
+    ) external onlyBeneficiary returns (uint256 lpAmount) {
+        lpAmount = _fullWithdrawFromYearn();
+
+        if (useAll) lpAmount = token.balanceOf(address(this));
+
+        stakedBalance += lpAmount;
+        booster.deposit(pid, lpAmount, true);
+    }
+
+    function _fullWithdrawFromYearn() internal returns (uint256 lpAmount) {
+        lpAmount = yearn.withdraw(
+            yearn.balanceOf(address(this)),
+            address(this)
+        );
+    }
+
+    function _fullWithdrawFromConvex() internal returns (uint256 lpAmount) {
+        lpAmount = stakedBalance;
         stakedBalance = 0;
-        rewardPool.withdrawAndUnwrap(amount, false);
+        rewardPool.withdrawAndUnwrap(lpAmount, false);
     }
 }
