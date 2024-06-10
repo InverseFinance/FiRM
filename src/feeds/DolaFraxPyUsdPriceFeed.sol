@@ -35,8 +35,8 @@ interface ICurvePool {
 contract DolaFraxPyUsdPriceFeed {
     error OnlyGov();
 
-    ICurvePool public constant pyUSDFrax =
-        ICurvePool(0xA5588F7cdf560811710A2D82D3C9c99769DB1Dcb);
+    ICurvePool public constant dolaPyUSDFrax =
+        ICurvePool(0xef484de8C07B6e2d732A92B5F78e81B38f99f95E);
 
     ICurvePool public constant crvDOLA =
         ICurvePool(0xef484de8C07B6e2d732A92B5F78e81B38f99f95E);
@@ -142,7 +142,7 @@ contract DolaFraxPyUsdPriceFeed {
 
         return (
             roundId,
-            (int(pyUSDFrax.get_virtual_price()) * minUsdPrice) / 10 ** 8,
+            (int(dolaPyUSDFrax.get_virtual_price()) * minUsdPrice) / 10 ** 8,
             startedAt,
             updatedAt,
             answeredInRound
