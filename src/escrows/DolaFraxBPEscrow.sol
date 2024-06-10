@@ -75,7 +75,7 @@ contract DolaFraxBPEscrow {
     function pay(address recipient, uint amount) public {
         if (msg.sender != market) revert OnlyMarket();
         uint256 tokenBal = token.balanceOf(address(this));
-        uint256 missingAmount = amount - tokenBal;
+        uint256 missingAmount = amount > tokenBal ? amount - tokenBal : 0;
         // If there are enough tokens in the escrow, transfer the amount
         if (tokenBal >= amount) {
             token.safeTransfer(recipient, amount);
