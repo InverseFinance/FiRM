@@ -38,9 +38,6 @@ contract DolaFraxPyUsdPriceFeed {
     ICurvePool public constant dolaPyUSDFrax =
         ICurvePool(0xef484de8C07B6e2d732A92B5F78e81B38f99f95E);
 
-    ICurvePool public constant crvDOLA =
-        ICurvePool(0xef484de8C07B6e2d732A92B5F78e81B38f99f95E);
-
     IChainlinkFeed public constant pyUsdToUsd =
         IChainlinkFeed(0x8f1dF6D7F2db73eECE86a18b4381F4707b918FB1);
 
