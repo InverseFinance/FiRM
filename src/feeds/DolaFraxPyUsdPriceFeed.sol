@@ -32,24 +32,20 @@ interface ICurvePool {
     function ema_price() external view returns (uint256);
 }
 
-contract DolaFraxBPPriceFeed {
+contract DolaFraxPyUsdPriceFeed {
     error OnlyGov();
 
-    ICurvePool public constant dolaFraxBP =
-        ICurvePool(0xE57180685E3348589E9521aa53Af0BCD497E884d);
+    ICurvePool public constant pyUSDFrax =
+        ICurvePool(0xA5588F7cdf560811710A2D82D3C9c99769DB1Dcb);
+
+    ICurvePool public constant crvDOLA =
+        ICurvePool(0xef484de8C07B6e2d732A92B5F78e81B38f99f95E);
+
+    IChainlinkFeed public constant pyUsdToUsd =
+        IChainlinkFeed(0x8f1dF6D7F2db73eECE86a18b4381F4707b918FB1);
 
     IChainlinkFeed public constant fraxToUsd =
         IChainlinkFeed(0xB9E1E3A9feFf48998E45Fa90847ed4D467E8BcfD);
-
-    IChainlinkFeed public constant usdcToUsd =
-        IChainlinkFeed(0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6);
-
-    // For USDC fallabck
-    ICurvePool public constant tricryptoETH =
-        ICurvePool(0x7F86Bf177Dd4F3494b841a37e810A34dD56c829B);
-
-    IChainlinkFeed public constant ethToUsd =
-        IChainlinkFeed(0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419);
 
     // For Frax fallback
     ICurvePool public constant crvUSDFrax =
@@ -58,11 +54,16 @@ contract DolaFraxBPPriceFeed {
     IChainlinkFeed public constant crvUSDToUsd =
         IChainlinkFeed(0xEEf0C605546958c1f899b6fB336C20671f9cD49F);
 
-    uint256 public constant ethK = 1;
+    // For pyUSD fallback
+    ICurvePool public constant pyUsdUsdc =
+        ICurvePool(0x383E6b4437b59fff47B619CBA855CA29342A8559);
+
+    IChainlinkFeed public constant usdcToUsd =
+        IChainlinkFeed(0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6);
 
     uint256 public fraxHeartbeat = 1 hours;
 
-    uint256 public ethHeartbeat = 1 hours;
+    uint256 public usdcHeartbeat = 24 hours;
 
     uint256 public crvUSDHeartbeat = 24 hours;
 
@@ -74,12 +75,8 @@ contract DolaFraxBPPriceFeed {
     }
 
     /**
-     * @notice Retrieves the latest round data for the LP token price feed
-     * @dev This function calculates the LP token price in USD using the lowest usd price for FRAX and USDC from a Chainlink oracle
-     * and the virtual price from the DOLA-FRAX-USDC tricrypto pool.
-     * If USDC/USD price is out of bounds, it will fallback to ETH/USD price oracle and USDC to ETH ratio from the tricrypto pool
      * @return roundId The round ID of the Chainlink price feed
-     * @return lpUsdPrice The latest LP token price in USD computed from the virtual price and USDC/USD or FRAX/USD feed
+     * @return dolaUsdprice
      * @return startedAt The timestamp when the latest round of Chainlink price feed started
      * @return updatedAt The timestamp when the latest round of Chainlink price feed was updated
      * @return answeredInRound The round ID in which the answer was computed
@@ -91,20 +88,20 @@ contract DolaFraxBPPriceFeed {
     {
         (
             uint80 roundId,
-            int256 usdcUsdPrice,
+            int256 pyUsdPrice,
             uint startedAt,
             uint updatedAt,
             uint80 answeredInRound
-        ) = usdcToUsd.latestRoundData();
+        ) = pyUsdToUsd.latestRoundData();
 
-        if (isPriceOutOfBounds(usdcUsdPrice, usdcToUsd)) {
+        if (isPriceOutOfBounds(pyUsdPrice, pyUsdToUsd)) {
             (
                 roundId,
-                usdcUsdPrice,
+                pyUsdPrice,
                 startedAt,
                 updatedAt,
                 answeredInRound
-            ) = usdcToUsdFallbackOracle();
+            ) = pyUsdToUsdFallbackOracle();
         }
 
         (
@@ -130,10 +127,9 @@ contract DolaFraxBPPriceFeed {
 
         int256 minUsdPrice;
 
-        // If FRAX price is lower than USDC price, use FRAX price
+        // If FRAX price is lower than pyUSD price, use FRAX price
         if (
-            (fraxUsdPrice < usdcUsdPrice && updatedAtFrax > 0) ||
-            usdcUsdPrice == 0
+            (fraxUsdPrice < pyUsdPrice && updatedAtFrax > 0) || pyUsdPrice == 0
         ) {
             minUsdPrice = fraxUsdPrice;
             roundId = roundIdFrax;
@@ -141,12 +137,12 @@ contract DolaFraxBPPriceFeed {
             updatedAt = updatedAtFrax;
             answeredInRound = answeredInRoundFrax;
         } else {
-            minUsdPrice = usdcUsdPrice;
+            minUsdPrice = pyUsdPrice;
         }
 
         return (
             roundId,
-            (int(dolaFraxBP.get_virtual_price()) * minUsdPrice) / 10 ** 8,
+            (int(pyUSDFrax.get_virtual_price()) * minUsdPrice) / 10 ** 8,
             startedAt,
             updatedAt,
             answeredInRound
@@ -154,8 +150,8 @@ contract DolaFraxBPPriceFeed {
     }
 
     /** 
-    @notice Retrieves the latest price for the LP token
-    @return price The latest price for the LP token
+    @notice Retrieves the latest price for DOLA
+    @return price The latest price for DOLA
     */
     function latestAnswer() external view returns (int256) {
         (, int256 price, , , ) = latestRoundData();
@@ -163,8 +159,8 @@ contract DolaFraxBPPriceFeed {
     }
 
     /**
-     * @notice Retrieves number of decimals for the LP token price feed
-     * @return decimals The number of decimals for the LP token price feed
+     * @notice Retrieves number of decimals for the DOLA price feed
+     * @return decimals The number of decimals for the DOLA price feed
      */
     function decimals() public pure returns (uint8) {
         return 18;
@@ -187,40 +183,46 @@ contract DolaFraxBPPriceFeed {
     }
 
     /**
-     * @notice Fetches the ETH to USD price and the ETH to USDC to get USDC/USD price, adjusts the decimals to match Chainlink oracles.
+     * @notice Fetches the pyUSD to USDC price and the USDC to USD to get pyUSD/USD price, adjusts the decimals to match Chainlink oracles.
      * @dev The function assumes that the `price_oracle` returns the price with 18 decimals, and it adjusts to 8 decimals for compatibility with Chainlink oracles.
-     * @return roundId The round ID of the ETH/USD Chainlink price feed
-     * @return usdcToUsdPrice The latest USDC price in USD computed from the ETH/USD and ETH/USDC feeds
-     * @return startedAt The timestamp when the latest round of ETH/USD Chainlink price feed started
-     * @return updatedAt The timestamp when the latest round of ETH/USD Chainlink price feed was updated
-     * @return answeredInRound The round ID of the ETH/USD Chainlink price feed in which the answer was computed
+     * @return roundId The round ID of the USDC/USD Chainlink price feed
+     * @return pyUsdToUsdPrice The latest pyUSD price in USD computed from the pyUSD/USDC and USDC/USD feeds
+     * @return startedAt The timestamp when the latest round of USDC/USD Chainlink price feed started
+     * @return updatedAt The timestamp when the latest round of USDC/USD Chainlink price feed was updated
+     * @return answeredInRound The round ID of the USDC/USD Chainlink price feed in which the answer was computed
      */
-    function usdcToUsdFallbackOracle()
+    function pyUsdToUsdFallbackOracle()
         public
         view
         returns (uint80, int256, uint256, uint256, uint80)
     {
-        int crvEthToUsdc = int(tricryptoETH.price_oracle(ethK));
+        int pyUsdToUsdc = int(pyUsdUsdc.price_oracle(0));
 
         (
             uint80 roundId,
-            int256 ethToUsdPrice,
+            int256 usdcToUsdPrice,
             uint256 startedAt,
             uint256 updatedAt,
             uint80 answeredInRound
-        ) = ethToUsd.latestRoundData();
+        ) = usdcToUsd.latestRoundData();
 
-        int usdcToUsdPrice = (ethToUsdPrice * 10 ** 18) / crvEthToUsdc;
+        int pyUsdToUsdPrice = (usdcToUsdPrice * 10 ** 18) / pyUsdToUsdc;
 
         if (
-            isPriceOutOfBounds(ethToUsdPrice, ethToUsd) ||
-            block.timestamp - updatedAt > ethHeartbeat
+            isPriceOutOfBounds(usdcToUsdPrice, usdcToUsd) ||
+            block.timestamp - updatedAt > usdcHeartbeat
         ) {
             // will cause stale price on borrow controller
             updatedAt = 0;
         }
 
-        return (roundId, usdcToUsdPrice, startedAt, updatedAt, answeredInRound);
+        return (
+            roundId,
+            pyUsdToUsdPrice,
+            startedAt,
+            updatedAt,
+            answeredInRound
+        );
     }
 
     /**
@@ -265,8 +267,8 @@ contract DolaFraxBPPriceFeed {
      * @dev Can only be called by the current gov address
      * @param newHeartbeat The new ETH heartbeat
      */
-    function setEthHeartbeat(uint256 newHeartbeat) external onlyGov {
-        ethHeartbeat = newHeartbeat;
+    function setUsdcHeartbeat(uint256 newHeartbeat) external onlyGov {
+        usdcHeartbeat = newHeartbeat;
     }
 
     /**
