@@ -76,7 +76,7 @@ contract DolaFraxPyUsdPriceFeed {
 
     /**
      * @return roundId The round ID of the Chainlink price feed
-     * @return dolaUsdprice
+     * @return lpUsdprice The latest LP token price in USD
      * @return startedAt The timestamp when the latest round of Chainlink price feed started
      * @return updatedAt The timestamp when the latest round of Chainlink price feed was updated
      * @return answeredInRound The round ID in which the answer was computed
@@ -150,8 +150,8 @@ contract DolaFraxPyUsdPriceFeed {
     }
 
     /** 
-    @notice Retrieves the latest price for DOLA
-    @return price The latest price for DOLA
+    @notice Retrieves the latest price for LP token
+    @return price The latest price for LP token
     */
     function latestAnswer() external view returns (int256) {
         (, int256 price, , , ) = latestRoundData();
@@ -159,8 +159,8 @@ contract DolaFraxPyUsdPriceFeed {
     }
 
     /**
-     * @notice Retrieves number of decimals for the DOLA price feed
-     * @return decimals The number of decimals for the DOLA price feed
+     * @notice Retrieves number of decimals for the LP token price feed
+     * @return decimals The number of decimals for the LP token price feed
      */
     function decimals() public pure returns (uint8) {
         return 18;
