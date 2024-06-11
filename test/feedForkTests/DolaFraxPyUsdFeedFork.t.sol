@@ -149,8 +149,8 @@ contract DolaFraxPyUsdPriceFeedFork is Test {
         assertEq(updatedAtFall, updatedAt);
         assertEq(answeredInRoundFall, answeredInRound);
 
-        uint256 pyUsdFallPrice = (uint256(usdcToUsdPrice) * 10 ** 18) /
-            feed.pyUsdUsdc().price_oracle(0);
+        uint256 pyUsdFallPrice = ((uint256(usdcToUsdPrice) *
+            feed.pyUsdUsdc().price_oracle(0)) / 10 ** 18);
         int lpPrice = int(
             ((feed.dolaPyUSDFrax().get_virtual_price() * pyUsdFallPrice) /
                 10 ** 8)
@@ -203,8 +203,8 @@ contract DolaFraxPyUsdPriceFeedFork is Test {
         assertEq(updatedAtFall, updatedAt);
         assertEq(answeredInRoundFall, answeredInRound);
 
-        uint256 pyUsdFallPrice = (uint256(usdcToUsdPrice) * 10 ** 18) /
-            feed.pyUsdUsdc().price_oracle(0);
+        uint256 pyUsdFallPrice = ((uint256(usdcToUsdPrice) *
+            feed.pyUsdUsdc().price_oracle(0)) / 10 ** 18);
         int lpPrice = int(
             ((feed.dolaPyUSDFrax().get_virtual_price() * pyUsdFallPrice) /
                 10 ** 8)
@@ -361,8 +361,8 @@ contract DolaFraxPyUsdPriceFeedFork is Test {
         uint256 pyUsdToUsdcPrice = feed.pyUsdUsdc().price_oracle(0);
         (, int256 pyUsdFallback, , , ) = feed.pyUsdToUsdFallbackOracle();
 
-        uint256 estimatedPyUsdPrice = (uint256(usdcToUsdPrice) * 10 ** 18) /
-            pyUsdToUsdcPrice;
+        uint256 estimatedPyUsdPrice = ((uint256(usdcToUsdPrice) *
+            pyUsdToUsdcPrice) / 10 ** 18);
 
         assertEq(uint256(pyUsdFallback), estimatedPyUsdPrice);
         int lpPrice = int(
@@ -438,8 +438,8 @@ contract DolaFraxPyUsdPriceFeedFork is Test {
         assertEq(clAnsweredInRound2, answeredInRound);
 
         (, int256 pyUsdFallback, , , ) = feed.pyUsdToUsdFallbackOracle();
-        uint256 estimatedPyUsdFallback = (uint256(usdcToUsdPrice) * 10 ** 18) /
-            feed.pyUsdUsdc().price_oracle(0);
+        uint256 estimatedPyUsdFallback = ((uint256(usdcToUsdPrice) *
+            feed.pyUsdUsdc().price_oracle(0)) / 10 ** 18);
 
         assertEq(uint256(pyUsdFallback), estimatedPyUsdFallback);
         int lpPrice = int(
@@ -514,8 +514,8 @@ contract DolaFraxPyUsdPriceFeedFork is Test {
         assertEq(clAnsweredInRound2, answeredInRound);
 
         (, int256 pyUsdFallback, , , ) = feed.pyUsdToUsdFallbackOracle();
-        uint256 estimatedPyUsdFallback = (uint256(ethToUsdPrice) * 10 ** 18) /
-            feed.pyUsdUsdc().price_oracle(0);
+        uint256 estimatedPyUsdFallback = ((uint256(ethToUsdPrice) *
+            feed.pyUsdUsdc().price_oracle(0)) / 10 ** 18);
 
         assertEq(uint256(pyUsdFallback), estimatedPyUsdFallback);
         int lpPrice = int(
@@ -711,8 +711,8 @@ contract DolaFraxPyUsdPriceFeedFork is Test {
         assertEq(clUpdatedAt2, updatedAt);
         assertEq(clAnsweredInRound2, answeredInRound);
 
-        uint256 pyUsdFallPrice = (uint256(usdcToUsdPrice) * 10 ** 18) /
-            feed.pyUsdUsdc().price_oracle(0);
+        uint256 pyUsdFallPrice = ((uint256(usdcToUsdPrice) *
+            feed.pyUsdUsdc().price_oracle(0)) / 10 ** 18);
         uint256 calculatedLPUsdPrice = (feed
             .dolaPyUSDFrax()
             .get_virtual_price() * uint256(pyUsdFallPrice)) / 10 ** 8;
@@ -772,8 +772,8 @@ contract DolaFraxPyUsdPriceFeedFork is Test {
 
         uint256 pyUsdToUsdcPrice = feed.pyUsdUsdc().price_oracle(0);
 
-        uint256 estPyUsdFallback = (uint256(usdcToUsdPrice) * 10 ** 18) /
-            pyUsdToUsdcPrice;
+        uint256 estPyUsdFallback = ((uint256(usdcToUsdPrice) *
+            pyUsdToUsdcPrice) / 10 ** 18);
 
         assertEq(uint256(pyUsdFallback), estPyUsdFallback);
         assertEq(clRoundId2, roundId);

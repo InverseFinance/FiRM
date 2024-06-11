@@ -203,8 +203,8 @@ contract DolaFraxPyUsdPriceFeed {
             uint80 answeredInRound
         ) = usdcToUsd.latestRoundData();
 
-        int pyUsdToUsdPrice = (usdcToUsdPrice * 10 ** 18) / pyUsdToUsdc;
-
+        //int pyUsdToUsdPrice = (usdcToUsdPrice * 10 ** 18) / pyUsdToUsdc;
+        int pyUsdToUsdPrice = pyUsdToUsdc * usdcToUsdPrice / 10 ** 18;
         if (
             isPriceOutOfBounds(usdcToUsdPrice, usdcToUsd) ||
             block.timestamp - updatedAt > usdcHeartbeat
