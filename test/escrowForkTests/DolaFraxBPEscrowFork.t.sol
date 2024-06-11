@@ -145,256 +145,6 @@ contract DolaFraxBPEscrowForkTest is Test {
         );
     }
 
-    function test_moveFromConvexToYearn_successfull_when_contract_holds_ALL_DolaFraxBP_in_Convex()
-        public
-    {
-        uint256 amount = 1 ether;
-
-        vm.prank(holder, holder);
-        dolaFraxBP.transfer(address(escrow), amount);
-        vm.startPrank(beneficiary, beneficiary);
-        escrow.depositToConvex();
-
-        uint256 lpAmount = escrow.moveFromConvexToYearn(false);
-
-        assertEq(
-            escrow.balance(),
-            YearnVaultV2Helper.collateralToAsset(
-                yearn,
-                yearn.balanceOf(address(escrow))
-            ),
-            "Escrow Balance is not correct"
-        );
-        assertEq(
-            rewardPool.balanceOf(address(escrow)),
-            0,
-            "Reward Pool Balance is not correct"
-        );
-        assertEq(
-            escrow.stakedBalance(),
-            0,
-            "Staked balance accounting not correct"
-        );
-        assertApproxEqAbs(
-            yearn.balanceOf(address(escrow)),
-            YearnVaultV2Helper.assetToCollateral(yearn, lpAmount),
-            2,
-            "Yearn Balance is not correct"
-        );
-    }
-
-    function test_moveFromConvexToYearn_useAll_TRUE_when_contract_holds_some_LP_in_the_escrow_and_DolaFraxBP_in_Convex()
-        public
-    {
-        uint256 amount = 1 ether;
-
-        vm.prank(holder, holder);
-        dolaFraxBP.transfer(address(escrow), amount);
-
-        vm.prank(beneficiary, beneficiary);
-        escrow.depositToConvex();
-
-        // Add extra amount to the escrow but not deposited to Convex
-        vm.prank(holder, holder);
-        dolaFraxBP.transfer(address(escrow), amount);
-
-        vm.prank(beneficiary, beneficiary);
-        uint256 lpAmount = escrow.moveFromConvexToYearn(true);
-
-        assertEq(lpAmount, 2 * amount, "LP Amount is not correct");
-        assertEq(
-            dolaFraxBP.balanceOf(address(escrow)),
-            0,
-            "LP Token balance is not correct"
-        );
-
-        assertEq(
-            escrow.balance(),
-            YearnVaultV2Helper.collateralToAsset(
-                yearn,
-                yearn.balanceOf(address(escrow))
-            ),
-            "Escrow Balance is not correct"
-        );
-        assertEq(
-            rewardPool.balanceOf(address(escrow)),
-            0,
-            "Reward Pool Balance is not correct"
-        );
-        assertEq(
-            escrow.stakedBalance(),
-            0,
-            "Staked balance accounting not correct"
-        );
-        assertApproxEqAbs(
-            yearn.balanceOf(address(escrow)),
-            YearnVaultV2Helper.assetToCollateral(yearn, lpAmount),
-            2,
-            "Yearn Balance is not correct"
-        );
-    }
-
-    function test_moveFromConvexToYearn_useAll_FALSE_when_contract_holds_also_some_LP_in_the_escrow_and_DolaFraxBP_in_Convex()
-        public
-    {
-        uint256 amount = 1 ether;
-
-        vm.prank(holder, holder);
-        dolaFraxBP.transfer(address(escrow), amount);
-
-        vm.prank(beneficiary, beneficiary);
-        escrow.depositToConvex();
-
-        // Add extra amount to the escrow but not deposited to Convex
-        vm.prank(holder, holder);
-        dolaFraxBP.transfer(address(escrow), amount);
-
-        vm.prank(beneficiary, beneficiary);
-        uint256 lpAmount = escrow.moveFromConvexToYearn(false);
-
-        assertEq(lpAmount, amount, "LP Amount is not correct");
-        assertEq(
-            escrow.balance(),
-            YearnVaultV2Helper.collateralToAsset(
-                yearn,
-                yearn.balanceOf(address(escrow))
-            ) + amount,
-            "Escrow Balance is not correct"
-        );
-        assertEq(
-            rewardPool.balanceOf(address(escrow)),
-            0,
-            "Reward Pool Balance is not correct"
-        );
-        assertEq(
-            escrow.stakedBalance(),
-            0,
-            "Staked balance accounting not correct"
-        );
-        assertApproxEqAbs(
-            yearn.balanceOf(address(escrow)),
-            YearnVaultV2Helper.assetToCollateral(yearn, lpAmount),
-            2,
-            "Yearn Balance is not correct"
-        );
-    }
-
-    function test_moveFromYearnToConvex_successfull_when_contract_holds_ALL_DolaFraxBP_in_Yearn()
-        public
-    {
-        uint256 amount = 1 ether;
-
-        vm.prank(holder, holder);
-        dolaFraxBP.transfer(address(escrow), amount);
-        vm.startPrank(beneficiary, beneficiary);
-        escrow.depositToYearn();
-
-        uint256 lpAmount = escrow.moveFromYearnToConvex(false);
-
-        assertApproxEqAbs(lpAmount, amount, 1, "Asset Amount is not correct");
-        assertEq(
-            dolaFraxBP.balanceOf(address(escrow)),
-            0,
-            "LP Token balance is not correct"
-        );
-        assertEq(escrow.balance(), lpAmount, "Escrow Balance is not correct");
-        assertEq(
-            rewardPool.balanceOf(address(escrow)),
-            lpAmount,
-            "Reward Pool Balance is not correct"
-        );
-        assertEq(
-            escrow.stakedBalance(),
-            lpAmount,
-            "Staked balance accounting not correct"
-        );
-        assertEq(
-            yearn.balanceOf(address(escrow)),
-            0,
-            "Yearn Balance is not correct"
-        );
-        assertApproxEqAbs(lpAmount, amount, 1, "Asset amount is not correct");
-    }
-
-    function test_moveFromYearnToConvex_useAll_TRUE_when_contract_holds_some_LP_in_the_escrow_and_DolaFraxBP_in_Yearn()
-        public
-    {
-        uint256 amount = 1 ether;
-
-        vm.prank(holder, holder);
-        dolaFraxBP.transfer(address(escrow), amount);
-        vm.prank(beneficiary, beneficiary);
-        escrow.depositToYearn();
-
-        vm.prank(holder, holder);
-        dolaFraxBP.transfer(address(escrow), amount);
-
-        vm.prank(beneficiary, beneficiary);
-        uint256 lpAmount = escrow.moveFromYearnToConvex(true);
-
-        assertEq(
-            dolaFraxBP.balanceOf(address(escrow)),
-            0,
-            "LP Token balance is not correct"
-        );
-        assertEq(
-            rewardPool.balanceOf(address(escrow)),
-            lpAmount,
-            "Reward Pool Balance is not correct"
-        );
-        assertEq(
-            escrow.stakedBalance(),
-            lpAmount,
-            "Staked balance accounting not correct"
-        );
-        assertEq(
-            yearn.balanceOf(address(escrow)),
-            0,
-            "Yearn Balance is not correct"
-        );
-        assertApproxEqAbs(lpAmount, amount * 2, 1, "LP amount is not correct");
-    }
-
-    function test_moveFromYearnToConvex_useAll_FALSE_when_contract_holds_some_LP_in_the_escrow_and_DolaFraxBP_in_Yearn()
-        public
-    {
-        uint256 amount = 1 ether;
-
-        vm.prank(holder, holder);
-        dolaFraxBP.transfer(address(escrow), amount);
-        vm.prank(beneficiary, beneficiary);
-        escrow.depositToYearn();
-
-        // Add extra LP in the escrow but not deposited to Yearn
-        vm.prank(holder, holder);
-        dolaFraxBP.transfer(address(escrow), amount);
-
-        vm.prank(beneficiary, beneficiary);
-        uint256 lpAmount = escrow.moveFromYearnToConvex(false);
-
-        assertEq(
-            dolaFraxBP.balanceOf(address(escrow)),
-            amount,
-            "LP Token balance is not correct"
-        );
-        assertEq(
-            rewardPool.balanceOf(address(escrow)),
-            lpAmount,
-            "Reward Pool Balance is not correct"
-        );
-        assertEq(
-            escrow.stakedBalance(),
-            lpAmount,
-            "Staked balance accounting not correct"
-        );
-        assertEq(
-            yearn.balanceOf(address(escrow)),
-            0,
-            "Yearn Balance is not correct"
-        );
-        assertApproxEqAbs(lpAmount, amount, 1, "LP amount is not correct");
-    }
-
     function test_withdrawFromConvex_successful_if_deposited() public {
         uint256 amount = 1 ether;
         vm.prank(holder, holder);
@@ -472,7 +222,9 @@ contract DolaFraxBPEscrowForkTest is Test {
         );
     }
 
-    function test_fail_depositToConvex_if_already_deposit_to_Yearn() public {
+    function test_depositToConvex_all_even_if_already_deposit_to_Yearn()
+        public
+    {
         uint256 amount = 1 ether;
 
         vm.prank(holder, holder);
@@ -483,17 +235,41 @@ contract DolaFraxBPEscrowForkTest is Test {
         vm.prank(holder, holder);
         dolaFraxBP.transfer(address(escrow), amount);
 
-        vm.prank(beneficiary, beneficiary);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                DolaFraxBPEscrow.CannotDepositToYearn.selector,
-                amount
-            )
+        assertEq(
+            escrow.stakedBalance(),
+            amount,
+            "Staked balance is not correct"
         );
+        assertEq(
+            rewardPool.balanceOf(address(escrow)),
+            amount,
+            "Reward Pool balance is not correct"
+        );
+        vm.prank(beneficiary, beneficiary);
         escrow.depositToYearn();
+
+        assertEq(escrow.stakedBalance(), 0, "Staked balance is not 0");
+        assertEq(
+            rewardPool.balanceOf(address(escrow)),
+            0,
+            "Reward Pool balance is not 0"
+        );
+        assertEq(
+            dolaFraxBP.balanceOf(address(escrow)),
+            0,
+            "LP Token balance is not 0"
+        );
+        assertApproxEqAbs(
+            yearn.balanceOf(address(escrow)),
+            YearnVaultV2Helper.assetToCollateral(yearn, amount * 2),
+            1,
+            "Yearn Balance is 0"
+        );
     }
 
-    function test_fail_depositToYearn_if_already_deposit_to_Convex() public {
+    function test_depositToYearn_all_even_if_already_deposit_to_Convex()
+        public
+    {
         uint256 amount = 1 ether;
 
         vm.prank(holder, holder);
@@ -504,14 +280,48 @@ contract DolaFraxBPEscrowForkTest is Test {
         vm.prank(holder, holder);
         dolaFraxBP.transfer(address(escrow), amount);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                DolaFraxBPEscrow.CannotDepositToConvex.selector,
-                yearn.balanceOf(address(escrow))
-            )
+        assertApproxEqAbs(
+            yearn.balanceOf(address(escrow)),
+            YearnVaultV2Helper.assetToCollateral(yearn, amount),
+            1,
+            "Yearn Balance is not correct"
+        );
+        assertEq(escrow.stakedBalance(), 0, "Staked balance is not 0");
+        assertEq(
+            rewardPool.balanceOf(address(escrow)),
+            0,
+            "Reward Pool balance is not 0"
+        );
+
+        uint256 lpBalBeforeInYearn = YearnVaultV2Helper.collateralToAsset(
+            yearn,
+            yearn.balanceOf(address(escrow))
         );
         vm.prank(beneficiary, beneficiary);
         escrow.depositToConvex();
+
+        assertApproxEqAbs(
+            escrow.stakedBalance(),
+            lpBalBeforeInYearn + amount,
+            1,
+            "Staked balance is not correct"
+        );
+        assertApproxEqAbs(
+            rewardPool.balanceOf(address(escrow)),
+            lpBalBeforeInYearn + amount,
+            1,
+            "Reward Pool balance is not correct"
+        );
+        assertEq(
+            dolaFraxBP.balanceOf(address(escrow)),
+            0,
+            "LP Token balance is not 0"
+        );
+        assertEq(
+            yearn.balanceOf(address(escrow)),
+            0,
+            "Yearn Balance is not correct"
+        );
     }
 
     function test_Pay_when_escrow_has_DolaFraxBP_in_Convex() public {

@@ -15,8 +15,6 @@ contract DolaFraxBPEscrow {
     error OnlyMarket();
     error OnlyBeneficiary();
     error OnlyBeneficiaryOrAllowlist();
-    error CannotDepositToConvex(uint256 yearnAmount);
-    error CannotDepositToYearn(uint256 convexAmount);
 
     uint256 public constant pid = 115;
 
@@ -183,8 +181,8 @@ contract DolaFraxBPEscrow {
      * @dev Cannot deposit if there are Yearn tokens in the escrow (only 1 strategy at a time)
      */
     function depositToConvex() external onlyBeneficiary {
-        if (yearn.balanceOf(address(this)) > 0)
-            revert CannotDepositToConvex(yearn.balanceOf(address(this)));
+        if (yearn.balanceOf(address(this)) > 0) withdrawFromYearn();
+
         uint256 tokenBal = token.balanceOf(address(this));
         stakedBalance += tokenBal;
         booster.deposit(pid, tokenBal, true);
@@ -195,7 +193,7 @@ contract DolaFraxBPEscrow {
      * @dev Cannot deposit if there are Convex tokens in the escrow (only 1 strategy at a time)
      */
     function depositToYearn() external onlyBeneficiary {
-        if (stakedBalance > 0) revert CannotDepositToYearn(stakedBalance);
+        if (stakedBalance > 0) withdrawFromConvex();
         yearn.deposit(token.balanceOf(address(this)), address(this));
     }
 
@@ -204,11 +202,11 @@ contract DolaFraxBPEscrow {
      * @return lpAmount The amount of tokens withdrawn from Yearn
      */
     function withdrawFromYearn()
-        external
+        public
         onlyBeneficiary
         returns (uint256 lpAmount)
     {
-        return _fullWithdrawFromYearn();
+        return yearn.withdraw(yearn.balanceOf(address(this)), address(this));
     }
 
     /**
@@ -216,56 +214,13 @@ contract DolaFraxBPEscrow {
      * @return lpAmount The amount of tokens withdrawn from Convex
      */
     function withdrawFromConvex()
-        external
+        public
         onlyBeneficiary
         returns (uint256 lpAmount)
     {
-        return _fullWithdrawFromConvex();
-    }
-
-    /**
-     * @notice Move all tokens deposited into Convex to Yearn
-     * @dev Will move all tokens from Convex to Yearn, including extra lp tokens that might be in the escrow if useAll is true
-     * @param useAll If true, deposit the full balance in the escrow
-     * @return lpAmount The amount of tokens deposited into Yearn
-     */
-    function moveFromConvexToYearn(
-        bool useAll
-    ) external onlyBeneficiary returns (uint256 lpAmount) {
-        lpAmount = _fullWithdrawFromConvex();
-
-        if (useAll) lpAmount = token.balanceOf(address(this));
-
-        yearn.deposit(lpAmount, address(this));
-    }
-
-    /**
-     * @notice Move all tokens deposited into Yearn to Convex
-     * @dev Will move all tokens from Yearn to Convex, including extra lp tokens that might be in the escrow if useAll is true
-     * @param useAll If true, deposit the full balance in the escrow
-     * @return lpAmount The amount of tokens deposited into Convex
-     */
-    function moveFromYearnToConvex(
-        bool useAll
-    ) external onlyBeneficiary returns (uint256 lpAmount) {
-        lpAmount = _fullWithdrawFromYearn();
-
-        if (useAll) lpAmount = token.balanceOf(address(this));
-
-        stakedBalance += lpAmount;
-        booster.deposit(pid, lpAmount, true);
-    }
-
-    function _fullWithdrawFromYearn() internal returns (uint256 lpAmount) {
-        lpAmount = yearn.withdraw(
-            yearn.balanceOf(address(this)),
-            address(this)
-        );
-    }
-
-    function _fullWithdrawFromConvex() internal returns (uint256 lpAmount) {
         lpAmount = stakedBalance;
         stakedBalance = 0;
         rewardPool.withdrawAndUnwrap(lpAmount, false);
+        return lpAmount;
     }
 }
