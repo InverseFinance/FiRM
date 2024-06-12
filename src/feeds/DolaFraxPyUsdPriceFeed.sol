@@ -1,36 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.4;
 
-interface IChainlinkFeed {
-    function aggregator() external view returns (address aggregator);
-
-    function decimals() external view returns (uint8);
-
-    function latestRoundData()
-        external
-        view
-        returns (
-            uint80 roundId,
-            int256 lpDollarPrice,
-            uint256 startedAt,
-            uint256 updatedAt,
-            uint80 answeredInRound
-        );
-}
-
-interface IAggregator {
-    function maxAnswer() external view returns (int192);
-
-    function minAnswer() external view returns (int192);
-}
-
-interface ICurvePool {
-    function price_oracle(uint256 k) external view returns (uint256);
-
-    function get_virtual_price() external view returns (uint256);
-
-    function ema_price() external view returns (uint256);
-}
+import "src/util/ChainlinkFeedFallbacks.sol";
 
 contract DolaFraxPyUsdPriceFeed {
     error OnlyGov();
@@ -65,6 +36,8 @@ contract DolaFraxPyUsdPriceFeed {
     uint256 public crvUSDHeartbeat = 24 hours;
 
     address public gov = 0x926dF14a23BE491164dCF93f4c468A50ef659D5B;
+
+    uint256 public constant targetKPyUsd = 0;
 
     modifier onlyGov() {
         if (msg.sender != gov) revert OnlyGov();
@@ -193,32 +166,11 @@ contract DolaFraxPyUsdPriceFeed {
         view
         returns (uint80, int256, uint256, uint256, uint80)
     {
-        int pyUsdToUsdc = int(pyUsdUsdc.price_oracle(0));
-
-        (
-            uint80 roundId,
-            int256 usdcToUsdPrice,
-            uint256 startedAt,
-            uint256 updatedAt,
-            uint80 answeredInRound
-        ) = usdcToUsd.latestRoundData();
-
-        int pyUsdToUsdPrice = (pyUsdToUsdc * usdcToUsdPrice) / 10 ** 18;
-
-        if (
-            isPriceOutOfBounds(usdcToUsdPrice, usdcToUsd) ||
-            block.timestamp - updatedAt > usdcHeartbeat
-        ) {
-            // will cause stale price on borrow controller
-            updatedAt = 0;
-        }
-
-        return (
-            roundId,
-            pyUsdToUsdPrice,
-            startedAt,
-            updatedAt,
-            answeredInRound
+        return ChainlinkFeedFallbacks.fallbackUsdPriceOracle(
+            usdcToUsd,
+            usdcHeartbeat,
+            pyUsdUsdc,
+            targetKPyUsd
         );
     }
 
@@ -236,27 +188,12 @@ contract DolaFraxPyUsdPriceFeed {
         view
         returns (uint80, int256, uint256, uint256, uint80)
     {
-        int crvUsdToFrax = int(crvUSDFrax.ema_price());
-
-        (
-            uint80 roundId,
-            int256 crvUSDToUsdPrice,
-            uint256 startedAt,
-            uint256 updatedAt,
-            uint80 answeredInRound
-        ) = crvUSDToUsd.latestRoundData();
-
-        int fraxToUsdPrice = (crvUSDToUsdPrice * 10 ** 18) / crvUsdToFrax;
-
-        if (
-            isPriceOutOfBounds(crvUSDToUsdPrice, crvUSDToUsd) ||
-            block.timestamp - updatedAt > crvUSDHeartbeat
-        ) {
-            // will cause stale price on borrow controller
-            updatedAt = 0;
-        }
-
-        return (roundId, fraxToUsdPrice, startedAt, updatedAt, answeredInRound);
+        return
+            ChainlinkFeedFallbacks.fallBackUsdEma(
+                crvUSDToUsd,
+                crvUSDHeartbeat,
+                crvUSDFrax
+            );
     }
 
     /**

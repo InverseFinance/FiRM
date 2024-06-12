@@ -35,7 +35,7 @@ interface ICurvePool {
 library ChainlinkFeedFallbacks {
     int256 public constant scale = 1e18;
 
-    function fallBackUsdClEma(
+    function fallBackUsdEma(
         IChainlinkFeed assetToUsdFallback,
         uint256 assetFallHb,
         ICurvePool curvePool
@@ -68,7 +68,7 @@ library ChainlinkFeedFallbacks {
     }
 
     // Fallback when curve pool returns targetToAsset and chainlink returns assetToUsd
-    function fallbackUsdClPriceOracle(
+    function fallbackUsdPriceOracle(
         IChainlinkFeed assetToUsdFallback,
         uint256 assetFallHb,
         ICurvePool curvePool,
@@ -104,7 +104,7 @@ library ChainlinkFeedFallbacks {
     }
 
     // Fallback when curve pool returns assetToTarget (when need the stable one in curve pool as target like for USDC or crvUSD fallback) and chainlink returns assetToUsd
-    function fallbackUsdClPriceOracleStable(
+    function fallbackUsdPriceOracleStable(
         IChainlinkFeed assetToUsdFallback,
         uint256 assetFallHb,
         ICurvePool curvePool,
