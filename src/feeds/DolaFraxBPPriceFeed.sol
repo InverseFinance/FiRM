@@ -1,39 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.4;
-import {console} from "forge-std/console.sol";
 
-interface IChainlinkFeed {
-    function aggregator() external view returns (address aggregator);
-
-    function decimals() external view returns (uint8);
-
-    function latestRoundData()
-        external
-        view
-        returns (
-            uint80 roundId,
-            int256 lpDollarPrice,
-            uint256 startedAt,
-            uint256 updatedAt,
-            uint80 answeredInRound
-        );
-
-    function assetToUsdFallback() external view returns (IChainlinkFeed);
-}
-
-interface IAggregator {
-    function maxAnswer() external view returns (int192);
-
-    function minAnswer() external view returns (int192);
-}
-
-interface ICurvePool {
-    function price_oracle(uint256 k) external view returns (uint256);
-
-    function get_virtual_price() external view returns (uint256);
-
-    function ema_price() external view returns (uint256);
-}
+import "src/util/FeedLib.sol";
 
 contract DolaFraxBPPriceFeed {
     error OnlyGov();

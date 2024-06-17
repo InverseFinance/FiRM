@@ -16,6 +16,8 @@ interface IChainlinkFeed {
             uint256 updatedAt,
             uint80 answeredInRound
         );
+
+    function assetToUsdFallback() external view returns (IChainlinkFeed);
 }
 
 interface IAggregator {
