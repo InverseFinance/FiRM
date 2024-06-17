@@ -14,8 +14,9 @@ contract DolaFraxBPPriceFeedFork is Test {
     ChainlinkEmaPriceFeed fraxFallback;
     ChainlinkBasePriceFeed mainUsdcFeed;
     ChainlinkBasePriceFeed mainFraxFeed;
-    // ICurvePool public constant dolaFraxBP =
-    //     ICurvePool(0xE57180685E3348589E9521aa53Af0BCD497E884d);
+
+    ICurvePool public constant dolaFraxBP =
+        ICurvePool(0xE57180685E3348589E9521aa53Af0BCD497E884d);
 
     IChainlinkFeed public constant fraxToUsd =
         IChainlinkFeed(0xB9E1E3A9feFf48998E45Fa90847ed4D467E8BcfD);
@@ -87,6 +88,7 @@ contract DolaFraxBPPriceFeedFork is Test {
         );
 
         feed = new DolaFraxBPPriceFeed(
+            address(dolaFraxBP),
             address(mainFraxFeed),
             address(mainUsdcFeed)
         );
@@ -151,7 +153,7 @@ contract DolaFraxBPPriceFeedFork is Test {
     function test_use_USDC_when_USDC_lt_Frax() public {
         // Set FRAX > than USDC
         vm.mockCall(
-            address(feed.fraxToUsd()),
+            address(mainFraxFeed.assetToUsd()),
             abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
             abi.encode(0, 110000000, 0, block.timestamp, 0)
         );
@@ -162,7 +164,7 @@ contract DolaFraxBPPriceFeedFork is Test {
             uint clStartedAt,
             uint clUpdatedAt,
             uint80 clAnsweredInRound
-        ) = feed.usdcToUsd().latestRoundData();
+        ) = mainUsdcFeed.assetToUsd().latestRoundData();
 
         (
             uint80 roundId,
@@ -188,18 +190,18 @@ contract DolaFraxBPPriceFeedFork is Test {
     {
         // Set FRAX > than USDC
         vm.mockCall(
-            address(feed.fraxToUsd()),
+            address(mainFraxFeed.assetToUsd()),
             abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
             abi.encode(0, 110000000, 0, block.timestamp, 0)
         );
 
         //Set Out of MAX bounds usdc/USD price
         vm.mockCall(
-            address(feed.usdcToUsd()),
+            address(mainUsdcFeed.assetToUsd()),
             abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
             abi.encode(
                 0,
-                IAggregator(feed.usdcToUsd().aggregator()).maxAnswer(),
+                IAggregator(mainUsdcFeed.assetToUsd().aggregator()).maxAnswer(),
                 0,
                 0,
                 0
@@ -212,7 +214,7 @@ contract DolaFraxBPPriceFeedFork is Test {
             uint256 startedAtFall,
             uint256 updatedAtFall,
             uint80 answeredInRoundFall
-        ) = feed.ethToUsd().latestRoundData();
+        ) = usdcFallback.assetToUsd().latestRoundData();
 
         (
             uint80 roundId,
@@ -228,7 +230,7 @@ contract DolaFraxBPPriceFeedFork is Test {
         assertEq(answeredInRoundFall, answeredInRound);
 
         uint256 usdcFallPrice = (uint256(ethToUsdPrice) * 10 ** 18) /
-            feed.tricryptoETH().price_oracle(1);
+            usdcFallback.curvePool().price_oracle(1);
         int lpPrice = int(
             ((feed.dolaFraxBP().get_virtual_price() * usdcFallPrice) / 10 ** 8)
         );
@@ -241,18 +243,18 @@ contract DolaFraxBPPriceFeedFork is Test {
     {
         // Set FRAX > than USDC
         vm.mockCall(
-            address(feed.fraxToUsd()),
+            address(mainFraxFeed.assetToUsd()),
             abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
             abi.encode(0, 110000000, 0, block.timestamp, 0)
         );
 
         //Set Out of MAX bounds usdc/USD price
         vm.mockCall(
-            address(feed.usdcToUsd()),
+            address(mainUsdcFeed.assetToUsd()),
             abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
             abi.encode(
                 0,
-                IAggregator(feed.usdcToUsd().aggregator()).minAnswer(),
+                IAggregator(mainUsdcFeed.assetToUsd().aggregator()).minAnswer(),
                 0,
                 0,
                 0
@@ -265,7 +267,7 @@ contract DolaFraxBPPriceFeedFork is Test {
             uint256 startedAtFall,
             uint256 updatedAtFall,
             uint80 answeredInRoundFall
-        ) = feed.ethToUsd().latestRoundData();
+        ) = usdcFallback.assetToUsd().latestRoundData();
 
         (
             uint80 roundId,
@@ -281,7 +283,7 @@ contract DolaFraxBPPriceFeedFork is Test {
         assertEq(answeredInRoundFall, answeredInRound);
 
         uint256 usdcFallPrice = (uint256(ethToUsdPrice) * 10 ** 18) /
-            feed.tricryptoETH().price_oracle(1);
+            usdcFallback.curvePool().price_oracle(1);
         int lpPrice = int(
             ((feed.dolaFraxBP().get_virtual_price() * usdcFallPrice) / 10 ** 8)
         );
@@ -294,11 +296,11 @@ contract DolaFraxBPPriceFeedFork is Test {
     {
         //Set Out of MAX bounds Frax/USD price
         vm.mockCall(
-            address(feed.fraxToUsd()),
+            address(mainFraxFeed.assetToUsd()),
             abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
             abi.encode(
                 0,
-                IAggregator(feed.fraxToUsd().aggregator()).maxAnswer(),
+                IAggregator(mainFraxFeed.assetToUsd().aggregator()).maxAnswer(),
                 0,
                 0,
                 0
@@ -311,7 +313,7 @@ contract DolaFraxBPPriceFeedFork is Test {
             uint256 startedAtFall,
             uint256 updatedAtFall,
             uint80 answeredInRoundFall
-        ) = feed.crvUSDToUsd().latestRoundData();
+        ) = fraxFallback.assetToUsd().latestRoundData();
 
         (
             uint80 roundId,
@@ -327,7 +329,7 @@ contract DolaFraxBPPriceFeedFork is Test {
         assertEq(answeredInRoundFall, answeredInRound);
 
         uint256 fraxFallPrice = (uint256(crvUsdToUsdPrice) * 10 ** 18) /
-            feed.crvUSDFrax().ema_price();
+            fraxFallback.curvePool().ema_price();
         int lpPrice = int(
             ((feed.dolaFraxBP().get_virtual_price() * fraxFallPrice) / 10 ** 8)
         );
@@ -340,11 +342,11 @@ contract DolaFraxBPPriceFeedFork is Test {
     {
         //Set Out of MIN bounds Frax/USD price
         vm.mockCall(
-            address(feed.fraxToUsd()),
+            address(mainFraxFeed.assetToUsd()),
             abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
             abi.encode(
                 0,
-                IAggregator(feed.fraxToUsd().aggregator()).minAnswer(),
+                IAggregator(mainFraxFeed.assetToUsd().aggregator()).minAnswer(),
                 0,
                 0,
                 0
@@ -357,7 +359,7 @@ contract DolaFraxBPPriceFeedFork is Test {
             uint256 startedAtFall,
             uint256 updatedAtFall,
             uint80 answeredInRoundFall
-        ) = feed.crvUSDToUsd().latestRoundData();
+        ) = fraxFallback.assetToUsd().latestRoundData();
 
         (
             uint80 roundId,
@@ -373,7 +375,7 @@ contract DolaFraxBPPriceFeedFork is Test {
         assertEq(answeredInRoundFall, answeredInRound);
 
         uint256 fraxFallPrice = (uint256(crvUsdToUsdPrice) * 10 ** 18) /
-            feed.crvUSDFrax().ema_price();
+            fraxFallback.curvePool().ema_price();
         int lpPrice = int(
             ((feed.dolaFraxBP().get_virtual_price() * fraxFallPrice) / 10 ** 8)
         );
@@ -386,7 +388,7 @@ contract DolaFraxBPPriceFeedFork is Test {
     {
         // Set FRAX > than USDC
         vm.mockCall(
-            address(feed.fraxToUsd()),
+            address(mainFraxFeed.assetToUsd()),
             abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
             abi.encode(0, 110000000, 0, block.timestamp, 0)
         );
@@ -397,18 +399,18 @@ contract DolaFraxBPPriceFeedFork is Test {
             uint clStartedAt,
             uint clUpdatedAt,
             uint80 clAnsweredInRound
-        ) = feed.usdcToUsd().latestRoundData();
+        ) = mainUsdcFeed.assetToUsd().latestRoundData();
         (
             uint80 clRoundId2,
             int256 ethToUsdPrice,
             uint clStartedAt2,
             uint clUpdatedAt2,
             uint80 clAnsweredInRound2
-        ) = feed.ethToUsd().latestRoundData();
+        ) = usdcFallback.assetToUsd().latestRoundData();
 
         // Out of MAX bounds USDC/USD price
         vm.mockCall(
-            address(feed.usdcToUsd()),
+            address(mainUsdcFeed.assetToUsd()),
             abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
             abi.encode(
                 clRoundId,
@@ -432,13 +434,13 @@ contract DolaFraxBPPriceFeedFork is Test {
         assertEq(clUpdatedAt2, updatedAt);
         assertEq(clAnsweredInRound2, answeredInRound);
 
-        uint256 ethUSDCPrice = feed.tricryptoETH().price_oracle(1);
-        (, int256 usdcFallback, , , ) = feed.usdcToUsdFallbackOracle();
+        uint256 ethUSDCPrice = usdcFallback.curvePool().price_oracle(1);
+        (, int256 usdcFallbackPrice, , , ) = feed.usdcToUsdFallbackOracle();
 
         uint256 estimatedUSDCPrice = (uint256(ethToUsdPrice) * 10 ** 18) /
             ethUSDCPrice;
 
-        assertEq(uint256(usdcFallback), estimatedUSDCPrice);
+        assertEq(uint256(usdcFallbackPrice), estimatedUSDCPrice);
         assertEq(uint256(lpUsdPrice), uint(feed.latestAnswer()));
     }
 
@@ -447,7 +449,7 @@ contract DolaFraxBPPriceFeedFork is Test {
     {
         // Set FRAX > than USDC
         vm.mockCall(
-            address(feed.fraxToUsd()),
+            address(mainFraxFeed.assetToUsd()),
             abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
             abi.encode(0, 110000000, 0, block.timestamp, 0)
         );
@@ -458,21 +460,21 @@ contract DolaFraxBPPriceFeedFork is Test {
             uint clStartedAt,
             uint clUpdatedAt,
             uint80 clAnsweredInRound
-        ) = feed.usdcToUsd().latestRoundData();
+        ) = mainUsdcFeed.assetToUsd().latestRoundData();
         (
             uint80 clRoundId2,
             int256 ethToUsdPrice,
             uint clStartedAt2,
             uint clUpdatedAt2,
             uint80 clAnsweredInRound2
-        ) = feed.ethToUsd().latestRoundData();
+        ) = usdcFallback.assetToUsd().latestRoundData();
         // Out of MIN bounds USDC/USD price
         vm.mockCall(
-            address(feed.usdcToUsd()),
+            address(mainUsdcFeed.assetToUsd()),
             abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
             abi.encode(
                 clRoundId,
-                IAggregator(feed.usdcToUsd().aggregator()).minAnswer(),
+                IAggregator(mainUsdcFeed.assetToUsd().aggregator()).minAnswer(),
                 clStartedAt,
                 clUpdatedAt,
                 clAnsweredInRound
@@ -481,13 +483,13 @@ contract DolaFraxBPPriceFeedFork is Test {
 
         // Stale price for eth
         vm.mockCall(
-            address(feed.ethToUsd()),
+            address(usdcFallback.assetToUsd()),
             abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
             abi.encode(
                 clRoundId2,
                 ethToUsdPrice,
                 clStartedAt2,
-                clUpdatedAt2 - 1 - feed.ethHeartbeat(),
+                clUpdatedAt2 - 1 - usdcFallback.assetToUsdHeartbeat(),
                 clAnsweredInRound2
             )
         );
@@ -505,11 +507,11 @@ contract DolaFraxBPPriceFeedFork is Test {
         assertEq(0, updatedAt); // This will cause STALE price on the borrow controller
         assertEq(clAnsweredInRound2, answeredInRound);
 
-        (, int256 usdcFallback, , , ) = feed.usdcToUsdFallbackOracle();
+        (, int256 usdcFallbackPrice, , , ) = feed.usdcToUsdFallbackOracle();
         uint256 estimatedUsdcFallback = (uint256(ethToUsdPrice) * 10 ** 18) /
-            feed.tricryptoETH().price_oracle(1);
+            usdcFallback.curvePool().price_oracle(1);
 
-        assertEq(uint256(usdcFallback), estimatedUsdcFallback);
+        assertEq(uint256(usdcFallbackPrice), estimatedUsdcFallback);
         assertEq(uint256(lpUsdPrice), uint(feed.latestAnswer()));
     }
 
@@ -518,7 +520,7 @@ contract DolaFraxBPPriceFeedFork is Test {
     {
         // Set FRAX > than USDC
         vm.mockCall(
-            address(feed.fraxToUsd()),
+            address(mainFraxFeed.assetToUsd()),
             abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
             abi.encode(0, 110000000, 0, block.timestamp, 0)
         );
@@ -529,21 +531,21 @@ contract DolaFraxBPPriceFeedFork is Test {
             uint clStartedAt,
             uint clUpdatedAt,
             uint80 clAnsweredInRound
-        ) = feed.usdcToUsd().latestRoundData();
+        ) = mainUsdcFeed.assetToUsd().latestRoundData();
         (
             uint80 clRoundId2,
             int256 ethToUsdPrice,
             uint clStartedAt2,
             uint clUpdatedAt2,
             uint80 clAnsweredInRound2
-        ) = feed.ethToUsd().latestRoundData();
+        ) = usdcFallback.assetToUsd().latestRoundData();
         // Out of MIN bounds USDC/USD price
         vm.mockCall(
-            address(feed.usdcToUsd()),
+            address(mainUsdcFeed.assetToUsd()),
             abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
             abi.encode(
                 clRoundId,
-                IAggregator(feed.usdcToUsd().aggregator()).maxAnswer(),
+                IAggregator(mainUsdcFeed.assetToUsd().aggregator()).maxAnswer(),
                 clStartedAt,
                 clUpdatedAt,
                 clAnsweredInRound
@@ -552,13 +554,13 @@ contract DolaFraxBPPriceFeedFork is Test {
 
         // Stale price for eth
         vm.mockCall(
-            address(feed.ethToUsd()),
+            address(usdcFallback.assetToUsd()),
             abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
             abi.encode(
                 clRoundId2,
                 ethToUsdPrice,
                 clStartedAt2,
-                clUpdatedAt2 - 1 - feed.ethHeartbeat(),
+                clUpdatedAt2 - 1 - usdcFallback.assetToUsdHeartbeat(),
                 clAnsweredInRound2
             )
         );
@@ -576,11 +578,11 @@ contract DolaFraxBPPriceFeedFork is Test {
         assertEq(0, updatedAt); // This will cause STALE price on the borrow controller
         assertEq(clAnsweredInRound2, answeredInRound);
 
-        (, int256 usdcFallback, , , ) = feed.usdcToUsdFallbackOracle();
+        (, int256 usdcFallbackPrice, , , ) = feed.usdcToUsdFallbackOracle();
         uint256 estimatedUsdcFallback = (uint256(ethToUsdPrice) * 10 ** 18) /
-            feed.tricryptoETH().price_oracle(1);
+            usdcFallback.curvePool().price_oracle(1);
 
-        assertEq(uint256(usdcFallback), estimatedUsdcFallback);
+        assertEq(uint256(usdcFallbackPrice), estimatedUsdcFallback);
         assertEq(uint256(lpUsdPrice), uint(feed.latestAnswer()));
     }
 
@@ -591,17 +593,17 @@ contract DolaFraxBPPriceFeedFork is Test {
             uint clStartedAt,
             uint clUpdatedAt,
             uint80 clAnsweredInRound
-        ) = feed.fraxToUsd().latestRoundData();
+        ) = mainFraxFeed.assetToUsd().latestRoundData();
 
         // Set FRAX STALE even if < than USDC
         vm.mockCall(
-            address(feed.fraxToUsd()),
+            address(mainFraxFeed.assetToUsd()),
             abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
             abi.encode(
                 clRoundId,
                 fraxToUsdPrice,
                 clStartedAt,
-                clUpdatedAt - 1 - feed.fraxHeartbeat(),
+                clUpdatedAt - 1 - fraxFallback.assetToUsdHeartbeat(),
                 clAnsweredInRound
             )
         );
@@ -620,7 +622,7 @@ contract DolaFraxBPPriceFeedFork is Test {
             uint clStartedAt2,
             uint clUpdatedAt2,
             uint80 clAnsweredInRound2
-        ) = feed.crvUSDToUsd().latestRoundData();
+        ) = fraxFallback.assetToUsd().latestRoundData();
 
         // When FRAX is stale even if FRAX < USDC, use USDC
         assertEq(clRoundId2, roundId);
@@ -629,7 +631,7 @@ contract DolaFraxBPPriceFeedFork is Test {
         assertEq(clAnsweredInRound2, answeredInRound);
 
         uint256 calculatedLPUsdPrice = (((uint256(crvUSDToUsdPrice) *
-            10 ** 18) / feed.crvUSDFrax().ema_price()) *
+            10 ** 18) / fraxFallback.curvePool().ema_price()) *
             feed.dolaFraxBP().get_virtual_price()) / 10 ** 8;
 
         assertEq(uint256(lpUsdPrice), calculatedLPUsdPrice);
@@ -645,22 +647,22 @@ contract DolaFraxBPPriceFeedFork is Test {
             uint clStartedAt,
             uint clUpdatedAt,
             uint80 clAnsweredInRound
-        ) = feed.fraxToUsd().latestRoundData();
+        ) = mainFraxFeed.assetToUsd().latestRoundData();
 
         // Set FRAX STALE even if < than USDC
         vm.mockCall(
-            address(feed.fraxToUsd()),
+            address(mainFraxFeed.assetToUsd()),
             abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
             abi.encode(
                 clRoundId,
                 fraxToUsdPrice,
                 clStartedAt,
-                clUpdatedAt - 1 - feed.fraxHeartbeat(),
+                clUpdatedAt - 1 - fraxFallback.assetToUsdHeartbeat(),
                 clAnsweredInRound
             )
         );
         vm.mockCall(
-            address(feed.crvUSDToUsd()),
+            address(fraxFallback.assetToUsd()),
             abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
             abi.encode(
                 clRoundId,
@@ -685,7 +687,7 @@ contract DolaFraxBPPriceFeedFork is Test {
             uint clStartedAt2,
             uint clUpdatedAt2,
             uint80 clAnsweredInRound2
-        ) = feed.usdcToUsd().latestRoundData();
+        ) = mainUsdcFeed.assetToUsd().latestRoundData();
 
         // When FRAX is fully stale even if FRAX < USDC, use USDC
         assertEq(clRoundId2, roundId);
@@ -709,22 +711,22 @@ contract DolaFraxBPPriceFeedFork is Test {
             uint clStartedAt,
             uint clUpdatedAt,
             uint80 clAnsweredInRound
-        ) = feed.fraxToUsd().latestRoundData();
+        ) = mainFraxFeed.assetToUsd().latestRoundData();
 
         // Set FRAX STALE even if < than USDC
         vm.mockCall(
-            address(feed.fraxToUsd()),
+            address(mainFraxFeed.assetToUsd()),
             abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
             abi.encode(
                 clRoundId,
                 fraxToUsdPrice,
                 clStartedAt,
-                clUpdatedAt - 1 - feed.fraxHeartbeat(),
+                clUpdatedAt - 1 - fraxFallback.assetToUsdHeartbeat(),
                 clAnsweredInRound
             )
         );
         vm.mockCall(
-            address(feed.crvUSDToUsd()),
+            address(fraxFallback.assetToUsd()),
             abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
             abi.encode(
                 clRoundId,
@@ -735,11 +737,11 @@ contract DolaFraxBPPriceFeedFork is Test {
             )
         );
         vm.mockCall(
-            address(feed.usdcToUsd()),
+            address(mainUsdcFeed.assetToUsd()),
             abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
             abi.encode(
                 0,
-                IAggregator(feed.usdcToUsd().aggregator()).maxAnswer(),
+                IAggregator(mainUsdcFeed.assetToUsd().aggregator()).maxAnswer(),
                 0,
                 0,
                 0
@@ -760,7 +762,7 @@ contract DolaFraxBPPriceFeedFork is Test {
             uint clStartedAt2,
             uint clUpdatedAt2,
             uint80 clAnsweredInRound2
-        ) = feed.ethToUsd().latestRoundData();
+        ) = usdcFallback.assetToUsd().latestRoundData();
 
         // When FRAX is fully stale even if FRAX < USDC and USDC is out of bounds, use USDC fallback
         assertEq(clRoundId2, roundId);
@@ -769,7 +771,7 @@ contract DolaFraxBPPriceFeedFork is Test {
         assertEq(clAnsweredInRound2, answeredInRound);
 
         uint256 usdcFallPrice = (uint256(ethToUsdPrice) * 10 ** 18) /
-            feed.tricryptoETH().price_oracle(1);
+            usdcFallback.curvePool().price_oracle(1);
         uint256 calculatedLPUsdPrice = (feed.dolaFraxBP().get_virtual_price() *
             uint256(usdcFallPrice)) / 10 ** 8;
 
@@ -784,7 +786,7 @@ contract DolaFraxBPPriceFeedFork is Test {
             uint startedAtFall,
             uint updatedAtFall,
             uint80 answeredInRoundFall
-        ) = feed.crvUSDToUsd().latestRoundData();
+        ) = fraxFallback.assetToUsd().latestRoundData();
 
         (
             uint80 roundId,
@@ -797,7 +799,7 @@ contract DolaFraxBPPriceFeedFork is Test {
         assertEq(
             uint(fraxFallPrice),
             (uint(crvUsdToUsdPrice) * 10 ** 18) /
-                uint(feed.crvUSDFrax().ema_price())
+                uint(fraxFallback.curvePool().ema_price())
         );
         assertEq(roundIdFall, roundId);
         assertEq(startedAtFall, startedAt);
@@ -812,7 +814,7 @@ contract DolaFraxBPPriceFeedFork is Test {
             uint clStartedAt2,
             uint clUpdatedAt2,
             uint80 clAnsweredInRound2
-        ) = feed.ethToUsd().latestRoundData();
+        ) = usdcFallback.assetToUsd().latestRoundData();
 
         (
             uint80 roundId,
@@ -822,7 +824,7 @@ contract DolaFraxBPPriceFeedFork is Test {
             uint80 answeredInRound
         ) = feed.usdcToUsdFallbackOracle();
 
-        uint256 ethUSDCPrice = feed.tricryptoETH().price_oracle(1);
+        uint256 ethUSDCPrice = usdcFallback.curvePool().price_oracle(1);
 
         uint256 estimatedUSDCPrice = (uint256(ethToUsdPrice) * 10 ** 18) /
             ethUSDCPrice;
@@ -832,42 +834,6 @@ contract DolaFraxBPPriceFeedFork is Test {
         assertEq(clStartedAt2, startedAt);
         assertEq(clUpdatedAt2, updatedAt);
         assertEq(clAnsweredInRound2, answeredInRound);
-    }
-
-    function test_setEthHeartbeat() public {
-        assertEq(feed.ethHeartbeat(), 3600);
-
-        vm.expectRevert(DolaFraxBPPriceFeed.OnlyGov.selector);
-        feed.setEthHeartbeat(100);
-        assertEq(feed.ethHeartbeat(), 3600);
-
-        vm.prank(feed.gov());
-        feed.setEthHeartbeat(100);
-        assertEq(feed.ethHeartbeat(), 100);
-    }
-
-    function test_setFraxHeartbeat() public {
-        assertEq(feed.fraxHeartbeat(), 3600);
-
-        vm.expectRevert(DolaFraxBPPriceFeed.OnlyGov.selector);
-        feed.setFraxHeartbeat(100);
-        assertEq(feed.fraxHeartbeat(), 3600);
-
-        vm.prank(feed.gov());
-        feed.setFraxHeartbeat(100);
-        assertEq(feed.fraxHeartbeat(), 100);
-    }
-
-    function test_setCrvUSDHeartbeat() public {
-        assertEq(feed.crvUSDHeartbeat(), 24 hours);
-
-        vm.expectRevert(DolaFraxBPPriceFeed.OnlyGov.selector);
-        feed.setCrvUSDHeartbeat(100);
-        assertEq(feed.crvUSDHeartbeat(), 24 hours);
-
-        vm.prank(feed.gov());
-        feed.setCrvUSDHeartbeat(100);
-        assertEq(feed.crvUSDHeartbeat(), 100);
     }
 
     function test_setGov() public {
@@ -901,7 +867,7 @@ contract DolaFraxBPPriceFeedFork is Test {
             oracleStartedAt,
             oracleUpdatedAt,
             oracleAnsweredInRound
-        ) = feed.usdcToUsd().latestRoundData();
+        ) = mainUsdcFeed.assetToUsd().latestRoundData();
 
         (
             uint80 clRoundIdFrax,
@@ -909,7 +875,7 @@ contract DolaFraxBPPriceFeedFork is Test {
             uint clStartedAtFrax,
             uint clUpdatedAtFrax,
             uint80 clAnsweredInRoundFrax
-        ) = feed.fraxToUsd().latestRoundData();
+        ) = mainFraxFeed.assetToUsd().latestRoundData();
 
         if (oracleMinToUsdPrice <= clFraxToUsdPrice) {
             oracleLpToUsdPrice =
