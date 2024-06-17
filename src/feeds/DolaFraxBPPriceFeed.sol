@@ -40,9 +40,9 @@ contract DolaFraxBPPriceFeed {
 
     ICurvePool public immutable dolaFraxBP;
 
-    IChainlinkFeed public mainFraxFeed;
+    IChainlinkFeed public immutable mainFraxFeed;
 
-    IChainlinkFeed public mainUsdcFeed;
+    IChainlinkFeed public immutable mainUsdcFeed;
 
     address public gov = 0x926dF14a23BE491164dCF93f4c468A50ef659D5B;
 
