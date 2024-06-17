@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.4;
 
-import "src/util/ChainlinkFeedFallbacks.sol";
+import "src/util/FeedLib.sol";
 
 contract DolaFraxPyUsdPriceFeed {
     error OnlyGov();
@@ -166,12 +166,13 @@ contract DolaFraxPyUsdPriceFeed {
         view
         returns (uint80, int256, uint256, uint256, uint80)
     {
-        return ChainlinkFeedFallbacks.fallbackUsdPriceOracle(
-            usdcToUsd,
-            usdcHeartbeat,
-            pyUsdUsdc,
-            targetKPyUsd
-        );
+        return
+            FeedLib.usdPriceOracle(
+                usdcToUsd,
+                usdcHeartbeat,
+                pyUsdUsdc,
+                targetKPyUsd
+            );
     }
 
     /**
@@ -188,12 +189,7 @@ contract DolaFraxPyUsdPriceFeed {
         view
         returns (uint80, int256, uint256, uint256, uint80)
     {
-        return
-            ChainlinkFeedFallbacks.fallBackUsdEma(
-                crvUSDToUsd,
-                crvUSDHeartbeat,
-                crvUSDFrax
-            );
+        return FeedLib.usdEma(crvUSDToUsd, crvUSDHeartbeat, crvUSDFrax);
     }
 
     /**

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.4;
+import {console} from "forge-std/console.sol";
 
 interface IChainlinkFeed {
     function aggregator() external view returns (address aggregator);
@@ -16,6 +17,8 @@ interface IChainlinkFeed {
             uint256 updatedAt,
             uint80 answeredInRound
         );
+    
+    function assetToUsdFallback() external view returns (IChainlinkFeed);
 }
 
 interface IAggregator {
@@ -44,7 +47,7 @@ contract DolaFraxBPPriceFeed {
     IChainlinkFeed public constant usdcToUsd =
         IChainlinkFeed(0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6);
 
-    // For USDC fallabck
+    // For USDC fallback
     ICurvePool public constant tricryptoETH =
         ICurvePool(0x7F86Bf177Dd4F3494b841a37e810A34dD56c829B);
 
@@ -57,6 +60,10 @@ contract DolaFraxBPPriceFeed {
 
     IChainlinkFeed public constant crvUSDToUsd =
         IChainlinkFeed(0xEEf0C605546958c1f899b6fB336C20671f9cD49F);
+
+    IChainlinkFeed public mainFraxFeed;
+
+    IChainlinkFeed public mainUsdcFeed;
 
     uint256 public constant ethK = 1;
 
@@ -71,6 +78,14 @@ contract DolaFraxBPPriceFeed {
     modifier onlyGov() {
         if (msg.sender != gov) revert OnlyGov();
         _;
+    }
+
+    constructor(
+        address _mainFraxFeed,
+        address _mainUsdcFeed
+    ) {
+        mainFraxFeed = IChainlinkFeed(_mainFraxFeed);
+        mainUsdcFeed = IChainlinkFeed(_mainUsdcFeed);
     }
 
     /**
@@ -89,23 +104,14 @@ contract DolaFraxBPPriceFeed {
         view
         returns (uint80, int256, uint256, uint256, uint80)
     {
-        (
+
+          (
             uint80 roundId,
             int256 usdcUsdPrice,
             uint startedAt,
             uint updatedAt,
             uint80 answeredInRound
-        ) = usdcToUsd.latestRoundData();
-
-        if (isPriceOutOfBounds(usdcUsdPrice, usdcToUsd)) {
-            (
-                roundId,
-                usdcUsdPrice,
-                startedAt,
-                updatedAt,
-                answeredInRound
-            ) = usdcToUsdFallbackOracle();
-        }
+        ) = mainUsdcFeed.latestRoundData();
 
         (
             uint80 roundIdFrax,
@@ -113,20 +119,7 @@ contract DolaFraxBPPriceFeed {
             uint startedAtFrax,
             uint updatedAtFrax,
             uint80 answeredInRoundFrax
-        ) = fraxToUsd.latestRoundData();
-
-        if (
-            isPriceOutOfBounds(fraxUsdPrice, fraxToUsd) ||
-            block.timestamp - updatedAtFrax > fraxHeartbeat
-        ) {
-            (
-                roundIdFrax,
-                fraxUsdPrice,
-                startedAtFrax,
-                updatedAtFrax,
-                answeredInRoundFrax
-            ) = fraxToUsdFallbackOracle();
-        }
+        ) = mainFraxFeed.latestRoundData();
 
         int256 minUsdPrice;
 
@@ -170,21 +163,6 @@ contract DolaFraxBPPriceFeed {
         return 18;
     }
 
-    /**
-     * @notice Checks if a given price is out of the boundaries defined in the Chainlink aggregator.
-     * @param price The price to be checked.
-     * @param feed The Chainlink feed to retrieve the boundary information from.
-     * @return bool Returns `true` if the price is out of bounds, otherwise `false`.
-     */
-    function isPriceOutOfBounds(
-        int price,
-        IChainlinkFeed feed
-    ) public view returns (bool) {
-        IAggregator aggregator = IAggregator(feed.aggregator());
-        int192 max = aggregator.maxAnswer();
-        int192 min = aggregator.minAnswer();
-        return (max <= price || min >= price);
-    }
 
     /**
      * @notice Fetches the ETH to USD price and the ETH to USDC to get USDC/USD price, adjusts the decimals to match Chainlink oracles.
@@ -200,27 +178,8 @@ contract DolaFraxBPPriceFeed {
         view
         returns (uint80, int256, uint256, uint256, uint80)
     {
-        int crvEthToUsdc = int(tricryptoETH.price_oracle(ethK));
-
-        (
-            uint80 roundId,
-            int256 ethToUsdPrice,
-            uint256 startedAt,
-            uint256 updatedAt,
-            uint80 answeredInRound
-        ) = ethToUsd.latestRoundData();
-
-        int usdcToUsdPrice = (ethToUsdPrice * 10 ** 18) / crvEthToUsdc;
-
-        if (
-            isPriceOutOfBounds(ethToUsdPrice, ethToUsd) ||
-            block.timestamp - updatedAt > ethHeartbeat
-        ) {
-            // will cause stale price on borrow controller
-            updatedAt = 0;
-        }
-
-        return (roundId, usdcToUsdPrice, startedAt, updatedAt, answeredInRound);
+       
+        return mainUsdcFeed.assetToUsdFallback().latestRoundData();
     }
 
     /**
@@ -237,27 +196,7 @@ contract DolaFraxBPPriceFeed {
         view
         returns (uint80, int256, uint256, uint256, uint80)
     {
-        int crvUsdToFrax = int(crvUSDFrax.ema_price());
-
-        (
-            uint80 roundId,
-            int256 crvUSDToUsdPrice,
-            uint256 startedAt,
-            uint256 updatedAt,
-            uint80 answeredInRound
-        ) = crvUSDToUsd.latestRoundData();
-
-        int fraxToUsdPrice = (crvUSDToUsdPrice * 10 ** 18) / crvUsdToFrax;
-
-        if (
-            isPriceOutOfBounds(crvUSDToUsdPrice, crvUSDToUsd) ||
-            block.timestamp - updatedAt > crvUSDHeartbeat
-        ) {
-            // will cause stale price on borrow controller
-            updatedAt = 0;
-        }
-
-        return (roundId, fraxToUsdPrice, startedAt, updatedAt, answeredInRound);
+        return mainFraxFeed.assetToUsdFallback().latestRoundData();
     }
 
     /**
