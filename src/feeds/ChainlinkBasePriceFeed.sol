@@ -13,10 +13,12 @@ interface IAggregator {
 contract ChainlinkBasePriceFeed {
     IChainlinkFeed public immutable assetToUsd;
     IChainlinkFeed public immutable assetToUsdFallback;
+    uint8 public immutable decimals;
+
     address public owner;
     address public pendingOwner;
+
     uint256 public assetToUsdHeartbeat;
-    uint8 public decimals;
 
     modifier onlyOwner() {
         require(msg.sender == owner, "Only owner");

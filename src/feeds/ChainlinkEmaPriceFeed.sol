@@ -9,11 +9,10 @@ contract ChainlinkEmaPriceFeed {
     int256 public constant SCALE = 1e18;
     IChainlinkBasePriceFeed public immutable assetToUsd;
     ICurvePool public immutable curvePool;
+    uint8 public immutable decimals;
 
     address public owner;
     address public pendingOwner;
-
-    uint8 public decimals;
 
     modifier onlyOwner() {
         require(msg.sender == owner, "Only owner");

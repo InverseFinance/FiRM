@@ -10,11 +10,10 @@ contract ChainlinkPriceOracleStablePriceFeed {
     IChainlinkBasePriceFeed public immutable assetToUsd;
     ICurvePool public immutable curvePool;
     uint256 public immutable assetK;
+    uint8 public immutable decimals;
 
     address public owner;
     address public pendingOwner;
-
-    uint8 public decimals;
 
     modifier onlyOwner() {
         require(msg.sender == owner, "Only owner");
@@ -74,7 +73,6 @@ contract ChainlinkPriceOracleStablePriceFeed {
             updatedAt,
             answeredInRound
         );
-        //}
     }
 
     /**
