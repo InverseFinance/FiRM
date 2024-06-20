@@ -6,7 +6,7 @@ import "src/feeds/DolaFraxBPPriceFeed.sol";
 import "forge-std/console.sol";
 import {ChainlinkEmaPriceFeed} from "src/feeds/ChainlinkEmaPriceFeed.sol";
 import {ChainlinkPriceOracleStablePriceFeed} from "src/feeds/ChainlinkPriceOracleStablePriceFeed.sol";
-import {ChainlinkBasePriceFeed} from "src/feeds/ChainlinkBasePriceFeed.sol";
+import "src/feeds/ChainlinkBasePriceFeed.sol";
 
 contract DolaFraxBPPriceFeedFork is Test {
     DolaFraxBPPriceFeed feed;
@@ -14,6 +14,8 @@ contract DolaFraxBPPriceFeedFork is Test {
     ChainlinkEmaPriceFeed fraxFallback;
     ChainlinkBasePriceFeed mainUsdcFeed;
     ChainlinkBasePriceFeed mainFraxFeed;
+    ChainlinkBasePriceFeed baseCrvUsdToUsd;
+    ChainlinkBasePriceFeed baseEthToUsd;
 
     ICurvePool public constant dolaFraxBP =
         ICurvePool(0xE57180685E3348589E9521aa53Af0BCD497E884d);
@@ -52,21 +54,31 @@ contract DolaFraxBPPriceFeedFork is Test {
         string memory url = vm.rpcUrl("mainnet");
         vm.createSelectFork(url, 18272690); // FRAX < USDC at this block
 
-        usdcFallback = new ChainlinkPriceOracleStablePriceFeed(
+        baseEthToUsd = new ChainlinkBasePriceFeed(
             gov,
             address(ethToUsd),
             address(0),
             ethHeartbeat,
+            8
+        );
+        usdcFallback = new ChainlinkPriceOracleStablePriceFeed(
+            gov,
+            address(baseEthToUsd),
             address(tricryptoETH),
             ethK,
             8
         );
 
-        fraxFallback = new ChainlinkEmaPriceFeed(
+        baseCrvUsdToUsd = new ChainlinkBasePriceFeed(
             gov,
             address(crvUSDToUsd),
             address(0),
             crvUSDHeartbeat,
+            8
+        );
+        fraxFallback = new ChainlinkEmaPriceFeed(
+            gov,
+            address(baseCrvUsdToUsd),
             address(crvUSDFrax),
             8
         );
@@ -435,7 +447,9 @@ contract DolaFraxBPPriceFeedFork is Test {
         assertEq(clAnsweredInRound2, answeredInRound);
 
         uint256 ethUSDCPrice = usdcFallback.curvePool().price_oracle(1);
-        (, int256 usdcFallbackPrice, , , ) = feed.usdcToUsdFallbackOracle();
+        (, int256 usdcFallbackPrice, , , ) = mainUsdcFeed
+            .assetToUsdFallback()
+            .latestRoundData();
 
         uint256 estimatedUSDCPrice = (uint256(ethToUsdPrice) * 10 ** 18) /
             ethUSDCPrice;
@@ -483,13 +497,13 @@ contract DolaFraxBPPriceFeedFork is Test {
 
         // Stale price for eth
         vm.mockCall(
-            address(usdcFallback.assetToUsd()),
+            address(baseEthToUsd.assetToUsd()),
             abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
             abi.encode(
                 clRoundId2,
                 ethToUsdPrice,
                 clStartedAt2,
-                clUpdatedAt2 - 1 - usdcFallback.assetToUsdHeartbeat(),
+                clUpdatedAt2 - 1 - baseEthToUsd.assetToUsdHeartbeat(),
                 clAnsweredInRound2
             )
         );
@@ -507,7 +521,9 @@ contract DolaFraxBPPriceFeedFork is Test {
         assertEq(0, updatedAt); // This will cause STALE price on the borrow controller
         assertEq(clAnsweredInRound2, answeredInRound);
 
-        (, int256 usdcFallbackPrice, , , ) = feed.usdcToUsdFallbackOracle();
+        (, int256 usdcFallbackPrice, , , ) = mainUsdcFeed
+            .assetToUsdFallback()
+            .latestRoundData();
         uint256 estimatedUsdcFallback = (uint256(ethToUsdPrice) * 10 ** 18) /
             usdcFallback.curvePool().price_oracle(1);
 
@@ -554,13 +570,13 @@ contract DolaFraxBPPriceFeedFork is Test {
 
         // Stale price for eth
         vm.mockCall(
-            address(usdcFallback.assetToUsd()),
+            address(baseEthToUsd.assetToUsd()),
             abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
             abi.encode(
                 clRoundId2,
                 ethToUsdPrice,
                 clStartedAt2,
-                clUpdatedAt2 - 1 - usdcFallback.assetToUsdHeartbeat(),
+                clUpdatedAt2 - 1 - baseEthToUsd.assetToUsdHeartbeat(),
                 clAnsweredInRound2
             )
         );
@@ -578,7 +594,9 @@ contract DolaFraxBPPriceFeedFork is Test {
         assertEq(0, updatedAt); // This will cause STALE price on the borrow controller
         assertEq(clAnsweredInRound2, answeredInRound);
 
-        (, int256 usdcFallbackPrice, , , ) = feed.usdcToUsdFallbackOracle();
+        (, int256 usdcFallbackPrice, , , ) = mainUsdcFeed
+            .assetToUsdFallback()
+            .latestRoundData();
         uint256 estimatedUsdcFallback = (uint256(ethToUsdPrice) * 10 ** 18) /
             usdcFallback.curvePool().price_oracle(1);
 
@@ -603,7 +621,7 @@ contract DolaFraxBPPriceFeedFork is Test {
                 clRoundId,
                 fraxToUsdPrice,
                 clStartedAt,
-                clUpdatedAt - 1 - fraxFallback.assetToUsdHeartbeat(),
+                clUpdatedAt - 1 - baseCrvUsdToUsd.assetToUsdHeartbeat(),
                 clAnsweredInRound
             )
         );
@@ -657,7 +675,7 @@ contract DolaFraxBPPriceFeedFork is Test {
                 clRoundId,
                 fraxToUsdPrice,
                 clStartedAt,
-                clUpdatedAt - 1 - fraxFallback.assetToUsdHeartbeat(),
+                clUpdatedAt - 1 - baseCrvUsdToUsd.assetToUsdHeartbeat(),
                 clAnsweredInRound
             )
         );
@@ -721,7 +739,7 @@ contract DolaFraxBPPriceFeedFork is Test {
                 clRoundId,
                 fraxToUsdPrice,
                 clStartedAt,
-                clUpdatedAt - 1 - fraxFallback.assetToUsdHeartbeat(),
+                clUpdatedAt - 1 - baseCrvUsdToUsd.assetToUsdHeartbeat(),
                 clAnsweredInRound
             )
         );
@@ -794,7 +812,7 @@ contract DolaFraxBPPriceFeedFork is Test {
             uint256 startedAt,
             uint256 updateAt,
             uint80 answeredInRound
-        ) = feed.fraxToUsdFallbackOracle();
+        ) = mainFraxFeed.assetToUsdFallback().latestRoundData();
 
         assertEq(
             uint(fraxFallPrice),
@@ -822,7 +840,7 @@ contract DolaFraxBPPriceFeedFork is Test {
             uint startedAt,
             uint updatedAt,
             uint80 answeredInRound
-        ) = feed.usdcToUsdFallbackOracle();
+        ) = mainUsdcFeed.assetToUsdFallback().latestRoundData();
 
         uint256 ethUSDCPrice = usdcFallback.curvePool().price_oracle(1);
 

@@ -1,16 +1,17 @@
 pragma solidity ^0.8.20;
 
-import "src/util/FeedLib.sol";
+import {ICurvePool} from "src/interfaces/ICurvePool.sol";
+import {IChainlinkBasePriceFeed} from "src/interfaces/IChainlinkFeed.sol";
 
-// Combined Chainlink EMA Price Feed, allows for additional fallback to be set
+// Combined Chainlink EMA Price Feed, allows for additional fallback to be set via ChainlinkBasePriceFeed
 
 contract ChainlinkEmaPriceFeed {
-    IChainlinkFeed public immutable assetToUsd;
-    IChainlinkFeed public assetToUsdFallback;
+    int256 public constant SCALE = 1e18;
+    IChainlinkBasePriceFeed public immutable assetToUsd;
     ICurvePool public immutable curvePool;
+
     address public owner;
     address public pendingOwner;
-    uint256 public assetToUsdHeartbeat;
 
     uint8 public decimals;
 
@@ -27,16 +28,12 @@ contract ChainlinkEmaPriceFeed {
     constructor(
         address _owner,
         address _assetToUsd,
-        address _assetToUsdFallback,
-        uint256 _assetToUsdHeartbeat,
         address _curvePool,
         uint8 _decimals
     ) {
         owner = _owner;
-        assetToUsd = IChainlinkFeed(_assetToUsd);
-        assetToUsdFallback = IChainlinkFeed(_assetToUsdFallback);
+        assetToUsd = IChainlinkBasePriceFeed(_assetToUsd);
         curvePool = ICurvePool(_curvePool);
-        assetToUsdHeartbeat = _assetToUsdHeartbeat;
         decimals = _decimals;
     }
 
@@ -59,39 +56,24 @@ contract ChainlinkEmaPriceFeed {
             uint80 answeredInRound
         )
     {
-        if (isPriceStale()) {
-            if (hasFallback()) {
-                (
-                    roundId,
-                    usdPrice,
-                    startedAt,
-                    updatedAt,
-                    answeredInRound
-                ) = assetToUsdFallback.latestRoundData();
-                uint8 fallbackDecimals = assetToUsdFallback.decimals();
-                if (fallbackDecimals > decimals) {
-                    usdPrice =
-                        usdPrice /
-                        int(10 ** (fallbackDecimals - decimals));
-                } else if (fallbackDecimals < decimals) {
-                    usdPrice =
-                        usdPrice *
-                        int(10 ** (decimals - fallbackDecimals));
-                }
-            } else {
-                (
-                    roundId,
-                    usdPrice,
-                    startedAt,
-                    updatedAt,
-                    answeredInRound
-                ) = FeedLib.usdEma(assetToUsd, assetToUsdHeartbeat, curvePool);
-                updatedAt = 0;
-            }
-        } else {
-            (roundId, usdPrice, startedAt, updatedAt, answeredInRound) = FeedLib
-                .usdEma(assetToUsd, assetToUsdHeartbeat, curvePool);
-        }
+        int256 assetToUsdPrice;
+        (
+            roundId,
+            assetToUsdPrice,
+            startedAt,
+            updatedAt,
+            answeredInRound
+        ) = assetToUsd.latestRoundData();
+
+        uint256 assetToTargetPrice = curvePool.ema_price();
+
+        return (
+            roundId,
+            (assetToUsdPrice * SCALE) / int(assetToTargetPrice),
+            startedAt,
+            updatedAt,
+            answeredInRound
+        );
     }
 
     /**
@@ -102,40 +84,6 @@ contract ChainlinkEmaPriceFeed {
     function latestAnswer() external view returns (int256) {
         (, int256 latestPrice, , , ) = latestRoundData();
         return latestPrice;
-    }
-
-    /**
-     * @notice Checks if a given price is out of the boundaries defined in the Chainlink aggregator.
-     * @param price The price to be checked.
-     * @param feed The Chainlink feed to retrieve the boundary information from.
-     * @return bool Returns `true` if the price is out of bounds, otherwise `false`.
-     */
-    function isPriceOutOfBounds(
-        int price,
-        IChainlinkFeed feed
-    ) public view returns (bool) {
-        IAggregator aggregator = IAggregator(feed.aggregator());
-        int192 max = aggregator.maxAnswer();
-        int192 min = aggregator.minAnswer();
-        return (max <= price || min >= price);
-    }
-
-    function isPriceStale() public view returns (bool) {
-        (, int price, , uint256 updatedAt, ) = assetToUsd.latestRoundData();
-        bool stalePrice = updatedAt + assetToUsdHeartbeat < block.timestamp;
-        return stalePrice || isPriceOutOfBounds(price, assetToUsd);
-    }
-
-    function hasFallback() public view returns (bool) {
-        return address(assetToUsdFallback) != address(0);
-    }
-
-    function setFallback(IChainlinkFeed newFallback) public onlyOwner {
-        assetToUsdFallback = newFallback;
-    }
-
-    function setHeartbeat(uint256 newHeartbeat) public onlyOwner {
-        assetToUsdHeartbeat = newHeartbeat;
     }
 
     function setPendingOwner(address newPendingOwner) public onlyOwner {

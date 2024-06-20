@@ -1,23 +1,6 @@
 pragma solidity ^0.8.20;
 
-interface IChainlinkFeed {
-    function aggregator() external view returns (address aggregator);
-
-    function decimals() external view returns (uint8 decimals);
-
-    function latestRoundData()
-        external
-        view
-        returns (
-            uint80 roundId,
-            int256 crvUsdPrice,
-            uint256 startedAt,
-            uint256 updatedAt,
-            uint80 answeredInRound
-        );
-
-    function latestAnswer() external view returns (int256 price);
-}
+import "src/interfaces/IChainlinkFeed.sol";
 
 interface IAggregator {
     function maxAnswer() external view returns (int192);

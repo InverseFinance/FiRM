@@ -3,13 +3,13 @@ pragma solidity ^0.8.20;
 import {ICurvePool} from "src/interfaces/ICurvePool.sol";
 import {IChainlinkBasePriceFeed} from "src/interfaces/IChainlinkFeed.sol";
 
-// Combined Chainlink and Curve price_oracle, allows for additional fallbacks to be set via ChainlinkBasePriceFeed
+// Combined Chainlink and Curve price_oracle, allows for additional fallback to be set via ChainlinkBasePriceFeed
 
-contract ChainlinkPriceOracleStablePriceFeed {
+contract ChainlinkPriceOracleFeed {
     int256 public constant SCALE = 1e18;
     IChainlinkBasePriceFeed public immutable assetToUsd;
     ICurvePool public immutable curvePool;
-    uint256 public immutable assetK;
+    uint256 public immutable targetK;
 
     address public owner;
     address public pendingOwner;
@@ -30,13 +30,13 @@ contract ChainlinkPriceOracleStablePriceFeed {
         address _owner,
         address _assetToUsd,
         address _curvePool,
-        uint256 _assetK,
+        uint256 _targetK,
         uint8 _decimals
     ) {
         owner = _owner;
         assetToUsd = IChainlinkBasePriceFeed(_assetToUsd);
         curvePool = ICurvePool(_curvePool);
-        assetK = _assetK;
+        targetK = _targetK;
         decimals = _decimals;
     }
 
@@ -67,14 +67,14 @@ contract ChainlinkPriceOracleStablePriceFeed {
             updatedAt,
             answeredInRound
         ) = assetToUsd.latestRoundData();
+
         return (
             roundId,
-            (assetToUsdPrice * SCALE) / int(curvePool.price_oracle(assetK)),
+            (int(curvePool.price_oracle(targetK)) * assetToUsdPrice) / SCALE,
             startedAt,
             updatedAt,
             answeredInRound
         );
-        //}
     }
 
     /**

@@ -1,16 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.4;
 
-import "src/util/FeedLib.sol";
+import {ICurvePool} from "src/interfaces/ICurvePool.sol";
+import {IChainlinkBasePriceFeed} from "src/interfaces/IChainlinkFeed.sol";
 
 contract DolaFraxBPPriceFeed {
     error OnlyGov();
 
     ICurvePool public immutable dolaFraxBP;
 
-    IChainlinkFeed public immutable mainFraxFeed;
+    IChainlinkBasePriceFeed public immutable mainFraxFeed;
 
-    IChainlinkFeed public immutable mainUsdcFeed;
+    IChainlinkBasePriceFeed public immutable mainUsdcFeed;
 
     address public gov = 0x926dF14a23BE491164dCF93f4c468A50ef659D5B;
 
@@ -25,8 +26,8 @@ contract DolaFraxBPPriceFeed {
         address _mainUsdcFeed
     ) {
         dolaFraxBP = ICurvePool(_curvePool);
-        mainFraxFeed = IChainlinkFeed(_mainFraxFeed);
-        mainUsdcFeed = IChainlinkFeed(_mainUsdcFeed);
+        mainFraxFeed = IChainlinkBasePriceFeed(_mainFraxFeed);
+        mainUsdcFeed = IChainlinkBasePriceFeed(_mainUsdcFeed);
     }
 
     /**
@@ -101,40 +102,6 @@ contract DolaFraxBPPriceFeed {
      */
     function decimals() public pure returns (uint8) {
         return 18;
-    }
-
-    /**
-     * @notice Fetches the ETH to USD price and the ETH to USDC to get USDC/USD price, adjusts the decimals to match Chainlink oracles.
-     * @dev The function assumes that the `price_oracle` returns the price with 18 decimals, and it adjusts to 8 decimals for compatibility with Chainlink oracles.
-     * @return roundId The round ID of the ETH/USD Chainlink price feed
-     * @return usdcToUsdPrice The latest USDC price in USD computed from the ETH/USD and ETH/USDC feeds
-     * @return startedAt The timestamp when the latest round of ETH/USD Chainlink price feed started
-     * @return updatedAt The timestamp when the latest round of ETH/USD Chainlink price feed was updated
-     * @return answeredInRound The round ID of the ETH/USD Chainlink price feed in which the answer was computed
-     */
-    function usdcToUsdFallbackOracle()
-        public
-        view
-        returns (uint80, int256, uint256, uint256, uint80)
-    {
-        return mainUsdcFeed.assetToUsdFallback().latestRoundData();
-    }
-
-    /**
-     * @notice Fetches the crvUSD to USD price and the crvUSD to FRAX to get FRAX/USD price, adjusts the decimals to match Chainlink oracles.
-     * @dev The function assumes that the `price_oracle` returns the price with 18 decimals, and it adjusts to 8 decimals for compatibility with Chainlink oracles.
-     * @return roundId The round ID of the crvUSD/USD Chainlink price feed
-     * @return fraxToUsdPrice The latest FRAX price in USD computed from the crvUSD/USD and crvUSD/FRAX feeds
-     * @return startedAt The timestamp when the latest round of crvUSD/USD Chainlink price feed started
-     * @return updatedAt The timestamp when the latest round of crvUSD/USD Chainlink price feed was updated
-     * @return answeredInRound The round ID of the crvUSD/USD Chainlink price feed in which the answer was computed
-     */
-    function fraxToUsdFallbackOracle()
-        public
-        view
-        returns (uint80, int256, uint256, uint256, uint80)
-    {
-        return mainFraxFeed.assetToUsdFallback().latestRoundData();
     }
 
     /**
