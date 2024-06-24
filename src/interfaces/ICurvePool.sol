@@ -5,5 +5,5 @@ interface ICurvePool {
 
     function get_virtual_price() external view returns (uint256);
 
-    function ema_price() external view returns (uint256);
+    function price_oracle() external view returns (uint256);
 }

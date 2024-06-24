@@ -3,34 +3,18 @@ pragma solidity ^0.8.20;
 import {ICurvePool} from "src/interfaces/ICurvePool.sol";
 import {IChainlinkBasePriceFeed} from "src/interfaces/IChainlinkFeed.sol";
 
-// Combined Chainlink EMA Price Feed, allows for additional fallback to be set via ChainlinkBasePriceFeed
-
-contract ChainlinkEmaPriceFeed {
+// Combined Chainlink and price oracle feed for a 2 Coin Curve pool, allows for additional fallback to be set via ChainlinkBasePriceFeed
+/// @dev This implementation is for a 2 Coins Curve pool when Asset is the coin at index 1 in Curve pool `coins` array
+contract ChainlinkCurve2CoinsAssetFeed {
     int256 public constant SCALE = 1e18;
+    /// @dev Chainlink base price feed implementation for the asset to USD
     IChainlinkBasePriceFeed public immutable assetToUsd;
+    /// @dev 2 Coins Curve pool
     ICurvePool public immutable curvePool;
+    /// @dev Decimals for this feed
     uint8 public immutable decimals;
 
-    address public owner;
-    address public pendingOwner;
-
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Only owner");
-        _;
-    }
-
-    modifier onlyPendingOwner() {
-        require(msg.sender == pendingOwner, "Only pending owner");
-        _;
-    }
-
-    constructor(
-        address _owner,
-        address _assetToUsd,
-        address _curvePool,
-        uint8 _decimals
-    ) {
-        owner = _owner;
+    constructor(address _assetToUsd, address _curvePool, uint8 _decimals) {
         assetToUsd = IChainlinkBasePriceFeed(_assetToUsd);
         curvePool = ICurvePool(_curvePool);
         decimals = _decimals;
@@ -64,7 +48,7 @@ contract ChainlinkEmaPriceFeed {
             answeredInRound
         ) = assetToUsd.latestRoundData();
 
-        uint256 assetToTargetPrice = curvePool.ema_price();
+        uint256 assetToTargetPrice = curvePool.price_oracle();
 
         return (
             roundId,
@@ -83,14 +67,5 @@ contract ChainlinkEmaPriceFeed {
     function latestAnswer() external view returns (int256) {
         (, int256 latestPrice, , , ) = latestRoundData();
         return latestPrice;
-    }
-
-    function setPendingOwner(address newPendingOwner) public onlyOwner {
-        pendingOwner = newPendingOwner;
-    }
-
-    function acceptOwner() public onlyPendingOwner {
-        owner = pendingOwner;
-        pendingOwner = address(0);
     }
 }

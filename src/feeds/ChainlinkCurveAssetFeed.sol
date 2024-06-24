@@ -4,35 +4,25 @@ import {ICurvePool} from "src/interfaces/ICurvePool.sol";
 import {IChainlinkBasePriceFeed} from "src/interfaces/IChainlinkFeed.sol";
 
 // Combined Chainlink and Curve price_oracle, allows for additional fallbacks to be set via ChainlinkBasePriceFeed
-
-contract ChainlinkPriceOracleStablePriceFeed {
+/// @dev This implementation is for Curve pools when Target is the coin at index 0 in Curve pool `coins` array
+contract ChainlinkCurveAssetFeed {
     int256 public constant SCALE = 1e18;
+    /// @dev Chainlink base price feed implementation for the asset to USD
     IChainlinkBasePriceFeed public immutable assetToUsd;
+    /// @dev Curve pool
     ICurvePool public immutable curvePool;
+    /// @dev Asset k index for retriving Asset to Target value from the Curve pool price oracle
+    /// @dev Target is the coin at index 0 in Curve pool `coins` array
     uint256 public immutable assetK;
+    /// @dev Decimals for this feed
     uint8 public immutable decimals;
 
-    address public owner;
-    address public pendingOwner;
-
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Only owner");
-        _;
-    }
-
-    modifier onlyPendingOwner() {
-        require(msg.sender == pendingOwner, "Only pending owner");
-        _;
-    }
-
     constructor(
-        address _owner,
         address _assetToUsd,
         address _curvePool,
         uint256 _assetK,
         uint8 _decimals
     ) {
-        owner = _owner;
         assetToUsd = IChainlinkBasePriceFeed(_assetToUsd);
         curvePool = ICurvePool(_curvePool);
         assetK = _assetK;
@@ -83,14 +73,5 @@ contract ChainlinkPriceOracleStablePriceFeed {
     function latestAnswer() external view returns (int256) {
         (, int256 latestPrice, , , ) = latestRoundData();
         return latestPrice;
-    }
-
-    function setPendingOwner(address newPendingOwner) public onlyOwner {
-        pendingOwner = newPendingOwner;
-    }
-
-    function acceptOwner() public onlyPendingOwner {
-        owner = pendingOwner;
-        pendingOwner = address(0);
     }
 }

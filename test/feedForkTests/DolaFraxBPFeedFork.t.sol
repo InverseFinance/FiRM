@@ -4,14 +4,14 @@ pragma solidity ^0.8.19;
 import "forge-std/Test.sol";
 import "src/feeds/DolaFraxBPPriceFeed.sol";
 import "forge-std/console.sol";
-import {ChainlinkEmaPriceFeed} from "src/feeds/ChainlinkEmaPriceFeed.sol";
-import {ChainlinkPriceOracleStablePriceFeed} from "src/feeds/ChainlinkPriceOracleStablePriceFeed.sol";
+import {ChainlinkCurve2CoinsAssetFeed} from "src/feeds/ChainlinkCurve2CoinsAssetFeed.sol";
+import {ChainlinkCurveAssetFeed} from "src/feeds/ChainlinkCurveAssetFeed.sol";
 import "src/feeds/ChainlinkBasePriceFeed.sol";
 
 contract DolaFraxBPPriceFeedFork is Test {
     DolaFraxBPPriceFeed feed;
-    ChainlinkPriceOracleStablePriceFeed usdcFallback;
-    ChainlinkEmaPriceFeed fraxFallback;
+    ChainlinkCurveAssetFeed usdcFallback;
+    ChainlinkCurve2CoinsAssetFeed fraxFallback;
     ChainlinkBasePriceFeed mainUsdcFeed;
     ChainlinkBasePriceFeed mainFraxFeed;
     ChainlinkBasePriceFeed baseCrvUsdToUsd;
@@ -61,8 +61,7 @@ contract DolaFraxBPPriceFeedFork is Test {
             ethHeartbeat,
             8
         );
-        usdcFallback = new ChainlinkPriceOracleStablePriceFeed(
-            gov,
+        usdcFallback = new ChainlinkCurveAssetFeed(
             address(baseEthToUsd),
             address(tricryptoETH),
             ethK,
@@ -76,8 +75,7 @@ contract DolaFraxBPPriceFeedFork is Test {
             crvUSDHeartbeat,
             8
         );
-        fraxFallback = new ChainlinkEmaPriceFeed(
-            gov,
+        fraxFallback = new ChainlinkCurve2CoinsAssetFeed(
             address(baseCrvUsdToUsd),
             address(crvUSDFrax),
             8
@@ -341,7 +339,7 @@ contract DolaFraxBPPriceFeedFork is Test {
         assertEq(answeredInRoundFall, answeredInRound);
 
         uint256 fraxFallPrice = (uint256(crvUsdToUsdPrice) * 10 ** 18) /
-            fraxFallback.curvePool().ema_price();
+            fraxFallback.curvePool().price_oracle();
         int lpPrice = int(
             ((feed.dolaFraxBP().get_virtual_price() * fraxFallPrice) / 10 ** 8)
         );
@@ -387,7 +385,7 @@ contract DolaFraxBPPriceFeedFork is Test {
         assertEq(answeredInRoundFall, answeredInRound);
 
         uint256 fraxFallPrice = (uint256(crvUsdToUsdPrice) * 10 ** 18) /
-            fraxFallback.curvePool().ema_price();
+            fraxFallback.curvePool().price_oracle();
         int lpPrice = int(
             ((feed.dolaFraxBP().get_virtual_price() * fraxFallPrice) / 10 ** 8)
         );
@@ -649,7 +647,7 @@ contract DolaFraxBPPriceFeedFork is Test {
         assertEq(clAnsweredInRound2, answeredInRound);
 
         uint256 calculatedLPUsdPrice = (((uint256(crvUSDToUsdPrice) *
-            10 ** 18) / fraxFallback.curvePool().ema_price()) *
+            10 ** 18) / fraxFallback.curvePool().price_oracle()) *
             feed.dolaFraxBP().get_virtual_price()) / 10 ** 8;
 
         assertEq(uint256(lpUsdPrice), calculatedLPUsdPrice);
@@ -817,7 +815,7 @@ contract DolaFraxBPPriceFeedFork is Test {
         assertEq(
             uint(fraxFallPrice),
             (uint(crvUsdToUsdPrice) * 10 ** 18) /
-                uint(fraxFallback.curvePool().ema_price())
+                uint(fraxFallback.curvePool().price_oracle())
         );
         assertEq(roundIdFall, roundId);
         assertEq(startedAtFall, startedAt);
@@ -852,18 +850,6 @@ contract DolaFraxBPPriceFeedFork is Test {
         assertEq(clStartedAt2, startedAt);
         assertEq(clUpdatedAt2, updatedAt);
         assertEq(clAnsweredInRound2, answeredInRound);
-    }
-
-    function test_setGov() public {
-        assertEq(feed.gov(), 0x926dF14a23BE491164dCF93f4c468A50ef659D5B);
-
-        vm.expectRevert(DolaFraxBPPriceFeed.OnlyGov.selector);
-        feed.setGov(address(this));
-        assertEq(feed.gov(), 0x926dF14a23BE491164dCF93f4c468A50ef659D5B);
-
-        vm.prank(feed.gov());
-        feed.setGov(address(this));
-        assertEq(feed.gov(), address(this));
     }
 
     function _calculateOracleLpPrice()

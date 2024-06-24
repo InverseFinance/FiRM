@@ -4,36 +4,25 @@ import {ICurvePool} from "src/interfaces/ICurvePool.sol";
 import {IChainlinkBasePriceFeed} from "src/interfaces/IChainlinkFeed.sol";
 
 // Combined Chainlink and Curve price_oracle, allows for additional fallback to be set via ChainlinkBasePriceFeed
-
-contract ChainlinkPriceOracleFeed {
+/// @dev This implementation is for Curve pools when Asset is the coin at index 0 in Curve pool `coins` array
+contract ChainlinkCurveTargetFeed {
     int256 public constant SCALE = 1e18;
+    /// @dev Chainlink base price feed implementation for the Asset to USD
     IChainlinkBasePriceFeed public immutable assetToUsd;
+    /// @dev Curve pool
     ICurvePool public immutable curvePool;
+    /// @dev k index for retriving Target to Asset value from the Curve pool price_oracle
+    /// @dev Asset is the coin at index 0 in Curve pool `coins` array
     uint256 public immutable targetK;
+    /// @dev Decimals for this feed
     uint8 public immutable decimals;
 
-    address public owner;
-    address public pendingOwner;
-
-   
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Only owner");
-        _;
-    }
-
-    modifier onlyPendingOwner() {
-        require(msg.sender == pendingOwner, "Only pending owner");
-        _;
-    }
-
     constructor(
-        address _owner,
         address _assetToUsd,
         address _curvePool,
         uint256 _targetK,
         uint8 _decimals
     ) {
-        owner = _owner;
         assetToUsd = IChainlinkBasePriceFeed(_assetToUsd);
         curvePool = ICurvePool(_curvePool);
         targetK = _targetK;
@@ -85,14 +74,5 @@ contract ChainlinkPriceOracleFeed {
     function latestAnswer() external view returns (int256) {
         (, int256 latestPrice, , , ) = latestRoundData();
         return latestPrice;
-    }
-
-    function setPendingOwner(address newPendingOwner) public onlyOwner {
-        pendingOwner = newPendingOwner;
-    }
-
-    function acceptOwner() public onlyPendingOwner {
-        owner = pendingOwner;
-        pendingOwner = address(0);
     }
 }

@@ -5,20 +5,11 @@ import {ICurvePool} from "src/interfaces/ICurvePool.sol";
 import {IChainlinkBasePriceFeed} from "src/interfaces/IChainlinkFeed.sol";
 
 contract DolaFraxPyUsdPriceFeed {
-    error OnlyGov();
-
     ICurvePool public immutable dolaPyUSDFrax;
 
     IChainlinkBasePriceFeed public immutable mainFraxFeed;
 
     IChainlinkBasePriceFeed public immutable mainPyUSDFeed;
-
-    address public gov = 0x926dF14a23BE491164dCF93f4c468A50ef659D5B;
-
-    modifier onlyGov() {
-        if (msg.sender != gov) revert OnlyGov();
-        _;
-    }
 
     constructor(
         address _curvePool,
@@ -97,14 +88,5 @@ contract DolaFraxPyUsdPriceFeed {
      */
     function decimals() public pure returns (uint8) {
         return 18;
-    }
-
-    /**
-     * @notice Sets a new gov address
-     * @dev Can only be called by the current gov address
-     * @param newGov The new gov address
-     */
-    function setGov(address newGov) external onlyGov {
-        gov = newGov;
     }
 }

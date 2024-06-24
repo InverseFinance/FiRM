@@ -5,8 +5,8 @@ import "forge-std/Test.sol";
 import "src/feeds/DolaFraxPyUsdPriceFeed.sol";
 import {console} from "forge-std/console.sol";
 import "src/feeds/ChainlinkBasePriceFeed.sol";
-import {ChainlinkPriceOracleFeed} from "src/feeds/ChainlinkPriceOracleFeed.sol";
-import {ChainlinkEmaPriceFeed} from "src/feeds/ChainlinkEmaPriceFeed.sol";
+import {ChainlinkCurveTargetFeed} from "src/feeds/ChainlinkCurveTargetFeed.sol";
+import {ChainlinkCurve2CoinsAssetFeed} from "src/feeds/ChainlinkCurve2CoinsAssetFeed.sol";
 
 contract DolaFraxPyUsdPriceFeedFork is Test {
     DolaFraxPyUsdPriceFeed feed;
@@ -14,8 +14,8 @@ contract DolaFraxPyUsdPriceFeedFork is Test {
     ChainlinkBasePriceFeed mainPyUSDFeed;
     ChainlinkBasePriceFeed baseCrvUsdToUsd;
     ChainlinkBasePriceFeed baseUsdcToUsd;
-    ChainlinkPriceOracleFeed pyUSDFallback;
-    ChainlinkEmaPriceFeed fraxFallback;
+    ChainlinkCurveTargetFeed pyUSDFallback;
+    ChainlinkCurve2CoinsAssetFeed fraxFallback;
 
     ICurvePool public constant dolaPyUSDFrax =
         ICurvePool(0xef484de8C07B6e2d732A92B5F78e81B38f99f95E);
@@ -59,8 +59,7 @@ contract DolaFraxPyUsdPriceFeedFork is Test {
             crvUSDHeartbeat,
             8
         );
-        fraxFallback = new ChainlinkEmaPriceFeed(
-            gov,
+        fraxFallback = new ChainlinkCurve2CoinsAssetFeed(
             address(baseCrvUsdToUsd),
             address(crvUSDFrax),
             8
@@ -74,8 +73,7 @@ contract DolaFraxPyUsdPriceFeedFork is Test {
             8
         );
 
-        pyUSDFallback = new ChainlinkPriceOracleFeed(
-            gov,
+        pyUSDFallback = new ChainlinkCurveTargetFeed(
             address(baseUsdcToUsd),
             address(pyUsdUsdc),
             targetKPyUsd,
@@ -343,7 +341,7 @@ contract DolaFraxPyUsdPriceFeedFork is Test {
         assertEq(answeredInRoundFall, answeredInRound);
 
         uint256 fraxFallPrice = (uint256(crvUsdToUsdPrice) * 10 ** 18) /
-            fraxFallback.curvePool().ema_price();
+            fraxFallback.curvePool().price_oracle();
         int lpPrice = int(
             ((feed.dolaPyUSDFrax().get_virtual_price() * fraxFallPrice) /
                 10 ** 8)
@@ -390,7 +388,7 @@ contract DolaFraxPyUsdPriceFeedFork is Test {
         assertEq(answeredInRoundFall, answeredInRound);
 
         uint256 fraxFallPrice = (uint256(crvUsdToUsdPrice) * 10 ** 18) /
-            fraxFallback.curvePool().ema_price();
+            fraxFallback.curvePool().price_oracle();
         int lpPrice = int(
             ((feed.dolaPyUSDFrax().get_virtual_price() * fraxFallPrice) /
                 10 ** 8)
@@ -666,7 +664,7 @@ contract DolaFraxPyUsdPriceFeedFork is Test {
         assertEq(clAnsweredInRound2, answeredInRound);
 
         uint256 calculatedLPUsdPrice = (((uint256(crvUSDToUsdPrice) *
-            10 ** 18) / fraxFallback.curvePool().ema_price()) *
+            10 ** 18) / fraxFallback.curvePool().price_oracle()) *
             feed.dolaPyUSDFrax().get_virtual_price()) / 10 ** 8;
 
         assertEq(uint256(lpUsdPrice), calculatedLPUsdPrice);
@@ -837,7 +835,7 @@ contract DolaFraxPyUsdPriceFeedFork is Test {
         assertEq(
             uint(fraxFallPrice),
             (uint(crvUsdToUsdPrice) * 10 ** 18) /
-                uint(fraxFallback.curvePool().ema_price())
+                uint(fraxFallback.curvePool().price_oracle())
         );
         assertEq(roundIdFall, roundId);
         assertEq(startedAtFall, startedAt);
@@ -872,18 +870,6 @@ contract DolaFraxPyUsdPriceFeedFork is Test {
         assertEq(clStartedAt2, startedAt);
         assertEq(clUpdatedAt2, updatedAt);
         assertEq(clAnsweredInRound2, answeredInRound);
-    }
-
-    function test_setGov() public {
-        assertEq(feed.gov(), 0x926dF14a23BE491164dCF93f4c468A50ef659D5B);
-
-        vm.expectRevert(DolaFraxPyUsdPriceFeed.OnlyGov.selector);
-        feed.setGov(address(this));
-        assertEq(feed.gov(), 0x926dF14a23BE491164dCF93f4c468A50ef659D5B);
-
-        vm.prank(feed.gov());
-        feed.setGov(address(this));
-        assertEq(feed.gov(), address(this));
     }
 
     function _calculateOracleLpPrice()

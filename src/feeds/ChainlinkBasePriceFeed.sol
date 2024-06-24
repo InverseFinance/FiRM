@@ -63,7 +63,10 @@ contract ChainlinkBasePriceFeed {
             uint80 answeredInRound
         )
     {
-        if (isPriceStale()) {
+        (roundId, usdPrice, startedAt, updatedAt, answeredInRound) = assetToUsd
+            .latestRoundData();
+
+        if (isPriceStale(usdPrice, updatedAt)) {
             if (hasFallback()) {
                 (
                     roundId,
@@ -83,23 +86,8 @@ contract ChainlinkBasePriceFeed {
                         int(10 ** (decimals - fallbackDecimals));
                 }
             } else {
-                (
-                    roundId,
-                    usdPrice,
-                    startedAt,
-                    updatedAt,
-                    answeredInRound
-                ) = assetToUsd.latestRoundData();
                 updatedAt = 0;
             }
-        } else {
-            (
-                roundId,
-                usdPrice,
-                startedAt,
-                updatedAt,
-                answeredInRound
-            ) = assetToUsd.latestRoundData();
         }
     }
 
@@ -129,8 +117,10 @@ contract ChainlinkBasePriceFeed {
         return (max <= price || min >= price);
     }
 
-    function isPriceStale() public view returns (bool) {
-        (, int price, , uint256 updatedAt, ) = assetToUsd.latestRoundData();
+    function isPriceStale(
+        int256 price,
+        uint256 updatedAt
+    ) public view returns (bool) {
         bool stalePrice = updatedAt + assetToUsdHeartbeat < block.timestamp;
         return stalePrice || isPriceOutOfBounds(price, assetToUsd);
     }
