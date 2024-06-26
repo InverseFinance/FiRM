@@ -3,30 +3,36 @@ pragma solidity ^0.8.20;
 import {ICurvePool} from "src/interfaces/ICurvePool.sol";
 import {IChainlinkBasePriceFeed} from "src/interfaces/IChainlinkFeed.sol";
 
-// Combined Chainlink and Curve price_oracle, allows for additional fallbacks to be set via ChainlinkBasePriceFeed
-/// @dev This implementation is for Curve pools when Target is the coin at index 0 in Curve pool `coins` array
-contract ChainlinkCurveAssetFeed {
+// Combined Chainlink and Curve price_oracle, allows for additional fallback to be set via ChainlinkBasePriceFeed
+/// @dev Implementation for Curve pools.
+/// @dev Carefully review on Curve Pools when setting the k index for Asset or Target and the target index in the `coins` array
+/// NOTE: If k is for Asset then targetIndex is Zero as in Curve otherwise the price calculation will be incorrect,
+/// on the other side if k is for the Target then targetIndex has to be set to the index of the Target in the `coins` array (not Zero)
+contract ChainlinkCurveFeed {
     int256 public constant SCALE = 1e18;
-    /// @dev Chainlink base price feed implementation for the asset to USD
+    /// @dev Chainlink base price feed implementation for the Asset to USD
     IChainlinkBasePriceFeed public immutable assetToUsd;
     /// @dev Curve pool
     ICurvePool public immutable curvePool;
-    /// @dev Asset k index for retriving Asset to Target value from the Curve pool price oracle
-    /// @dev Target is the coin at index 0 in Curve pool `coins` array
-    uint256 public immutable assetK;
+    /// @dev k index for retriving Target or Asset value from the Curve pool price_oracle
+    uint256 public immutable assetOrTargetK;
     /// @dev Decimals for this feed
     uint8 public immutable decimals;
+    /// @dev Target index in Curve pool `coins` array
+    uint256 public immutable targetIndex;
 
     constructor(
         address _assetToUsd,
         address _curvePool,
-        uint256 _assetK,
-        uint8 _decimals
+        uint256 _k,
+        uint8 _decimals,
+        uint256 _targetIndex
     ) {
         assetToUsd = IChainlinkBasePriceFeed(_assetToUsd);
         curvePool = ICurvePool(_curvePool);
-        assetK = _assetK;
+        assetOrTargetK = _k;
         decimals = _decimals;
+        targetIndex = _targetIndex;
     }
 
     /**
@@ -56,13 +62,19 @@ contract ChainlinkCurveAssetFeed {
             updatedAt,
             answeredInRound
         ) = assetToUsd.latestRoundData();
-        return (
-            roundId,
-            (assetToUsdPrice * SCALE) / int(curvePool.price_oracle(assetK)),
-            startedAt,
-            updatedAt,
-            answeredInRound
-        );
+
+        if (targetIndex == 0) {
+            usdPrice =
+                (assetToUsdPrice * SCALE) /
+                int(curvePool.price_oracle(assetOrTargetK));
+        } else {
+            usdPrice =
+                (int(curvePool.price_oracle(assetOrTargetK)) *
+                    assetToUsdPrice) /
+                SCALE;
+        }
+
+        return (roundId, usdPrice, startedAt, updatedAt, answeredInRound);
     }
 
     /**

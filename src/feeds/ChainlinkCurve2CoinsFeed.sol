@@ -3,30 +3,30 @@ pragma solidity ^0.8.20;
 import {ICurvePool} from "src/interfaces/ICurvePool.sol";
 import {IChainlinkBasePriceFeed} from "src/interfaces/IChainlinkFeed.sol";
 
-// Combined Chainlink and Curve price_oracle, allows for additional fallback to be set via ChainlinkBasePriceFeed
-/// @dev This implementation is for Curve pools when Asset is the coin at index 0 in Curve pool `coins` array
-contract ChainlinkCurveTargetFeed {
+// Combined Chainlink and price oracle feed for a 2 Coin Curve pool, allows for additional fallback to be set via ChainlinkBasePriceFeed
+/// @dev Implementation for a 2 Coins Curve pool
+/// @dev Carefully review on Curve Pools when setting the target index from the `coins` array
+contract ChainlinkCurve2CoinsFeed {
     int256 public constant SCALE = 1e18;
-    /// @dev Chainlink base price feed implementation for the Asset to USD
+    /// @dev Chainlink base price feed implementation for the asset to USD
     IChainlinkBasePriceFeed public immutable assetToUsd;
-    /// @dev Curve pool
+    /// @dev 2 Coins Curve pool
     ICurvePool public immutable curvePool;
-    /// @dev k index for retriving Target to Asset value from the Curve pool price_oracle
-    /// @dev Asset is the coin at index 0 in Curve pool `coins` array
-    uint256 public immutable targetK;
     /// @dev Decimals for this feed
     uint8 public immutable decimals;
+    /// @dev Target index in Curve pool `coins` array
+    uint256 public immutable targetIndex;
 
     constructor(
         address _assetToUsd,
         address _curvePool,
-        uint256 _targetK,
-        uint8 _decimals
+        uint8 _decimals,
+        uint256 _targetIndex
     ) {
         assetToUsd = IChainlinkBasePriceFeed(_assetToUsd);
         curvePool = ICurvePool(_curvePool);
-        targetK = _targetK;
         decimals = _decimals;
+        targetIndex = _targetIndex;
     }
 
     /**
@@ -57,13 +57,17 @@ contract ChainlinkCurveTargetFeed {
             answeredInRound
         ) = assetToUsd.latestRoundData();
 
-        return (
-            roundId,
-            (int(curvePool.price_oracle(targetK)) * assetToUsdPrice) / SCALE,
-            startedAt,
-            updatedAt,
-            answeredInRound
-        );
+        if (targetIndex == 0) {
+            usdPrice =
+                (assetToUsdPrice * SCALE) /
+                int(curvePool.price_oracle());
+        } else {
+            usdPrice =
+                (int(curvePool.price_oracle()) * assetToUsdPrice) /
+                SCALE;
+        }
+
+        return (roundId, usdPrice, startedAt, updatedAt, answeredInRound);
     }
 
     /**
