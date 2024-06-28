@@ -2,8 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
-import {IYearnVaultV2} from "src/interfaces/IYearnVaultV2.sol";
-import {YearnVaultV2Helper} from "src/util/YearnVaultV2Helper.sol";
+import {YearnVaultV2Helper, IYearnVaultV2} from "src/util/YearnVaultV2Helper.sol";
 import {IRewardPool} from "src/interfaces/IRewardPool.sol";
 import {IConvexBooster} from "src/interfaces/IConvexBooster.sol";
 import {IVirtualBalanceRewardPool} from "src/interfaces/IVirtualBalanceRewardPool.sol";
@@ -13,7 +12,7 @@ interface IStakingWrapper {
     function token() external returns (address);
 }
 
-contract DolaFraxBPEscrow {
+contract DolaFraxPyUSDEscrow {
     using SafeERC20 for IERC20;
 
     error AlreadyInitialized();
@@ -21,14 +20,15 @@ contract DolaFraxBPEscrow {
     error OnlyBeneficiary();
     error OnlyBeneficiaryOrAllowlist();
 
-    uint256 public constant pid = 115;
+    uint256 public constant pid = 317;
 
     IRewardPool public constant rewardPool =
-        IRewardPool(0x0404d05F3992347d2f0dC3a97bdd147D77C85c1c);
+        IRewardPool(0xE8cBdBFD4A1D776AB1146B63ABD1718b2F92a823);
     IConvexBooster public constant booster =
         IConvexBooster(0xF403C135812408BFbE8713b5A23a04b3D48AAE31);
+    // Created while testing, not existing on mainnet yet
     IYearnVaultV2 public constant yearn =
-        IYearnVaultV2(0xe5F625e8f4D2A038AE9583Da254945285E5a77a4);
+        IYearnVaultV2(0x5b737CC835c29c493845353e0399B408Fbd7105D);
     IERC20 public constant cvx =
         IERC20(0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B);
     IERC20 public constant crv =
@@ -155,7 +155,6 @@ contract DolaFraxBPEscrow {
             } else {
                 rewardToken = virtualReward.rewardToken();
             }
-
             uint rewardBal = rewardToken.balanceOf(address(this));
             if (rewardBal > 0) {
                 //Use safe transfer in case bad reward token is added
