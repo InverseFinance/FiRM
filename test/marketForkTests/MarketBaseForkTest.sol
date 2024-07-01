@@ -13,7 +13,8 @@ import {BorrowContract} from "test/mocks/BorrowContract.sol";
 
 abstract contract MarketBaseForkTest is MarketForkTest {
     bytes onlyGovUnpause = "Only governance can unpause";
-    bytes onlyPauseGuardianOrGov = "Only pause guardian or governance can pause";
+    bytes onlyPauseGuardianOrGov =
+        "Only pause guardian or governance can pause";
     address lender = 0x2b34548b865ad66A2B046cb82e59eE43F75B90fd;
     bool approximateBalance;
 
@@ -26,40 +27,73 @@ abstract contract MarketBaseForkTest is MarketForkTest {
         fed.expansion(IMarket(address(market)), 100_000e18);
         vm.stopPrank();
 
-        borrowContract = new BorrowContract(address(market), payable(address(collateral)));
+        borrowContract = new BorrowContract(
+            address(market),
+            payable(address(collateral))
+        );
     }
 
-    function _advancedInit(address _market, address _feed, bool _approximateBalance) public {
+    function _advancedInit(
+        address _market,
+        address _feed,
+        bool _approximateBalance
+    ) public {
         _baseInit(_market, _feed);
         approximateBalance = _approximateBalance;
     }
 
     function testDeposit() public {
         gibCollateral(user, testAmount);
-        uint balanceUserBefore = collateral.balanceOf(user); 
+        uint balanceUserBefore = collateral.balanceOf(user);
         vm.startPrank(user, user);
         deposit(testAmount);
-        assertEq(collateral.balanceOf(user), balanceUserBefore - testAmount, "User balance did not decrease");
-        if(approximateBalance){
-            assertApproxEqAbs(market.predictEscrow(user).balance(), testAmount, 10, "User balance beyond max deviation");
+        assertEq(
+            collateral.balanceOf(user),
+            balanceUserBefore - testAmount,
+            "User balance did not decrease"
+        );
+        if (approximateBalance) {
+            assertApproxEqAbs(
+                market.predictEscrow(user).balance(),
+                testAmount,
+                10,
+                "User balance beyond max deviation"
+            );
         } else {
-            assertEq(market.predictEscrow(user).balance(), testAmount, "User escrow balance not equal deposit");
+            assertEq(
+                market.predictEscrow(user).balance(),
+                testAmount,
+                "User escrow balance not equal deposit"
+            );
         }
     }
 
     function testDeposit2() public {
         gibCollateral(user, testAmount);
-        uint balanceUserBefore = collateral.balanceOf(user); 
+        uint balanceUserBefore = collateral.balanceOf(user);
 
         vm.startPrank(user, user);
         collateral.approve(address(market), testAmount);
         market.deposit(user2, testAmount);
-        if(approximateBalance){
-            assertApproxEqAbs(market.predictEscrow(user2).balance(), testAmount, 10, "User balance beyond max deviation");
+        if (approximateBalance) {
+            assertApproxEqAbs(
+                market.predictEscrow(user2).balance(),
+                testAmount,
+                10,
+                "User balance beyond max deviation"
+            );
         } else {
-            assertEq(market.predictEscrow(user2).balance(), testAmount, "User escrow balance not equal deposit");
+            assertEq(
+                market.predictEscrow(user2).balance(),
+                testAmount,
+                "User escrow balance not equal deposit"
+            );
         }
-        assertEq(collateral.balanceOf(user), balanceUserBefore - testAmount, "User balance did not decrease");
+        assertEq(
+            collateral.balanceOf(user),
+            balanceUserBefore - testAmount,
+            "User balance did not decrease"
+        );
     }
 
     function testBorrow() public {
@@ -73,10 +107,22 @@ abstract contract MarketBaseForkTest is MarketForkTest {
 
         uint borrowAmount = market.getCreditLimit(user);
         market.borrow(borrowAmount);
-        
-        assertEq(DOLA.balanceOf(user), initialDolaBalance + borrowAmount, "User balance did not increase by borrowAmount");
-        assertEq(market.debts(user), initialDebt + borrowAmount, "User debt did not increase by borrowAmount");
-        assertEq(dbr.debts(user), initialGlobalDebt + borrowAmount, "User global debt did not increase by borrowAmount");
+
+        assertEq(
+            DOLA.balanceOf(user),
+            initialDolaBalance + borrowAmount,
+            "User balance did not increase by borrowAmount"
+        );
+        assertEq(
+            market.debts(user),
+            initialDebt + borrowAmount,
+            "User debt did not increase by borrowAmount"
+        );
+        assertEq(
+            dbr.debts(user),
+            initialGlobalDebt + borrowAmount,
+            "User global debt did not increase by borrowAmount"
+        );
     }
 
     function testBorrow_BurnsCorrectAmountOfDBR_WhenTimePasses() public {
@@ -93,13 +139,33 @@ abstract contract MarketBaseForkTest is MarketForkTest {
         vm.warp(timestamp + 1_000_000);
         uint dbrBal = dbr.balanceOf(user);
         market.borrow(borrowAmount);
-        assertEq(dbrBal, testAmount, "DBR balance burned immediately after borrow");
+        assertEq(
+            dbrBal,
+            testAmount,
+            "DBR balance burned immediately after borrow"
+        );
         vm.warp(timestamp + 1_000_001);
         dbr.accrueDueTokens(user);
-        assertEq(dbr.balanceOf(user), dbrBal - borrowAmount / 365 days, "DBR balance didn't drop by 1 second worth");
-        assertEq(DOLA.balanceOf(user), initialDolaBalance + borrowAmount, "User balance did not increase by borrowAmount");
-        assertEq(market.debts(user), initialDebt + borrowAmount, "User debt did not increase by borrowAmount");
-        assertEq(dbr.debts(user), initialGlobalDebt + borrowAmount, "User global debt did not increase by borrowAmount");
+        assertEq(
+            dbr.balanceOf(user),
+            dbrBal - borrowAmount / 365 days,
+            "DBR balance didn't drop by 1 second worth"
+        );
+        assertEq(
+            DOLA.balanceOf(user),
+            initialDolaBalance + borrowAmount,
+            "User balance did not increase by borrowAmount"
+        );
+        assertEq(
+            market.debts(user),
+            initialDebt + borrowAmount,
+            "User debt did not increase by borrowAmount"
+        );
+        assertEq(
+            dbr.debts(user),
+            initialGlobalDebt + borrowAmount,
+            "User global debt did not increase by borrowAmount"
+        );
     }
 
     function testDepositAndBorrow() public {
@@ -108,102 +174,149 @@ abstract contract MarketBaseForkTest is MarketForkTest {
         vm.startPrank(user, user);
 
         uint initialDolaBalance = DOLA.balanceOf(user);
-        uint borrowAmount = getMaxBorrowAmount(testAmount) * 9 / 10;
-        uint balanceUserBefore = collateral.balanceOf(user); 
+        uint borrowAmount = (getMaxBorrowAmount(testAmount) * 9) / 10;
+        uint balanceUserBefore = collateral.balanceOf(user);
         uint initialDebt = market.debts(user);
         uint initialGlobalDebt = dbr.debts(user);
         collateral.approve(address(market), testAmount);
         market.depositAndBorrow(testAmount, borrowAmount);
 
-        if(approximateBalance){
-            assertApproxEqAbs(market.predictEscrow(user).balance(), testAmount, 10, "User balance beyond max deviation");
+        if (approximateBalance) {
+            assertApproxEqAbs(
+                market.predictEscrow(user).balance(),
+                testAmount,
+                10,
+                "User balance beyond max deviation"
+            );
         } else {
-            assertEq(market.predictEscrow(user).balance(), testAmount, "User escrow balance not equal deposit");
+            assertEq(
+                market.predictEscrow(user).balance(),
+                testAmount,
+                "User escrow balance not equal deposit"
+            );
         }
-        assertEq(DOLA.balanceOf(user), initialDolaBalance + borrowAmount, "User balance did not increase by borrowAmount");
-        assertEq(collateral.balanceOf(user), balanceUserBefore - testAmount, "User balance did not decrease");
-        assertEq(market.debts(user), initialDebt + borrowAmount, "User debt did not increase by borrowAmount");
-        assertEq(dbr.debts(user), initialGlobalDebt + borrowAmount, "User global debt did not increase by borrowAmount");
-
+        assertEq(
+            DOLA.balanceOf(user),
+            initialDolaBalance + borrowAmount,
+            "User balance did not increase by borrowAmount"
+        );
+        assertEq(
+            collateral.balanceOf(user),
+            balanceUserBefore - testAmount,
+            "User balance did not decrease"
+        );
+        assertEq(
+            market.debts(user),
+            initialDebt + borrowAmount,
+            "User debt did not increase by borrowAmount"
+        );
+        assertEq(
+            dbr.debts(user),
+            initialGlobalDebt + borrowAmount,
+            "User global debt did not increase by borrowAmount"
+        );
     }
 
     function testBorrowOnBehalf() public {
         address userPk = vm.addr(1);
         gibCollateral(userPk, testAmount);
         gibDBR(userPk, testAmount);
-        
+
         vm.startPrank(userPk, userPk);
         deposit(testAmount);
         uint borrowAmount = market.getCreditLimit(userPk);
         uint initialDebt = market.debts(userPk);
         uint initialGlobalDebt = dbr.debts(userPk);
         bytes32 hash = keccak256(
-                    abi.encodePacked(
-                        "\x19\x01",
-                        market.DOMAIN_SEPARATOR(),
+            abi.encodePacked(
+                "\x19\x01",
+                market.DOMAIN_SEPARATOR(),
+                keccak256(
+                    abi.encode(
                         keccak256(
-                            abi.encode(
-                                keccak256(
-                                    "BorrowOnBehalf(address caller,address from,uint256 amount,uint256 nonce,uint256 deadline)"
-                                ),
-                                user2,
-                                userPk,
-                                borrowAmount,
-                                0,
-                                block.timestamp
-                            )
-                        )
+                            "BorrowOnBehalf(address caller,address from,uint256 amount,uint256 nonce,uint256 deadline)"
+                        ),
+                        user2,
+                        userPk,
+                        borrowAmount,
+                        0,
+                        block.timestamp
                     )
-                );
+                )
+            )
+        );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
         vm.stopPrank();
 
-        if(approximateBalance){
-            assertApproxEqAbs(market.predictEscrow(userPk).balance(), testAmount, 10, "User balance beyond max deviation");
+        if (approximateBalance) {
+            assertApproxEqAbs(
+                market.predictEscrow(userPk).balance(),
+                testAmount,
+                10,
+                "User balance beyond max deviation"
+            );
         } else {
-            assertEq(market.predictEscrow(userPk).balance(), testAmount, "User escrow balance not equal deposit");
+            assertEq(
+                market.predictEscrow(userPk).balance(),
+                testAmount,
+                "User escrow balance not equal deposit"
+            );
         }
 
-        assertEq(collateral.balanceOf(userPk), 0, "failed to deposit collateral");
+        assertEq(
+            collateral.balanceOf(userPk),
+            0,
+            "failed to deposit collateral"
+        );
 
         vm.startPrank(user2, user2);
         market.borrowOnBehalf(userPk, borrowAmount, block.timestamp, v, r, s);
 
-        assertEq(DOLA.balanceOf(userPk), 0, "borrowed DOLA went to the wrong user");
+        assertEq(
+            DOLA.balanceOf(userPk),
+            0,
+            "borrowed DOLA went to the wrong user"
+        );
         assertEq(DOLA.balanceOf(user2), borrowAmount, "failed to borrow DOLA");
-        assertEq(market.debts(userPk), initialDebt + borrowAmount, "User debt did not increase by borrowAmount");
-        assertEq(dbr.debts(userPk), initialGlobalDebt + borrowAmount, "User global debt did not increase by borrowAmount");
-
-
+        assertEq(
+            market.debts(userPk),
+            initialDebt + borrowAmount,
+            "User debt did not increase by borrowAmount"
+        );
+        assertEq(
+            dbr.debts(userPk),
+            initialGlobalDebt + borrowAmount,
+            "User global debt did not increase by borrowAmount"
+        );
     }
 
     function testBorrowOnBehalf_Fails_When_InvalidateNonceCalledPrior() public {
         address userPk = vm.addr(1);
         gibCollateral(userPk, testAmount);
         gibDBR(userPk, testAmount);
-        
+
         vm.startPrank(userPk);
         deposit(testAmount);
         uint maxBorrowAmount = market.getCreditLimit(userPk);
         bytes32 hash = keccak256(
-                    abi.encodePacked(
-                        "\x19\x01",
-                        market.DOMAIN_SEPARATOR(),
+            abi.encodePacked(
+                "\x19\x01",
+                market.DOMAIN_SEPARATOR(),
+                keccak256(
+                    abi.encode(
                         keccak256(
-                            abi.encode(
-                                keccak256(
-                                    "BorrowOnBehalf(address caller,address from,uint256 amount,uint256 nonce,uint256 deadline)"
-                                ),
-                                user2,
-                                userPk,
-                                maxBorrowAmount,
-                                0,
-                                block.timestamp
-                            )
-                        )
+                            "BorrowOnBehalf(address caller,address from,uint256 amount,uint256 nonce,uint256 deadline)"
+                        ),
+                        user2,
+                        userPk,
+                        maxBorrowAmount,
+                        0,
+                        block.timestamp
                     )
-                );
+                )
+            )
+        );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
         market.invalidateNonce();
@@ -211,7 +324,14 @@ abstract contract MarketBaseForkTest is MarketForkTest {
 
         vm.startPrank(user2);
         vm.expectRevert("INVALID_SIGNER");
-        market.borrowOnBehalf(userPk, maxBorrowAmount, block.timestamp, v, r, s);
+        market.borrowOnBehalf(
+            userPk,
+            maxBorrowAmount,
+            block.timestamp,
+            v,
+            r,
+            s
+        );
     }
 
     function testBorrowOnBehalf_Fails_When_DeadlineHasPassed() public {
@@ -220,27 +340,27 @@ abstract contract MarketBaseForkTest is MarketForkTest {
         gibDBR(userPk, testAmount);
 
         uint timestamp = block.timestamp;
-        
+
         vm.startPrank(userPk);
         uint maxBorrowAmount = getMaxBorrowAmount(testAmount);
         bytes32 hash = keccak256(
-                    abi.encodePacked(
-                        "\x19\x01",
-                        market.DOMAIN_SEPARATOR(),
+            abi.encodePacked(
+                "\x19\x01",
+                market.DOMAIN_SEPARATOR(),
+                keccak256(
+                    abi.encode(
                         keccak256(
-                            abi.encode(
-                                keccak256(
-                                    "BorrowOnBehalf(address caller,address from,uint256 amount,uint256 nonce,uint256 deadline)"
-                                ),
-                                user2,
-                                userPk,
-                                maxBorrowAmount,
-                                0,
-                                timestamp
-                            )
-                        )
+                            "BorrowOnBehalf(address caller,address from,uint256 amount,uint256 nonce,uint256 deadline)"
+                        ),
+                        user2,
+                        userPk,
+                        maxBorrowAmount,
+                        0,
+                        timestamp
                     )
-                );
+                )
+            )
+        );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
         deposit(testAmount);
@@ -271,7 +391,9 @@ abstract contract MarketBaseForkTest is MarketForkTest {
 
     function testBorrow_Fails_When_DeniedByBorrowController() public {
         vm.startPrank(gov);
-        market.setBorrowController(IBorrowController(address(borrowController)));
+        market.setBorrowController(
+            IBorrowController(address(borrowController))
+        );
         vm.stopPrank();
 
         gibCollateral(address(borrowContract), testAmount);
@@ -306,13 +428,14 @@ abstract contract MarketBaseForkTest is MarketForkTest {
         gibDBR(user, testAmount);
 
         vm.startPrank(user, user);
-        
+
         deposit(testAmount);
         uint borrowAmount = market.getCreditLimit(user);
 
         vm.expectRevert("SafeMath: subtraction underflow");
         market.borrow(borrowAmount);
     }
+
     /**
     function testLiquidate_NoLiquidationFee(uint depositAmount, uint liqAmount, uint16 borrowMulti_) public {
         depositAmount = bound(depositAmount, 1e18, 100_000e18);
@@ -465,7 +588,6 @@ abstract contract MarketBaseForkTest is MarketForkTest {
         gibCollateral(user, testAmount);
         gibDBR(user, testAmount);
 
-
         vm.startPrank(user, user);
         deposit(testAmount);
         uint borrowAmount = market.getCreditLimit(user);
@@ -491,7 +613,7 @@ abstract contract MarketBaseForkTest is MarketForkTest {
         deposit(testAmount);
         uint borrowAmount = market.getCreditLimit(user);
         market.borrow(borrowAmount);
-        
+
         uint initialMarketBal = DOLA.balanceOf(address(market));
         uint initialUserDebt = market.debts(user);
         uint initialDolaBal = DOLA.balanceOf(user);
@@ -501,8 +623,16 @@ abstract contract MarketBaseForkTest is MarketForkTest {
 
         assertEq(market.debts(user), 0, "user's debt was not paid");
         assertEq(dbr.debts(user), 0, "user's global debt was not paid");
-        assertEq(initialDolaBal - initialUserDebt, DOLA.balanceOf(user), "DOLA was not subtracted from user");
-        assertEq(initialMarketBal + initialUserDebt, DOLA.balanceOf(address(market)), "Market DOLA balance did not increase");
+        assertEq(
+            initialDolaBal - initialUserDebt,
+            DOLA.balanceOf(user),
+            "DOLA was not subtracted from user"
+        );
+        assertEq(
+            initialMarketBal + initialUserDebt,
+            DOLA.balanceOf(address(market)),
+            "Market DOLA balance did not increase"
+        );
     }
 
     function testRepay_Successful_OtherUserBorrow_FullAmount() public {
@@ -527,7 +657,11 @@ abstract contract MarketBaseForkTest is MarketForkTest {
 
         assertEq(market.debts(user), 0, "user's debt was not paid");
         assertEq(dbr.debts(user), 0, "user's global debt was not paid");
-        assertEq(initialDolaBal - initialUserDebt, DOLA.balanceOf(user2), "DOLA was not subtracted from user2");
+        assertEq(
+            initialDolaBal - initialUserDebt,
+            DOLA.balanceOf(user2),
+            "DOLA was not subtracted from user2"
+        );
     }
 
     function testRepay_RepaysDebt_WhenAmountSetToMaxUint() public {
@@ -544,7 +678,7 @@ abstract contract MarketBaseForkTest is MarketForkTest {
 
         DOLA.approve(address(market), market.debts(user));
         market.repay(user, type(uint).max);
-        assertEq(dolaBalAfterBorrow-borrowAmount, DOLA.balanceOf(user));
+        assertEq(dolaBalAfterBorrow - borrowAmount, DOLA.balanceOf(user));
         assertEq(market.debts(user), 0);
         assertEq(dbr.debts(user), 0);
     }
@@ -559,7 +693,7 @@ abstract contract MarketBaseForkTest is MarketForkTest {
         deposit(testAmount);
         uint borrowAmount = market.getCreditLimit(user);
         market.borrow(borrowAmount);
-        
+
         vm.expectRevert("Repayment greater than debt");
         market.repay(user, borrowAmount + 1);
     }
@@ -583,12 +717,36 @@ abstract contract MarketBaseForkTest is MarketForkTest {
         vm.startPrank(replenisher);
 
         market.forceReplenish(user, deficitBefore);
-        assertGt(DOLA.balanceOf(replenisher), initialReplenisherDola, "DOLA balance of replenisher did not increase");
-        assertLt(DOLA.balanceOf(address(market)), initialMarketDola, "DOLA balance of market did not decrease");
-        assertEq(DOLA.balanceOf(replenisher) - initialReplenisherDola, initialMarketDola - DOLA.balanceOf(address(market)), "DOLA balance of market did not decrease by amount paid to replenisher");
-        assertEq(dbr.deficitOf(user), 0, "Deficit of borrower was not fully replenished");
-        assertEq(market.debts(user) - initialUserDebt, deficitBefore * replenishmentPriceBps / 10000, "Debt of borrower did not increase by replenishment price");
-        assertEq(dbr.debts(user) - initialUserGlobalDebt, deficitBefore * replenishmentPriceBps / 10000, "Debt of borrower did not increase by replenishment price");
+        assertGt(
+            DOLA.balanceOf(replenisher),
+            initialReplenisherDola,
+            "DOLA balance of replenisher did not increase"
+        );
+        assertLt(
+            DOLA.balanceOf(address(market)),
+            initialMarketDola,
+            "DOLA balance of market did not decrease"
+        );
+        assertEq(
+            DOLA.balanceOf(replenisher) - initialReplenisherDola,
+            initialMarketDola - DOLA.balanceOf(address(market)),
+            "DOLA balance of market did not decrease by amount paid to replenisher"
+        );
+        assertEq(
+            dbr.deficitOf(user),
+            0,
+            "Deficit of borrower was not fully replenished"
+        );
+        assertEq(
+            market.debts(user) - initialUserDebt,
+            (deficitBefore * replenishmentPriceBps) / 10000,
+            "Debt of borrower did not increase by replenishment price"
+        );
+        assertEq(
+            dbr.debts(user) - initialUserGlobalDebt,
+            (deficitBefore * replenishmentPriceBps) / 10000,
+            "Debt of borrower did not increase by replenishment price"
+        );
     }
 
     function testForceReplenish_Fails_When_UserHasNoDbrDeficit() public {
@@ -624,12 +782,14 @@ abstract contract MarketBaseForkTest is MarketForkTest {
         market.recall(DOLA.balanceOf(address(market)));
         uint deficit = dbr.deficitOf(user);
         vm.stopPrank();
-        vm.startPrank(replenisher);   
+        vm.startPrank(replenisher);
         vm.expectRevert("SafeMath: subtraction underflow");
-        market.forceReplenish(user, deficit);   
+        market.forceReplenish(user, deficit);
     }
 
-    function testForceReplenish_Fails_When_DebtWouldExceedCollateralValue() public {
+    function testForceReplenish_Fails_When_DebtWouldExceedCollateralValue()
+        public
+    {
         gibCollateral(user, testAmount);
         gibDBR(user, testAmount / 14);
 
@@ -641,13 +801,15 @@ abstract contract MarketBaseForkTest is MarketForkTest {
         vm.warp(block.timestamp + 10000 days);
         uint deficit = dbr.deficitOf(user);
         vm.stopPrank();
-        
+
         vm.startPrank(replenisher);
         vm.expectRevert("Exceeded collateral value");
-        market.forceReplenish(user, deficit);   
+        market.forceReplenish(user, deficit);
     }
 
-    function testForceReplenish_Succeed_When_PartiallyReplenishedDebtExceedCollateralValue() public {
+    function testForceReplenish_Succeed_When_PartiallyReplenishedDebtExceedCollateralValue()
+        public
+    {
         gibCollateral(user, testAmount);
         gibDBR(user, testAmount / 14);
 
@@ -661,16 +823,26 @@ abstract contract MarketBaseForkTest is MarketForkTest {
         vm.stopPrank();
 
         vm.startPrank(replenisher, replenisher);
-        uint maxDebt = market.getCollateralValue(user) * (10000 - market.liquidationIncentiveBps() - market.liquidationFeeBps()) / 10000;
-        uint maxReplenish = (maxDebt - market.debts(user)) * 10000 / dbr.replenishmentPriceBps();
+        uint maxDebt = (market.getCollateralValue(user) *
+            (10000 -
+                market.liquidationIncentiveBps() -
+                market.liquidationFeeBps())) / 10000;
+        uint maxReplenish = ((maxDebt - market.debts(user)) * 10000) /
+            dbr.replenishmentPriceBps();
         uint dolaBalBefore = DOLA.balanceOf(replenisher);
-        uint expectedReward = maxReplenish * dbr.replenishmentPriceBps() * market.replenishmentIncentiveBps() / 100000000;
+        uint expectedReward = (maxReplenish *
+            dbr.replenishmentPriceBps() *
+            market.replenishmentIncentiveBps()) / 100000000;
         market.forceReplenish(user, maxReplenish);
 
-        assertLt(market.debts(user), maxDebt * 10001/10000);
-        assertGt(market.debts(user), maxDebt * 9999/10000);
+        assertLt(market.debts(user), (maxDebt * 10001) / 10000);
+        assertGt(market.debts(user), (maxDebt * 9999) / 10000);
         assertLt(dbr.deficitOf(user), deficit, "Deficit didn't shrink");
-        assertEq((DOLA.balanceOf(replenisher) - dolaBalBefore), expectedReward, "Replenisher didn't receive enough DOLA");
+        assertEq(
+            (DOLA.balanceOf(replenisher) - dolaBalBefore),
+            expectedReward,
+            "Replenisher didn't receive enough DOLA"
+        );
     }
 
     function testGetWithdrawalLimit_Returns_CollateralBalance() public {
@@ -681,15 +853,21 @@ abstract contract MarketBaseForkTest is MarketForkTest {
         deposit(testAmount);
 
         uint collateralBalance = market.escrows(user).balance();
-        if(approximateBalance){
+        if (approximateBalance) {
             assertApproxEqAbs(collateralBalance, testAmount, 10);
         } else {
             assertEq(collateralBalance, testAmount);
         }
-        assertEq(market.getWithdrawalLimit(user), collateralBalance, "Should return collateralBalance when user's escrow balance > 0 & debts = 0");
+        assertEq(
+            market.getWithdrawalLimit(user),
+            collateralBalance,
+            "Should return collateralBalance when user's escrow balance > 0 & debts = 0"
+        );
     }
 
-    function testGetWithdrawalLimit_Returns_CollateralBalanceAdjustedForDebts() public {
+    function testGetWithdrawalLimit_Returns_CollateralBalanceAdjustedForDebts()
+        public
+    {
         gibCollateral(user, testAmount);
         gibDBR(user, testAmount);
 
@@ -699,8 +877,14 @@ abstract contract MarketBaseForkTest is MarketForkTest {
         market.borrow(borrowAmount);
         uint collateralBalance = market.escrows(user).balance();
         uint collateralFactor = market.collateralFactorBps();
-        uint minimumCollateral = borrowAmount * 1 ether / oracle.viewPrice(address(collateral), collateralFactor) * 10000 / collateralFactor;
-        assertEq(market.getWithdrawalLimit(user), collateralBalance - minimumCollateral, "Should return collateral balance adjusted for debt");
+        uint minimumCollateral = (((borrowAmount * 1 ether) /
+            oracle.viewPrice(address(collateral), collateralFactor)) * 10000) /
+            collateralFactor;
+        assertEq(
+            market.getWithdrawalLimit(user),
+            collateralBalance - minimumCollateral,
+            "Should return collateral balance adjusted for debt"
+        );
     }
 
     function testGetWithdrawalLimit_Returns_0_WhenEscrowBalanceIs0() public {
@@ -711,19 +895,29 @@ abstract contract MarketBaseForkTest is MarketForkTest {
         deposit(testAmount);
 
         uint collateralBalance = market.escrows(user).balance();
-        if(approximateBalance){
+        if (approximateBalance) {
             assertApproxEqAbs(collateralBalance, testAmount, 10);
             market.withdraw(market.predictEscrow(user).balance());
-            assertApproxEqAbs(market.getWithdrawalLimit(user), 0, 10, "Should return near 0 when withdrawing entire user balance");
+            assertApproxEqAbs(
+                market.getWithdrawalLimit(user),
+                0,
+                10,
+                "Should return near 0 when withdrawing entire user balance"
+            );
         } else {
             assertEq(collateralBalance, testAmount);
             market.withdraw(testAmount);
-            assertEq(market.getWithdrawalLimit(user), 0, "Should return 0 when user's escrow balance is 0");
+            assertEq(
+                market.getWithdrawalLimit(user),
+                0,
+                "Should return 0 when user's escrow balance is 0"
+            );
         }
-        
     }
 
-    function testGetWithdrawalLimit_Returns_0_WhenMarketCollateralFactoris0() public {
+    function testGetWithdrawalLimit_Returns_0_WhenMarketCollateralFactoris0()
+        public
+    {
         gibCollateral(user, testAmount);
         gibDBR(user, testAmount);
 
@@ -734,7 +928,11 @@ abstract contract MarketBaseForkTest is MarketForkTest {
 
         vm.startPrank(gov);
         market.setCollateralFactorBps(0);
-        assertEq(market.getWithdrawalLimit(user), 0, "Should return 0 when user has non-zero debt & collateralFactorBps = 0");
+        assertEq(
+            market.getWithdrawalLimit(user),
+            0,
+            "Should return 0 when user has non-zero debt & collateralFactorBps = 0"
+        );
     }
 
     function testPauseBorrows() public {
@@ -769,16 +967,33 @@ abstract contract MarketBaseForkTest is MarketForkTest {
         deposit(testAmount);
 
         assertEq(collateral.balanceOf(user), 0, "failed to deposit collateral");
-        if(approximateBalance){
-            assertApproxEqAbs(market.predictEscrow(user).balance(), testAmount, 10, "User balance beyond max deviation");
+        if (approximateBalance) {
+            assertApproxEqAbs(
+                market.predictEscrow(user).balance(),
+                testAmount,
+                10,
+                "User balance beyond max deviation"
+            );
             market.withdraw(market.predictEscrow(user).balance());
-            assertApproxEqAbs(collateral.balanceOf(user), testAmount, 10, "failed to withdraw collateral beyond max deviation");
+            assertApproxEqAbs(
+                collateral.balanceOf(user),
+                testAmount,
+                10,
+                "failed to withdraw collateral beyond max deviation"
+            );
         } else {
-            assertEq(market.predictEscrow(user).balance(), testAmount, "User escrow balance not equal deposit");
+            assertEq(
+                market.predictEscrow(user).balance(),
+                testAmount,
+                "User escrow balance not equal deposit"
+            );
             market.withdraw(testAmount);
-            assertEq(collateral.balanceOf(user), testAmount, "failed to withdraw collateral");
+            assertEq(
+                collateral.balanceOf(user),
+                testAmount,
+                "failed to withdraw collateral"
+            );
         }
-
     }
 
     function testWithdraw_Fail_When_WithdrawingCollateralBelowCF() public {
@@ -787,10 +1002,19 @@ abstract contract MarketBaseForkTest is MarketForkTest {
         gibDBR(user, testAmount);
         vm.startPrank(user, user);
 
-        if(approximateBalance){
-            assertApproxEqAbs(market.predictEscrow(user).balance(), testAmount, 10, "User balance beyond max deviation");
+        if (approximateBalance) {
+            assertApproxEqAbs(
+                market.predictEscrow(user).balance(),
+                testAmount,
+                10,
+                "User balance beyond max deviation"
+            );
         } else {
-            assertEq(market.predictEscrow(user).balance(), testAmount, "User escrow balance not equal deposit");
+            assertEq(
+                market.predictEscrow(user).balance(),
+                testAmount,
+                "User escrow balance not equal deposit"
+            );
         }
         assertEq(collateral.balanceOf(user), 0, "failed to deposit collateral");
 
@@ -799,12 +1023,25 @@ abstract contract MarketBaseForkTest is MarketForkTest {
         vm.expectRevert("Insufficient withdrawal limit");
         market.withdraw(testAmount);
 
-        if(approximateBalance){
-            assertApproxEqAbs(market.predictEscrow(user).balance(), testAmount, 10, "User balance beyond max deviation");
+        if (approximateBalance) {
+            assertApproxEqAbs(
+                market.predictEscrow(user).balance(),
+                testAmount,
+                10,
+                "User balance beyond max deviation"
+            );
         } else {
-            assertEq(market.predictEscrow(user).balance(), testAmount, "User escrow balance not equal deposit");
+            assertEq(
+                market.predictEscrow(user).balance(),
+                testAmount,
+                "User escrow balance not equal deposit"
+            );
         }
-        assertEq(collateral.balanceOf(user), 0, "successfully withdrew collateral");
+        assertEq(
+            collateral.balanceOf(user),
+            0,
+            "successfully withdrew collateral"
+        );
     }
 
     function testWithdrawOnBehalf() public {
@@ -814,64 +1051,92 @@ abstract contract MarketBaseForkTest is MarketForkTest {
         uint withdrawAmount = market.predictEscrow(userPk).balance();
         vm.startPrank(userPk);
         bytes32 hash = keccak256(
-                    abi.encodePacked(
-                        "\x19\x01",
-                        market.DOMAIN_SEPARATOR(),
+            abi.encodePacked(
+                "\x19\x01",
+                market.DOMAIN_SEPARATOR(),
+                keccak256(
+                    abi.encode(
                         keccak256(
-                            abi.encode(
-                                keccak256(
-                                    "WithdrawOnBehalf(address caller,address from,uint256 amount,uint256 nonce,uint256 deadline)"
-                                ),
-                                user2,
-                                userPk,
-                                withdrawAmount,
-                                0,
-                                block.timestamp
-                            )
-                        )
+                            "WithdrawOnBehalf(address caller,address from,uint256 amount,uint256 nonce,uint256 deadline)"
+                        ),
+                        user2,
+                        userPk,
+                        withdrawAmount,
+                        0,
+                        block.timestamp
                     )
-                );
+                )
+            )
+        );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
         vm.stopPrank();
 
-        assertEq(market.predictEscrow(userPk).balance(), withdrawAmount, "User escrow balance not equal deposit");
-        assertEq(collateral.balanceOf(userPk), 0, "failed to deposit collateral");
+        assertEq(
+            market.predictEscrow(userPk).balance(),
+            withdrawAmount,
+            "User escrow balance not equal deposit"
+        );
+        assertEq(
+            collateral.balanceOf(userPk),
+            0,
+            "failed to deposit collateral"
+        );
 
         vm.startPrank(user2);
-        market.withdrawOnBehalf(userPk, market.predictEscrow(userPk).balance(), block.timestamp, v, r, s);
-        if(approximateBalance){
-            assertApproxEqAbs(market.predictEscrow(userPk).balance(), 0, 10, "Escrow balance not near 0 after withdraw");
+        market.withdrawOnBehalf(
+            userPk,
+            market.predictEscrow(userPk).balance(),
+            block.timestamp,
+            v,
+            r,
+            s
+        );
+        if (approximateBalance) {
+            assertApproxEqAbs(
+                market.predictEscrow(userPk).balance(),
+                0,
+                10,
+                "Escrow balance not near 0 after withdraw"
+            );
         } else {
-            assertEq(market.predictEscrow(userPk).balance(), 0, "Escrow balance not 0 after withdraw");
+            assertEq(
+                market.predictEscrow(userPk).balance(),
+                0,
+                "Escrow balance not 0 after withdraw"
+            );
         }
-        assertEq(collateral.balanceOf(user2), withdrawAmount, "failed to withdraw collateral");
+        assertEq(
+            collateral.balanceOf(user2),
+            withdrawAmount,
+            "failed to withdraw collateral"
+        );
     }
 
     function testWithdrawOnBehalf_When_InvalidateNonceCalledPrior() public {
         address userPk = vm.addr(1);
         gibCollateral(userPk, testAmount);
         gibDBR(userPk, testAmount);
-        
+
         vm.startPrank(userPk);
         bytes32 hash = keccak256(
-                    abi.encodePacked(
-                        "\x19\x01",
-                        market.DOMAIN_SEPARATOR(),
+            abi.encodePacked(
+                "\x19\x01",
+                market.DOMAIN_SEPARATOR(),
+                keccak256(
+                    abi.encode(
                         keccak256(
-                            abi.encode(
-                                keccak256(
-                                    "WithdrawOnBehalf(address caller,address from,uint256 amount,uint256 nonce,uint256 deadline)"
-                                ),
-                                user2,
-                                userPk,
-                                testAmount,
-                                0,
-                                block.timestamp
-                            )
-                        )
+                            "WithdrawOnBehalf(address caller,address from,uint256 amount,uint256 nonce,uint256 deadline)"
+                        ),
+                        user2,
+                        userPk,
+                        testAmount,
+                        0,
+                        block.timestamp
                     )
-                );
+                )
+            )
+        );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
         deposit(testAmount);
@@ -889,26 +1154,26 @@ abstract contract MarketBaseForkTest is MarketForkTest {
         gibDBR(userPk, testAmount);
 
         uint timestamp = block.timestamp;
-        
+
         vm.startPrank(userPk);
         bytes32 hash = keccak256(
-                    abi.encodePacked(
-                        "\x19\x01",
-                        market.DOMAIN_SEPARATOR(),
+            abi.encodePacked(
+                "\x19\x01",
+                market.DOMAIN_SEPARATOR(),
+                keccak256(
+                    abi.encode(
                         keccak256(
-                            abi.encode(
-                                keccak256(
-                                    "WithdrawOnBehalf(address caller,address from,uint256 amount,uint256 nonce,uint256 deadline)"
-                                ),
-                                user2,
-                                userPk,
-                                testAmount,
-                                0,
-                                timestamp
-                            )
-                        )
+                            "WithdrawOnBehalf(address caller,address from,uint256 amount,uint256 nonce,uint256 deadline)"
+                        ),
+                        user2,
+                        userPk,
+                        testAmount,
+                        0,
+                        timestamp
                     )
-                );
+                )
+            )
+        );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
         deposit(testAmount);

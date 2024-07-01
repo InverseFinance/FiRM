@@ -2,8 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-//import "src/escrows/ConvexCurveEscrow.sol";
-import "src/escrows/DolaFraxPyUSDEscrow.sol";
+import "src/escrows/LPCurveYearnV2Escrow.sol";
 import {YearnVaultV2Helper, IYearnVaultV2} from "src/util/YearnVaultV2Helper.sol";
 import {console} from "forge-std/console.sol";
 import {RewardHook} from "test/mocks/RewardHook.sol";
@@ -61,8 +60,8 @@ contract DolaFraxPyUSDEscrowForkTest is Test {
     address gauge = 0x4B092818708A721cB187dFACF41f440ADb79044D;
     IYearnVaultFactory yearnFactory =
         IYearnVaultFactory(0x21b1FC8A52f179757bf555346130bF27c0C2A17A);
+    LPCurveYearnV2Escrow escrow;
     uint256 pid = 317;
-    DolaFraxPyUSDEscrow escrow;
 
     function setUp() public {
         //This will fail if there's no mainnet variable in foundry.toml
@@ -88,13 +87,27 @@ contract DolaFraxPyUSDEscrowForkTest is Test {
         vm.prank(operatorOwner);
         booster.earmarkRewards(pid);
 
-        escrow = new DolaFraxPyUSDEscrow();
+        escrow = new LPCurveYearnV2Escrow(
+            address(rewardPool),
+            address(booster),
+            address(yearn),
+            address(cvx),
+            address(crv),
+            pid
+        );
         vm.prank(market, market);
         escrow.initialize(dolaFraxBP, beneficiary);
     }
 
     function test_initialize() public {
-        DolaFraxPyUSDEscrow freshEscrow = new DolaFraxPyUSDEscrow();
+        LPCurveYearnV2Escrow freshEscrow = new LPCurveYearnV2Escrow(
+            address(rewardPool),
+            address(booster),
+            address(yearn),
+            address(cvx),
+            address(crv),
+            pid
+        );
         vm.prank(address(market));
         freshEscrow.initialize(dolaFraxBP, holder);
         assertEq(
@@ -486,7 +499,7 @@ contract DolaFraxPyUSDEscrowForkTest is Test {
         escrow.depositToConvex();
 
         vm.prank(holder, holder);
-        vm.expectRevert(DolaFraxPyUSDEscrow.OnlyMarket.selector);
+        vm.expectRevert(LPCurveYearnV2Escrow.OnlyMarket.selector);
         escrow.pay(beneficiary, 1 ether);
     }
 
@@ -643,7 +656,7 @@ contract DolaFraxPyUSDEscrowForkTest is Test {
 
         vm.prank(friend);
         vm.expectRevert(
-            DolaFraxPyUSDEscrow.OnlyBeneficiaryOrAllowlist.selector
+            LPCurveYearnV2Escrow.OnlyBeneficiaryOrAllowlist.selector
         );
         escrow.claimTo(beneficiary);
     }
@@ -657,14 +670,14 @@ contract DolaFraxPyUSDEscrowForkTest is Test {
         vm.warp(block.timestamp + 14 days);
         vm.prank(friend);
         vm.expectRevert(
-            DolaFraxPyUSDEscrow.OnlyBeneficiaryOrAllowlist.selector
+            LPCurveYearnV2Escrow.OnlyBeneficiaryOrAllowlist.selector
         );
         escrow.claimTo(beneficiary);
     }
 
     function testAllowClaimOnBehalf_fails_whenCalledByNonBeneficiary() public {
         vm.prank(friend);
-        vm.expectRevert(DolaFraxPyUSDEscrow.OnlyBeneficiary.selector);
+        vm.expectRevert(LPCurveYearnV2Escrow.OnlyBeneficiary.selector);
         escrow.allowClaimOnBehalf(friend);
     }
 
@@ -672,7 +685,7 @@ contract DolaFraxPyUSDEscrowForkTest is Test {
         public
     {
         vm.prank(friend);
-        vm.expectRevert(DolaFraxPyUSDEscrow.OnlyBeneficiary.selector);
+        vm.expectRevert(LPCurveYearnV2Escrow.OnlyBeneficiary.selector);
         escrow.disallowClaimOnBehalf(friend);
     }
 }

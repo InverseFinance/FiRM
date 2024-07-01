@@ -2,7 +2,8 @@
 pragma solidity ^0.8.13;
 
 import "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
-import {YearnVaultV2Helper, IYearnVaultV2} from "src/util/YearnVaultV2Helper.sol";
+import {IYearnVaultV2} from "src/interfaces/IYearnVaultV2.sol";
+import {YearnVaultV2Helper} from "src/util/YearnVaultV2Helper.sol";
 import {IRewardPool} from "src/interfaces/IRewardPool.sol";
 import {IConvexBooster} from "src/interfaces/IConvexBooster.sol";
 import {IVirtualBalanceRewardPool} from "src/interfaces/IVirtualBalanceRewardPool.sol";
@@ -12,7 +13,7 @@ interface IStakingWrapper {
     function token() external returns (address);
 }
 
-contract DolaFraxPyUSDEscrow {
+contract LPCurveYearnV2Escrow {
     using SafeERC20 for IERC20;
 
     error AlreadyInitialized();
@@ -20,19 +21,13 @@ contract DolaFraxPyUSDEscrow {
     error OnlyBeneficiary();
     error OnlyBeneficiaryOrAllowlist();
 
-    uint256 public constant pid = 317;
+    uint256 public immutable pid;
 
-    IRewardPool public constant rewardPool =
-        IRewardPool(0xE8cBdBFD4A1D776AB1146B63ABD1718b2F92a823);
-    IConvexBooster public constant booster =
-        IConvexBooster(0xF403C135812408BFbE8713b5A23a04b3D48AAE31);
-    // Created while testing, not existing on mainnet yet
-    IYearnVaultV2 public constant yearn =
-        IYearnVaultV2(0x5b737CC835c29c493845353e0399B408Fbd7105D);
-    IERC20 public constant cvx =
-        IERC20(0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B);
-    IERC20 public constant crv =
-        IERC20(0xD533a949740bb3306d119CC777fa900bA034cd52);
+    IRewardPool public immutable rewardPool;
+    IConvexBooster public immutable booster;
+    IYearnVaultV2 public immutable yearn;
+    IERC20 public immutable cvx;
+    IERC20 public immutable crv;
 
     address public market;
     IERC20 public token;
@@ -53,6 +48,22 @@ contract DolaFraxPyUSDEscrow {
     }
 
     event AllowClaim(address indexed allowedAddress, bool allowed);
+
+    constructor(
+        address _rewardPool,
+        address _booster,
+        address _yearn,
+        address _cvx,
+        address _crv,
+        uint256 _pid
+    ) {
+        rewardPool = IRewardPool(_rewardPool);
+        booster = IConvexBooster(_booster);
+        yearn = IYearnVaultV2(_yearn);
+        cvx = IERC20(_cvx);
+        crv = IERC20(_crv);
+        pid = _pid;
+    }
 
     /**
     @notice Initialize escrow with a token
@@ -78,31 +89,45 @@ contract DolaFraxPyUSDEscrow {
     function pay(address recipient, uint amount) public {
         if (msg.sender != market) revert OnlyMarket();
         uint256 tokenBal = token.balanceOf(address(this));
-        uint256 missingAmount = amount > tokenBal ? amount - tokenBal : 0;
-        // If there are enough tokens in the escrow, transfer the amount
+
         if (tokenBal >= amount) {
             token.safeTransfer(recipient, amount);
-        } else if (stakedBalance >= missingAmount) {
-            // If there are enough staked tokens in convex, withdraw the amount from convex
-            stakedBalance -= missingAmount;
-            rewardPool.withdrawAndUnwrap(missingAmount, false);
-            token.safeTransfer(recipient, amount);
-        } else if (
-            YearnVaultV2Helper.collateralToAsset(
+            return;
+        }
+
+        uint256 missingAmount = amount > tokenBal ? amount - tokenBal : 0;
+
+        if (stakedBalance > 0 && missingAmount > 0) {
+            uint withdrawAmount = stakedBalance > missingAmount
+                ? missingAmount
+                : stakedBalance;
+            stakedBalance -= withdrawAmount;
+            missingAmount -= withdrawAmount;
+            rewardPool.withdrawAndUnwrap(withdrawAmount, false);
+        }
+
+        uint yearnBal = yearn.balanceOf(address(this));
+        if (yearnBal > 0 && missingAmount > 0) {
+            uint256 maxWithdraw = YearnVaultV2Helper.collateralToAsset(
                 yearn,
-                yearn.balanceOf(address(this))
-            ) >= missingAmount
-        ) {
-            // If there are enough tokens in Yearn, withdraw the amount from Yearn
-            uint256 withdrawAmount = YearnVaultV2Helper.assetToCollateral(
+                yearnBal
+            );
+            uint256 withdrawAmount = maxWithdraw > missingAmount
+                ? missingAmount
+                : maxWithdraw;
+
+            uint256 collateralAmount = YearnVaultV2Helper.assetToCollateral(
                 yearn,
-                missingAmount
+                withdrawAmount
             );
             // Withdraw from Yearn
-            uint256 assetAmount = yearn.withdraw(withdrawAmount, address(this));
-            // Transfer the amount to the recipient
-            token.safeTransfer(recipient, assetAmount + tokenBal);
+            uint256 actualWithdrawAmount = yearn.withdraw(
+                collateralAmount,
+                address(this)
+            );
+            amount = actualWithdrawAmount + tokenBal;
         }
+        token.safeTransfer(recipient, amount);
     }
 
     /**
@@ -155,6 +180,7 @@ contract DolaFraxPyUSDEscrow {
             } else {
                 rewardToken = virtualReward.rewardToken();
             }
+
             uint rewardBal = rewardToken.balanceOf(address(this));
             if (rewardBal > 0) {
                 //Use safe transfer in case bad reward token is added

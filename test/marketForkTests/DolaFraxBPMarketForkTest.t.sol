@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import {MarketBaseForkTest, IOracle, IDolaBorrowingRights, IERC20} from "./MarketBaseForkTest.sol";
 import {Market} from "src/Market.sol";
-import {DolaFraxBPEscrow} from "src/escrows/DolaFraxBPEscrow.sol";
+import {LPCurveYearnV2Escrow} from "src/escrows/LPCurveYearnV2Escrow.sol";
 import {CurveLPPessimisticFeed} from "src/feeds/CurveLPPessimisticFeed.sol";
 import {ChainlinkCurve2CoinsFeed} from "src/feeds/ChainlinkCurve2CoinsFeed.sol";
 import {ChainlinkCurveFeed} from "src/feeds/ChainlinkCurveFeed.sol";
@@ -11,9 +11,8 @@ import "src/feeds/ChainlinkBasePriceFeed.sol";
 import "src/feeds/CurveLPPessimisticFeed.sol";
 
 contract DolaFraxBPMarketForkTest is MarketBaseForkTest {
-    DolaFraxBPEscrow escrow;
+    LPCurveYearnV2Escrow escrow;
     CurveLPPessimisticFeed feedDolaBP;
-    //IERC20 dolaFraxBP = IERC20(0xE57180685E3348589E9521aa53Af0BCD497E884d);
 
     ChainlinkCurveFeed usdcFallback;
     ChainlinkCurve2CoinsFeed fraxFallback;
@@ -55,12 +54,28 @@ contract DolaFraxBPMarketForkTest is MarketBaseForkTest {
 
     uint256 public crvUSDHeartbeat = 24 hours;
 
+    // Escrow implementation
+    IERC20 cvx = IERC20(0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B);
+    IERC20 crv = IERC20(0xD533a949740bb3306d119CC777fa900bA034cd52);
+    address rewardPool = address(0x0404d05F3992347d2f0dC3a97bdd147D77C85c1c);
+    address booster = address(0xF403C135812408BFbE8713b5A23a04b3D48AAE31);
+    address public yearn = address(0xe5F625e8f4D2A038AE9583Da254945285E5a77a4);
+    LPCurveYearnV2Escrow userEscrow;
+    uint256 pid = 115;
+
     function setUp() public {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
         vm.createSelectFork(url, 20020781);
 
-        escrow = new DolaFraxBPEscrow();
+        escrow = new LPCurveYearnV2Escrow(
+            address(rewardPool),
+            address(booster),
+            address(yearn),
+            address(cvx),
+            address(crv),
+            pid
+        );
 
         feedDolaBP = _deployDolaFraxBPFeed();
 
@@ -79,6 +94,47 @@ contract DolaFraxBPMarketForkTest is MarketBaseForkTest {
         );
 
         _advancedInit(address(market), address(feedDolaBP), true);
+
+        userEscrow = LPCurveYearnV2Escrow(address(market.predictEscrow(user)));
+    }
+
+    function test_escrow_immutables() public {
+        testDeposit();
+        assertEq(
+            address(userEscrow.rewardPool()),
+            address(rewardPool),
+            "Reward pool not set"
+        );
+        assertEq(
+            address(userEscrow.booster()),
+            address(booster),
+            "Booster not set"
+        );
+        assertEq(address(userEscrow.yearn()), address(yearn), "Yearn not set");
+        assertEq(address(userEscrow.cvx()), address(cvx), "CVX not set");
+        assertEq(address(userEscrow.crv()), address(crv), "CRV not set");
+    }
+
+    function test_depositToConvex() public {
+        testDeposit();
+        userEscrow.depositToConvex();
+    }
+
+    function test_withdrawFromConvex() public {
+        testDeposit();
+        userEscrow.depositToConvex();
+        userEscrow.withdrawFromConvex();
+    }
+
+    function test_depositToYearn() public {
+        testDeposit();
+        userEscrow.depositToYearn();
+    }
+
+    function test_withdrawFromYearn() public {
+        testDeposit();
+        userEscrow.depositToYearn();
+        userEscrow.withdrawFromYearn();
     }
 
     function _deployDolaFraxBPFeed()

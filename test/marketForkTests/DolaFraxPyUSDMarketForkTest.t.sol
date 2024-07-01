@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import {MarketBaseForkTest, IOracle, IDolaBorrowingRights, IERC20} from "./MarketBaseForkTest.sol";
 import {Market} from "src/Market.sol";
-import {DolaFraxPyUSDEscrow} from "src/escrows/DolaFraxPyUSDEscrow.sol";
+import {LPCurveYearnV2Escrow} from "src/escrows/LPCurveYearnV2Escrow.sol";
 import {CurveLPPessimisticFeed} from "src/feeds/CurveLPPessimisticFeed.sol";
 import {ChainlinkCurve2CoinsFeed} from "src/feeds/ChainlinkCurve2CoinsFeed.sol";
 import {ChainlinkCurveFeed} from "src/feeds/ChainlinkCurveFeed.sol";
@@ -26,7 +26,7 @@ interface IYearnVaultFactory {
 }
 
 contract DolaFraxPyUSDMarketForkTest is MarketBaseForkTest {
-    DolaFraxPyUSDEscrow escrow;
+    LPCurveYearnV2Escrow escrow;
     CurveLPPessimisticFeed feedDolaFraxPyUSD;
 
     ChainlinkBasePriceFeed mainFraxFeed;
@@ -72,6 +72,17 @@ contract DolaFraxPyUSDMarketForkTest is MarketBaseForkTest {
         IYearnVaultFactory(0x21b1FC8A52f179757bf555346130bF27c0C2A17A);
     IYearnVaultV2 public yearn;
 
+    uint256 public constant pid = 317;
+
+    address public rewardPool =
+        address(0xE8cBdBFD4A1D776AB1146B63ABD1718b2F92a823);
+    address public booster =
+        address(0xF403C135812408BFbE8713b5A23a04b3D48AAE31);
+    IERC20 public cvx = IERC20(0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B);
+    IERC20 public crv = IERC20(0xD533a949740bb3306d119CC777fa900bA034cd52);
+
+    LPCurveYearnV2Escrow userEscrow;
+
     function setUp() public {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
@@ -82,7 +93,14 @@ contract DolaFraxPyUSDMarketForkTest is MarketBaseForkTest {
         );
         yearn = IYearnVaultV2(yearnVault);
 
-        escrow = new DolaFraxPyUSDEscrow();
+        escrow = new LPCurveYearnV2Escrow(
+            rewardPool,
+            booster,
+            address(yearn),
+            address(cvx),
+            address(crv),
+            pid
+        );
 
         feedDolaFraxPyUSD = _deployDolaFraxPyUSDFeed();
 
@@ -101,6 +119,41 @@ contract DolaFraxPyUSDMarketForkTest is MarketBaseForkTest {
         );
 
         _advancedInit(address(market), address(feedDolaFraxPyUSD), true);
+
+        userEscrow = LPCurveYearnV2Escrow(address(market.predictEscrow(user)));
+    }
+
+    function test_escrow_immutables() public {
+        testDeposit();
+        assertEq(
+            address(userEscrow.rewardPool()),
+            address(rewardPool),
+            "Reward pool not set"
+        );
+        assertEq(
+            address(userEscrow.booster()),
+            address(booster),
+            "Booster not set"
+        );
+        assertEq(address(userEscrow.yearn()), address(yearn), "Yearn not set");
+        assertEq(address(userEscrow.cvx()), address(cvx), "CVX not set");
+        assertEq(address(userEscrow.crv()), address(crv), "CRV not set");
+    }
+
+    function test_depositToConvex() public {
+        testDeposit();
+        userEscrow.depositToConvex();
+    }
+
+    function test_withdrawFromConvex() public {
+        testDeposit();
+        userEscrow.depositToConvex();
+        userEscrow.withdrawFromConvex();
+    }
+
+    function test_depositToYearn() public {
+        testDeposit();
+        userEscrow.depositToYearn();
     }
 
     function _deployDolaFraxPyUSDFeed()
