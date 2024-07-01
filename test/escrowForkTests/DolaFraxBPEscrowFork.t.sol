@@ -500,7 +500,9 @@ contract DolaFraxBPEscrowForkTest is Test {
         uint256 withdrawAmount = amount + lpFromDonation;
         escrow.pay(beneficiary, withdrawAmount);
 
-        assertApproxEqAbs(escrow.balance(), balanceBefore - withdrawAmount, 1);
+        assertEq(escrow.balance(), balanceBefore - withdrawAmount);
+
+        assertEq(yearn.balanceOf(address(escrow)), 0);
     }
 
     function test_Pay_fail_with_OnlyMarket_when_called_by_non_market() public {

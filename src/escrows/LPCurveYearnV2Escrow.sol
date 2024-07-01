@@ -116,10 +116,13 @@ contract LPCurveYearnV2Escrow {
                 ? missingAmount
                 : maxWithdraw;
 
-            uint256 collateralAmount = YearnVaultV2Helper.assetToCollateral(
-                yearn,
-                withdrawAmount
-            );
+            uint256 collateralAmount;
+            if (withdrawAmount == maxWithdraw) collateralAmount = yearnBal;
+            else
+                collateralAmount = YearnVaultV2Helper.assetToCollateral(
+                    yearn,
+                    withdrawAmount
+                );
             // Withdraw from Yearn
             yearn.withdraw(collateralAmount, address(this));
             amount = token.balanceOf(address(this));
