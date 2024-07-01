@@ -475,6 +475,34 @@ contract DolaFraxBPEscrowForkTest is Test {
         );
     }
 
+    function test_Pay_ALL_when_donation_of_Yearn_when_staked_into_Convex()
+        public
+    {
+        uint256 amount = 1 ether;
+        vm.prank(holder, holder);
+        dolaFraxBP.transfer(address(escrow), amount);
+
+        vm.prank(beneficiary, beneficiary);
+        escrow.depositToConvex();
+
+        // Donate yearn to escrow
+        vm.prank(yearnHolder, yearnHolder);
+        IERC20(address(yearn)).transfer(address(escrow), amount);
+
+        uint256 lpFromDonation = YearnVaultV2Helper.collateralToAsset(
+            yearn,
+            yearn.balanceOf(address(escrow))
+        );
+
+        uint balanceBefore = escrow.balance();
+
+        vm.prank(market, market);
+        uint256 withdrawAmount = amount + lpFromDonation;
+        escrow.pay(beneficiary, withdrawAmount);
+
+        assertApproxEqAbs(escrow.balance(), balanceBefore - withdrawAmount, 1);
+    }
+
     function test_Pay_fail_with_OnlyMarket_when_called_by_non_market() public {
         vm.prank(holder, holder);
         dolaFraxBP.transfer(address(escrow), 1 ether);

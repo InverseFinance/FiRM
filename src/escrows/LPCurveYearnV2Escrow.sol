@@ -98,7 +98,7 @@ contract LPCurveYearnV2Escrow {
         uint256 missingAmount = amount > tokenBal ? amount - tokenBal : 0;
 
         if (stakedBalance > 0 && missingAmount > 0) {
-            uint withdrawAmount = stakedBalance > missingAmount
+            uint256 withdrawAmount = stakedBalance > missingAmount
                 ? missingAmount
                 : stakedBalance;
             stakedBalance -= withdrawAmount;
@@ -121,11 +121,8 @@ contract LPCurveYearnV2Escrow {
                 withdrawAmount
             );
             // Withdraw from Yearn
-            uint256 actualWithdrawAmount = yearn.withdraw(
-                collateralAmount,
-                address(this)
-            );
-            amount = actualWithdrawAmount + tokenBal;
+            yearn.withdraw(collateralAmount, address(this));
+            amount = token.balanceOf(address(this));
         }
         token.safeTransfer(recipient, amount);
     }
