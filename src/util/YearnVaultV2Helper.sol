@@ -28,7 +28,10 @@ library YearnVaultV2Helper {
         IYearnVaultV2 vault,
         uint collateralAmount
     ) public view returns (uint assetAmount) {
-        return (collateralAmount * vault.pricePerShare()) / scale;
+        uint totalSupply = vault.totalSupply();
+        if (totalSupply > 0)
+            return (collateralAmount * getFreeFunds(vault)) / totalSupply;
+        return collateralAmount;
     }
 
     /// @notice View function for the exchange rate between asset and collateral
