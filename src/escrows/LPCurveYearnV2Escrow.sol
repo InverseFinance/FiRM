@@ -20,6 +20,8 @@ contract LPCurveYearnV2Escrow {
     error OnlyMarket();
     error OnlyBeneficiary();
     error OnlyBeneficiaryOrAllowlist();
+    error LpToPayDeltaExceed();
+    error TooHigh();
 
     uint256 public immutable pid;
 
@@ -28,6 +30,8 @@ contract LPCurveYearnV2Escrow {
     IYearnVaultV2 public immutable yearn;
     IERC20 public immutable cvx;
     IERC20 public immutable crv;
+    /// @dev Wei delta for Yearn Vault V2 withdrawals
+    uint256 public constant weiDelta = 2;
 
     address public market;
     IERC20 public token;
@@ -125,7 +129,12 @@ contract LPCurveYearnV2Escrow {
                 );
             // Withdraw from Yearn
             yearn.withdraw(collateralAmount, address(this));
-            amount = token.balanceOf(address(this));
+
+            uint256 lpToPay = token.balanceOf(address(this));
+            if (lpToPay != amount) {
+                _ensureLimitsOrRevert(lpToPay, amount);
+                amount = lpToPay;
+            }
         }
         token.safeTransfer(recipient, amount);
     }
@@ -261,5 +270,20 @@ contract LPCurveYearnV2Escrow {
         stakedBalance = 0;
         rewardPool.withdrawAndUnwrap(lpAmount, false);
         return lpAmount;
+    }
+
+    /**
+     * @notice Ensure the limits are not exceeded, cannot be higher than the amount or lower than the amount - weiDelta
+     * @param lpToPay The LP tokens available to pay
+     * @param amount The amount asked to be paid
+     */
+    function _ensureLimitsOrRevert(
+        uint256 lpToPay,
+        uint256 amount
+    ) internal pure {
+        // If the lp amount to pay is higher than the amount, revert
+        if (lpToPay > amount) revert TooHigh();
+        // If the lp amount to pay + Delta is lower than the amount, revert
+        if (lpToPay + weiDelta < amount) revert LpToPayDeltaExceed();
     }
 }
