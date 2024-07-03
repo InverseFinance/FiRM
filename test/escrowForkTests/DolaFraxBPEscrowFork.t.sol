@@ -8,6 +8,13 @@ import {YearnVaultV2Helper} from "src/util/YearnVaultV2Helper.sol";
 import {console} from "forge-std/console.sol";
 import {RewardHook} from "test/mocks/RewardHook.sol";
 
+interface DeployedHelper {
+    function sharesToAmount(
+        address vault,
+        uint256 shares
+    ) external view returns (uint256);
+}
+
 interface IExtraRewardStashV3 {
     function setExtraReward(address _token) external;
 
@@ -48,6 +55,8 @@ contract DolaFraxBPEscrowForkTest is Test {
     address gauge = 0xBE266d68Ce3dDFAb366Bb866F4353B6FC42BA43c;
     uint256 pid = 115;
     LPCurveYearnV2Escrow escrow;
+    DeployedHelper deployedHelper =
+        DeployedHelper(0x444443bae5bB8640677A8cdF94CB8879Fec948Ec);
 
     function setUp() public {
         //This will fail if there's no mainnet variable in foundry.toml
@@ -106,10 +115,12 @@ contract DolaFraxBPEscrowForkTest is Test {
         );
     }
 
-    function test_depositToConvex_successful_when_contract_holds_DolaFraxBP()
-        public
-    {
-        uint256 amount = 1 ether;
+    function test_depositToConvex_successful_when_contract_holds_DolaFraxBP(
+        uint256 amount
+    ) public {
+        vm.assume(amount > 1);
+        vm.assume(amount < dolaFraxBP.balanceOf(holder));
+
         uint256 balanceBefore = escrow.balance();
         uint256 stakedBalanceBefore = rewardPool.balanceOf(address(escrow));
 
@@ -135,10 +146,11 @@ contract DolaFraxBPEscrowForkTest is Test {
         );
     }
 
-    function test_depositToYearn_successful_when_contract_holds_DolaFraxBP()
-        public
-    {
-        uint256 amount = 1 ether;
+    function test_depositToYearn_successful_when_contract_holds_DolaFraxBP(
+        uint256 amount
+    ) public {
+        vm.assume(amount > 1);
+        vm.assume(amount < dolaFraxBP.balanceOf(holder));
 
         vm.prank(holder, holder);
         dolaFraxBP.transfer(address(escrow), amount);
@@ -159,8 +171,12 @@ contract DolaFraxBPEscrowForkTest is Test {
         );
     }
 
-    function test_withdrawFromConvex_successful_if_deposited() public {
-        uint256 amount = 1 ether;
+    function test_withdrawFromConvex_successful_if_deposited(
+        uint amount
+    ) public {
+        vm.assume(amount > 1);
+        vm.assume(amount < dolaFraxBP.balanceOf(holder));
+
         vm.prank(holder, holder);
         dolaFraxBP.transfer(address(escrow), amount);
 
@@ -214,21 +230,44 @@ contract DolaFraxBPEscrowForkTest is Test {
         );
     }
 
-    function test_withdrawFromYearn_successful_if_deposited() public {
-        uint256 amount = 1 ether;
+    function test_withdrawFromYearn_successful_if_deposited(
+        uint amount
+    ) public {
+        vm.assume(amount > 1);
+        vm.assume(amount < dolaFraxBP.balanceOf(holder));
+        uint256 maxDelta = 2;
 
         vm.prank(holder, holder);
         dolaFraxBP.transfer(address(escrow), amount);
+
         vm.startPrank(beneficiary, beneficiary);
         escrow.depositToYearn();
-
+        assertApproxEqAbs(
+            deployedHelper.sharesToAmount(
+                address(yearn),
+                yearn.balanceOf(address(escrow))
+            ),
+            amount,
+            maxDelta,
+            "Helper from Wavey Balance is not correct"
+        );
+        assertApproxEqAbs(
+            YearnVaultV2Helper.collateralToAsset(
+                yearn,
+                yearn.balanceOf(address(escrow))
+            ),
+            amount,
+            maxDelta,
+            "Helper Math is not correct"
+        );
         escrow.withdrawFromYearn();
         assertApproxEqAbs(
             escrow.balance(),
             amount,
-            1,
+            maxDelta,
             "Escrow Balance is not correct"
         );
+
         assertEq(
             yearn.balanceOf(address(escrow)),
             0,
@@ -236,10 +275,12 @@ contract DolaFraxBPEscrowForkTest is Test {
         );
     }
 
-    function test_depositToConvex_all_even_if_already_deposit_to_Yearn()
-        public
-    {
-        uint256 amount = 1 ether;
+    function test_depositToYearn_all_even_if_already_deposit_to_Convex(
+        uint256 amount
+    ) public {
+        uint256 extraDolaFraxBP = 1 ether;
+        vm.assume(amount > 1);
+        vm.assume(amount < dolaFraxBP.balanceOf(holder) - extraDolaFraxBP);
 
         vm.prank(holder, holder);
         dolaFraxBP.transfer(address(escrow), amount);
@@ -247,7 +288,7 @@ contract DolaFraxBPEscrowForkTest is Test {
         escrow.depositToConvex();
 
         vm.prank(holder, holder);
-        dolaFraxBP.transfer(address(escrow), amount);
+        dolaFraxBP.transfer(address(escrow), extraDolaFraxBP);
 
         assertEq(
             escrow.stakedBalance(),
@@ -275,16 +316,21 @@ contract DolaFraxBPEscrowForkTest is Test {
         );
         assertApproxEqAbs(
             yearn.balanceOf(address(escrow)),
-            YearnVaultV2Helper.assetToCollateral(yearn, amount * 2),
+            YearnVaultV2Helper.assetToCollateral(
+                yearn,
+                amount + extraDolaFraxBP
+            ),
             1,
             "Yearn Balance is 0"
         );
     }
 
-    function test_depositToYearn_all_even_if_already_deposit_to_Convex()
-        public
-    {
-        uint256 amount = 1 ether;
+    function test_depositToConvex_all_even_if_already_deposit_to_Yearn(
+        uint amount
+    ) public {
+        uint256 extraDolaFraxBP = 1 ether;
+        vm.assume(amount > 1);
+        vm.assume(amount < dolaFraxBP.balanceOf(holder) - extraDolaFraxBP);
 
         vm.prank(holder, holder);
         dolaFraxBP.transfer(address(escrow), amount);
@@ -292,7 +338,7 @@ contract DolaFraxBPEscrowForkTest is Test {
         escrow.depositToYearn();
 
         vm.prank(holder, holder);
-        dolaFraxBP.transfer(address(escrow), amount);
+        dolaFraxBP.transfer(address(escrow), extraDolaFraxBP);
 
         assertApproxEqAbs(
             yearn.balanceOf(address(escrow)),
@@ -316,13 +362,13 @@ contract DolaFraxBPEscrowForkTest is Test {
 
         assertApproxEqAbs(
             escrow.stakedBalance(),
-            lpBalBeforeInYearn + amount,
+            lpBalBeforeInYearn + extraDolaFraxBP,
             1,
             "Staked balance is not correct"
         );
         assertApproxEqAbs(
             rewardPool.balanceOf(address(escrow)),
-            lpBalBeforeInYearn + amount,
+            lpBalBeforeInYearn + extraDolaFraxBP,
             1,
             "Reward Pool balance is not correct"
         );
@@ -338,8 +384,10 @@ contract DolaFraxBPEscrowForkTest is Test {
         );
     }
 
-    function test_Pay_when_escrow_has_DolaFraxBP_in_Convex() public {
-        uint256 amount = 1 ether;
+    function test_Pay_when_escrow_has_DolaFraxBP_in_Convex(uint amount) public {
+        vm.assume(amount > 1);
+        vm.assume(amount < dolaFraxBP.balanceOf(holder));
+
         vm.prank(holder, holder);
         dolaFraxBP.transfer(address(escrow), amount);
 
@@ -351,7 +399,7 @@ contract DolaFraxBPEscrowForkTest is Test {
         uint beneficiaryBalanceBefore = dolaFraxBP.balanceOf(beneficiary);
 
         vm.prank(market, market);
-        uint256 withdrawAmount = 0.5 ether;
+        uint256 withdrawAmount = amount / 2;
         escrow.pay(beneficiary, withdrawAmount);
 
         assertEq(escrow.balance(), balanceBefore - withdrawAmount);
@@ -365,10 +413,13 @@ contract DolaFraxBPEscrowForkTest is Test {
         );
     }
 
-    function test_Pay_partially_with_escrow_balance_when_escrow_has_DolaFraxBP_in_Convex()
-        public
-    {
-        uint256 amount = 1 ether;
+    function test_Pay_partially_with_escrow_balance_when_escrow_has_DolaFraxBP_in_Convex(
+        uint amount
+    ) public {
+        uint256 extraDolaFraxBP = 1 ether;
+        vm.assume(amount > 1);
+        vm.assume(amount < dolaFraxBP.balanceOf(holder) - extraDolaFraxBP);
+
         vm.prank(holder, holder);
         dolaFraxBP.transfer(address(escrow), amount);
 
@@ -377,21 +428,21 @@ contract DolaFraxBPEscrowForkTest is Test {
 
         // Send extra DolaFraxBP to the escrow
         vm.prank(holder, holder);
-        dolaFraxBP.transfer(address(escrow), amount);
+        dolaFraxBP.transfer(address(escrow), extraDolaFraxBP);
 
         uint balanceBefore = escrow.balance();
         uint rewardPoolBalBefore = rewardPool.balanceOf(address(escrow));
         uint beneficiaryBalanceBefore = dolaFraxBP.balanceOf(beneficiary);
 
         vm.prank(market, market);
-        uint256 withdrawAmount = 1.5 ether;
+        uint256 withdrawAmount = amount / 2 + extraDolaFraxBP;
         escrow.pay(beneficiary, withdrawAmount);
 
         assertEq(escrow.balance(), balanceBefore - withdrawAmount);
         // Should withdraw first from the escrow and then partially from the reward pool
         assertEq(
             rewardPool.balanceOf(address(escrow)),
-            rewardPoolBalBefore - 0.5 ether
+            rewardPoolBalBefore - amount / 2
         );
         assertEq(
             dolaFraxBP.balanceOf(beneficiary),
@@ -399,14 +450,24 @@ contract DolaFraxBPEscrowForkTest is Test {
         );
     }
 
-    function test_Pay_when_escrow_has_DolaFraxBP_in_Yearn() public {
-        uint256 amount = 1 ether;
+    function test_Pay_when_escrow_has_DolaFraxBP_in_Yearn(
+        uint256 amount
+    ) public {
+        vm.assume(amount > 1);
+        vm.assume(amount < dolaFraxBP.balanceOf(holder));
+
         vm.prank(holder, holder);
         dolaFraxBP.transfer(address(escrow), amount);
 
         vm.prank(beneficiary, beneficiary);
         escrow.depositToYearn();
 
+        assertApproxEqAbs(
+            escrow.balance(),
+            amount,
+            2,
+            "Escrow Balance is not correct"
+        );
         uint balanceBefore = escrow.balance();
         uint yearnBalBefore = YearnVaultV2Helper.collateralToAsset(
             yearn,
@@ -415,10 +476,15 @@ contract DolaFraxBPEscrowForkTest is Test {
         uint beneficiaryBalanceBefore = dolaFraxBP.balanceOf(beneficiary);
 
         vm.prank(market, market);
-        uint256 withdrawAmount = 0.5 ether;
+        uint256 withdrawAmount = amount / 2;
         escrow.pay(beneficiary, withdrawAmount);
 
-        assertApproxEqAbs(escrow.balance(), balanceBefore - withdrawAmount, 2);
+        assertApproxEqAbs(
+            escrow.balance(),
+            balanceBefore - withdrawAmount,
+            2,
+            "Escrow Balance after is not correct"
+        );
         assertApproxEqAbs(
             YearnVaultV2Helper.collateralToAsset(
                 yearn,
@@ -434,10 +500,13 @@ contract DolaFraxBPEscrowForkTest is Test {
         );
     }
 
-    function test_Pay_partially_with_escrow_balance_when_escrow_has_DolaFraxBP_in_Yearn()
-        public
-    {
-        uint256 amount = 1 ether;
+    function test_Pay_partially_with_escrow_balance_when_escrow_has_DolaFraxBP_in_Yearn(
+        uint256 amount
+    ) public {
+        uint256 extraDolaFraxBP = 1 ether;
+        vm.assume(amount > 1);
+        vm.assume(amount < dolaFraxBP.balanceOf(holder) - extraDolaFraxBP);
+
         vm.prank(holder, holder);
         dolaFraxBP.transfer(address(escrow), amount);
 
@@ -446,7 +515,7 @@ contract DolaFraxBPEscrowForkTest is Test {
 
         // Send extra DolaFraxBP to the escrow
         vm.prank(holder, holder);
-        dolaFraxBP.transfer(address(escrow), amount);
+        dolaFraxBP.transfer(address(escrow), extraDolaFraxBP);
 
         uint balanceBefore = escrow.balance();
         uint yearnBalBefore = YearnVaultV2Helper.collateralToAsset(
@@ -456,7 +525,7 @@ contract DolaFraxBPEscrowForkTest is Test {
         uint beneficiaryBalanceBefore = dolaFraxBP.balanceOf(beneficiary);
 
         vm.prank(market, market);
-        uint256 withdrawAmount = 1.5 ether;
+        uint256 withdrawAmount = amount / 2 + extraDolaFraxBP;
         escrow.pay(beneficiary, withdrawAmount);
 
         assertApproxEqAbs(escrow.balance(), balanceBefore - withdrawAmount, 2);
@@ -465,7 +534,7 @@ contract DolaFraxBPEscrowForkTest is Test {
                 yearn,
                 yearn.balanceOf(address(escrow))
             ),
-            yearnBalBefore - 0.5 ether,
+            yearnBalBefore - (amount / 2),
             2
         );
         assertApproxEqAbs(
@@ -475,10 +544,13 @@ contract DolaFraxBPEscrowForkTest is Test {
         );
     }
 
-    function test_Pay_ALL_when_donation_of_Yearn_when_staked_into_Convex()
-        public
-    {
-        uint256 amount = 1 ether;
+    function test_Pay_ALL_when_donation_of_Yearn_when_staked_into_Convex(
+        uint amount
+    ) public {
+        uint256 donationAmount = 1 ether;
+        vm.assume(amount > 1);
+        vm.assume(amount < dolaFraxBP.balanceOf(holder));
+
         vm.prank(holder, holder);
         dolaFraxBP.transfer(address(escrow), amount);
 
@@ -487,7 +559,7 @@ contract DolaFraxBPEscrowForkTest is Test {
 
         // Donate yearn to escrow
         vm.prank(yearnHolder, yearnHolder);
-        IERC20(address(yearn)).transfer(address(escrow), amount);
+        IERC20(address(yearn)).transfer(address(escrow), donationAmount);
 
         uint256 lpFromDonation = YearnVaultV2Helper.collateralToAsset(
             yearn,
@@ -505,6 +577,21 @@ contract DolaFraxBPEscrowForkTest is Test {
         assertEq(yearn.balanceOf(address(escrow)), 0);
     }
 
+    function test_Pay_limits_revert_LpToPayDeltaExceed(uint256 amount) public {
+        vm.assume(amount > 1);
+        vm.assume(amount < dolaFraxBP.balanceOf(holder));
+
+        vm.prank(holder, holder);
+        dolaFraxBP.transfer(address(escrow), amount);
+
+        vm.prank(beneficiary, beneficiary);
+        escrow.depositToYearn();
+
+        vm.prank(market, market);
+        vm.expectRevert(LPCurveYearnV2Escrow.LpToPayDeltaExceed.selector);
+        escrow.pay(beneficiary, amount + 2);
+    }
+
     function test_Pay_fail_with_OnlyMarket_when_called_by_non_market() public {
         vm.prank(holder, holder);
         dolaFraxBP.transfer(address(escrow), 1 ether);
@@ -516,12 +603,16 @@ contract DolaFraxBPEscrowForkTest is Test {
         escrow.pay(beneficiary, 1 ether);
     }
 
-    function test_Claim_successful_when_called_by_beneficiary() public {
+    function test_Claim_successful_when_called_by_beneficiary(
+        uint amount
+    ) public {
+        vm.assume(amount > 1000000);
+        vm.assume(amount < dolaFraxBP.balanceOf(holder));
         uint crvBalanceBefore = crv.balanceOf(beneficiary);
         uint cvxBalanceBefore = cvx.balanceOf(beneficiary);
 
         vm.prank(holder, holder);
-        dolaFraxBP.transfer(address(escrow), 1 ether);
+        dolaFraxBP.transfer(address(escrow), amount);
 
         vm.prank(beneficiary, beneficiary);
         escrow.depositToConvex();
@@ -548,12 +639,15 @@ contract DolaFraxBPEscrowForkTest is Test {
         );
     }
 
-    function test_Claim_successful_whenForcedToClaim() public {
+    function test_Claim_successful_whenForcedToClaim(uint amount) public {
+        vm.assume(amount > 1000000);
+        vm.assume(amount < dolaFraxBP.balanceOf(holder));
+
         uint crvBalanceBefore = crv.balanceOf(beneficiary);
         uint cvxBalanceBefore = cvx.balanceOf(beneficiary);
 
         vm.prank(holder, holder);
-        dolaFraxBP.transfer(address(escrow), 1 ether);
+        dolaFraxBP.transfer(address(escrow), amount);
 
         vm.prank(beneficiary, beneficiary);
         escrow.depositToConvex();
@@ -580,12 +674,17 @@ contract DolaFraxBPEscrowForkTest is Test {
         );
     }
 
-    function test_ClaimTo_successful_whenCalledByBeneficiary() public {
+    function test_ClaimTo_successful_whenCalledByBeneficiary(
+        uint amount
+    ) public {
+        vm.assume(amount > 1000000);
+        vm.assume(amount < dolaFraxBP.balanceOf(holder));
+
         uint crvBalanceBefore = crv.balanceOf(beneficiary);
         uint cvxBalanceBefore = cvx.balanceOf(beneficiary);
 
         vm.prank(holder, holder);
-        dolaFraxBP.transfer(address(escrow), 1 ether);
+        dolaFraxBP.transfer(address(escrow), amount);
 
         vm.prank(beneficiary, beneficiary);
         escrow.depositToConvex();
@@ -617,12 +716,17 @@ contract DolaFraxBPEscrowForkTest is Test {
         );
     }
 
-    function testClaimTo_successful_whenCalledByAllowlistedAddress() public {
+    function testClaimTo_successful_whenCalledByAllowlistedAddress(
+        uint amount
+    ) public {
+        vm.assume(amount > 1000000);
+        vm.assume(amount < dolaFraxBP.balanceOf(holder));
+
         uint crvBalanceBefore = crv.balanceOf(friend);
         uint cvxBalanceBefore = cvx.balanceOf(friend);
 
         vm.prank(holder, holder);
-        dolaFraxBP.transfer(address(escrow), 1 ether);
+        dolaFraxBP.transfer(address(escrow), amount);
 
         vm.prank(beneficiary, beneficiary);
         escrow.depositToConvex();
