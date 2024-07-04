@@ -9,6 +9,8 @@ import {ChainlinkCurve2CoinsFeed} from "src/feeds/ChainlinkCurve2CoinsFeed.sol";
 import {ChainlinkCurveFeed} from "src/feeds/ChainlinkCurveFeed.sol";
 import "src/feeds/ChainlinkBasePriceFeed.sol";
 import "src/feeds/CurveLPPessimisticFeed.sol";
+import "src/util/YearnVaultV2Helper.sol";
+import {console} from "forge-std/console.sol";
 
 contract DolaFraxBPMarketForkTest is MarketBaseForkTest {
     LPCurveYearnV2Escrow escrow;
@@ -60,6 +62,7 @@ contract DolaFraxBPMarketForkTest is MarketBaseForkTest {
     address rewardPool = address(0x0404d05F3992347d2f0dC3a97bdd147D77C85c1c);
     address booster = address(0xF403C135812408BFbE8713b5A23a04b3D48AAE31);
     address public yearn = address(0xe5F625e8f4D2A038AE9583Da254945285E5a77a4);
+    address yearnHolder = address(0x621BcFaA87bA0B7c57ca49e1BB1a8b917C34Ed2F);
     LPCurveYearnV2Escrow userEscrow;
     uint256 pid = 115;
 
@@ -135,6 +138,140 @@ contract DolaFraxBPMarketForkTest is MarketBaseForkTest {
         testDeposit();
         userEscrow.depositToYearn();
         userEscrow.withdrawFromYearn();
+    }
+
+    function test_withdrawMax(uint256 amount) public {
+        // Test fuzz amount for yearn deposit while also having LP deposited and then max withdraw
+        vm.assume(amount > 0);
+        vm.assume(amount <= IERC20(yearn).balanceOf(address(yearnHolder)));
+        testDeposit();
+
+        vm.stopPrank();
+        // Transfer yearn to userEscrow while been deposited into convex
+        vm.prank(yearnHolder);
+        IERC20(yearn).transfer(address(userEscrow), amount);
+
+        assertGt(IERC20(yearn).balanceOf(address(userEscrow)), 0);
+
+        vm.prank(user);
+        market.withdrawMax();
+        assertEq(
+            IERC20(yearn).balanceOf(address(userEscrow)),
+            0,
+            "Yearn balance not 0"
+        );
+        assertEq(userEscrow.balance(), 0, "Escrow balance not 0");
+        assertEq(
+            IERC20(address(dolaFraxBP)).balanceOf(address(userEscrow)),
+            0,
+            "DolaFraxBP balance not 0"
+        );
+        assertEq(IERC20(yearn).balanceOf(address(userEscrow)), 0);
+    }
+
+    function test_withdraw_amount_fuzz(uint256 amount) public {
+        // Test fuzz withdraw amount up to user balance with deposited LP + yearn balance
+        uint256 yearnAmount = YearnVaultV2Helper.collateralToAsset(
+            IYearnVaultV2(yearn),
+            IERC20(yearn).balanceOf(address(yearnHolder))
+        );
+        uint minAssetAmount = 1; // cannot withdraw only 1 wei from yearn
+        assertEq(
+            0,
+            YearnVaultV2Helper.assetToCollateral(
+                IYearnVaultV2(yearn),
+                minAssetAmount
+            )
+        );
+        uint256 minWithdraw = testAmount + minAssetAmount; // cannot withdraw only 1 wei from yearn
+        vm.assume(amount > minWithdraw);
+        uint maxWithdraw = 85161774949860625361; // testAmount + yearnAmount;
+        vm.assume(amount <= maxWithdraw);
+        testDeposit();
+
+        vm.stopPrank();
+        // Transfer yearn to userEscrow while having LP already deposited
+        uint256 yearnBalance = IERC20(yearn).balanceOf(address(yearnHolder));
+        vm.prank(yearnHolder);
+        IERC20(yearn).transfer(address(userEscrow), yearnBalance);
+
+        assertEq(
+            userEscrow.balance(),
+            testAmount +
+                YearnVaultV2Helper.collateralToAsset(
+                    IYearnVaultV2(yearn),
+                    yearnBalance
+                )
+        );
+
+        uint escrowBalBefore = userEscrow.balance();
+
+        vm.startPrank(user);
+        market.withdraw(amount);
+        assertApproxEqAbs(
+            IERC20(address(dolaFraxBP)).balanceOf(address(user)),
+            amount,
+            2,
+            "DolaFraxBP balance not correct"
+        );
+        assertApproxEqAbs(
+            userEscrow.balance(),
+            escrowBalBefore - amount,
+            2,
+            "Escrow Balance not correct"
+        );
+    }
+
+    function test_withdraw_amount_expected_from_yearn(uint random) public {
+        // Test fuzz withdraw amount expected from yearn
+        vm.assume(random > 1);
+        vm.assume(random < 100000);
+        // Test withdraw amount if it's estimated from yearn
+        uint256 yearnAmount = YearnVaultV2Helper.collateralToAsset(
+            IYearnVaultV2(yearn),
+            IERC20(yearn).balanceOf(address(yearnHolder))
+        );
+
+        testDeposit();
+        vm.stopPrank();
+
+        // Transfer yearn to userEscrow while having LP already deposited
+        uint256 yearnBalance = IERC20(yearn).balanceOf(address(yearnHolder));
+        vm.prank(yearnHolder);
+        IERC20(yearn).transfer(address(userEscrow), yearnBalance);
+
+        assertEq(
+            userEscrow.balance(),
+            testAmount +
+                YearnVaultV2Helper.collateralToAsset(
+                    IYearnVaultV2(yearn),
+                    yearnBalance
+                )
+        );
+        // Estimate withdraw amount from yearn
+        uint withdrawYearnAmount = YearnVaultV2Helper.collateralToAsset(
+            IYearnVaultV2(yearn),
+            yearnAmount / random // random number
+        );
+
+        vm.startPrank(user);
+        market.withdraw(testAmount + withdrawYearnAmount);
+        // Withdraw exact amount expected from yearn
+        assertApproxEqAbs(
+            IERC20(address(dolaFraxBP)).balanceOf(address(user)),
+            testAmount + withdrawYearnAmount,
+            2,
+            "DolaFraxBP balance not correct"
+        );
+        assertApproxEqAbs(
+            userEscrow.balance(),
+            YearnVaultV2Helper.collateralToAsset(
+                IYearnVaultV2(yearn),
+                yearnBalance
+            ) - withdrawYearnAmount,
+            2,
+            "Escrow Balance not correct"
+        );
     }
 
     function _deployDolaFraxBPFeed()

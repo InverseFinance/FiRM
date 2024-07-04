@@ -275,6 +275,53 @@ contract DolaFraxBPEscrowForkTest is Test {
         );
     }
 
+    function test_withdrawFromYearn2_successful_if_deposited(
+        uint256 amount
+    ) public {
+        // Test fuzz deposit to yearn, withdraw exact amount if expected calculated expected amount from yearn based on shares
+        vm.assume(amount > 1);
+        vm.assume(amount < dolaFraxBP.balanceOf(holder));
+
+        vm.prank(holder, holder);
+        dolaFraxBP.transfer(address(escrow), amount);
+
+        vm.prank(beneficiary, beneficiary);
+        escrow.depositToYearn();
+        assertApproxEqAbs(
+            deployedHelper.sharesToAmount(
+                address(yearn),
+                yearn.balanceOf(address(escrow))
+            ),
+            amount,
+            2,
+            "Helper from Wavey Balance is not correct"
+        );
+        assertApproxEqAbs(
+            YearnVaultV2Helper.collateralToAsset(
+                yearn,
+                yearn.balanceOf(address(escrow))
+            ),
+            amount,
+            2,
+            "Helper Math is not correct"
+        );
+
+        vm.startPrank(address(market), address(market));
+        escrow.pay(
+            beneficiary,
+            YearnVaultV2Helper.collateralToAsset(
+                yearn,
+                yearn.balanceOf(address(escrow))
+            )
+        );
+
+        assertEq(
+            yearn.balanceOf(address(escrow)),
+            0,
+            "Yearn Balance is not correct"
+        );
+    }
+
     function test_depositToYearn_all_even_if_already_deposit_to_Convex(
         uint256 amount
     ) public {
