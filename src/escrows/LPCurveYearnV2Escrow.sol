@@ -21,7 +21,6 @@ contract LPCurveYearnV2Escrow {
     error OnlyBeneficiary();
     error OnlyBeneficiaryOrAllowlist();
     error LpToPayDeltaExceed();
-    error TooHigh();
 
     uint256 public immutable pid;
 
@@ -125,7 +124,7 @@ contract LPCurveYearnV2Escrow {
             else
                 collateralAmount = YearnVaultV2Helper.assetToCollateral(
                     yearn,
-                    withdrawAmount
+                    withdrawAmount + weiDelta
                 );
             // Withdraw from Yearn
             yearn.withdraw(collateralAmount, address(this));
@@ -273,7 +272,7 @@ contract LPCurveYearnV2Escrow {
     }
 
     /**
-     * @notice Ensure the limits are not exceeded, cannot be higher than the amount or lower than the amount - weiDelta
+     * @notice Ensure the limits are not exceeded, cannot be higher than the amount + weiDelta or lower than the amount
      * @param lpToPay The LP tokens available to pay
      * @param amount The amount asked to be paid
      */
@@ -281,9 +280,8 @@ contract LPCurveYearnV2Escrow {
         uint256 lpToPay,
         uint256 amount
     ) internal pure {
-        // If the lp amount to pay is higher than the amount, revert
-        if (lpToPay > amount) revert TooHigh();
-        // If the lp amount to pay + Delta is lower than the amount, revert
-        if (lpToPay + weiDelta < amount) revert LpToPayDeltaExceed();
+        // If the LP amount to pay is higher than the amount includind weiDelta or is lower tha amount, revert
+        if (lpToPay > amount + weiDelta || lpToPay < amount)
+            revert LpToPayDeltaExceed();
     }
 }
