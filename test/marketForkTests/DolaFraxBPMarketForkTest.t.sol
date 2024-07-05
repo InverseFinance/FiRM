@@ -169,6 +169,41 @@ contract DolaFraxBPMarketForkTest is MarketBaseForkTest {
         assertEq(IERC20(yearn).balanceOf(address(userEscrow)), 0);
     }
 
+    function test_edge_case_when_missingAmount_one_wei_lower_maxWithdraw(
+        uint256 amount
+    ) public {
+        vm.assume(amount > 1);
+        vm.assume(amount <= IERC20(yearn).balanceOf(address(yearnHolder)));
+
+        // Test edge case where amount is 1 wei lower than maxWithdraw from Yearn
+        testDeposit();
+        vm.stopPrank();
+        // Transfer yearn to userEscrow
+        vm.prank(yearnHolder);
+        IERC20(yearn).transfer(address(userEscrow), amount);
+        uint256 maxWithdraw = YearnVaultV2Helper.collateralToAsset(
+            IYearnVaultV2(yearn),
+            amount
+        );
+        assertEq(testAmount + maxWithdraw, userEscrow.balance());
+        assertGt(IERC20(yearn).balanceOf(address(userEscrow)), 0);
+
+        vm.prank(user);
+        market.withdraw(testAmount + maxWithdraw - 1);
+        assertEq(
+            IERC20(yearn).balanceOf(address(userEscrow)),
+            0,
+            "Yearn balance not 0"
+        );
+        assertEq(userEscrow.balance(), 0, "Escrow balance not 0");
+        assertEq(
+            IERC20(address(dolaFraxBP)).balanceOf(address(userEscrow)),
+            0,
+            "DolaFraxBP balance not 0"
+        );
+        assertEq(IERC20(yearn).balanceOf(address(userEscrow)), 0);
+    }
+
     function test_withdraw_amount_fuzz(uint256 amount) public {
         // Test fuzz withdraw amount up to user balance with deposited LP + yearn balance
         uint256 yearnAmount = YearnVaultV2Helper.collateralToAsset(
