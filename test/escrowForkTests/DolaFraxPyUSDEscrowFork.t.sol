@@ -146,7 +146,7 @@ contract DolaFraxPyUSDEscrowForkTest is Test {
             "Reward Pool Balance is not correct"
         );
         assertEq(
-            escrow.stakedBalance(),
+            IERC20(address(escrow.rewardPool())).balanceOf(address(escrow)),
             amount,
             "Staked balance accounting not correct"
         );
@@ -185,7 +185,11 @@ contract DolaFraxPyUSDEscrowForkTest is Test {
 
         escrow.depositToConvex();
 
-        assertGt(escrow.stakedBalance(), 0, "Staked balance is 0");
+        assertGt(
+            IERC20(address(escrow.rewardPool())).balanceOf(address(escrow)),
+            0,
+            "Staked balance is 0"
+        );
         assertGt(
             rewardPool.balanceOf(address(escrow)),
             0,
@@ -208,7 +212,11 @@ contract DolaFraxPyUSDEscrowForkTest is Test {
         );
         escrow.withdrawFromConvex();
 
-        assertEq(escrow.stakedBalance(), 0, "Staked balance is not correct");
+        assertEq(
+            IERC20(address(escrow.rewardPool())).balanceOf(address(escrow)),
+            0,
+            "Staked balance is not correct"
+        );
         assertEq(
             rewardPool.balanceOf(address(escrow)),
             0,
@@ -267,7 +275,7 @@ contract DolaFraxPyUSDEscrowForkTest is Test {
         dolaFraxBP.transfer(address(escrow), amount);
 
         assertEq(
-            escrow.stakedBalance(),
+            IERC20(address(escrow.rewardPool())).balanceOf(address(escrow)),
             amount,
             "Staked balance is not correct"
         );
@@ -279,7 +287,11 @@ contract DolaFraxPyUSDEscrowForkTest is Test {
         vm.prank(beneficiary, beneficiary);
         escrow.depositToYearn();
 
-        assertEq(escrow.stakedBalance(), 0, "Staked balance is not 0");
+        assertEq(
+            IERC20(address(escrow.rewardPool())).balanceOf(address(escrow)),
+            0,
+            "Staked balance is not 0"
+        );
         assertEq(
             rewardPool.balanceOf(address(escrow)),
             0,
@@ -317,7 +329,11 @@ contract DolaFraxPyUSDEscrowForkTest is Test {
             1,
             "Yearn Balance is not correct"
         );
-        assertEq(escrow.stakedBalance(), 0, "Staked balance is not 0");
+        assertEq(
+            IERC20(address(escrow.rewardPool())).balanceOf(address(escrow)),
+            0,
+            "Staked balance is not 0"
+        );
         assertEq(
             rewardPool.balanceOf(address(escrow)),
             0,
@@ -332,7 +348,7 @@ contract DolaFraxPyUSDEscrowForkTest is Test {
         escrow.depositToConvex();
 
         assertApproxEqAbs(
-            escrow.stakedBalance(),
+            IERC20(address(escrow.rewardPool())).balanceOf(address(escrow)),
             lpBalBeforeInYearn + amount,
             1,
             "Staked balance is not correct"

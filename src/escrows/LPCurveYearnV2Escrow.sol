@@ -34,7 +34,6 @@ contract LPCurveYearnV2Escrow {
 
     address public market;
     IERC20 public token;
-    uint256 public stakedBalance;
     address public beneficiary;
 
     mapping(address => bool) public allowlist;
@@ -99,12 +98,13 @@ contract LPCurveYearnV2Escrow {
         }
 
         uint256 missingAmount = amount > tokenBal ? amount - tokenBal : 0;
-
-        if (stakedBalance > 0 && missingAmount > 0) {
-            uint256 withdrawAmount = stakedBalance > missingAmount
+        uint256 convexBalance = IERC20(address(rewardPool)).balanceOf(
+            address(this)
+        );
+        if (convexBalance > 0 && missingAmount > 0) {
+            uint256 withdrawAmount = convexBalance > missingAmount
                 ? missingAmount
-                : stakedBalance;
-            stakedBalance -= withdrawAmount;
+                : convexBalance;
             missingAmount -= withdrawAmount;
             rewardPool.withdrawAndUnwrap(withdrawAmount, false);
         }
@@ -144,7 +144,7 @@ contract LPCurveYearnV2Escrow {
     */
     function balance() public view returns (uint) {
         return
-            stakedBalance +
+            IERC20(address(rewardPool)).balanceOf(address(this)) +
             YearnVaultV2Helper.collateralToAsset(
                 yearn,
                 yearn.balanceOf(address(this))
@@ -231,7 +231,6 @@ contract LPCurveYearnV2Escrow {
         if (yearn.balanceOf(address(this)) > 0) withdrawFromYearn();
 
         uint256 tokenBal = token.balanceOf(address(this));
-        stakedBalance += tokenBal;
         booster.deposit(pid, tokenBal, true);
     }
 
@@ -240,7 +239,10 @@ contract LPCurveYearnV2Escrow {
      * @dev Cannot deposit if there are Convex tokens in the escrow (only 1 strategy at a time)
      */
     function depositToYearn() external onlyBeneficiary {
-        if (stakedBalance > 0) withdrawFromConvex();
+        uint256 convexBalance = IERC20(address(rewardPool)).balanceOf(
+            address(this)
+        );
+        if (convexBalance > 0) withdrawFromConvex();
         yearn.deposit(token.balanceOf(address(this)), address(this));
     }
 
@@ -265,10 +267,8 @@ contract LPCurveYearnV2Escrow {
         onlyBeneficiary
         returns (uint256 lpAmount)
     {
-        lpAmount = stakedBalance;
-        stakedBalance = 0;
+        lpAmount = IERC20(address(rewardPool)).balanceOf(address(this));
         rewardPool.withdrawAndUnwrap(lpAmount, false);
-        return lpAmount;
     }
 
     /**
