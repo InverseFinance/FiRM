@@ -48,10 +48,7 @@ contract CurveLPPessimisticFeed {
         int256 minLpUsdPrice;
 
         // If coin1 price is lower than coin2 price, use coin1 price
-        if (
-            (usdPriceCoin1 < usdPriceCoin2 && updatedAt > 0) ||
-            usdPriceCoin2 == 0
-        ) {
+        if ((usdPriceCoin1 < usdPriceCoin2 && updatedAt > 0)) {
             minLpUsdPrice =
                 (usdPriceCoin1 * int(curvePool.get_virtual_price())) /
                 int(10 ** coin1Feed.decimals());
