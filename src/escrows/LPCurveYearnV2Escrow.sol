@@ -98,9 +98,7 @@ contract LPCurveYearnV2Escrow {
         }
 
         uint256 missingAmount = amount - tokenBal;
-        uint256 convexBalance = IERC20(address(rewardPool)).balanceOf(
-            address(this)
-        );
+        uint256 convexBalance = rewardPool.balanceOf(address(this));
         if (convexBalance > 0 && missingAmount > 0) {
             uint256 withdrawAmount = convexBalance > missingAmount
                 ? missingAmount
@@ -128,12 +126,6 @@ contract LPCurveYearnV2Escrow {
                 );
             // Withdraw from Yearn
             yearn.withdraw(collateralAmount, address(this));
-
-            uint256 lpToPay = token.balanceOf(address(this));
-            if (lpToPay != amount) {
-                _ensureLimitsOrRevert(lpToPay, amount);
-                amount = lpToPay;
-            }
         }
         token.safeTransfer(recipient, amount);
     }
@@ -239,9 +231,7 @@ contract LPCurveYearnV2Escrow {
      * @dev Cannot deposit if there are Convex tokens in the escrow (only 1 strategy at a time)
      */
     function depositToYearn() external onlyBeneficiary {
-        uint256 convexBalance = IERC20(address(rewardPool)).balanceOf(
-            address(this)
-        );
+        uint256 convexBalance = rewardPool.balanceOf(address(this));
         if (convexBalance > 0) withdrawFromConvex();
         yearn.deposit(token.balanceOf(address(this)), address(this));
     }
@@ -269,19 +259,5 @@ contract LPCurveYearnV2Escrow {
     {
         lpAmount = rewardPool.balanceOf(address(this));
         rewardPool.withdrawAndUnwrap(lpAmount, false);
-    }
-
-    /**
-     * @notice Ensure the limits are not exceeded, cannot be higher than the amount + weiDelta or lower than the amount
-     * @param lpToPay The LP tokens available to pay
-     * @param amount The amount asked to be paid
-     */
-    function _ensureLimitsOrRevert(
-        uint256 lpToPay,
-        uint256 amount
-    ) internal pure {
-        // If the LP amount to pay is higher than the amount includind weiDelta or is lower tha amount, revert
-        if (lpToPay > amount + weiDelta || lpToPay < amount)
-            revert LpToPayDeltaExceed();
     }
 }

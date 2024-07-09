@@ -166,7 +166,7 @@ contract DolaFraxBPEscrowForkTest is Test {
         assertApproxEqAbs(
             yearn.balanceOf(address(escrow)),
             YearnVaultV2Helper.assetToCollateral(yearn, amount),
-            2,
+            0,
             "Yearn Balance is not correct"
         );
     }
@@ -545,7 +545,7 @@ contract DolaFraxBPEscrowForkTest is Test {
         assertApproxEqAbs(
             escrow.balance(),
             balanceBefore - withdrawAmount,
-            2,
+            1,
             "Escrow Balance after is not correct"
         );
         assertApproxEqAbs(
@@ -556,10 +556,9 @@ contract DolaFraxBPEscrowForkTest is Test {
             yearnBalBefore - withdrawAmount,
             2
         );
-        assertApproxEqAbs(
+        assertEq(
             dolaFraxBP.balanceOf(beneficiary),
-            beneficiaryBalanceBefore + withdrawAmount,
-            2
+            beneficiaryBalanceBefore + withdrawAmount
         );
     }
 
@@ -600,10 +599,9 @@ contract DolaFraxBPEscrowForkTest is Test {
             yearnBalBefore - (amount / 2),
             2
         );
-        assertApproxEqAbs(
+        assertEq(
             dolaFraxBP.balanceOf(beneficiary),
-            beneficiaryBalanceBefore + withdrawAmount,
-            2
+            beneficiaryBalanceBefore + withdrawAmount
         );
     }
 
@@ -638,21 +636,6 @@ contract DolaFraxBPEscrowForkTest is Test {
         assertEq(escrow.balance(), balanceBefore - withdrawAmount);
 
         assertEq(yearn.balanceOf(address(escrow)), 0);
-    }
-
-    function test_Pay_limits_revert_LpToPayDeltaExceed(uint256 amount) public {
-        vm.assume(amount > 1);
-        vm.assume(amount < dolaFraxBP.balanceOf(holder));
-
-        vm.prank(holder, holder);
-        dolaFraxBP.transfer(address(escrow), amount);
-
-        vm.prank(beneficiary, beneficiary);
-        escrow.depositToYearn();
-
-        vm.prank(market, market);
-        vm.expectRevert(LPCurveYearnV2Escrow.LpToPayDeltaExceed.selector);
-        escrow.pay(beneficiary, amount + 2);
     }
 
     function test_Pay_fail_with_OnlyMarket_when_called_by_non_market() public {

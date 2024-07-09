@@ -169,6 +169,25 @@ contract DolaFraxBPMarketForkTest is MarketBaseForkTest {
         assertEq(IERC20(yearn).balanceOf(address(userEscrow)), 0);
     }
 
+    function test_fail_one_wei_yearn_deposit() public {
+        uint256 amount = 1;
+        testDeposit();
+
+        market.withdraw(testAmount - amount);
+
+        vm.expectRevert();
+        userEscrow.depositToYearn();
+    }
+
+    function test_succeed_two_wei_yearn_deposit() public {
+        uint256 amount = 2;
+        testDeposit();
+
+        market.withdraw(testAmount - amount);
+
+        userEscrow.depositToYearn();
+    }
+
     function test_edge_case_when_missingAmount_one_wei_lower_maxWithdraw(
         uint256 amount
     ) public {
@@ -195,11 +214,17 @@ contract DolaFraxBPMarketForkTest is MarketBaseForkTest {
             0,
             "Yearn balance not 0"
         );
-        assertEq(userEscrow.balance(), 0, "Escrow balance not 0");
-        assertEq(
+        assertApproxEqAbs(
+            userEscrow.balance(),
+            0,
+            1,
+            "Escrow balance not correct"
+        );
+        assertApproxEqAbs(
             IERC20(address(dolaFraxBP)).balanceOf(address(userEscrow)),
             0,
-            "DolaFraxBP balance not 0"
+            1,
+            "DolaFraxBP balance not correct"
         );
         assertEq(IERC20(yearn).balanceOf(address(userEscrow)), 0);
     }
@@ -243,16 +268,15 @@ contract DolaFraxBPMarketForkTest is MarketBaseForkTest {
 
         vm.startPrank(user);
         market.withdraw(amount);
-        assertApproxEqAbs(
+        assertEq(
             IERC20(address(dolaFraxBP)).balanceOf(address(user)),
             amount,
-            2,
             "DolaFraxBP balance not correct"
         );
         assertApproxEqAbs(
             userEscrow.balance(),
             escrowBalBefore - amount,
-            2,
+            1,
             "Escrow Balance not correct"
         );
     }
@@ -292,10 +316,9 @@ contract DolaFraxBPMarketForkTest is MarketBaseForkTest {
         vm.startPrank(user);
         market.withdraw(testAmount + withdrawYearnAmount);
         // Withdraw exact amount expected from yearn
-        assertApproxEqAbs(
+        assertEq(
             IERC20(address(dolaFraxBP)).balanceOf(address(user)),
             testAmount + withdrawYearnAmount,
-            2,
             "DolaFraxBP balance not correct"
         );
         assertApproxEqAbs(
@@ -304,7 +327,7 @@ contract DolaFraxBPMarketForkTest is MarketBaseForkTest {
                 IYearnVaultV2(yearn),
                 yearnBalance
             ) - withdrawYearnAmount,
-            2,
+            1,
             "Escrow Balance not correct"
         );
     }
