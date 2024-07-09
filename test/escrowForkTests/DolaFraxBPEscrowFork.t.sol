@@ -140,7 +140,7 @@ contract DolaFraxBPEscrowForkTest is Test {
             "Reward Pool Balance is not correct"
         );
         assertEq(
-            IERC20(address(escrow.rewardPool())).balanceOf(address(escrow)),
+            rewardPool.balanceOf(address(escrow)),
             amount,
             "Staked balance accounting not correct"
         );
@@ -185,7 +185,7 @@ contract DolaFraxBPEscrowForkTest is Test {
         escrow.depositToConvex();
 
         assertGt(
-            IERC20(address(escrow.rewardPool())).balanceOf(address(escrow)),
+            rewardPool.balanceOf(address(escrow)),
             0,
             "Staked balance is 0"
         );
@@ -212,7 +212,7 @@ contract DolaFraxBPEscrowForkTest is Test {
         escrow.withdrawFromConvex();
 
         assertEq(
-            IERC20(address(escrow.rewardPool())).balanceOf(address(escrow)),
+            rewardPool.balanceOf(address(escrow)),
             0,
             "Staked balance is not correct"
         );
@@ -346,7 +346,7 @@ contract DolaFraxBPEscrowForkTest is Test {
         dolaFraxBP.transfer(address(escrow), extraDolaFraxBP);
 
         assertEq(
-            IERC20(address(escrow.rewardPool())).balanceOf(address(escrow)),
+            rewardPool.balanceOf(address(escrow)),
             amount,
             "Staked balance is not correct"
         );
@@ -359,7 +359,7 @@ contract DolaFraxBPEscrowForkTest is Test {
         escrow.depositToYearn();
 
         assertEq(
-            IERC20(address(escrow.rewardPool())).balanceOf(address(escrow)),
+            rewardPool.balanceOf(address(escrow)),
             0,
             "Staked balance is not 0"
         );
@@ -406,7 +406,7 @@ contract DolaFraxBPEscrowForkTest is Test {
             "Yearn Balance is not correct"
         );
         assertEq(
-            IERC20(address(escrow.rewardPool())).balanceOf(address(escrow)),
+            rewardPool.balanceOf(address(escrow)),
             0,
             "Staked balance is not 0"
         );
@@ -424,7 +424,7 @@ contract DolaFraxBPEscrowForkTest is Test {
         escrow.depositToConvex();
 
         assertApproxEqAbs(
-            IERC20(address(escrow.rewardPool())).balanceOf(address(escrow)),
+            rewardPool.balanceOf(address(escrow)),
             lpBalBeforeInYearn + extraDolaFraxBP,
             1,
             "Staked balance is not correct"

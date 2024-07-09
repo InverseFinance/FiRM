@@ -97,7 +97,7 @@ contract LPCurveYearnV2Escrow {
             return;
         }
 
-        uint256 missingAmount = amount > tokenBal ? amount - tokenBal : 0;
+        uint256 missingAmount = amount - tokenBal;
         uint256 convexBalance = IERC20(address(rewardPool)).balanceOf(
             address(this)
         );
@@ -144,7 +144,7 @@ contract LPCurveYearnV2Escrow {
     */
     function balance() public view returns (uint) {
         return
-            IERC20(address(rewardPool)).balanceOf(address(this)) +
+            rewardPool.balanceOf(address(this)) +
             YearnVaultV2Helper.collateralToAsset(
                 yearn,
                 yearn.balanceOf(address(this))
@@ -267,7 +267,7 @@ contract LPCurveYearnV2Escrow {
         onlyBeneficiary
         returns (uint256 lpAmount)
     {
-        lpAmount = IERC20(address(rewardPool)).balanceOf(address(this));
+        lpAmount = rewardPool.balanceOf(address(this));
         rewardPool.withdrawAndUnwrap(lpAmount, false);
     }
 
