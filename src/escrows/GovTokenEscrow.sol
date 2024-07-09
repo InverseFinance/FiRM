@@ -24,6 +24,8 @@ contract GovTokenEscrow {
     IDelegateable public token;
     address public beneficiary;
 
+    event Delegate(address to);
+
     /**
      * @notice Initialize escrow with a token
      * @dev Must be called right after proxy is created.
@@ -36,6 +38,7 @@ contract GovTokenEscrow {
         token = IDelegateable(_token);
         beneficiary = _beneficiary;
         token.delegate(token.delegates(_beneficiary));
+        emit Delegate(_beneficiary);
     }
 
     /**
@@ -71,6 +74,7 @@ contract GovTokenEscrow {
     function delegate(address delegatee) external {
         require(msg.sender == beneficiary);
         token.delegate(delegatee);
+        emit Delegate(delegatee);
     }
 
     /**
