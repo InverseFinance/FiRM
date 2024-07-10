@@ -20,7 +20,6 @@ contract LPCurveYearnV2Escrow {
     error OnlyMarket();
     error OnlyBeneficiary();
     error OnlyBeneficiaryOrAllowlist();
-    error LpToPayDeltaExceed();
 
     uint256 public immutable pid;
 
