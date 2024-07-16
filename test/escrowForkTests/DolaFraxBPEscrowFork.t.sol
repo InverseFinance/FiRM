@@ -113,6 +113,7 @@ contract DolaFraxBPEscrowForkTest is Test {
             address(dolaFraxBP),
             "dolaFraxBP not Token"
         );
+        assertEq(freshEscrow.maxLoss(), 1, "Max loss not 0.01%");
     }
 
     function test_depositToConvex_successful_when_contract_holds_DolaFraxBP(
@@ -849,5 +850,19 @@ contract DolaFraxBPEscrowForkTest is Test {
         vm.prank(friend);
         vm.expectRevert(LPCurveYearnV2Escrow.OnlyBeneficiary.selector);
         escrow.disallowClaimOnBehalf(friend);
+    }
+
+    function test_setMaxLoss_successful_whenCalledByBeneficiary() public {
+        uint256 maxLoss = 1000; // 10%
+        vm.prank(beneficiary);
+        escrow.setMaxLoss(maxLoss);
+        assertEq(escrow.maxLoss(), maxLoss);
+    }
+
+    function test_setMaxLoss_fails_whenCalledByNonBeneficiary() public {
+        uint256 maxLoss = 1000; // 10%
+        vm.expectRevert(LPCurveYearnV2Escrow.OnlyBeneficiary.selector);
+        escrow.setMaxLoss(maxLoss);
+        assertEq(escrow.maxLoss(), 1);
     }
 }
