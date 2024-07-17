@@ -274,7 +274,7 @@ contract LPCurveYearnV2Escrow {
      * @param _maxLoss The maximum loss percentage for Yearn withdrawals
      */
     function setMaxLoss(uint256 _maxLoss) external onlyBeneficiary {
-        if (_maxLoss > MAX_LOSS_CAP) revert MaxLossException();
+        if (_maxLoss > MAX_LOSS_CAP || _maxLoss == 0) revert MaxLossException();
         maxLoss = _maxLoss;
     }
 }

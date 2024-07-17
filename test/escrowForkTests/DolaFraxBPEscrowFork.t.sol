@@ -865,4 +865,12 @@ contract DolaFraxBPEscrowForkTest is Test {
         escrow.setMaxLoss(maxLoss);
         assertEq(escrow.maxLoss(), 1);
     }
+
+    function test_setMaxLoss_to_Zero_fails() public {
+        uint256 maxLoss = 0;
+        vm.expectRevert(LPCurveYearnV2Escrow.MaxLossException.selector);
+        vm.prank(beneficiary);
+        escrow.setMaxLoss(maxLoss);
+        assertEq(escrow.maxLoss(), 1);
+    }
 }
