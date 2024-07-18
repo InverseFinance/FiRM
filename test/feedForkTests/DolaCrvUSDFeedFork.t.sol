@@ -12,8 +12,6 @@ contract DolaCrvUSDPriceFeedFork is CurveLPSingleFeedBaseTest {
     ChainlinkBasePriceFeed mainCrvUSDFeed;
     ChainlinkBasePriceFeed mainPyUSDFeed;
     ChainlinkBasePriceFeed baseFraxToUsd;
-    ChainlinkBasePriceFeed baseUsdcToUsd;
-    ChainlinkCurveFeed pyUSDFallback;
     ChainlinkCurve2CoinsFeed crvUSDFallback;
 
     ICurvePool public constant dolaCrvUSD =
@@ -38,7 +36,7 @@ contract DolaCrvUSDPriceFeedFork is CurveLPSingleFeedBaseTest {
 
     function setUp() public {
         string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url, 20060490); 
+        vm.createSelectFork(url, 20060490);
         // CrvUSD fallback
         baseFraxToUsd = new ChainlinkBasePriceFeed(
             gov,
@@ -54,7 +52,7 @@ contract DolaCrvUSDPriceFeedFork is CurveLPSingleFeedBaseTest {
             crvUSDIndex
         );
 
-        // Main feeds
+        // Main feed
         mainCrvUSDFeed = new ChainlinkBasePriceFeed(
             gov,
             address(crvUSDToUsd),
