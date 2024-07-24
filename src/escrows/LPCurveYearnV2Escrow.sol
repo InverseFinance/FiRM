@@ -20,6 +20,7 @@ contract LPCurveYearnV2Escrow {
     error OnlyMarket();
     error OnlyBeneficiary();
     error OnlyBeneficiaryOrAllowlist();
+    error MaxLossException();
 
     uint256 public immutable pid;
 
@@ -30,6 +31,9 @@ contract LPCurveYearnV2Escrow {
     IERC20 public immutable crv;
     /// @dev Wei delta for Yearn Vault V2 withdrawals
     uint256 public constant weiDelta = 2;
+    /// @dev Max loss percentage for Yearn withdrawals, default 0.01%, can be changed by the beneficiary up to 100%
+    uint256 public maxLoss = 1;
+    uint256 public constant MAX_LOSS_CAP = 10000;
 
     address public market;
     IERC20 public token;
@@ -98,7 +102,7 @@ contract LPCurveYearnV2Escrow {
 
         uint256 missingAmount = amount - tokenBal;
         uint256 convexBalance = rewardPool.balanceOf(address(this));
-        if (convexBalance > 0 && missingAmount > 0) {
+        if (convexBalance > 0) {
             uint256 withdrawAmount = convexBalance > missingAmount
                 ? missingAmount
                 : convexBalance;
@@ -124,7 +128,7 @@ contract LPCurveYearnV2Escrow {
                     withdrawAmount + weiDelta
                 );
             // Withdraw from Yearn
-            yearn.withdraw(collateralAmount, address(this));
+            yearn.withdraw(collateralAmount, address(this), maxLoss);
         }
         token.safeTransfer(recipient, amount);
     }
@@ -244,7 +248,12 @@ contract LPCurveYearnV2Escrow {
         onlyBeneficiary
         returns (uint256 lpAmount)
     {
-        return yearn.withdraw(yearn.balanceOf(address(this)), address(this));
+        return
+            yearn.withdraw(
+                yearn.balanceOf(address(this)),
+                address(this),
+                maxLoss
+            );
     }
 
     /**
@@ -258,5 +267,14 @@ contract LPCurveYearnV2Escrow {
     {
         lpAmount = rewardPool.balanceOf(address(this));
         rewardPool.withdrawAndUnwrap(lpAmount, false);
+    }
+
+    /**
+     * @notice Set the maximum loss percentage for Yearn withdrawals, use only in case Yearn Vault is in loss to prevent failing withdrawals
+     * @param _maxLoss The maximum loss percentage for Yearn withdrawals
+     */
+    function setMaxLoss(uint256 _maxLoss) external onlyBeneficiary {
+        if (_maxLoss > MAX_LOSS_CAP || _maxLoss == 0) revert MaxLossException();
+        maxLoss = _maxLoss;
     }
 }
