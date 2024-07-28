@@ -11,12 +11,12 @@ contract LPCurveYearnV2Escrow {
     error AlreadyInitialized();
     error OnlyMarket();
     error OnlyBeneficiary();
-    error OnlyBeneficiaryOrAllowlist();
-    error MaxLossException();
 
     IYearnVaultV2 public immutable yearn;
     /// @dev Wei delta for Yearn Vault V2 withdrawals
     uint256 public constant weiDelta = 2;
+    /// @dev Max loss percentage to allow liquidation
+    uint256 public constant maxLoss = 10000;
 
     address public market;
     IERC20 public token;
@@ -28,14 +28,6 @@ contract LPCurveYearnV2Escrow {
         if (msg.sender != beneficiary) revert OnlyBeneficiary();
         _;
     }
-
-    modifier onlyBeneficiaryOrAllowlist() {
-        if (msg.sender != beneficiary && !allowlist[msg.sender])
-            revert OnlyBeneficiaryOrAllowlist();
-        _;
-    }
-
-    event AllowClaim(address indexed allowedAddress, bool allowed);
 
     constructor(address _yearn) {
         yearn = IYearnVaultV2(_yearn);
@@ -89,7 +81,7 @@ contract LPCurveYearnV2Escrow {
                     withdrawAmount + weiDelta
                 );
             // Withdraw from Yearn
-            yearn.withdraw(collateralAmount, address(this));
+            yearn.withdraw(collateralAmount, address(this), maxLoss);
         }
         token.safeTransfer(recipient, amount);
     }
@@ -113,25 +105,6 @@ contract LPCurveYearnV2Escrow {
     function onDeposit() public {}
 
     /**
-    @notice Allow address to claim on behalf of the beneficiary to any address
-    @param allowee Address that are allowed to claim on behalf of the beneficiary
-    @dev Can be used to build contracts for auto-compounding cvxCrv, auto-buying DBR or auto-repaying loans
-    */
-    function allowClaimOnBehalf(address allowee) external onlyBeneficiary {
-        allowlist[allowee] = true;
-        emit AllowClaim(allowee, true);
-    }
-
-    /**
-    @notice Disallow address to claim on behalf of the beneficiary to any address
-    @param allowee Address that are disallowed to claim on behalf of the beneficiary
-    */
-    function disallowClaimOnBehalf(address allowee) external onlyBeneficiary {
-        allowlist[allowee] = false;
-        emit AllowClaim(allowee, false);
-    }
-
-    /**
      * @notice Deposit token balance in the escrow into Yearn
      * @dev Cannot deposit if there are Convex tokens in the escrow (only 1 strategy at a time)
      */
@@ -150,6 +123,11 @@ contract LPCurveYearnV2Escrow {
         onlyBeneficiary
         returns (uint256 lpAmount)
     {
-        return yearn.withdraw(yearn.balanceOf(address(this)), address(this));
+        return
+            yearn.withdraw(
+                yearn.balanceOf(address(this)),
+                address(this),
+                maxLoss
+            );
     }
 }
