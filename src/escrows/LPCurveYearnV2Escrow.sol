@@ -4,14 +4,6 @@ pragma solidity ^0.8.13;
 import "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IYearnVaultV2} from "src/interfaces/IYearnVaultV2.sol";
 import {YearnVaultV2Helper} from "src/util/YearnVaultV2Helper.sol";
-import {IRewardPool} from "src/interfaces/IRewardPool.sol";
-import {IConvexBooster} from "src/interfaces/IConvexBooster.sol";
-import {IVirtualBalanceRewardPool} from "src/interfaces/IVirtualBalanceRewardPool.sol";
-
-// StakingWrapper interface for pools with pid 151+
-interface IStakingWrapper {
-    function token() external returns (address);
-}
 
 contract LPCurveYearnV2Escrow {
     using SafeERC20 for IERC20;
@@ -22,13 +14,7 @@ contract LPCurveYearnV2Escrow {
     error OnlyBeneficiaryOrAllowlist();
     error MaxLossException();
 
-    uint256 public immutable pid;
-
-    IRewardPool public immutable rewardPool;
-    IConvexBooster public immutable booster;
     IYearnVaultV2 public immutable yearn;
-    IERC20 public immutable cvx;
-    IERC20 public immutable crv;
     /// @dev Wei delta for Yearn Vault V2 withdrawals
     uint256 public constant weiDelta = 2;
     /// @dev Max loss percentage for Yearn withdrawals, default 0.01%, can be changed by the beneficiary up to 100%
@@ -54,20 +40,8 @@ contract LPCurveYearnV2Escrow {
 
     event AllowClaim(address indexed allowedAddress, bool allowed);
 
-    constructor(
-        address _rewardPool,
-        address _booster,
-        address _yearn,
-        address _cvx,
-        address _crv,
-        uint256 _pid
-    ) {
-        rewardPool = IRewardPool(_rewardPool);
-        booster = IConvexBooster(_booster);
+    constructor(address _yearn) {
         yearn = IYearnVaultV2(_yearn);
-        cvx = IERC20(_cvx);
-        crv = IERC20(_crv);
-        pid = _pid;
     }
 
     /**
@@ -80,7 +54,6 @@ contract LPCurveYearnV2Escrow {
         if (market != address(0)) revert AlreadyInitialized();
         market = msg.sender;
         token = _token;
-        token.approve(address(booster), type(uint).max);
         token.approve(address(yearn), type(uint).max);
         beneficiary = _beneficiary;
     }
@@ -101,17 +74,8 @@ contract LPCurveYearnV2Escrow {
         }
 
         uint256 missingAmount = amount - tokenBal;
-        uint256 convexBalance = rewardPool.balanceOf(address(this));
-        if (convexBalance > 0) {
-            uint256 withdrawAmount = convexBalance > missingAmount
-                ? missingAmount
-                : convexBalance;
-            missingAmount -= withdrawAmount;
-            rewardPool.withdrawAndUnwrap(withdrawAmount, false);
-        }
-
         uint yearnBal = yearn.balanceOf(address(this));
-        if (yearnBal > 0 && missingAmount > 0) {
+        if (yearnBal > 0) {
             uint256 maxWithdraw = YearnVaultV2Helper.collateralToAsset(
                 yearn,
                 yearnBal
@@ -139,12 +103,10 @@ contract LPCurveYearnV2Escrow {
     */
     function balance() public view returns (uint) {
         return
-            rewardPool.balanceOf(address(this)) +
             YearnVaultV2Helper.collateralToAsset(
                 yearn,
                 yearn.balanceOf(address(this))
-            ) +
-            token.balanceOf(address(this));
+            ) + token.balanceOf(address(this));
     }
 
     /**
@@ -152,52 +114,6 @@ contract LPCurveYearnV2Escrow {
     @dev This function should remain callable by anyone to handle direct inbound transfers.
     */
     function onDeposit() public {}
-
-    /**
-    @notice Claims reward tokens to the specified address. Only callable by beneficiary and allowlisted addresses
-    @param to Address to send claimed rewards to
-    */
-    function claimTo(address to) public onlyBeneficiaryOrAllowlist {
-        //Claim rewards
-        rewardPool.getReward(address(this), true);
-        //Send crv balance
-        uint256 crvBal = crv.balanceOf(address(this));
-        if (crvBal != 0) crv.safeTransfer(to, crvBal);
-        //Send cvx balance
-        uint256 cvxBal = cvx.balanceOf(address(this));
-        if (cvxBal != 0) cvx.safeTransfer(to, cvxBal);
-
-        //Send contract balance of extra rewards
-        uint256 rewardLength = rewardPool.extraRewardsLength();
-        if (rewardLength == 0) return;
-        for (uint rewardIndex; rewardIndex < rewardLength; ++rewardIndex) {
-            IVirtualBalanceRewardPool virtualReward = IVirtualBalanceRewardPool(
-                rewardPool.extraRewards(rewardIndex)
-            );
-            IERC20 rewardToken;
-            if (pid >= 151) {
-                rewardToken = IERC20(
-                    IStakingWrapper(address(virtualReward.rewardToken()))
-                        .token()
-                );
-            } else {
-                rewardToken = virtualReward.rewardToken();
-            }
-
-            uint rewardBal = rewardToken.balanceOf(address(this));
-            if (rewardBal > 0) {
-                //Use safe transfer in case bad reward token is added
-                rewardToken.safeTransfer(to, rewardBal);
-            }
-        }
-    }
-
-    /**
-    @notice Claims reward tokens to the message sender. Only callable by beneficiary and allowlisted addresses
-    */
-    function claim() external onlyBeneficiary {
-        claimTo(msg.sender);
-    }
 
     /**
     @notice Allow address to claim on behalf of the beneficiary to any address
@@ -219,24 +135,13 @@ contract LPCurveYearnV2Escrow {
     }
 
     /**
-     * @notice Deposit token balance in the escrow into Convex
-     * @dev Cannot deposit if there are Yearn tokens in the escrow (only 1 strategy at a time)
-     */
-    function depositToConvex() external onlyBeneficiary {
-        if (yearn.balanceOf(address(this)) > 0) withdrawFromYearn();
-
-        uint256 tokenBal = token.balanceOf(address(this));
-        booster.deposit(pid, tokenBal, true);
-    }
-
-    /**
      * @notice Deposit token balance in the escrow into Yearn
      * @dev Cannot deposit if there are Convex tokens in the escrow (only 1 strategy at a time)
      */
     function depositToYearn() external onlyBeneficiary {
-        uint256 convexBalance = rewardPool.balanceOf(address(this));
-        if (convexBalance > 0) withdrawFromConvex();
-        yearn.deposit(token.balanceOf(address(this)), address(this));
+        uint256 tokenBal = token.balanceOf(address(this));
+        if (tokenBal == 0) return;
+        yearn.deposit(tokenBal, address(this));
     }
 
     /**
@@ -254,19 +159,6 @@ contract LPCurveYearnV2Escrow {
                 address(this),
                 maxLoss
             );
-    }
-
-    /**
-     * @notice Withdraw all tokens from Convex
-     * @return lpAmount The amount of tokens withdrawn from Convex
-     */
-    function withdrawFromConvex()
-        public
-        onlyBeneficiary
-        returns (uint256 lpAmount)
-    {
-        lpAmount = rewardPool.balanceOf(address(this));
-        rewardPool.withdrawAndUnwrap(lpAmount, false);
     }
 
     /**

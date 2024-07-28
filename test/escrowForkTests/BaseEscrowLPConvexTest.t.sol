@@ -2,17 +2,9 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "src/escrows/LPCurveYearnV2Escrow.sol";
-import {YearnVaultV2Helper} from "src/util/YearnVaultV2Helper.sol";
+import "src/escrows/LPCurveConvexEscrow.sol";
 import {console} from "forge-std/console.sol";
 import {RewardHook} from "test/mocks/RewardHook.sol";
-
-interface DeployedHelper {
-    function sharesToAmount(
-        address vault,
-        uint256 shares
-    ) external view returns (uint256);
-}
 
 interface IExtraRewardStashV3 {
     function setExtraReward(address _token) external;
@@ -28,20 +20,7 @@ interface IMintable is IERC20 {
     function mint(address to, uint256 amount) external;
 }
 
-interface IYearnVaultFactory {
-    function createNewVaultsAndStrategies(
-        address _gauge
-    )
-        external
-        returns (
-            address vault,
-            address convexStrategy,
-            address curveStrategy,
-            address convexFraxStrategy
-        );
-}
-
-abstract contract BaseEscrowLPTest is Test {
+abstract contract BaseEscrowLPConvexTest is Test {
     address market = address(0xA);
     address beneficiary = address(0xB);
     address friend = address(0xC);
@@ -54,13 +33,7 @@ abstract contract BaseEscrowLPTest is Test {
         IConvexBooster(0xF403C135812408BFbE8713b5A23a04b3D48AAE31);
     address operatorOwner = 0x3cE6408F923326f81A7D7929952947748180f1E6; //Booster owner
 
-    DeployedHelper deployedHelper =
-        DeployedHelper(0x444443bae5bB8640677A8cdF94CB8879Fec948Ec);
-    IYearnVaultFactory yearnFactory =
-        IYearnVaultFactory(0x21b1FC8A52f179757bf555346130bF27c0C2A17A);
-
     address lpHolder;
-    address yearnHolder;
     IERC20 curvePool;
     address gauge;
     uint256 pid;
@@ -68,9 +41,7 @@ abstract contract BaseEscrowLPTest is Test {
     IERC20 depositToken;
     address stash;
 
-    IYearnVaultV2 yearn;
-
-    LPCurveYearnV2Escrow escrow;
+    LPCurveConvexEscrow escrow;
 
     struct ConvexInfo {
         uint256 pid;
@@ -79,17 +50,11 @@ abstract contract BaseEscrowLPTest is Test {
         address stash;
     }
 
-    struct YearnInfo {
-        address vault;
-        address yearnHolder;
-    }
-
     function init(
         address _curvePool,
         address _lpHolder,
         address _gauge,
         ConvexInfo memory _convexInfo,
-        YearnInfo memory _yearnInfo,
         bool _addExtraDolaReward
     ) public {
         curvePool = IERC20(_curvePool);
@@ -99,20 +64,6 @@ abstract contract BaseEscrowLPTest is Test {
         rewardPool = IRewardPool(_convexInfo.rewardPool);
         depositToken = IERC20(_convexInfo.depositToken);
         stash = _convexInfo.stash;
-
-        if (_yearnInfo.vault == address(0)) {
-            // Setup YearnVault
-            (address yearnVault, , , ) = yearnFactory
-                .createNewVaultsAndStrategies(gauge);
-            yearn = IYearnVaultV2(yearnVault);
-
-            yearnHolder = address(0xD);
-
-            vm.startPrank(lpHolder, lpHolder);
-            curvePool.approve(yearnVault, type(uint256).max);
-            yearn.deposit(1000000, yearnHolder);
-            vm.stopPrank();
-        } else yearn = IYearnVaultV2(_yearnInfo.vault);
 
         if (_addExtraDolaReward) {
             // Setup Dola reward
@@ -132,10 +83,9 @@ abstract contract BaseEscrowLPTest is Test {
             booster.earmarkRewards(pid);
         }
 
-        escrow = new LPCurveYearnV2Escrow(
+        escrow = new LPCurveConvexEscrow(
             address(rewardPool),
             address(booster),
-            address(yearn),
             address(cvx),
             address(crv),
             pid
@@ -145,10 +95,9 @@ abstract contract BaseEscrowLPTest is Test {
     }
 
     function test_initialize() public {
-        LPCurveYearnV2Escrow freshEscrow = new LPCurveYearnV2Escrow(
+        LPCurveConvexEscrow freshEscrow = new LPCurveConvexEscrow(
             address(rewardPool),
             address(booster),
-            address(yearn),
             address(cvx),
             address(crv),
             pid
@@ -166,7 +115,6 @@ abstract contract BaseEscrowLPTest is Test {
             address(curvePool),
             "curvePool not Token"
         );
-        assertEq(freshEscrow.maxLoss(), 1, "Max loss not 0.01%");
     }
 
     function test_depositToConvex_successful_when_contract_holds_CurveLP(
@@ -197,31 +145,6 @@ abstract contract BaseEscrowLPTest is Test {
             rewardPool.balanceOf(address(escrow)),
             amount,
             "Staked balance accounting not correct"
-        );
-    }
-
-    function test_depositToYearn_successful_when_contract_holds_CurveLP(
-        uint256 amount
-    ) public {
-        vm.assume(amount > 1);
-        vm.assume(amount < curvePool.balanceOf(lpHolder));
-
-        vm.prank(lpHolder, lpHolder);
-        curvePool.transfer(address(escrow), amount);
-        vm.prank(beneficiary, beneficiary);
-        escrow.depositToYearn();
-
-        assertApproxEqAbs(
-            escrow.balance(),
-            amount,
-            2,
-            "Escrow Balance is not correct"
-        );
-        assertApproxEqAbs(
-            yearn.balanceOf(address(escrow)),
-            YearnVaultV2Helper.assetToCollateral(yearn, amount),
-            0,
-            "Yearn Balance is not correct"
         );
     }
 
@@ -292,212 +215,6 @@ abstract contract BaseEscrowLPTest is Test {
         );
     }
 
-    function test_withdrawFromYearn_successful_if_deposited(
-        uint amount
-    ) public {
-        vm.assume(amount > 1);
-        vm.assume(amount < curvePool.balanceOf(lpHolder));
-        uint256 maxDelta = 2;
-
-        vm.prank(lpHolder, lpHolder);
-        curvePool.transfer(address(escrow), amount);
-
-        vm.startPrank(beneficiary, beneficiary);
-        escrow.depositToYearn();
-        assertApproxEqAbs(
-            deployedHelper.sharesToAmount(
-                address(yearn),
-                yearn.balanceOf(address(escrow))
-            ),
-            amount,
-            maxDelta,
-            "Helper from Wavey Balance is not correct"
-        );
-        assertApproxEqAbs(
-            YearnVaultV2Helper.collateralToAsset(
-                yearn,
-                yearn.balanceOf(address(escrow))
-            ),
-            amount,
-            maxDelta,
-            "Helper Math is not correct"
-        );
-        escrow.withdrawFromYearn();
-        assertApproxEqAbs(
-            escrow.balance(),
-            amount,
-            maxDelta,
-            "Escrow Balance is not correct"
-        );
-
-        assertEq(
-            yearn.balanceOf(address(escrow)),
-            0,
-            "Yearn Balance is not correct"
-        );
-    }
-
-    function test_withdrawFromYearn2_successful_if_deposited(
-        uint256 amount
-    ) public {
-        // Test fuzz deposit to yearn, withdraw exact amount if expected calculated expected amount from yearn based on shares
-        vm.assume(amount > 1);
-        vm.assume(amount < curvePool.balanceOf(lpHolder));
-
-        vm.prank(lpHolder, lpHolder);
-        curvePool.transfer(address(escrow), amount);
-
-        vm.prank(beneficiary, beneficiary);
-        escrow.depositToYearn();
-        assertApproxEqAbs(
-            deployedHelper.sharesToAmount(
-                address(yearn),
-                yearn.balanceOf(address(escrow))
-            ),
-            amount,
-            2,
-            "Helper from Wavey Balance is not correct"
-        );
-        assertApproxEqAbs(
-            YearnVaultV2Helper.collateralToAsset(
-                yearn,
-                yearn.balanceOf(address(escrow))
-            ),
-            amount,
-            2,
-            "Helper Math is not correct"
-        );
-
-        vm.startPrank(address(market), address(market));
-        escrow.pay(
-            beneficiary,
-            YearnVaultV2Helper.collateralToAsset(
-                yearn,
-                yearn.balanceOf(address(escrow))
-            )
-        );
-
-        assertEq(
-            yearn.balanceOf(address(escrow)),
-            0,
-            "Yearn Balance is not correct"
-        );
-    }
-
-    function test_depositToYearn_all_even_if_already_deposit_to_Convex(
-        uint256 amount
-    ) public {
-        uint256 extraCurveLP = 1 ether;
-        vm.assume(amount > 1);
-        vm.assume(amount < curvePool.balanceOf(lpHolder) - extraCurveLP);
-
-        vm.prank(lpHolder, lpHolder);
-        curvePool.transfer(address(escrow), amount);
-        vm.prank(beneficiary, beneficiary);
-        escrow.depositToConvex();
-
-        vm.prank(lpHolder, lpHolder);
-        curvePool.transfer(address(escrow), extraCurveLP);
-
-        assertEq(
-            rewardPool.balanceOf(address(escrow)),
-            amount,
-            "Staked balance is not correct"
-        );
-        assertEq(
-            rewardPool.balanceOf(address(escrow)),
-            amount,
-            "Reward Pool balance is not correct"
-        );
-        vm.prank(beneficiary, beneficiary);
-        escrow.depositToYearn();
-
-        assertEq(
-            rewardPool.balanceOf(address(escrow)),
-            0,
-            "Staked balance is not 0"
-        );
-        assertEq(
-            rewardPool.balanceOf(address(escrow)),
-            0,
-            "Reward Pool balance is not 0"
-        );
-        assertEq(
-            curvePool.balanceOf(address(escrow)),
-            0,
-            "LP Token balance is not 0"
-        );
-        assertApproxEqAbs(
-            yearn.balanceOf(address(escrow)),
-            YearnVaultV2Helper.assetToCollateral(yearn, amount + extraCurveLP),
-            1,
-            "Yearn Balance is 0"
-        );
-    }
-
-    function test_depositToConvex_all_even_if_already_deposit_to_Yearn(
-        uint amount
-    ) public {
-        uint256 extraCurveLP = 1 ether;
-        vm.assume(amount > 1);
-        vm.assume(amount < curvePool.balanceOf(lpHolder) - extraCurveLP);
-
-        vm.prank(lpHolder, lpHolder);
-        curvePool.transfer(address(escrow), amount);
-        vm.prank(beneficiary, beneficiary);
-        escrow.depositToYearn();
-
-        vm.prank(lpHolder, lpHolder);
-        curvePool.transfer(address(escrow), extraCurveLP);
-
-        assertApproxEqAbs(
-            yearn.balanceOf(address(escrow)),
-            YearnVaultV2Helper.assetToCollateral(yearn, amount),
-            1,
-            "Yearn Balance is not correct"
-        );
-        assertEq(
-            rewardPool.balanceOf(address(escrow)),
-            0,
-            "Staked balance is not 0"
-        );
-        assertEq(
-            rewardPool.balanceOf(address(escrow)),
-            0,
-            "Reward Pool balance is not 0"
-        );
-
-        uint256 lpBalBeforeInYearn = YearnVaultV2Helper.collateralToAsset(
-            yearn,
-            yearn.balanceOf(address(escrow))
-        );
-        vm.prank(beneficiary, beneficiary);
-        escrow.depositToConvex();
-
-        assertApproxEqAbs(
-            rewardPool.balanceOf(address(escrow)),
-            lpBalBeforeInYearn + extraCurveLP,
-            1,
-            "Staked balance is not correct"
-        );
-        assertApproxEqAbs(
-            rewardPool.balanceOf(address(escrow)),
-            lpBalBeforeInYearn + extraCurveLP,
-            1,
-            "Reward Pool balance is not correct"
-        );
-        assertEq(
-            curvePool.balanceOf(address(escrow)),
-            0,
-            "LP Token balance is not 0"
-        );
-        assertEq(
-            yearn.balanceOf(address(escrow)),
-            0,
-            "Yearn Balance is not correct"
-        );
-    }
-
     function test_Pay_when_escrow_has_CurveLP_in_Convex(uint amount) public {
         vm.assume(amount > 1);
         vm.assume(amount < curvePool.balanceOf(lpHolder));
@@ -564,102 +281,12 @@ abstract contract BaseEscrowLPTest is Test {
         );
     }
 
-    function test_Pay_when_escrow_has_CurveLP_in_Yearn(uint256 amount) public {
-        vm.assume(amount > 2);
-        vm.assume(amount < curvePool.balanceOf(lpHolder));
-
-        vm.prank(lpHolder, lpHolder);
-        curvePool.transfer(address(escrow), amount);
-
-        vm.prank(beneficiary, beneficiary);
-        escrow.depositToYearn();
-
-        assertApproxEqAbs(
-            escrow.balance(),
-            amount,
-            2,
-            "Escrow Balance is not correct"
-        );
-        uint balanceBefore = escrow.balance();
-        uint yearnBalBefore = YearnVaultV2Helper.collateralToAsset(
-            yearn,
-            yearn.balanceOf(address(escrow))
-        );
-        uint beneficiaryBalanceBefore = curvePool.balanceOf(beneficiary);
-
-        vm.prank(market, market);
-        uint256 withdrawAmount = amount / 2;
-        escrow.pay(beneficiary, withdrawAmount);
-
-        assertApproxEqAbs(
-            escrow.balance(),
-            balanceBefore - withdrawAmount,
-            1,
-            "Escrow Balance after is not correct"
-        );
-        assertApproxEqAbs(
-            YearnVaultV2Helper.collateralToAsset(
-                yearn,
-                yearn.balanceOf(address(escrow))
-            ),
-            yearnBalBefore - withdrawAmount,
-            2
-        );
-        assertEq(
-            curvePool.balanceOf(beneficiary),
-            beneficiaryBalanceBefore + withdrawAmount
-        );
-    }
-
-    function test_Pay_partially_with_escrow_balance_when_escrow_has_CurveLP_in_Yearn(
-        uint256 amount
-    ) public {
-        uint256 extraCurveLP = 1 ether;
-        vm.assume(amount > 2);
-        vm.assume(amount < curvePool.balanceOf(lpHolder) - extraCurveLP);
-
-        vm.prank(lpHolder, lpHolder);
-        curvePool.transfer(address(escrow), amount);
-
-        vm.prank(beneficiary, beneficiary);
-        escrow.depositToYearn();
-
-        // Send extra CurveLP to the escrow
-        vm.prank(lpHolder, lpHolder);
-        curvePool.transfer(address(escrow), extraCurveLP);
-
-        uint balanceBefore = escrow.balance();
-        uint yearnBalBefore = YearnVaultV2Helper.collateralToAsset(
-            yearn,
-            yearn.balanceOf(address(escrow))
-        );
-        uint beneficiaryBalanceBefore = curvePool.balanceOf(beneficiary);
-
-        vm.prank(market, market);
-        uint256 withdrawAmount = amount / 2 + extraCurveLP;
-        escrow.pay(beneficiary, withdrawAmount);
-
-        assertApproxEqAbs(escrow.balance(), balanceBefore - withdrawAmount, 2);
-        assertApproxEqAbs(
-            YearnVaultV2Helper.collateralToAsset(
-                yearn,
-                yearn.balanceOf(address(escrow))
-            ),
-            yearnBalBefore - (amount / 2),
-            2
-        );
-        assertEq(
-            curvePool.balanceOf(beneficiary),
-            beneficiaryBalanceBefore + withdrawAmount
-        );
-    }
-
-    function test_Pay_ALL_when_donation_of_Yearn_when_staked_into_Convex(
+    function test_Pay_ALL_when_donation_of_LP_when_staked_into_Convex(
         uint amount
     ) public {
-        uint256 donationAmount = yearn.balanceOf(yearnHolder);
+        uint256 donationAmount = 1 ether;
         vm.assume(amount > 1);
-        vm.assume(amount < curvePool.balanceOf(lpHolder));
+        vm.assume(amount < curvePool.balanceOf(lpHolder) - donationAmount);
 
         vm.prank(lpHolder, lpHolder);
         curvePool.transfer(address(escrow), amount);
@@ -667,24 +294,17 @@ abstract contract BaseEscrowLPTest is Test {
         vm.prank(beneficiary, beneficiary);
         escrow.depositToConvex();
 
-        // Donate yearn to escrow
-        vm.prank(yearnHolder, yearnHolder);
-        IERC20(address(yearn)).transfer(address(escrow), donationAmount);
-
-        uint256 lpFromDonation = YearnVaultV2Helper.collateralToAsset(
-            yearn,
-            yearn.balanceOf(address(escrow))
-        );
+        // Donate lp to the escrow
+        vm.prank(lpHolder, lpHolder);
+        curvePool.transfer(address(escrow), donationAmount);
 
         uint balanceBefore = escrow.balance();
 
         vm.prank(market, market);
-        uint256 withdrawAmount = amount + lpFromDonation;
+        uint256 withdrawAmount = amount + donationAmount;
         escrow.pay(beneficiary, withdrawAmount);
 
         assertEq(escrow.balance(), balanceBefore - withdrawAmount);
-
-        assertEq(yearn.balanceOf(address(escrow)), 0);
     }
 
     function test_Pay_fail_with_OnlyMarket_when_called_by_non_market() public {
@@ -694,7 +314,7 @@ abstract contract BaseEscrowLPTest is Test {
         escrow.depositToConvex();
 
         vm.prank(lpHolder, lpHolder);
-        vm.expectRevert(LPCurveYearnV2Escrow.OnlyMarket.selector);
+        vm.expectRevert(LPCurveConvexEscrow.OnlyMarket.selector);
         escrow.pay(beneficiary, 1 ether);
     }
 
@@ -867,7 +487,7 @@ abstract contract BaseEscrowLPTest is Test {
 
         vm.prank(friend);
         vm.expectRevert(
-            LPCurveYearnV2Escrow.OnlyBeneficiaryOrAllowlist.selector
+            LPCurveConvexEscrow.OnlyBeneficiaryOrAllowlist.selector
         );
         escrow.claimTo(beneficiary);
     }
@@ -881,14 +501,14 @@ abstract contract BaseEscrowLPTest is Test {
         vm.warp(block.timestamp + 14 days);
         vm.prank(friend);
         vm.expectRevert(
-            LPCurveYearnV2Escrow.OnlyBeneficiaryOrAllowlist.selector
+            LPCurveConvexEscrow.OnlyBeneficiaryOrAllowlist.selector
         );
         escrow.claimTo(beneficiary);
     }
 
     function testAllowClaimOnBehalf_fails_whenCalledByNonBeneficiary() public {
         vm.prank(friend);
-        vm.expectRevert(LPCurveYearnV2Escrow.OnlyBeneficiary.selector);
+        vm.expectRevert(LPCurveConvexEscrow.OnlyBeneficiary.selector);
         escrow.allowClaimOnBehalf(friend);
     }
 
@@ -896,29 +516,7 @@ abstract contract BaseEscrowLPTest is Test {
         public
     {
         vm.prank(friend);
-        vm.expectRevert(LPCurveYearnV2Escrow.OnlyBeneficiary.selector);
+        vm.expectRevert(LPCurveConvexEscrow.OnlyBeneficiary.selector);
         escrow.disallowClaimOnBehalf(friend);
-    }
-
-    function test_setMaxLoss_successful_whenCalledByBeneficiary() public {
-        uint256 maxLoss = 1000; // 10%
-        vm.prank(beneficiary);
-        escrow.setMaxLoss(maxLoss);
-        assertEq(escrow.maxLoss(), maxLoss);
-    }
-
-    function test_setMaxLoss_fails_whenCalledByNonBeneficiary() public {
-        uint256 maxLoss = 1000; // 10%
-        vm.expectRevert(LPCurveYearnV2Escrow.OnlyBeneficiary.selector);
-        escrow.setMaxLoss(maxLoss);
-        assertEq(escrow.maxLoss(), 1);
-    }
-
-    function test_setMaxLoss_to_Zero_fails() public {
-        uint256 maxLoss = 0;
-        vm.expectRevert(LPCurveYearnV2Escrow.MaxLossException.selector);
-        vm.prank(beneficiary);
-        escrow.setMaxLoss(maxLoss);
-        assertEq(escrow.maxLoss(), 1);
     }
 }

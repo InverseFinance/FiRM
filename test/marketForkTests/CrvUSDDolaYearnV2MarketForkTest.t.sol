@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import {MarketBaseForkTest, IOracle, IDolaBorrowingRights, IERC20} from "./MarketBaseForkTest.sol";
 import {Market} from "src/Market.sol";
-import {LPCurveConvexEscrow} from "src/escrows/LPCurveConvexEscrow.sol";
+import {LPCurveYearnV2Escrow} from "src/escrows/LPCurveYearnV2Escrow.sol";
 import {CurveLPSingleFeed} from "src/feeds/CurveLPSingleFeed.sol";
 import {ChainlinkCurve2CoinsFeed} from "src/feeds/ChainlinkCurve2CoinsFeed.sol";
 import {ChainlinkCurveFeed} from "src/feeds/ChainlinkCurveFeed.sol";
@@ -25,8 +25,8 @@ interface IYearnVaultFactory {
         );
 }
 
-contract CrvUSDDolaMarketForkTest is MarketBaseForkTest {
-    LPCurveConvexEscrow escrow;
+contract CrvUSDDolaYearnV2MarketForkTest is MarketBaseForkTest {
+    LPCurveYearnV2Escrow escrow;
     CurveLPSingleFeed feedCrvUSDDola;
 
     ChainlinkBasePriceFeed mainCrvUSDFeed;
@@ -51,32 +51,17 @@ contract CrvUSDDolaMarketForkTest is MarketBaseForkTest {
 
     uint256 crvUSDIndex = 1;
 
-    address rewardPool = address(0xC94208D230EEdC4cDC4F80141E21aA485A515660);
-
-    address booster = address(0xF403C135812408BFbE8713b5A23a04b3D48AAE31);
-
     address public yearn = address(0xfb5137Aa9e079DB4b7C2929229caf503d0f6DA96);
     address yearnHolder = address(0x8B5b1D02AAB4e10e49507e89D2bE10A382D52b57); //update
 
-    uint256 pid = 215;
-
-    IERC20 public cvx = IERC20(0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B);
-    IERC20 public crv = IERC20(0xD533a949740bb3306d119CC777fa900bA034cd52);
-
-    LPCurveConvexEscrow userEscrow;
+    LPCurveYearnV2Escrow userEscrow;
 
     function setUp() public {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
         vm.createSelectFork(url, 20020781);
 
-        escrow = new LPCurveConvexEscrow(
-            rewardPool,
-            booster,
-            address(cvx),
-            address(crv),
-            pid
-        );
+        escrow = new LPCurveYearnV2Escrow(address(yearn));
 
         feedCrvUSDDola = _deployCrvUSDDolaFeed();
 
@@ -96,34 +81,18 @@ contract CrvUSDDolaMarketForkTest is MarketBaseForkTest {
 
         _advancedInit(address(market), address(feedCrvUSDDola), true);
 
-        userEscrow = LPCurveConvexEscrow(address(market.predictEscrow(user)));
+        userEscrow = LPCurveYearnV2Escrow(address(market.predictEscrow(user)));
     }
 
     function test_escrow_immutables() public {
         testDeposit();
-        assertEq(
-            address(userEscrow.rewardPool()),
-            address(rewardPool),
-            "Reward pool not set"
-        );
-        assertEq(
-            address(userEscrow.booster()),
-            address(booster),
-            "Booster not set"
-        );
-        assertEq(address(userEscrow.cvx()), address(cvx), "CVX not set");
-        assertEq(address(userEscrow.crv()), address(crv), "CRV not set");
+        assertEq(address(userEscrow.yearn()), address(yearn), "Yearn not set");
     }
 
-    function test_depositToConvex() public {
+    function test_depositToYearn() public {
         testDeposit();
-        userEscrow.depositToConvex();
-    }
-
-    function test_withdrawFromConvex() public {
-        testDeposit();
-        userEscrow.depositToConvex();
-        userEscrow.withdrawFromConvex();
+        userEscrow.depositToYearn();
+        userEscrow.withdrawFromYearn();
     }
 
     function _deployCrvUSDDolaFeed() internal returns (CurveLPSingleFeed feed) {
