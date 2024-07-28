@@ -18,7 +18,6 @@ contract LPCurveConvexEscrow {
     error OnlyMarket();
     error OnlyBeneficiary();
     error OnlyBeneficiaryOrAllowlist();
-    error MaxLossException();
 
     uint256 public immutable pid;
 

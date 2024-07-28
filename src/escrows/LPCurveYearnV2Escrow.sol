@@ -17,9 +17,8 @@ contract LPCurveYearnV2Escrow {
     IYearnVaultV2 public immutable yearn;
     /// @dev Wei delta for Yearn Vault V2 withdrawals
     uint256 public constant weiDelta = 2;
-    /// @dev Max loss percentage for Yearn withdrawals, default 0.01%, can be changed by the beneficiary up to 100%
-    uint256 public maxLoss = 1;
-    uint256 public constant MAX_LOSS_CAP = 10000;
+    /// @dev Max loss percentage to allow liquidations
+    uint256 public constant maxLoss = 10000;
 
     address public market;
     IERC20 public token;
@@ -159,14 +158,5 @@ contract LPCurveYearnV2Escrow {
                 address(this),
                 maxLoss
             );
-    }
-
-    /**
-     * @notice Set the maximum loss percentage for Yearn withdrawals, use only in case Yearn Vault is in loss to prevent failing withdrawals
-     * @param _maxLoss The maximum loss percentage for Yearn withdrawals
-     */
-    function setMaxLoss(uint256 _maxLoss) external onlyBeneficiary {
-        if (_maxLoss > MAX_LOSS_CAP || _maxLoss == 0) revert MaxLossException();
-        maxLoss = _maxLoss;
     }
 }
