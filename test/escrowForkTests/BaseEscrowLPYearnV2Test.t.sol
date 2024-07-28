@@ -7,6 +7,8 @@ import {YearnVaultV2Helper} from "src/util/YearnVaultV2Helper.sol";
 import {console} from "forge-std/console.sol";
 import {RewardHook} from "test/mocks/RewardHook.sol";
 
+//import {IYearnVaultV2} from "src/interfaces/IYearnVaultV2.sol";
+
 interface DeployedHelper {
     function sharesToAmount(
         address vault,
@@ -113,7 +115,6 @@ abstract contract BaseEscrowLPYearnV2Test is Test {
             address(curvePool),
             "curvePool not Token"
         );
-        assertEq(freshEscrow.maxLoss(), 1, "Max loss not 0.01%");
     }
 
     function test_depositToYearn_successful_when_contract_holds_CurveLP(

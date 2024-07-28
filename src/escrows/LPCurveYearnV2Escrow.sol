@@ -89,7 +89,7 @@ contract LPCurveYearnV2Escrow {
                     withdrawAmount + weiDelta
                 );
             // Withdraw from Yearn
-            yearn.withdraw(collateralAmount, address(this), maxLoss);
+            yearn.withdraw(collateralAmount, address(this));
         }
         token.safeTransfer(recipient, amount);
     }
