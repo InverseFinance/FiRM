@@ -17,8 +17,6 @@ contract LPCurveYearnV2Escrow {
     IYearnVaultV2 public immutable yearn;
     /// @dev Wei delta for Yearn Vault V2 withdrawals
     uint256 public constant weiDelta = 2;
-    /// @dev Max loss percentage to allow liquidations
-    uint256 public constant maxLoss = 10000;
 
     address public market;
     IERC20 public token;
@@ -152,11 +150,6 @@ contract LPCurveYearnV2Escrow {
         onlyBeneficiary
         returns (uint256 lpAmount)
     {
-        return
-            yearn.withdraw(
-                yearn.balanceOf(address(this)),
-                address(this),
-                maxLoss
-            );
+        return yearn.withdraw(yearn.balanceOf(address(this)), address(this));
     }
 }
