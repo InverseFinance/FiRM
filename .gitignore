@@ -7,3 +7,4 @@ lcov.info
 .env
 *.sh
 *.info
+temp/

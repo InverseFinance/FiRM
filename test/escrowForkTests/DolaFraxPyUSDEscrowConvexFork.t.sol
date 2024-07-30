@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import {BaseEscrowLPTest} from "test/escrowForkTests/BaseEscrowLPTest.t.sol";
+import {BaseEscrowLPConvexTest} from "test/escrowForkTests/BaseEscrowLPConvexTest.t.sol";
 
-contract DolaFraxPyUSDEscrowForkTest is BaseEscrowLPTest {
+contract DolaFraxPyUSDEscrowForkTest is BaseEscrowLPConvexTest {
     // Curve
     address _dolaFraxPyUSD = 0xef484de8C07B6e2d732A92B5F78e81B38f99f95E;
     address _lpHolder = 0xBFa04e5D6Ac1163b7Da3E873e5B9C969E91A0Ac0;
@@ -15,33 +15,17 @@ contract DolaFraxPyUSDEscrowForkTest is BaseEscrowLPTest {
     address _depositToken = 0x430bE19e180fd8c2199eC5FAEabE2F5CDba68C94;
     address _stash = 0x6bCc4b00F2Cc9CdFF935E1A5D939f26A233Dd381;
 
-    // Yearn
-    address _yearnHolder;
-    address _yearnVault; // No vault existing, will be created
-
     function setUp() public {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
         vm.createSelectFork(url, 20020781);
-        BaseEscrowLPTest.ConvexInfo memory convexParams = ConvexInfo(
+        BaseEscrowLPConvexTest.ConvexInfo memory convexParams = ConvexInfo(
             _pid,
             _rewardPool,
             _depositToken,
             _stash
         );
 
-        BaseEscrowLPTest.YearnInfo memory yearnParams = YearnInfo(
-            _yearnVault,
-            _yearnHolder
-        );
-
-        init(
-            _dolaFraxPyUSD,
-            _lpHolder,
-            _gauge,
-            convexParams,
-            yearnParams,
-            true
-        );
+        init(_dolaFraxPyUSD, _lpHolder, _gauge, convexParams, true);
     }
 }
