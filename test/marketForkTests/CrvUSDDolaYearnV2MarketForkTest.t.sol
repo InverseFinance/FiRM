@@ -3,13 +3,14 @@ pragma solidity ^0.8.13;
 
 import {MarketBaseForkTest, IOracle, IDolaBorrowingRights, IERC20} from "./MarketBaseForkTest.sol";
 import {Market} from "src/Market.sol";
-import {LPCurveYearnV2Escrow} from "src/escrows/LPCurveYearnV2Escrow.sol";
-import {CurveLPSingleFeed} from "src/feeds/CurveLPSingleFeed.sol";
+import {SimpleERC20Escrow} from "src/escrows/SimpleERC20Escrow.sol";
+import {CurveLPYearnV2Feed} from "src/feeds/CurveLPYearnV2Feed.sol";
 import {ChainlinkCurve2CoinsFeed} from "src/feeds/ChainlinkCurve2CoinsFeed.sol";
 import {ChainlinkCurveFeed} from "src/feeds/ChainlinkCurveFeed.sol";
 import "src/feeds/ChainlinkBasePriceFeed.sol";
-import "src/feeds/CurveLPSingleFeed.sol";
+import "src/feeds/CurveLPYearnV2Feed.sol";
 import {console} from "forge-std/console.sol";
+import {ICurvePool} from "src/feeds/CurveLPSingleFeed.sol";
 import {YearnVaultV2Helper, IYearnVaultV2} from "src/util/YearnVaultV2Helper.sol";
 
 interface IYearnVaultFactory {
@@ -26,8 +27,8 @@ interface IYearnVaultFactory {
 }
 
 contract CrvUSDDolaYearnV2MarketForkTest is MarketBaseForkTest {
-    LPCurveYearnV2Escrow escrow;
-    CurveLPSingleFeed feedCrvUSDDola;
+    SimpleERC20Escrow escrow;
+    CurveLPYearnV2Feed feedCrvUSDDolaYearnV2;
 
     ChainlinkBasePriceFeed mainCrvUSDFeed;
     ChainlinkBasePriceFeed baseFraxToUsd;
@@ -54,16 +55,16 @@ contract CrvUSDDolaYearnV2MarketForkTest is MarketBaseForkTest {
     address public yearn = address(0xfb5137Aa9e079DB4b7C2929229caf503d0f6DA96);
     address yearnHolder = address(0x8B5b1D02AAB4e10e49507e89D2bE10A382D52b57); //update
 
-    LPCurveYearnV2Escrow userEscrow;
+    SimpleERC20Escrow userEscrow;
 
     function setUp() public {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
         vm.createSelectFork(url, 20020781);
 
-        escrow = new LPCurveYearnV2Escrow(address(yearn));
+        escrow = new SimpleERC20Escrow();
 
-        feedCrvUSDDola = _deployCrvUSDDolaFeed();
+        feedCrvUSDDolaYearnV2 = _deployCrvUSDDolaYearnV2Feed();
 
         Market market = new Market(
             gov,
@@ -79,23 +80,15 @@ contract CrvUSDDolaYearnV2MarketForkTest is MarketBaseForkTest {
             true
         );
 
-        _advancedInit(address(market), address(feedCrvUSDDola), true);
+        _advancedInit(address(market), address(feedCrvUSDDolaYearnV2), true);
 
-        userEscrow = LPCurveYearnV2Escrow(address(market.predictEscrow(user)));
+        userEscrow = SimpleERC20Escrow(address(market.predictEscrow(user)));
     }
 
-    function test_escrow_immutables() public {
-        testDeposit();
-        assertEq(address(userEscrow.yearn()), address(yearn), "Yearn not set");
-    }
-
-    function test_depositToYearn() public {
-        testDeposit();
-        userEscrow.depositToYearn();
-        userEscrow.withdrawFromYearn();
-    }
-
-    function _deployCrvUSDDolaFeed() internal returns (CurveLPSingleFeed feed) {
+    function _deployCrvUSDDolaYearnV2Feed()
+        internal
+        returns (CurveLPYearnV2Feed feed)
+    {
         // CrvUSD fallback
         baseFraxToUsd = new ChainlinkBasePriceFeed(
             gov,
@@ -120,9 +113,6 @@ contract CrvUSDDolaYearnV2MarketForkTest is MarketBaseForkTest {
             8
         );
 
-        feed = new CurveLPSingleFeed(
-            address(dolaCrvUSD),
-            address(mainCrvUSDFeed)
-        );
+        feed = new CurveLPYearnV2Feed(address(yearn), address(mainCrvUSDFeed));
     }
 }
