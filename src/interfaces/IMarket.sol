@@ -103,6 +103,4 @@ interface IMarket {
     function DOMAIN_SEPARATOR() external view returns (uint);
 
     function oracle() external view returns (address);
-
-    function escrows(address) external view returns (address);
 }
