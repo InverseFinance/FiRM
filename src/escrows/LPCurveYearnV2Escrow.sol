@@ -1,0 +1,133 @@
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.13;
+
+import "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IYearnVaultV2} from "src/interfaces/IYearnVaultV2.sol";
+import {YearnVaultV2Helper} from "src/util/YearnVaultV2Helper.sol";
+
+contract LPCurveYearnV2Escrow {
+    using SafeERC20 for IERC20;
+
+    error AlreadyInitialized();
+    error OnlyMarket();
+    error OnlyBeneficiary();
+
+    IYearnVaultV2 public immutable yearn;
+    /// @dev Wei delta for Yearn Vault V2 withdrawals
+    uint256 public constant weiDelta = 2;
+    /// @dev Max loss percentage to allow liquidation
+    uint256 public constant maxLoss = 10000;
+
+    address public market;
+    IERC20 public token;
+    address public beneficiary;
+
+    mapping(address => bool) public allowlist;
+
+    modifier onlyBeneficiary() {
+        if (msg.sender != beneficiary) revert OnlyBeneficiary();
+        _;
+    }
+
+    constructor(address _yearn) {
+        yearn = IYearnVaultV2(_yearn);
+    }
+
+    /**
+    @notice Initialize escrow with a token
+    @dev Must be called right after proxy is created.
+    @param _token The IERC20 token representing the governance token
+    @param _beneficiary The beneficiary who cvxCRV is staked on behalf
+    */
+    function initialize(IERC20 _token, address _beneficiary) public {
+        if (market != address(0)) revert AlreadyInitialized();
+        market = msg.sender;
+        token = _token;
+        token.approve(address(yearn), type(uint).max);
+        beneficiary = _beneficiary;
+    }
+
+    /**
+    @notice Withdraws the wrapped token from the reward pool and transfers the associated ERC20 token to a recipient.
+    @dev Will first try to pay from the escrow balance, if not enough or any, will try to pay the missing amount from convex, then from yearn if needed
+    @param recipient The address to receive payment from the escrow
+    @param amount The amount of ERC20 token to be transferred.
+    */
+    function pay(address recipient, uint amount) public {
+        if (msg.sender != market) revert OnlyMarket();
+        uint256 tokenBal = token.balanceOf(address(this));
+
+        if (tokenBal >= amount) {
+            token.safeTransfer(recipient, amount);
+            return;
+        }
+
+        uint256 missingAmount = amount - tokenBal;
+        uint yearnBal = yearn.balanceOf(address(this));
+        if (yearnBal > 0) {
+            uint256 maxWithdraw = YearnVaultV2Helper.collateralToAsset(
+                yearn,
+                yearnBal
+            );
+            uint256 withdrawAmount = maxWithdraw > missingAmount
+                ? missingAmount
+                : maxWithdraw;
+
+            uint256 collateralAmount;
+            if (withdrawAmount == maxWithdraw) collateralAmount = yearnBal;
+            else
+                collateralAmount = YearnVaultV2Helper.assetToCollateral(
+                    yearn,
+                    withdrawAmount + weiDelta
+                );
+            // Withdraw from Yearn
+            yearn.withdraw(collateralAmount, address(this), maxLoss);
+        }
+        token.safeTransfer(recipient, amount);
+    }
+
+    /**
+    @notice Get the token balance of the escrow
+    @return Uint representing the staked balance of the escrow
+    */
+    function balance() public view returns (uint) {
+        return
+            YearnVaultV2Helper.collateralToAsset(
+                yearn,
+                yearn.balanceOf(address(this))
+            ) + token.balanceOf(address(this));
+    }
+
+    /**
+    @notice Function called by market on deposit. Stakes deposited collateral into convex reward pool
+    @dev This function should remain callable by anyone to handle direct inbound transfers.
+    */
+    function onDeposit() public {}
+
+    /**
+     * @notice Deposit token balance in the escrow into Yearn
+     * @dev Cannot deposit if there are Convex tokens in the escrow (only 1 strategy at a time)
+     */
+    function depositToYearn() external onlyBeneficiary {
+        uint256 tokenBal = token.balanceOf(address(this));
+        if (tokenBal == 0) return;
+        yearn.deposit(tokenBal, address(this));
+    }
+
+    /**
+     * @notice Withdraw all tokens from Yearn
+     * @return lpAmount The amount of tokens withdrawn from Yearn
+     */
+    function withdrawFromYearn()
+        public
+        onlyBeneficiary
+        returns (uint256 lpAmount)
+    {
+        return
+            yearn.withdraw(
+                yearn.balanceOf(address(this)),
+                address(this),
+                maxLoss
+            );
+    }
+}
