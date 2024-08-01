@@ -26,6 +26,10 @@ interface IBC {
     function setStalenessThreshold(address market, uint256 threshold) external;
 }
 
+interface IFlashMinter {
+    function setFlashLoanRate(uint256 rate) external;
+}
+
 contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
     using stdStorage for StdStorage;
 
@@ -48,7 +52,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
 
     MockExchangeProxy exchangeProxy;
     ALE ale;
-
+    IFlashMinter flash;
     ERC4626Helper helper;
     //Variables
     uint collateralFactorBps;
@@ -83,7 +87,8 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
             address(market),
             fraxAddr,
             address(market.collateral()),
-            address(helper)
+            address(helper),
+            true
         );
         vm.stopPrank();
         //FiRM
@@ -111,6 +116,9 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
         oracle.setFeed(fraxAddr, IChainlinkFeed(fraxUsdFeedAddr), 18);
         borrowController.allow(address(ale));
         DOLA.addMinter(address(ale));
+
+        flash = IFlashMinter(address(ale.flash()));
+        flash.setFlashLoanRate(0);
         vm.stopPrank();
 
         collateralFactorBps = market.collateralFactorBps();
@@ -578,7 +586,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
             abi.encodeWithSelector(ALE.NoMarket.selector, fakeMarket)
         );
         vm.prank(gov);
-        ale.setMarket(fakeMarket, address(0), address(0), address(0));
+        ale.setMarket(fakeMarket, address(0), address(0), address(0), true);
     }
 
     function test_fail_setMarket_WrongCollateral_WithHelper() public {
@@ -598,7 +606,8 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
             address(market),
             fakeCollateral,
             address(0),
-            address(helper)
+            address(helper),
+            true
         );
 
         vm.expectRevert(
@@ -615,7 +624,8 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
             address(market),
             address(0),
             fakeCollateral,
-            address(helper)
+            address(helper),
+            true
         );
 
         vm.expectRevert(
@@ -632,7 +642,8 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
             address(market),
             fakeCollateral,
             fakeCollateral,
-            address(helper)
+            address(helper),
+            true
         );
     }
 

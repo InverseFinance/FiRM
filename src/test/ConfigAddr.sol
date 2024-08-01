@@ -11,7 +11,7 @@ contract ConfigAddr {
     address oracleAddr = address(0xaBe146CF570FD27ddD985895ce9B138a7110cce8);
     address borrowControllerAddr =
         address(0x44B7895989Bc7886423F06DeAa844D413384b0d6);
-
+    address fedAddr = address(0x2b34548b865ad66A2B046cb82e59eE43F75B90fd);
     // Inverse Feeds
     address styEthFeedAddr =
         address(0xbBE5FaBbB55c2c79ae1efE6b5bd52048A199e166);

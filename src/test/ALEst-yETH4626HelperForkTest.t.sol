@@ -28,6 +28,10 @@ interface IBC {
     function setStalenessThreshold(address market, uint256 threshold) external;
 }
 
+interface IFlashMinter {
+    function setFlashLoanRate(uint256 rate) external;
+}
+
 contract ALEstYETH4626HelperForkTest is BaseHelperForkTest {
     using stdStorage for StdStorage;
 
@@ -50,6 +54,7 @@ contract ALEstYETH4626HelperForkTest is BaseHelperForkTest {
 
     MockExchangeProxy exchangeProxy;
     ALE ale;
+    IFlashMinter flash;
     //STYETHHelper helper;
     YETHFeed feedyETH;
 
@@ -93,7 +98,8 @@ contract ALEstYETH4626HelperForkTest is BaseHelperForkTest {
             address(market),
             yEthAddr,
             address(market.collateral()),
-            address(helper)
+            address(helper),
+            true
         );
         vm.stopPrank();
         //FiRM
@@ -109,6 +115,9 @@ contract ALEstYETH4626HelperForkTest is BaseHelperForkTest {
         borrowController.allow(address(ale));
 
         DOLA.addMinter(address(ale));
+
+        flash = IFlashMinter(address(ale.flash()));
+        flash.setFlashLoanRate(0);
         vm.stopPrank();
 
         collateralFactorBps = market.collateralFactorBps();
@@ -573,7 +582,7 @@ contract ALEstYETH4626HelperForkTest is BaseHelperForkTest {
             abi.encodeWithSelector(ALE.NoMarket.selector, fakeMarket)
         );
         vm.prank(gov);
-        ale.setMarket(fakeMarket, address(0), address(0), address(0));
+        ale.setMarket(fakeMarket, address(0), address(0), address(0), true);
     }
 
     function test_fail_setMarket_WrongCollateral_WithHelper() public {
@@ -593,7 +602,8 @@ contract ALEstYETH4626HelperForkTest is BaseHelperForkTest {
             address(market),
             fakeCollateral,
             address(0),
-            address(helper)
+            address(helper),
+            true
         );
 
         vm.expectRevert(
@@ -610,7 +620,8 @@ contract ALEstYETH4626HelperForkTest is BaseHelperForkTest {
             address(market),
             address(0),
             fakeCollateral,
-            address(helper)
+            address(helper),
+            true
         );
 
         vm.expectRevert(
@@ -627,7 +638,8 @@ contract ALEstYETH4626HelperForkTest is BaseHelperForkTest {
             address(market),
             fakeCollateral,
             fakeCollateral,
-            address(helper)
+            address(helper),
+            true
         );
     }
 
