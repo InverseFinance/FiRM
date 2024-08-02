@@ -394,8 +394,36 @@ contract ALE is
         if (initiator != address(this)) revert NotALE(initiator);
         if (msg.sender != address(flash)) revert NotFlashMinter(msg.sender);
 
+        (bytes32 ACTION, , , , , , , , ) = abi.decode(
+            data,
+            (
+                bytes32,
+                address,
+                address,
+                uint256,
+                address,
+                bytes,
+                Permit,
+                bytes,
+                DBRHelper
+            )
+        );
+
+        if (ACTION == LEVERAGE) _onFlashLoanLeverage(amount, fee, data);
+        else if (ACTION == DELEVERAGE)
+            _onFlashLoanDeleverage(amount, fee, data);
+        else revert InvalidAction(bytes32(ACTION));
+
+        return CALLBACK_SUCCESS;
+    }
+
+    function _onFlashLoanLeverage(
+        uint256 _value,
+        uint256 _fee,
+        bytes memory data
+    ) internal {
         (
-            bytes32 ACTION,
+            ,
             address _user,
             address _market,
             uint256 _collateralAmount,
@@ -418,45 +446,6 @@ contract ALE is
                     DBRHelper
                 )
             );
-
-        if (ACTION == LEVERAGE)
-            _onFlashLoanLeverage(
-                _user,
-                amount,
-                _market,
-                _spender,
-                _swapCallData,
-                _permit,
-                _helperData,
-                _dbrData
-            );
-        else if (ACTION == DELEVERAGE)
-            _onFlashLoanDeleverage(
-                _user,
-                amount,
-                _market,
-                _collateralAmount,
-                _spender,
-                _swapCallData,
-                _permit,
-                _helperData,
-                _dbrData
-            );
-        else revert InvalidAction(bytes32(ACTION));
-
-        return CALLBACK_SUCCESS;
-    }
-
-    function _onFlashLoanLeverage(
-        address _user,
-        uint256 _value,
-        address _market,
-        address _spender,
-        bytes memory _swapCallData,
-        Permit memory _permit,
-        bytes memory _helperData,
-        DBRHelper memory _dbrData
-    ) internal {
         // Call the encoded swap function call on the contract at `swapTarget`,
         // passing along any ETH attached to this function call to cover protocol fees.
         if (markets[_market].useProxy) {
@@ -487,16 +476,19 @@ contract ALE is
             _user,
             markets[_market].collateral.balanceOf(address(this))
         );
-
-        _borrowDola(_user, _value, _permit, _dbrData, IMarket(_market));
+        uint256 valuePlusFee = _value + _fee;
+        _borrowDola(_user, valuePlusFee, _permit, _dbrData, IMarket(_market));
 
         if (_dbrData.dola != 0) dola.transfer(_user, _dbrData.dola);
 
         if (_dbrData.amountIn != 0)
             _buyDbr(_dbrData.amountIn, _dbrData.minOut, _user);
+        // Scope to avoid stack too deep error
+        {
+            uint balance = dola.balanceOf(address(this));
 
-        uint balance = dola.balanceOf(address(this));
-        if (balance > _value) dola.transfer(_user, balance - _value);
+            if (balance > _value) dola.transfer(_user, balance - valuePlusFee);
+        }
 
         // Refund any possible unspent fees to the sender.
         if (address(this).balance > 0)
@@ -513,16 +505,35 @@ contract ALE is
     }
 
     function _onFlashLoanDeleverage(
-        address _user,
         uint256 _value,
-        address _market,
-        uint _collateralAmount,
-        address _spender,
-        bytes memory _swapCallData,
-        Permit memory _permit,
-        bytes memory _helperData,
-        DBRHelper memory _dbrData
+        uint256 _fee,
+        bytes memory data
     ) internal {
+        (
+            ,
+            address _user,
+            address _market,
+            uint256 _collateralAmount,
+            address _spender,
+            bytes memory _swapCallData,
+            Permit memory _permit,
+            bytes memory _helperData,
+            DBRHelper memory _dbrData
+        ) = abi.decode(
+                data,
+                (
+                    bytes32,
+                    address,
+                    address,
+                    uint256,
+                    address,
+                    bytes,
+                    Permit,
+                    bytes,
+                    DBRHelper
+                )
+            );
+
         _repayAndWithdraw(
             _user,
             _value,
@@ -574,11 +585,14 @@ contract ALE is
             if (sellTokenBal != 0) sellToken.transfer(_user, sellTokenBal);
         }
 
-        uint256 balance = dola.balanceOf(address(this));
-        if (balance < _value) revert DOLAInvalidRepay(_value, balance);
-
-        // Send any extra DOLA to the sender (in case the collateral withdrawn and swapped exceeds the value to burn)
-        if (balance > _value) dola.transfer(_user, balance - _value);
+        // Scope to avoid stack too deep error
+        {
+            uint256 balance = dola.balanceOf(address(this));
+            if (balance < _value) revert DOLAInvalidRepay(_value, balance);
+            uint256 valuePlusFee = _value + _fee;
+            // Send any extra DOLA to the sender (in case the collateral withdrawn and swapped exceeds the value to burn)
+            if (balance > _value) dola.transfer(_user, balance - valuePlusFee);
+        }
 
         if (_dbrData.amountIn != 0) {
             dbr.transferFrom(_user, address(this), _dbrData.amountIn);
