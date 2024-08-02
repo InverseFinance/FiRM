@@ -18,6 +18,17 @@ interface ICurvePool {
         uint256 _min_mint_amount
     ) external returns (uint256);
 
+    function add_liquidity(
+        uint256[3] memory _amounts,
+        uint256 _min_mint_amount,
+        address _receiver
+    ) external returns (uint256);
+
+    function add_liquidity(
+        uint256[3] memory _amounts,
+        uint256 _min_mint_amount
+    ) external returns (uint256);
+
     function remove_liquidity_one_coin(
         uint256 _burn_amount,
         int128 i,

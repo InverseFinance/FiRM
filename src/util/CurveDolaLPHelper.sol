@@ -20,9 +20,13 @@ contract CurveDolaLPHelper is Sweepable, IMultiMarketTransformHelper {
     error MarketNotSet(address market);
     error NotImplemented();
 
+    uint256 public constant POOL_LENGTH_2 = 2;
+    uint256 public constant POOL_LENGTH_3 = 3;
+
     struct Pool {
         ICurvePool pool;
         uint128 dolaIndex;
+        uint128 length;
     }
 
     event MarketSet(
@@ -85,12 +89,18 @@ contract CurveDolaLPHelper is Sweepable, IMultiMarketTransformHelper {
         uint128 dolaIndex = markets[market].dolaIndex;
         ICurvePool pool = markets[market].pool;
 
-        uint256[2] memory amounts;
-        amounts[dolaIndex] = amount;
-
         DOLA.safeTransferFrom(msg.sender, address(this), amount);
         DOLA.approve(address(pool), amount);
-        lpAmount = pool.add_liquidity(amounts, minMint, recipient);
+
+        if (markets[market].length == POOL_LENGTH_3) {
+            uint256[POOL_LENGTH_3] memory amounts;
+            amounts[dolaIndex] = amount;
+            return pool.add_liquidity(amounts, minMint, recipient);
+        } else if (markets[market].length == POOL_LENGTH_2) {
+            uint256[POOL_LENGTH_2] memory amounts;
+            amounts[dolaIndex] = amount;
+            return pool.add_liquidity(amounts, minMint, recipient);
+        } else revert NotImplemented();
     }
 
     /**
@@ -217,12 +227,14 @@ contract CurveDolaLPHelper is Sweepable, IMultiMarketTransformHelper {
      */
     function setMarket(
         address marketAddress,
+        address poolAddress,
         uint128 dolaIndex,
-        address poolAddress
+        uint128 length
     ) external onlyGov {
         markets[marketAddress] = Pool({
             pool: ICurvePool(poolAddress),
-            dolaIndex: dolaIndex
+            dolaIndex: dolaIndex,
+            length: length
         });
         emit MarketSet(marketAddress, dolaIndex, poolAddress);
     }

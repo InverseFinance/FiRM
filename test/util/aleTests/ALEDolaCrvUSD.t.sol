@@ -25,7 +25,7 @@ contract ALEDolaCrvUSDTest is CrvUSDDolaConvexMarketForkTest {
 
         vm.startPrank(gov);
         DOLA.mint(address(this), 100000 ether);
-        helper.setMarket(address(market), 0, address(dolaCrvUSD));
+        helper.setMarket(address(market), address(dolaCrvUSD), 0, 2);
         ale = new ALE(address(0), triDBRAddr);
         ale.setMarket(
             address(market),

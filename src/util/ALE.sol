@@ -457,12 +457,10 @@ contract ALE is
         bytes memory _helperData,
         DBRHelper memory _dbrData
     ) internal {
-       
-
         // Call the encoded swap function call on the contract at `swapTarget`,
         // passing along any ETH attached to this function call to cover protocol fees.
         if (markets[_market].useProxy) {
-             _approveDola(_spender, _value);
+            _approveDola(_spender, _value);
             (bool success, ) = exchangeProxy.call{value: msg.value}(
                 _swapCallData
             );
@@ -477,7 +475,6 @@ contract ALE is
 
         // If there's a helper contract, the buyToken has to be transformed
         if (address(markets[_market].helper) != address(0)) {
-            _approveDola(_spender, collateralAmount);
             collateralAmount = _convertToCollateral(
                 collateralAmount,
                 _market,
@@ -547,14 +544,13 @@ contract ALE is
             );
         }
 
-        // Approve sellToken for spender
-        sellToken.approve(_spender, 0);
-        sellToken.approve(_spender, _collateralAmount);
-
         // Call the encoded swap function call on the contract at `swapTarget`,
         // passing along any ETH attached to this function call to cover protocol fees.
         // NOTE: This will swap the collateral or helperCollateral for DOLA
         if (markets[_market].useProxy) {
+            // Approve sellToken for spender
+            sellToken.approve(_spender, 0);
+            sellToken.approve(_spender, _collateralAmount);
             (bool success, ) = exchangeProxy.call{value: msg.value}(
                 _swapCallData
             );
@@ -572,7 +568,7 @@ contract ALE is
                     collateralAvailable
                 );
             }
-        } else if (address(sellToken) != address(dola)){
+        } else if (address(sellToken) != address(dola)) {
             uint256 sellTokenBal = sellToken.balanceOf(address(this));
             // Send any leftover sellToken to the sender
             if (sellTokenBal != 0) sellToken.transfer(_user, sellTokenBal);
