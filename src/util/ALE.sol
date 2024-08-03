@@ -2,11 +2,12 @@
 pragma solidity ^0.8.0;
 
 import "src/interfaces/IMarket.sol";
-import "src/interfaces/IERC20.sol";
 import "src/interfaces/ITransformHelper.sol";
-import "src/util/CurveDBRHelper.sol";
+import {CurveDBRHelper} from "src/util/CurveDBRHelper.sol";
 import {Ownable} from "lib/openzeppelin-contracts/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
+import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 
 interface IDBR {
     function markets(address) external view returns (bool);
@@ -54,6 +55,7 @@ contract ALE is
     CurveDBRHelper,
     IERC3156FlashBorrower
 {
+    using SafeERC20 for IERC20;
     error CollateralNotSet();
     error MarketNotSet(address market);
     error SwapFailed();
@@ -116,6 +118,7 @@ contract ALE is
         address indexed market,
         address indexed account,
         uint256 dolaFlashMinted, // DOLA flash minted for buying collateral only
+        uint256 dolaFee, // Flash minter fees paid
         uint256 collateralDeposited, // amount of collateral deposited into the escrow
         uint256 dolaBorrowed, // amount of DOLA borrowed on behalf of the user
         uint256 dolaForDBR // amount of DOLA used for buying DBR
@@ -125,6 +128,7 @@ contract ALE is
         address indexed market,
         address indexed account,
         uint256 dolaFlashMinted, // Flash minted DOLA for repaying leverage only
+        uint256 dolaFee, // Flash minter fees paid
         uint256 collateralSold, // amount of collateral/underlying sold
         uint256 dolaUserRepaid, // amount of DOLA deposited by the user as part of the repay
         uint256 dbrSoldForDola // amount of DBR sold for DOLA
@@ -133,6 +137,7 @@ contract ALE is
     event Deposit(
         address indexed market,
         address indexed account,
+        address indexed token, // token used for initial deposit (could be collateral or buySellToken)
         uint256 depositAmount
     );
 
@@ -315,20 +320,30 @@ contract ALE is
     ) external payable {
         if (initialDeposit == 0) revert NothingToDeposit();
         if (depositCollateral) {
-            markets[market].collateral.transferFrom(
+            markets[market].collateral.safeTransferFrom(
                 msg.sender,
                 address(this),
+                initialDeposit
+            );
+            emit Deposit(
+                market,
+                msg.sender,
+                address(markets[market].collateral),
                 initialDeposit
             );
         } else {
-            markets[market].buySellToken.transferFrom(
+            markets[market].buySellToken.safeTransferFrom(
                 msg.sender,
                 address(this),
                 initialDeposit
             );
+            emit Deposit(
+                market,
+                msg.sender,
+                address(markets[market].buySellToken),
+                initialDeposit
+            );
         }
-
-        emit Deposit(market, msg.sender, initialDeposit);
 
         leveragePosition(
             value,
@@ -485,9 +500,9 @@ contract ALE is
             _buyDbr(_dbrData.amountIn, _dbrData.minOut, _user);
         // Scope to avoid stack too deep error
         {
-            uint balance = dola.balanceOf(address(this));
+            uint256 balance = dola.balanceOf(address(this));
 
-            if (balance > _value) dola.transfer(_user, balance - valuePlusFee);
+            if (balance > _value + valuePlusFee) dola.transfer(_user, balance - valuePlusFee);
         }
 
         // Refund any possible unspent fees to the sender.
@@ -498,6 +513,7 @@ contract ALE is
             _market,
             _user,
             _value,
+            _fee,
             collateralAmount,
             _dbrData.dola,
             _dbrData.amountIn
@@ -574,7 +590,7 @@ contract ALE is
             );
 
             if (collateralAvailable != 0) {
-                markets[_market].collateral.transfer(
+                markets[_market].collateral.safeTransfer(
                     _user,
                     collateralAvailable
                 );
@@ -582,7 +598,7 @@ contract ALE is
         } else if (address(sellToken) != address(dola)) {
             uint256 sellTokenBal = sellToken.balanceOf(address(this));
             // Send any leftover sellToken to the sender
-            if (sellTokenBal != 0) sellToken.transfer(_user, sellTokenBal);
+            if (sellTokenBal != 0) sellToken.safeTransfer(_user, sellTokenBal);
         }
 
         // Scope to avoid stack too deep error
@@ -591,7 +607,7 @@ contract ALE is
             if (balance < _value) revert DOLAInvalidRepay(_value, balance);
             uint256 valuePlusFee = _value + _fee;
             // Send any extra DOLA to the sender (in case the collateral withdrawn and swapped exceeds the value to burn)
-            if (balance > _value) dola.transfer(_user, balance - valuePlusFee);
+            if (balance > valuePlusFee) dola.transfer(_user, balance - valuePlusFee);
         }
 
         if (_dbrData.amountIn != 0) {
@@ -607,6 +623,7 @@ contract ALE is
             _market,
             _user,
             _value,
+            _fee,
             _collateralAmount,
             _dbrData.dola,
             _dbrData.amountIn

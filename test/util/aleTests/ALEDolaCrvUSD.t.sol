@@ -99,7 +99,7 @@ contract ALEDolaCrvUSDTest is CrvUSDDolaConvexMarketForkTest {
         ale.leveragePosition(
             maxBorrowAmount,
             address(market),
-            address(helper),
+            address(0),
             swapData,
             permit,
             abi.encode(address(market), uint(0)),
@@ -168,7 +168,7 @@ contract ALEDolaCrvUSDTest is CrvUSDDolaConvexMarketForkTest {
         ale.leveragePosition(
             maxBorrowAmount,
             address(market),
-            address(helper),
+            address(0),
             swapData,
             permit,
             abi.encode(address(market), uint(0)),
@@ -179,6 +179,72 @@ contract ALEDolaCrvUSDTest is CrvUSDDolaConvexMarketForkTest {
         assertEq(
             IERC20(address(dolaCrvUSD)).balanceOf(userPkEscrow),
             lpAmount + lpAmountAdded
+        );
+    }
+
+    function test_fail_leveragePosition_with_Fee_no_paid() public {
+        // Fee is not accounted into the withdraw amount of DOLA in the signed message
+
+        vm.startPrank(gov);
+        DOLA.mint(userPk, 10000 ether);
+        flash.setFlashLoanRate(0.001 ether); // 0.1% fee
+        vm.stopPrank();
+
+        vm.startPrank(userPk, userPk);
+        DOLA.approve(address(helper), 10000 ether);
+        helper.transformToCollateralAndDeposit(
+            10000 ether,
+            userPk,
+            abi.encode(address(market), 0)
+        );
+        vm.stopPrank();
+
+        uint256 lpAmount = IERC20(address(dolaCrvUSD)).balanceOf(userPkEscrow);
+        gibDBR(userPk, 20000 ether);
+
+        uint maxBorrowAmount = _getMaxBorrowAmount(lpAmount);
+        uint256 flashFee = flash.flashFee(address(DOLA), maxBorrowAmount);
+
+        // Sign Message for borrow on behalf
+        bytes32 hash = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                market.DOMAIN_SEPARATOR(),
+                keccak256(
+                    abi.encode(
+                        keccak256(
+                            "BorrowOnBehalf(address caller,address from,uint256 amount,uint256 nonce,uint256 deadline)"
+                        ),
+                        address(ale),
+                        userPk,
+                        maxBorrowAmount,
+                        0,
+                        block.timestamp
+                    )
+                )
+            )
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
+
+        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+
+        bytes memory swapData;
+
+        ALE.DBRHelper memory dbrData;
+
+        uint256[2] memory amounts = [maxBorrowAmount, 0];
+        uint256 lpAmountAdded = dolaCrvUSD.calc_token_amount(amounts, true);
+
+        vm.prank(userPk);
+        vm.expectRevert(bytes("INVALID_SIGNER"));
+        ale.leveragePosition(
+            maxBorrowAmount,
+            address(market),
+            address(0),
+            swapData,
+            permit,
+            abi.encode(address(market), uint(0)),
+            dbrData
         );
     }
 
@@ -241,7 +307,7 @@ contract ALEDolaCrvUSDTest is CrvUSDDolaConvexMarketForkTest {
         ale.leveragePosition(
             maxBorrowAmount,
             address(market),
-            address(helper),
+            address(0),
             swapData,
             permit,
             abi.encode(address(market), uint(0)),
@@ -254,6 +320,156 @@ contract ALEDolaCrvUSDTest is CrvUSDDolaConvexMarketForkTest {
             lpAmount + lpAmountAdded
         );
         assertGt(dbr.balanceOf(userPk), (dbrAmount * 98) / 100);
+    }
+
+    function test_leveragePosition_buyDBR_with_Fee() public {
+        vm.startPrank(gov);
+        DOLA.mint(userPk, 10000 ether);
+        flash.setFlashLoanRate(0.001 ether); // 0.1% fee
+        vm.stopPrank();
+
+        vm.startPrank(userPk, userPk);
+        DOLA.approve(address(helper), 10000 ether);
+        helper.transformToCollateralAndDeposit(
+            10000 ether,
+            userPk,
+            abi.encode(address(market), 0)
+        );
+        vm.stopPrank();
+
+        uint256 lpAmount = IERC20(address(dolaCrvUSD)).balanceOf(userPkEscrow);
+
+        uint maxBorrowAmount = _getMaxBorrowAmount(lpAmount);
+
+        // Calculate the amount of DOLA needed to borrow to buy the DBR needed to cover for the borrowing period
+        (uint256 dolaForDBR, uint256 dbrAmount) = ale
+            .approximateDolaAndDbrNeeded(maxBorrowAmount, 365 days, 8);
+
+        // Sign Message for borrow on behalf
+        bytes32 hash = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                market.DOMAIN_SEPARATOR(),
+                keccak256(
+                    abi.encode(
+                        keccak256(
+                            "BorrowOnBehalf(address caller,address from,uint256 amount,uint256 nonce,uint256 deadline)"
+                        ),
+                        address(ale),
+                        userPk,
+                        maxBorrowAmount +
+                            dolaForDBR +
+                            flash.flashFee(address(DOLA), maxBorrowAmount), // Add flash fee
+                        0,
+                        block.timestamp
+                    )
+                )
+            )
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
+
+        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+
+        bytes memory swapData;
+
+        ALE.DBRHelper memory dbrData = ALE.DBRHelper(
+            dolaForDBR,
+            (dbrAmount * 98) / 100,
+            0
+        );
+
+        uint256[2] memory amounts = [maxBorrowAmount, 0];
+        uint256 lpAmountAdded = dolaCrvUSD.calc_token_amount(amounts, true);
+
+        vm.prank(userPk);
+        ale.leveragePosition(
+            maxBorrowAmount,
+            address(market),
+            address(0),
+            swapData,
+            permit,
+            abi.encode(address(market), uint(0)),
+            dbrData
+        );
+
+        assertEq(DOLA.balanceOf(userPk), 0);
+        assertEq(
+            IERC20(address(dolaCrvUSD)).balanceOf(userPkEscrow),
+            lpAmount + lpAmountAdded
+        );
+        assertGt(dbr.balanceOf(userPk), (dbrAmount * 98) / 100);
+    }
+
+    function test_leveragePosition_buyDBR_with_Fee_no_paid() public {
+        // Fee is not accounted into the withdraw amount of DOLA in the signed message
+
+        vm.startPrank(gov);
+        DOLA.mint(userPk, 10000 ether);
+        flash.setFlashLoanRate(0.001 ether); // 0.1% fee
+        vm.stopPrank();
+
+        vm.startPrank(userPk, userPk);
+        DOLA.approve(address(helper), 10000 ether);
+        helper.transformToCollateralAndDeposit(
+            10000 ether,
+            userPk,
+            abi.encode(address(market), 0)
+        );
+        vm.stopPrank();
+
+        uint256 lpAmount = IERC20(address(dolaCrvUSD)).balanceOf(userPkEscrow);
+
+        uint maxBorrowAmount = _getMaxBorrowAmount(lpAmount);
+
+        // Calculate the amount of DOLA needed to borrow to buy the DBR needed to cover for the borrowing period
+        (uint256 dolaForDBR, uint256 dbrAmount) = ale
+            .approximateDolaAndDbrNeeded(maxBorrowAmount, 365 days, 8);
+
+        // Sign Message for borrow on behalf
+        bytes32 hash = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                market.DOMAIN_SEPARATOR(),
+                keccak256(
+                    abi.encode(
+                        keccak256(
+                            "BorrowOnBehalf(address caller,address from,uint256 amount,uint256 nonce,uint256 deadline)"
+                        ),
+                        address(ale),
+                        userPk,
+                        maxBorrowAmount + dolaForDBR,
+                        0,
+                        block.timestamp
+                    )
+                )
+            )
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
+
+        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+
+        bytes memory swapData;
+
+        ALE.DBRHelper memory dbrData = ALE.DBRHelper(
+            dolaForDBR,
+            (dbrAmount * 98) / 100,
+            0
+        );
+
+        uint256[2] memory amounts = [maxBorrowAmount, 0];
+        uint256 lpAmountAdded = dolaCrvUSD.calc_token_amount(amounts, true);
+
+        vm.prank(userPk);
+        vm.expectRevert(bytes("INVALID_SIGNER"));
+        ale.leveragePosition(
+            maxBorrowAmount,
+            address(market),
+            address(0),
+            swapData,
+            permit,
+            abi.encode(address(market), uint(0)),
+            dbrData
+        );
     }
 
     function test_depositAndLeveragePosition_DOLA() public {
@@ -311,7 +527,7 @@ contract ALEDolaCrvUSDTest is CrvUSDDolaConvexMarketForkTest {
             initialDolaDeposit,
             maxBorrowAmount,
             address(market),
-            address(helper),
+            address(0),
             swapData,
             permit,
             abi.encode(address(market), uint(0)),
@@ -323,6 +539,146 @@ contract ALEDolaCrvUSDTest is CrvUSDDolaConvexMarketForkTest {
         assertEq(
             IERC20(address(dolaCrvUSD)).balanceOf(userPkEscrow),
             lpAmount + lpAmountAdded
+        );
+    }
+
+    function test_depositAndLeveragePosition_DOLA_with_Fee() public {
+        vm.startPrank(gov);
+        DOLA.mint(userPk, 11000 ether);
+        flash.setFlashLoanRate(0.001 ether); // 0.1% fee
+        vm.stopPrank();
+        uint256 initialDolaDeposit = 1000 ether;
+
+        vm.startPrank(userPk, userPk);
+        DOLA.approve(address(helper), 10000 ether);
+        helper.transformToCollateralAndDeposit(
+            10000 ether,
+            userPk,
+            abi.encode(address(market), 0)
+        );
+        vm.stopPrank();
+
+        uint256 lpAmount = IERC20(address(dolaCrvUSD)).balanceOf(userPkEscrow);
+        gibDBR(userPk, 20000 ether);
+
+        uint maxBorrowAmount = _getMaxBorrowAmount(lpAmount);
+        uint256 flashFee = flash.flashFee(address(DOLA), maxBorrowAmount);
+        // Sign Message for borrow on behalf
+        bytes32 hash = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                market.DOMAIN_SEPARATOR(),
+                keccak256(
+                    abi.encode(
+                        keccak256(
+                            "BorrowOnBehalf(address caller,address from,uint256 amount,uint256 nonce,uint256 deadline)"
+                        ),
+                        address(ale),
+                        userPk,
+                        maxBorrowAmount + flashFee,
+                        0,
+                        block.timestamp
+                    )
+                )
+            )
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
+
+        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+
+        bytes memory swapData;
+
+        ALE.DBRHelper memory dbrData;
+
+        uint256[2] memory amounts = [maxBorrowAmount + initialDolaDeposit, 0];
+        uint256 lpAmountAdded = dolaCrvUSD.calc_token_amount(amounts, true);
+
+        vm.startPrank(userPk);
+        DOLA.approve(address(ale), initialDolaDeposit);
+        ale.depositAndLeveragePosition(
+            initialDolaDeposit,
+            maxBorrowAmount,
+            address(market),
+            address(0),
+            swapData,
+            permit,
+            abi.encode(address(market), uint(0)),
+            dbrData,
+            false
+        );
+
+        assertEq(DOLA.balanceOf(userPk), 0);
+        assertEq(
+            IERC20(address(dolaCrvUSD)).balanceOf(userPkEscrow),
+            lpAmount + lpAmountAdded
+        );
+    }
+
+    function test_depositAndLeveragePosition_DOLA_with_Fee_no_paid() public {
+        // Fee is not accounted into the withdraw amount of DOLA in the signed message
+
+        vm.startPrank(gov);
+        DOLA.mint(userPk, 11000 ether);
+        flash.setFlashLoanRate(0.001 ether); // 0.1% fee
+        vm.stopPrank();
+        uint256 initialDolaDeposit = 1000 ether;
+
+        vm.startPrank(userPk, userPk);
+        DOLA.approve(address(helper), 10000 ether);
+        helper.transformToCollateralAndDeposit(
+            10000 ether,
+            userPk,
+            abi.encode(address(market), 0)
+        );
+        vm.stopPrank();
+
+        uint256 lpAmount = IERC20(address(dolaCrvUSD)).balanceOf(userPkEscrow);
+        gibDBR(userPk, 20000 ether);
+
+        uint maxBorrowAmount = _getMaxBorrowAmount(lpAmount);
+        // Sign Message for borrow on behalf
+        bytes32 hash = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                market.DOMAIN_SEPARATOR(),
+                keccak256(
+                    abi.encode(
+                        keccak256(
+                            "BorrowOnBehalf(address caller,address from,uint256 amount,uint256 nonce,uint256 deadline)"
+                        ),
+                        address(ale),
+                        userPk,
+                        maxBorrowAmount,
+                        0,
+                        block.timestamp
+                    )
+                )
+            )
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
+
+        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+
+        bytes memory swapData;
+
+        ALE.DBRHelper memory dbrData;
+
+        uint256[2] memory amounts = [maxBorrowAmount + initialDolaDeposit, 0];
+        uint256 lpAmountAdded = dolaCrvUSD.calc_token_amount(amounts, true);
+
+        vm.startPrank(userPk);
+        DOLA.approve(address(ale), initialDolaDeposit);
+        vm.expectRevert(bytes("INVALID_SIGNER"));
+        ale.depositAndLeveragePosition(
+            initialDolaDeposit,
+            maxBorrowAmount,
+            address(market),
+            address(0),
+            swapData,
+            permit,
+            abi.encode(address(market), uint(0)),
+            dbrData,
+            false
         );
     }
 
@@ -384,7 +740,7 @@ contract ALEDolaCrvUSDTest is CrvUSDDolaConvexMarketForkTest {
             initialLpAmount,
             maxBorrowAmount,
             address(market),
-            address(helper),
+            address(0),
             swapData,
             permit,
             abi.encode(address(market), uint(0)),
@@ -439,7 +795,7 @@ contract ALEDolaCrvUSDTest is CrvUSDDolaConvexMarketForkTest {
             dolaRedeemed / 2,
             address(market),
             amountToWithdraw,
-            address(helper),
+            address(0),
             swapData,
             permit,
             abi.encode(address(market), uint(0)),
@@ -500,7 +856,7 @@ contract ALEDolaCrvUSDTest is CrvUSDDolaConvexMarketForkTest {
             repayAmount,
             address(market),
             amountToWithdraw,
-            address(helper),
+            address(0),
             swapData,
             permit,
             abi.encode(address(market), uint(0)),
@@ -518,6 +874,9 @@ contract ALEDolaCrvUSDTest is CrvUSDDolaConvexMarketForkTest {
             (dolaRedeemed / 2) - flashFee,
             1
         );
+
+        assertEq(DOLA.allowance(userPk, address(ale)), 0);
+        assertEq(DOLA.allowance(userPk, address(market)), 0);
     }
 
     function test_deleveragePosition_sellDBR() public {
@@ -568,7 +927,7 @@ contract ALEDolaCrvUSDTest is CrvUSDDolaConvexMarketForkTest {
             debt,
             address(market),
             amountToWithdraw,
-            address(helper),
+            address(0),
             swapData,
             permit,
             abi.encode(address(market), uint(0)),
