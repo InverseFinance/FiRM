@@ -92,12 +92,12 @@ contract CurveDolaLPHelper is Sweepable, IMultiMarketTransformHelper {
         DOLA.safeTransferFrom(msg.sender, address(this), amount);
         DOLA.approve(address(pool), amount);
 
-        if (markets[market].length == POOL_LENGTH_3) {
-            uint256[POOL_LENGTH_3] memory amounts;
+        if (markets[market].length == POOL_LENGTH_2) {
+            uint256[POOL_LENGTH_2] memory amounts;
             amounts[dolaIndex] = amount;
             return pool.add_liquidity(amounts, minMint, recipient);
-        } else if (markets[market].length == POOL_LENGTH_2) {
-            uint256[POOL_LENGTH_2] memory amounts;
+        } else if (markets[market].length == POOL_LENGTH_3) {
+            uint256[POOL_LENGTH_3] memory amounts;
             amounts[dolaIndex] = amount;
             return pool.add_liquidity(amounts, minMint, recipient);
         } else revert NotImplemented();

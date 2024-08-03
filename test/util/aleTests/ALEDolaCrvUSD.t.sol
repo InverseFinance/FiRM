@@ -203,7 +203,6 @@ contract ALEDolaCrvUSDTest is CrvUSDDolaConvexMarketForkTest {
         gibDBR(userPk, 20000 ether);
 
         uint maxBorrowAmount = _getMaxBorrowAmount(lpAmount);
-        uint256 flashFee = flash.flashFee(address(DOLA), maxBorrowAmount);
 
         // Sign Message for borrow on behalf
         bytes32 hash = keccak256(
@@ -231,9 +230,6 @@ contract ALEDolaCrvUSDTest is CrvUSDDolaConvexMarketForkTest {
         bytes memory swapData;
 
         ALE.DBRHelper memory dbrData;
-
-        uint256[2] memory amounts = [maxBorrowAmount, 0];
-        uint256 lpAmountAdded = dolaCrvUSD.calc_token_amount(amounts, true);
 
         vm.prank(userPk);
         vm.expectRevert(bytes("INVALID_SIGNER"));
@@ -456,9 +452,6 @@ contract ALEDolaCrvUSDTest is CrvUSDDolaConvexMarketForkTest {
             0
         );
 
-        uint256[2] memory amounts = [maxBorrowAmount, 0];
-        uint256 lpAmountAdded = dolaCrvUSD.calc_token_amount(amounts, true);
-
         vm.prank(userPk);
         vm.expectRevert(bytes("INVALID_SIGNER"));
         ale.leveragePosition(
@@ -662,9 +655,6 @@ contract ALEDolaCrvUSDTest is CrvUSDDolaConvexMarketForkTest {
         bytes memory swapData;
 
         ALE.DBRHelper memory dbrData;
-
-        uint256[2] memory amounts = [maxBorrowAmount + initialDolaDeposit, 0];
-        uint256 lpAmountAdded = dolaCrvUSD.calc_token_amount(amounts, true);
 
         vm.startPrank(userPk);
         DOLA.approve(address(ale), initialDolaDeposit);

@@ -79,8 +79,7 @@ contract ALE is
         address helper
     );
 
-    // 0x ExchangeProxy address.
-    // See https://docs.0x.org/developer-resources/contract-addresses
+    // 1Inch ExchangeProxy address.
     address payable public exchangeProxy;
 
     IDBR public constant DBR = IDBR(0xAD038Eb671c44b853887A7E32528FaB35dC5D710);
@@ -153,6 +152,7 @@ contract ALE is
     // Mapping of market to Market structs
     // NOTE: in normal cases sellToken/buyToken is the collateral token,
     // in other cases it could be different (eg. st-yCRV is collateral, yCRV is the token to be swapped from/to DOLA)
+    // or with DOLA curve LPs, LP token is the collateral and DOLA is the token to be swapped from/to
     mapping(address => Market) public markets;
 
     modifier dolaSupplyUnchanged() {
@@ -441,7 +441,7 @@ contract ALE is
             ,
             address _user,
             address _market,
-            uint256 _collateralAmount,
+            ,
             address _spender,
             bytes memory _swapCallData,
             Permit memory _permit,
@@ -502,7 +502,8 @@ contract ALE is
         {
             uint256 balance = dola.balanceOf(address(this));
 
-            if (balance > _value + valuePlusFee) dola.transfer(_user, balance - valuePlusFee);
+            if (balance > _value + valuePlusFee)
+                dola.transfer(_user, balance - valuePlusFee);
         }
 
         // Refund any possible unspent fees to the sender.
@@ -607,7 +608,8 @@ contract ALE is
             if (balance < _value) revert DOLAInvalidRepay(_value, balance);
             uint256 valuePlusFee = _value + _fee;
             // Send any extra DOLA to the sender (in case the collateral withdrawn and swapped exceeds the value to burn)
-            if (balance > valuePlusFee) dola.transfer(_user, balance - valuePlusFee);
+            if (balance > valuePlusFee)
+                dola.transfer(_user, balance - valuePlusFee);
         }
 
         if (_dbrData.amountIn != 0) {
