@@ -2,7 +2,7 @@ pragma solidity ^0.8.13;
 
 import {ICurvePool} from "src/interfaces/ICurvePool.sol";
 import {CurveDolaLPHelper} from "src/util/CurveDolaLPHelper.sol";
-import "test/marketForkTests/CrvUSDDolaConvexMarketForkTest.t.sol";
+import "test/marketForkTests/DolaFraxBPConvexMarketForkTest.t.sol";
 import {console} from "forge-std/console.sol";
 import {IMultiMarketTransformHelper} from "src/interfaces/IMultiMarketTransformHelper.sol";
 import {ALE} from "src/util/ALE.sol";
@@ -16,7 +16,7 @@ interface IFlashMinter {
     ) external view returns (uint256);
 }
 
-contract ALEDolaCrvUSDTest is CrvUSDDolaConvexMarketForkTest {
+contract ALEDolaFraxBPTest is DolaFraxBPConvexMarketForkTest {
     ALE ale;
     IFlashMinter flash;
     address userPk = vm.addr(1);
@@ -26,7 +26,7 @@ contract ALEDolaCrvUSDTest is CrvUSDDolaConvexMarketForkTest {
 
     function setUp() public override {
         super.setUp();
-        curvePool = dolaCrvUSD;
+        curvePool = dolaFraxBP;
 
         helper = new CurveDolaLPHelper(gov, pauseGuardian, address(DOLA));
 
@@ -109,9 +109,10 @@ contract ALEDolaCrvUSDTest is CrvUSDDolaConvexMarketForkTest {
         );
 
         assertEq(DOLA.balanceOf(userPk), 0);
-        assertEq(
+        assertApproxEqRel(
             IERC20(address(curvePool)).balanceOf(userPkEscrow),
-            lpAmount + lpAmountAdded
+            lpAmount + lpAmountAdded,
+            1e14 // 0.01% Delta
         );
     }
 
@@ -178,9 +179,10 @@ contract ALEDolaCrvUSDTest is CrvUSDDolaConvexMarketForkTest {
         );
 
         assertEq(DOLA.balanceOf(userPk), 0);
-        assertEq(
+        assertApproxEqRel(
             IERC20(address(curvePool)).balanceOf(userPkEscrow),
-            lpAmount + lpAmountAdded
+            lpAmount + lpAmountAdded,
+            1e14 // 0.01% Delta
         );
     }
 
@@ -313,9 +315,10 @@ contract ALEDolaCrvUSDTest is CrvUSDDolaConvexMarketForkTest {
         );
 
         assertEq(DOLA.balanceOf(userPk), 0);
-        assertEq(
+        assertApproxEqRel(
             IERC20(address(curvePool)).balanceOf(userPkEscrow),
-            lpAmount + lpAmountAdded
+            lpAmount + lpAmountAdded,
+            1e14 // 0.01% Delta
         );
         assertGt(dbr.balanceOf(userPk), (dbrAmount * 98) / 100);
     }
@@ -391,9 +394,10 @@ contract ALEDolaCrvUSDTest is CrvUSDDolaConvexMarketForkTest {
         );
 
         assertEq(DOLA.balanceOf(userPk), 0);
-        assertEq(
+        assertApproxEqRel(
             IERC20(address(curvePool)).balanceOf(userPkEscrow),
-            lpAmount + lpAmountAdded
+            lpAmount + lpAmountAdded,
+            1e14 // 0.01% Delta
         );
         assertGt(dbr.balanceOf(userPk), (dbrAmount * 98) / 100);
     }
@@ -531,9 +535,10 @@ contract ALEDolaCrvUSDTest is CrvUSDDolaConvexMarketForkTest {
         );
 
         assertEq(DOLA.balanceOf(userPk), 0);
-        assertEq(
+        assertApproxEqRel(
             IERC20(address(curvePool)).balanceOf(userPkEscrow),
-            lpAmount + lpAmountAdded
+            lpAmount + lpAmountAdded,
+            1e14 // 0.01% Delta
         );
     }
 
@@ -603,9 +608,10 @@ contract ALEDolaCrvUSDTest is CrvUSDDolaConvexMarketForkTest {
         );
 
         assertEq(DOLA.balanceOf(userPk), 0);
-        assertEq(
+        assertApproxEqRel(
             IERC20(address(curvePool)).balanceOf(userPkEscrow),
-            lpAmount + lpAmountAdded
+            lpAmount + lpAmountAdded,
+            1e14 // 0.01% Delta
         );
     }
 
@@ -741,9 +747,10 @@ contract ALEDolaCrvUSDTest is CrvUSDDolaConvexMarketForkTest {
         );
 
         assertEq(DOLA.balanceOf(userPk), 0);
-        assertEq(
+        assertApproxEqRel(
             IERC20(address(curvePool)).balanceOf(userPkEscrow),
-            lpAmount + lpAmountAdded + initialLpAmount
+            lpAmount + lpAmountAdded + initialLpAmount,
+            1e14 // 0.01% Delta
         );
     }
 

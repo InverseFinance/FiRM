@@ -2,7 +2,7 @@ pragma solidity ^0.8.13;
 
 import {ICurvePool} from "src/interfaces/ICurvePool.sol";
 import {CurveDolaLPHelper} from "src/util/CurveDolaLPHelper.sol";
-import "test/marketForkTests/CrvUSDDolaConvexMarketForkTest.t.sol";
+import "test/marketForkTests/DolaFraxPyUSDConvexMarketForkTest.t.sol";
 import {console} from "forge-std/console.sol";
 import {IMultiMarketTransformHelper} from "src/interfaces/IMultiMarketTransformHelper.sol";
 import {ALE} from "src/util/ALE.sol";
@@ -16,7 +16,7 @@ interface IFlashMinter {
     ) external view returns (uint256);
 }
 
-contract ALEDolaCrvUSDTest is CrvUSDDolaConvexMarketForkTest {
+contract ALEDolaFraxPyUSDTest is DolaFraxPyUSDConvexMarketForkTest {
     ALE ale;
     IFlashMinter flash;
     address userPk = vm.addr(1);
@@ -26,7 +26,7 @@ contract ALEDolaCrvUSDTest is CrvUSDDolaConvexMarketForkTest {
 
     function setUp() public override {
         super.setUp();
-        curvePool = dolaCrvUSD;
+        curvePool = dolaFraxPyUSD;
 
         helper = new CurveDolaLPHelper(gov, pauseGuardian, address(DOLA));
 

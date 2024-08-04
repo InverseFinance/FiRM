@@ -17,7 +17,13 @@ contract CurveDolaLPHelperTest is CrvUSDDolaConvexMarketForkTest {
 
         vm.startPrank(gov);
         DOLA.mint(address(this), 100000 ether);
-        helper.setMarket(address(market), address(dolaCrvUSD), 0, 2);
+        helper.setMarket(
+            address(market),
+            address(dolaCrvUSD),
+            0,
+            2,
+            address(0)
+        );
         vm.stopPrank();
     }
 

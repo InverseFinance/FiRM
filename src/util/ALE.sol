@@ -401,7 +401,7 @@ contract ALE is
 
     function onFlashLoan(
         address initiator,
-        address token,
+        address,
         uint amount,
         uint fee,
         bytes calldata data
