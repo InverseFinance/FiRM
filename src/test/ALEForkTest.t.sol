@@ -84,7 +84,6 @@ contract ALEForkTest is MarketForkTest {
         ale.setMarket(
             address(market),
             address(market.collateral()),
-            address(market.collateral()),
             address(0),
             true
         );
@@ -1178,119 +1177,27 @@ contract ALEForkTest is MarketForkTest {
         vm.expectRevert(
             abi.encodeWithSelector(ALE.NoMarket.selector, fakeMarket)
         );
-        ale.setMarket(fakeMarket, address(0), address(0), address(0), true);
+        ale.setMarket(fakeMarket, address(0), address(0), true);
     }
 
-    function test_fail_setMarket_WrongCollateral_NoHelper() public {
+    function test_fail_setMarket_Wrong_BuySellToken_Without_Helper() public {
         ale.updateMarketHelper(address(market), address(0));
 
-        address fakeCollateral = address(0x69);
+        address fakeBuySellToken = address(0x69);
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                ALE.WrongCollateral.selector,
+                ALE.MarketSetupFailed.selector,
                 address(market),
-                fakeCollateral,
-                address(0),
+                fakeBuySellToken,
+                address(collateral),
                 address(0)
             )
         );
-        ale.setMarket(
-            address(market),
-            fakeCollateral,
-            address(0),
-            address(0),
-            true
-        );
+        ale.setMarket(address(market), fakeBuySellToken, address(0), true);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                ALE.WrongCollateral.selector,
-                address(market),
-                address(0),
-                fakeCollateral,
-                address(0)
-            )
-        );
-        ale.setMarket(
-            address(market),
-            address(0),
-            fakeCollateral,
-            address(0),
-            true
-        );
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                ALE.WrongCollateral.selector,
-                address(market),
-                fakeCollateral,
-                fakeCollateral,
-                address(0)
-            )
-        );
-        ale.setMarket(
-            address(market),
-            fakeCollateral,
-            fakeCollateral,
-            address(0),
-            true
-        );
-    }
-
-    function test_fail_setMarket_WrongCollateral_WithHelper() public {
-        address fakeCollateral = address(0x69);
-        address dummyHelper = address(0x70);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                ALE.WrongCollateral.selector,
-                address(market),
-                fakeCollateral,
-                address(0),
-                dummyHelper
-            )
-        );
-        ale.setMarket(
-            address(market),
-            fakeCollateral,
-            address(0),
-            dummyHelper,
-            true
-        );
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                ALE.WrongCollateral.selector,
-                address(market),
-                address(0),
-                fakeCollateral,
-                dummyHelper
-            )
-        );
-        ale.setMarket(
-            address(market),
-            address(0),
-            fakeCollateral,
-            dummyHelper,
-            true
-        );
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                ALE.WrongCollateral.selector,
-                address(market),
-                fakeCollateral,
-                fakeCollateral,
-                dummyHelper
-            )
-        );
-        ale.setMarket(
-            address(market),
-            fakeCollateral,
-            fakeCollateral,
-            dummyHelper,
-            true
-        );
+        vm.expectRevert();
+        ale.setMarket(address(market), address(0), address(0), true);
     }
 
     function test_fail_updateMarketHelper_NoMarket() public {

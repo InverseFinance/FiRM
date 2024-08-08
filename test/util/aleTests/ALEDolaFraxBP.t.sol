@@ -34,13 +34,7 @@ contract ALEDolaFraxBPTest is DolaFraxBPConvexMarketForkTest {
         DOLA.mint(address(this), 100000 ether);
         helper.setMarket(address(market), address(curvePool), 0, 2, address(0));
         ale = new ALE(address(0), triDBRAddr);
-        ale.setMarket(
-            address(market),
-            address(DOLA),
-            address(market.collateral()),
-            address(helper),
-            false
-        );
+        ale.setMarket(address(market), address(DOLA), address(helper), false);
 
         flash = IFlashMinter(address(ale.flash()));
         flash.setFlashLoanRate(0);

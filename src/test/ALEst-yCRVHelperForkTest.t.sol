@@ -138,13 +138,7 @@ contract ALEHelperForkTest is Test {
         vm.stopPrank();
 
         ale = new ALE(address(exchangeProxy), triDBR);
-        ale.setMarket(
-            address(market),
-            yCRV,
-            address(market.collateral()),
-            address(helper),
-            true
-        );
+        ale.setMarket(address(market), yCRV, address(helper), true);
 
         //FiRM
         oracle = Oracle(address(market.oracle()));
@@ -786,62 +780,7 @@ contract ALEHelperForkTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(ALE.NoMarket.selector, fakeMarket)
         );
-        ale.setMarket(fakeMarket, address(0), address(0), address(0), true);
-    }
-
-    function test_fail_setMarket_WrongCollateral_WithHelper() public {
-        address fakeCollateral = address(0x69);
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                ALE.WrongCollateral.selector,
-                address(market),
-                fakeCollateral,
-                address(0),
-                address(helper)
-            )
-        );
-        ale.setMarket(
-            address(market),
-            fakeCollateral,
-            address(0),
-            address(helper),
-            true
-        );
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                ALE.WrongCollateral.selector,
-                address(market),
-                address(0),
-                fakeCollateral,
-                address(helper)
-            )
-        );
-        ale.setMarket(
-            address(market),
-            address(0),
-            fakeCollateral,
-            address(helper),
-            true
-        );
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                ALE.WrongCollateral.selector,
-                address(market),
-                fakeCollateral,
-                fakeCollateral,
-                address(helper)
-            )
-        );
-        ale.setMarket(
-            address(market),
-            fakeCollateral,
-            fakeCollateral,
-            address(helper),
-            true
-        );
+        ale.setMarket(fakeMarket, address(0), address(0), true);
     }
 
     function test_fail_updateMarketHelper_NoMarket() public {

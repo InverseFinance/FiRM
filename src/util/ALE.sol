@@ -72,7 +72,7 @@ contract ALE is
     error TotalSupplyChanged(uint256 expected, uint256 actual);
     error CollateralIsZero();
     error NoMarket(address market);
-    error WrongCollateral(
+    error MarketSetupFailed(
         address market,
         address buySellToken,
         address collateral,
@@ -178,57 +178,50 @@ contract ALE is
     /// @notice Set the market for a collateral token
     /// @param _buySellToken The token which will be bought/sold (usually the collateral token), probably underlying if there's a helper
     /// @param _market The market contract
-    /// @param _collateral The collateral token
     /// @param _helper Optional helper contract to transform collateral to buySelltoken and viceversa
     function setMarket(
         address _market,
         address _buySellToken,
-        address _collateral,
         address _helper,
         bool useProxy
     ) external onlyOwner {
         if (!DBR.markets(_market)) revert NoMarket(_market);
 
         if (_helper == address(0)) {
-            if (
-                _buySellToken != IMarket(_market).collateral() ||
-                _collateral != IMarket(_market).collateral()
-            ) {
-                revert WrongCollateral(
+            if (_buySellToken != IMarket(_market).collateral()) {
+                revert MarketSetupFailed(
                     _market,
                     _buySellToken,
-                    _collateral,
+                    address(IMarket(_market).collateral()),
                     _helper
                 );
             }
-        } else if (
-            _helper != address(0) &&
-            _collateral != IMarket(_market).collateral()
-        ) {
-            revert WrongCollateral(
-                _market,
-                _buySellToken,
-                _collateral,
-                _helper
-            );
         }
 
         markets[_market].buySellToken = IERC20(_buySellToken);
-        markets[_market].collateral = IERC20(_collateral);
-        IERC20(_buySellToken).approve(_market, type(uint256).max);
+        markets[_market].collateral = IERC20(
+            address(IMarket(_market).collateral())
+        );
+        markets[_market].buySellToken.approve(_market, type(uint256).max);
 
-        if (_buySellToken != _collateral) {
-            IERC20(_collateral).approve(_market, type(uint256).max);
+        if (_buySellToken != address(markets[_market].collateral)) {
+            markets[_market].collateral.approve(_market, type(uint256).max);
         }
 
         if (_helper != address(0)) {
             markets[_market].helper = ITransformHelper(_helper);
-            IERC20(_buySellToken).approve(_helper, type(uint256).max);
-            IERC20(_collateral).approve(_helper, type(uint256).max);
+
+            markets[_market].buySellToken.approve(_helper, type(uint256).max);
+            markets[_market].collateral.approve(_helper, type(uint256).max);
         }
 
         markets[_market].useProxy = useProxy;
-        emit NewMarket(_market, _buySellToken, _collateral, _helper);
+        emit NewMarket(
+            _market,
+            _buySellToken,
+            address(markets[_market].collateral),
+            _helper
+        );
     }
 
     /// @notice Update the helper contract
@@ -319,31 +312,21 @@ contract ALE is
         bool depositCollateral
     ) external payable {
         if (initialDeposit == 0) revert NothingToDeposit();
+
+        IERC20 depositToken;
+
         if (depositCollateral) {
-            markets[market].collateral.safeTransferFrom(
-                msg.sender,
-                address(this),
-                initialDeposit
-            );
-            emit Deposit(
-                market,
-                msg.sender,
-                address(markets[market].collateral),
-                initialDeposit
-            );
+            depositToken = markets[market].collateral;
         } else {
-            markets[market].buySellToken.safeTransferFrom(
-                msg.sender,
-                address(this),
-                initialDeposit
-            );
-            emit Deposit(
-                market,
-                msg.sender,
-                address(markets[market].buySellToken),
-                initialDeposit
-            );
+            depositToken = markets[market].buySellToken;
         }
+
+        depositToken.safeTransferFrom(
+            msg.sender,
+            address(this),
+            initialDeposit
+        );
+        emit Deposit(market, msg.sender, address(depositToken), initialDeposit);
 
         leveragePosition(
             value,

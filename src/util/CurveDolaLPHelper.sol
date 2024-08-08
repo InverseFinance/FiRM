@@ -22,9 +22,6 @@ contract CurveDolaLPHelper is Sweepable, IMultiMarketTransformHelper {
     error MarketNotSet(address market);
     error NotImplemented();
 
-    uint256 public constant POOL_LENGTH_2 = 2;
-    uint256 public constant POOL_LENGTH_3 = 3;
-
     struct Pool {
         ICurvePool pool;
         uint128 dolaIndex;
@@ -91,6 +88,7 @@ contract CurveDolaLPHelper is Sweepable, IMultiMarketTransformHelper {
         _revertIfMarketNotSet(market);
 
         IYearnVaultV2 vault = markets[market].vault;
+
         // If vault is set, add DOLA liquidity to Curve Pool and then deposit the LP token into the Yearn Vault
         if (address(vault) != address(0)) {
             uint256 lpAmount = _addLiquidity(
@@ -99,13 +97,11 @@ contract CurveDolaLPHelper is Sweepable, IMultiMarketTransformHelper {
                 minMint,
                 address(this)
             );
-            return
-                _depositToYearn(
-                    address(markets[market].pool),
-                    vault,
-                    lpAmount,
-                    recipient
-                );
+            IERC20(address(markets[market].pool)).approve(
+                address(vault),
+                lpAmount
+            );
+            return vault.deposit(lpAmount, recipient);
         } else {
             // Just add DOLA liquidity to the pool
             return _addLiquidity(market, amount, minMint, recipient);
@@ -146,6 +142,7 @@ contract CurveDolaLPHelper is Sweepable, IMultiMarketTransformHelper {
         IYearnVaultV2 vault = markets[market].vault;
         uint128 dolaIndex = markets[market].dolaIndex;
 
+        uint256 lpAmount;
         // If vault is set, withdraw LP token from the Yearn Vault and then remove liquidity from the pool
         if (address(vault) != address(0)) {
             IERC20(address(vault)).safeTransferFrom(
@@ -153,10 +150,7 @@ contract CurveDolaLPHelper is Sweepable, IMultiMarketTransformHelper {
                 address(this),
                 amount
             );
-            uint256 lpAmount = vault.withdraw(amount);
-
-            return
-                _removeLiquidity(pool, lpAmount, dolaIndex, minOut, recipient);
+            lpAmount = vault.withdraw(amount);
         } else {
             // Just remove liquidity from the pool
             IERC20(address(pool)).safeTransferFrom(
@@ -164,9 +158,9 @@ contract CurveDolaLPHelper is Sweepable, IMultiMarketTransformHelper {
                 address(this),
                 amount
             );
-
-            return _removeLiquidity(pool, amount, dolaIndex, minOut, recipient);
+            lpAmount = amount;
         }
+        return _removeLiquidity(pool, lpAmount, dolaIndex, minOut, recipient);
     }
 
     /**
@@ -189,32 +183,24 @@ contract CurveDolaLPHelper is Sweepable, IMultiMarketTransformHelper {
 
         IYearnVaultV2 vault = markets[market].vault;
 
+        uint256 actualAmount;
+        address collateral;
+
         // If Vault is set, deposit the Yearn token into the market
         if (address(vault) != address(0)) {
-            uint256 actualAmount = vault.balanceOf(address(this));
-            if (amount > actualAmount) revert InsufficientShares();
-
-            return
-                _approveAndDepositIntoMarket(
-                    address(vault),
-                    market,
-                    actualAmount,
-                    recipient
-                );
+            collateral = address(vault);
+            actualAmount = vault.balanceOf(address(this));
         } else {
             // Deposit the LP token into the market
-            ICurvePool pool = markets[market].pool;
-            uint256 actualLP = IERC20(address(pool)).balanceOf(address(this));
-            if (actualLP < amount) revert InsufficientLP();
-
-            return
-                _approveAndDepositIntoMarket(
-                    address(pool),
-                    market,
-                    actualLP,
-                    recipient
-                );
+            collateral = address(markets[market].pool);
+            actualAmount = IERC20(collateral).balanceOf(address(this));
         }
+
+        if (amount > actualAmount) revert InsufficientShares();
+
+        IERC20(collateral).approve(market, actualAmount);
+        IMarket(market).deposit(recipient, actualAmount);
+        return actualAmount;
     }
 
     /**
@@ -248,29 +234,18 @@ contract CurveDolaLPHelper is Sweepable, IMultiMarketTransformHelper {
 
         // Withdraw from the vault if it is set and then remove liquidity from the pool
         if (address(vault) != address(0)) {
-            uint256 lpAmount = vault.withdraw(amount);
-            _revertIfNotEnoughLP(pool, lpAmount);
-
-            return
-                _removeLiquidity(
-                    pool,
-                    lpAmount,
-                    markets[market].dolaIndex,
-                    minOut,
-                    recipient
-                );
-        } else {
-            // Just remove liquidity from the pool
-            _revertIfNotEnoughLP(pool, amount);
-            return
-                _removeLiquidity(
-                    pool,
-                    amount,
-                    markets[market].dolaIndex,
-                    minOut,
-                    recipient
-                );
+            amount = vault.withdraw(amount);
         }
+        // Just remove liquidity from the pool
+        _revertIfNotEnoughLP(pool, amount);
+        return
+            _removeLiquidity(
+                pool,
+                amount,
+                markets[market].dolaIndex,
+                minOut,
+                recipient
+            );
     }
 
     function _addLiquidity(
@@ -286,36 +261,15 @@ contract CurveDolaLPHelper is Sweepable, IMultiMarketTransformHelper {
         DOLA.approve(address(pool), amount);
 
         // Support for 2 and 3 coins pools
-        if (markets[market].length == POOL_LENGTH_2) {
-            uint256[POOL_LENGTH_2] memory amounts;
+        if (markets[market].length == 2) {
+            uint256[2] memory amounts;
             amounts[dolaIndex] = amount;
             return pool.add_liquidity(amounts, minMint, recipient);
-        } else if (markets[market].length == POOL_LENGTH_3) {
-            uint256[POOL_LENGTH_3] memory amounts;
+        } else if (markets[market].length == 3) {
+            uint256[3] memory amounts;
             amounts[dolaIndex] = amount;
             return pool.add_liquidity(amounts, minMint, recipient);
         } else revert NotImplemented();
-    }
-
-    function _depositToYearn(
-        address pool,
-        IYearnVaultV2 vault,
-        uint256 lpAmount,
-        address recipient
-    ) internal returns (uint256 collateralAmount) {
-        IERC20(pool).approve(address(vault), lpAmount);
-        return vault.deposit(lpAmount, recipient);
-    }
-
-    function _approveAndDepositIntoMarket(
-        address collateral,
-        address market,
-        uint256 amount,
-        address recipient
-    ) internal returns (uint256) {
-        IERC20(collateral).approve(market, amount);
-        IMarket(market).deposit(recipient, amount);
-        return amount;
     }
 
     function _removeLiquidity(

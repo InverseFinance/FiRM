@@ -34,13 +34,7 @@ contract ALEDolaCrvUSDYearnV2Test is CrvUSDDolaYearnV2MarketForkTest {
         DOLA.mint(address(this), 100000 ether);
         helper.setMarket(address(market), address(dolaCrvUSD), 0, 2, yearn);
         ale = new ALE(address(0), triDBRAddr);
-        ale.setMarket(
-            address(market),
-            address(DOLA),
-            address(market.collateral()),
-            address(helper),
-            false
-        );
+        ale.setMarket(address(market), address(DOLA), address(helper), false);
 
         flash = IFlashMinter(address(ale.flash()));
         flash.setFlashLoanRate(0);
