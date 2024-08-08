@@ -237,7 +237,8 @@ contract CurveDolaLPHelper is Sweepable, IMultiMarketTransformHelper {
             amount = vault.withdraw(amount);
         }
         // Just remove liquidity from the pool
-        _revertIfNotEnoughLP(pool, amount);
+        if (IERC20(address(pool)).balanceOf(address(this)) < amount)
+            revert InsufficientLP();
         return
             _removeLiquidity(
                 pool,
@@ -285,14 +286,6 @@ contract CurveDolaLPHelper is Sweepable, IMultiMarketTransformHelper {
             minOut,
             recipient
         );
-    }
-
-    function _revertIfNotEnoughLP(
-        ICurvePool pool,
-        uint256 amount
-    ) internal view {
-        uint256 actualLP = IERC20(address(pool)).balanceOf(address(this));
-        if (actualLP < amount) revert InsufficientLP();
     }
 
     function _revertIfMarketNotSet(address market) internal view {
