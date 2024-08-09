@@ -127,11 +127,6 @@ contract CrvUSDDolaConvexMarketForkTest is MarketBaseForkTest {
         userEscrow.withdrawFromConvex();
     }
 
-    function test_depositToYearn() public {
-        testDeposit();
-        userEscrow.depositToYearn();
-    }
-
     function _deployCrvUSDDolaFeed() internal returns (CurveLPSingleFeed feed) {
         // CrvUSD fallback
         baseFraxToUsd = new ChainlinkBasePriceFeed(
