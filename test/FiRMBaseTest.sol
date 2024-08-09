@@ -9,9 +9,9 @@ import {SimpleERC20Escrow} from "src/escrows/SimpleERC20Escrow.sol";
 import "src/Market.sol";
 import "src/Oracle.sol";
 
-import "./mocks/ERC20.sol";
-import "./mocks/WETH9.sol";
-import {MockFeed} from "./mocks/MockFeed.sol";
+import "test/mocks/ERC20.sol";
+import "test/mocks/WETH9.sol";
+import {MockFeed} from "test/mocks/MockFeed.sol";
 
 contract FiRMBaseTest is Test {
     //EOAs & Multisigs
@@ -53,7 +53,13 @@ contract FiRMBaseTest is Test {
     bytes onlyLender = "Only lender can recall";
     bytes onlyOperator = "ONLY OPERATOR";
 
-    function initialize(uint replenishmentPriceBps_, uint collateralFactorBps_, uint replenishmentIncentiveBps_, uint liquidationBonusBps_, bool callOnDepositCallback_) public {
+    function initialize(
+        uint replenishmentPriceBps_,
+        uint collateralFactorBps_,
+        uint replenishmentIncentiveBps_,
+        uint liquidationBonusBps_,
+        bool callOnDepositCallback_
+    ) public {
         vm.label(user, "user");
         vm.label(user2, "user2");
 
@@ -79,13 +85,38 @@ contract FiRMBaseTest is Test {
         dolaFeed = new MockFeed(20, 1e20);
         oracle = new Oracle(gov);
         escrowImplementation = new SimpleERC20Escrow();
-        dbr = new DolaBorrowingRights(replenishmentPriceBps_, "DOLA Borrowing Rights", "DBR", gov);
+        dbr = new DolaBorrowingRights(
+            replenishmentPriceBps_,
+            "DOLA Borrowing Rights",
+            "DBR",
+            gov
+        );
         borrowController = new BorrowController(gov, address(dbr));
-        fed = new Fed(IDBR(address(dbr)), IDola(address(DOLA)), gov, chair, type(uint).max);
-        market = new Market(gov, address(fed), pauseGuardian, address(escrowImplementation), IDolaBorrowingRights(address(dbr)), IERC20(address(WETH)), IOracle(address(oracle)), collateralFactorBps_, replenishmentIncentiveBps_, liquidationBonusBps_, callOnDepositCallback_);
-        borrowController.setStalenessThreshold(address(market), 3600*24);
+        fed = new Fed(
+            IDBR(address(dbr)),
+            IDola(address(DOLA)),
+            gov,
+            chair,
+            type(uint).max
+        );
+        market = new Market(
+            gov,
+            address(fed),
+            pauseGuardian,
+            address(escrowImplementation),
+            IDolaBorrowingRights(address(dbr)),
+            IERC20(address(WETH)),
+            IOracle(address(oracle)),
+            collateralFactorBps_,
+            replenishmentIncentiveBps_,
+            liquidationBonusBps_,
+            callOnDepositCallback_
+        );
+        borrowController.setStalenessThreshold(address(market), 3600 * 24);
         fed.changeMarketCeiling(IMarket(address(market)), type(uint).max);
-        market.setBorrowController(IBorrowController(address(borrowController)));
+        market.setBorrowController(
+            IBorrowController(address(borrowController))
+        );
 
         dbr.addMarket(address(market));
         oracle.setFeed(address(WETH), IChainlinkFeed(address(ethFeed)), 18);
@@ -104,15 +135,17 @@ contract FiRMBaseTest is Test {
     }
 
     function convertWethToDola(uint amount) public view returns (uint) {
-        return amount * ethFeed.latestAnswer() / 1e18;
+        return (amount * ethFeed.latestAnswer()) / 1e18;
     }
 
     function convertDolaToWeth(uint amount) public view returns (uint) {
-        return amount * 1e18 / ethFeed.latestAnswer();
+        return (amount * 1e18) / ethFeed.latestAnswer();
     }
 
     function getMaxBorrowAmount(uint amountWeth) public view returns (uint) {
-        return convertWethToDola(amountWeth) * market.collateralFactorBps() / 10_000;
+        return
+            (convertWethToDola(amountWeth) * market.collateralFactorBps()) /
+            10_000;
     }
 
     function gibWeth(address _address, uint _amount) internal {
@@ -147,7 +180,10 @@ contract FiRMBaseTest is Test {
             // by using o_code = new bytes(size)
             o_code := mload(0x40)
             // new "memory end" including padding
-            mstore(0x40, add(o_code, and(add(add(size, 0x20), 0x1f), not(0x1f))))
+            mstore(
+                0x40,
+                add(o_code, and(add(add(size, 0x20), 0x1f), not(0x1f)))
+            )
             // store length in memory
             mstore(o_code, size)
             // actually retrieve the code, this needs assembly
