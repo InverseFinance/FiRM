@@ -101,4 +101,6 @@ interface IMarket {
     function liquidationFeeBps() external view returns (uint);
 
     function DOMAIN_SEPARATOR() external view returns (uint);
+
+    function oracle() external view returns (address);
 }
