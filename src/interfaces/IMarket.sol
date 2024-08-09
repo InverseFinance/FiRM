@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 import {IBorrowController, IEscrow, IOracle} from "src/Market.sol";
 
 interface IMarket {
+
     function borrow(uint borrowAmount) external;
 
     function borrowOnBehalf(
