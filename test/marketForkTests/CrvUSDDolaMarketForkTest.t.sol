@@ -3,7 +3,9 @@ pragma solidity ^0.8.13;
 
 import {MarketBaseForkTest, IOracle, IDolaBorrowingRights, IERC20} from "./MarketBaseForkTest.sol";
 import {Market} from "src/Market.sol";
+
 import {LPCurveConvexEscrow} from "src/escrows/LPCurveConvexEscrow.sol";
+
 import {CurveLPSingleFeed} from "src/feeds/CurveLPSingleFeed.sol";
 import {ChainlinkCurve2CoinsFeed} from "src/feeds/ChainlinkCurve2CoinsFeed.sol";
 import {ChainlinkCurveFeed} from "src/feeds/ChainlinkCurveFeed.sol";
@@ -27,6 +29,7 @@ interface IYearnVaultFactory {
 
 contract CrvUSDDolaMarketForkTest is MarketBaseForkTest {
     LPCurveConvexEscrow escrow;
+
     CurveLPSingleFeed feedCrvUSDDola;
 
     ChainlinkBasePriceFeed mainCrvUSDFeed;
@@ -111,6 +114,7 @@ contract CrvUSDDolaMarketForkTest is MarketBaseForkTest {
             address(booster),
             "Booster not set"
         );
+
         assertEq(address(userEscrow.cvx()), address(cvx), "CVX not set");
         assertEq(address(userEscrow.crv()), address(crv), "CRV not set");
     }
@@ -124,6 +128,11 @@ contract CrvUSDDolaMarketForkTest is MarketBaseForkTest {
         testDeposit();
         userEscrow.depositToConvex();
         userEscrow.withdrawFromConvex();
+    }
+
+    function test_depositToYearn() public {
+        testDeposit();
+        userEscrow.depositToYearn();
     }
 
     function _deployCrvUSDDolaFeed() internal returns (CurveLPSingleFeed feed) {

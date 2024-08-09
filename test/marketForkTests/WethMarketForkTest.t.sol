@@ -4,12 +4,11 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 import "./MarketBaseForkTest.sol";
 
-interface WETH is IERC20{
-    function deposit() payable external;
+interface WETH is IERC20 {
+    function deposit() external payable;
 }
 
 contract WethMarketForkTest is MarketBaseForkTest {
-
     function setUp() public {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
@@ -20,11 +19,13 @@ contract WethMarketForkTest is MarketBaseForkTest {
         _advancedInit(marketAddr, feedAddr, false);
     }
 
-    function gibCollateral(address _address, uint _amount) internal virtual override {
+    function gibCollateral(
+        address _address,
+        uint _amount
+    ) internal virtual override {
         deal(_address, _amount);
         vm.startPrank(_address);
-        WETH(market.collateral()).deposit{value:_amount}();
+        WETH(address(market.collateral())).deposit{value: _amount}();
         vm.stopPrank();
     }
-
 }
