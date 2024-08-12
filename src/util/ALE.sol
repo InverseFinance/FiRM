@@ -550,6 +550,14 @@ contract ALE is
                 sellToken,
                 _helperData
             );
+            // Reimbourse leftover collateral from conversion if any
+            uint256 collateralLeft = markets[_market].collateral.balanceOf(
+                address(this)
+            );
+
+            if (collateralLeft != 0) {
+                markets[_market].collateral.safeTransfer(_user, collateralLeft);
+            }
         }
 
         // Call the encoded swap function call on the contract at `swapTarget`,

@@ -151,6 +151,7 @@ contract CurveDolaLPHelper is Sweepable, IMultiMarketTransformHelper {
                 amount
             );
             lpAmount = vault.withdraw(amount);
+            _reimbourseSharesLeft(vault, recipient);
         } else {
             // Just remove liquidity from the pool
             IERC20(address(pool)).safeTransferFrom(
@@ -235,6 +236,7 @@ contract CurveDolaLPHelper is Sweepable, IMultiMarketTransformHelper {
         // Withdraw from the vault if it is set and then remove liquidity from the pool
         if (address(vault) != address(0)) {
             amount = vault.withdraw(amount);
+            _reimbourseSharesLeft(vault, recipient);
         }
         // Just remove liquidity from the pool
         if (IERC20(address(pool)).balanceOf(address(this)) < amount)
@@ -286,6 +288,15 @@ contract CurveDolaLPHelper is Sweepable, IMultiMarketTransformHelper {
             minOut,
             recipient
         );
+    }
+
+    function _reimbourseSharesLeft(
+        IYearnVaultV2 vault,
+        address recipient
+    ) internal {
+        uint256 sharesLeft = vault.balanceOf(address(this));
+        if (sharesLeft > 0)
+            IERC20(address(vault)).safeTransfer(recipient, sharesLeft);
     }
 
     function _revertIfMarketNotSet(address market) internal view {
