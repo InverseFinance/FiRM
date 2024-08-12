@@ -179,6 +179,7 @@ contract ALE is
     /// @param _buySellToken The token which will be bought/sold (usually the collateral token), probably underlying if there's a helper
     /// @param _market The market contract
     /// @param _helper Optional helper contract to transform collateral to buySelltoken and viceversa
+    /// @param useProxy Whether to use the Exchange Proxy or not
     function setMarket(
         address _market,
         address _buySellToken,
@@ -192,19 +193,18 @@ contract ALE is
                 revert MarketSetupFailed(
                     _market,
                     _buySellToken,
-                    address(IMarket(_market).collateral()),
+                    IMarket(_market).collateral(),
                     _helper
                 );
             }
         }
 
+        address collateral = IMarket(_market).collateral();
         markets[_market].buySellToken = IERC20(_buySellToken);
-        markets[_market].collateral = IERC20(
-            address(IMarket(_market).collateral())
-        );
+        markets[_market].collateral = IERC20(collateral);
         markets[_market].buySellToken.approve(_market, type(uint256).max);
 
-        if (_buySellToken != address(markets[_market].collateral)) {
+        if (_buySellToken != collateral) {
             markets[_market].collateral.approve(_market, type(uint256).max);
         }
 
@@ -216,12 +216,7 @@ contract ALE is
         }
 
         markets[_market].useProxy = useProxy;
-        emit NewMarket(
-            _market,
-            _buySellToken,
-            address(markets[_market].collateral),
-            _helper
-        );
+        emit NewMarket(_market, _buySellToken, collateral, _helper);
     }
 
     /// @notice Update the helper contract
@@ -300,6 +295,8 @@ contract ALE is
     /// @param swapCallData The `data` field from the API response.
     /// @param permit Permit data
     /// @param helperData Optional helper data in case the collateral needs to be transformed
+    /// @param dbrData Optional data in case the user wants to buy DBR and also withdraw some DOLA
+    /// @param depositCollateral Whether the initialDeposit is the collateral or the underlying entry asset
     function depositAndLeveragePosition(
         uint256 initialDeposit,
         uint256 value,
@@ -485,7 +482,7 @@ contract ALE is
         {
             uint256 balance = dola.balanceOf(address(this));
 
-            if (balance > _value + valuePlusFee)
+            if (balance > valuePlusFee)
                 dola.transfer(_user, balance - valuePlusFee);
         }
 
@@ -711,14 +708,12 @@ contract ALE is
             _collateralAmount,
             _helperData
         );
+        uint256 actualAssetAmount = sellToken.balanceOf(address(this));
 
-        if (sellToken.balanceOf(address(this)) < assetAmount)
-            revert WithdrawFailed(
-                assetAmount,
-                sellToken.balanceOf(address(this))
-            );
+        if (actualAssetAmount < assetAmount)
+            revert WithdrawFailed(assetAmount, actualAssetAmount);
 
-        return assetAmount;
+        return actualAssetAmount;
     }
 
     /// @notice convert the underlying asset amount into the collateral
@@ -736,16 +731,13 @@ contract ALE is
             .helper
             .transformToCollateral(_assetAmount, _helperData);
 
-        if (
-            markets[_market].collateral.balanceOf(address(this)) <
-            collateralAmount
-        )
-            revert DepositFailed(
-                collateralAmount,
-                markets[_market].collateral.balanceOf(address(this))
-            );
+        uint256 actualCollateralAmount = markets[_market].collateral.balanceOf(
+            address(this)
+        );
+        if (actualCollateralAmount < collateralAmount)
+            revert DepositFailed(collateralAmount, actualCollateralAmount);
 
-        return collateralAmount;
+        return actualCollateralAmount;
     }
 
     // solhint-disable-next-line no-empty-blocks
