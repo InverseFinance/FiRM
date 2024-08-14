@@ -39,4 +39,49 @@ contract ConfigAddr {
     // Curve Pools
     address triDBRAddr = address(0xC7DE47b9Ca2Fc753D6a2F167D8b3e19c6D18b19a);
     // Balancer Pools
+
+    // FiRM Escrows
+    address crvUSDDolaConvexEscrowAddr =
+        0x15596Aa43ffe43f23443fF87af688607c0C5Df35;
+    address dolaFraxBPConvexEscrowAddr =
+        0xF28cCAAeB90BbE1463eb82716Fc50330084DDFf6;
+    address dolaFraxPyUSDConvexEscrowAddr =
+        0xfF7ec7ACA4f9e0a346e78fcCef8F41435522bA44;
+
+    // Inverse feeds after redesign
+    // CurveLPSingleFeed for CrvUSD/Dola
+    address baseFraxToUsdAddr =
+        address(0xc39e4D6558dc7AA4F6457261413B4479b256572C); // ChainlinkBasePriceFeed for Frax to USD (Chainlink wrapper)
+    address crvUSDFallbackAddr =
+        address(0xd07833779C52fBA6C587C4B91cf5E1f0B21d4866); // ChainlinkCurve2CoinsFeed for CrvUSD fallback
+    address mainCrvUSDFeedAddr =
+        address(0x3CF0Bb54c4ee8f99f755b0f0B7F078686eB10283); // ChainlinkBasePriceFeed for main CrvUSD (has CrvUSD fallback)
+    address crvUSDDolaFeedAddr =
+        address(0x3998C6b52b995B503c83808F719eECF2ca6fBdEC); // CurveLPSingleFeed for CrvUSD/Dola (uses mainCrvUSDFeed)
+
+    // CurveLPPessimisticFeed for DolaFraxBP
+    address baseCrvUsdToUsdAddr =
+        address(0x7325f9950544565Bd4Fd8F7b6FF732c19ffE6284); // ChainlinkBasePriceFeed for CrvUSD to USD (Chainlink wrapper)
+    address fraxFallbackAddr =
+        address(0x7325f9950544565Bd4Fd8F7b6FF732c19ffE6284); // ChainlinkBasePriceFeed for Frax fallback
+    address baseEthToUsdAddr =
+        address(0x518f4Dd603A150fE7b6E89e8E18213aE2e909599); // ChainlinkBasePriceFeed for ETH to USD (Chainlink wrapper)
+    address usdcFallbackAddr =
+        address(0x9d2ed98AC6e72Fc826407F9DE01c8725657B93A2); // ChainlinkCurveFeed for USDC fallback
+    address mainFraxFeedAddr =
+        address(0x9b71bD6144C63EC08e876a1417fbBf58a125276d); // ChainlinkBasePriceFeed for main Frax (has Frax fallback)
+    address mainUsdcFeedAddr =
+        address(0xA5C063be4B5686Ea0B7B36F2ca9d0aF056a97f0C); // ChainlinkBasePriceFeed for main USDC (has USDC fallback)
+    address dolaFraxBPFeedAddr =
+        address(0x8798B5BD990e70c5C7107e9C1572954EB1158ACE); // CurveLPPessimisticFeed for DolaFraxBP (uses mainFraxFeed and mainUsdcFeed)
+
+    // CurveLPPessimisticFeed for DolaFraxPyUSD
+    address baseUsdcToUsdAddr =
+        address(0xc193409C9437C96146018dec6c650a9ab32C9117); // ChainlinkBasePriceFeed for USDC to USD (Chainlink wrapper)
+    address pyUSDFallbackAddr =
+        address(0x6ef8aDb728e1323F1d7cd762A32d9effcfecbc65); // ChainlinkCurveFeed for PyUSD fallback
+    address mainPyUSDFeedAddr =
+        address(0xb805252D0f95D9c67a405C895419cF1Fb03B4015); // ChainlinkBasePriceFeed for main PyUSD (has PyUSD fallback)
+    address dolaFraxPyUSDFeedAddr =
+        address(0x3fF3A76A77c6FB743ebf2e397C082faD1D7ad955); // CurveLPPessimisticFeed for DolaFraxPyUSD (uses mainFraxFeed and mainPyUSDFeed)
 }
