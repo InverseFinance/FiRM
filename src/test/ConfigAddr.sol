@@ -84,4 +84,12 @@ contract ConfigAddr {
         address(0xb805252D0f95D9c67a405C895419cF1Fb03B4015); // ChainlinkBasePriceFeed for main PyUSD (has PyUSD fallback)
     address dolaFraxPyUSDFeedAddr =
         address(0x3fF3A76A77c6FB743ebf2e397C082faD1D7ad955); // CurveLPPessimisticFeed for DolaFraxPyUSD (uses mainFraxFeed and mainPyUSDFeed)
+
+    // CurveLPYearnV2Feed for CrvUSD/Dola
+    address yearnCrvUSDDolaFeedAddr =
+        address(0xC112976a4F36c3C6Fbda072E485133858155E5d4); // CurveLPYearnV2Feed for CrvUSD/Dola (use crvUSD/Dola LP feed)
+
+    // CurveLPYearnV2Feed for DolaFraxBP
+    address yearnDolaFraxBPFeedAddr =
+        address(0x85f86F9e2dCc370c90d3a7bFC2B8E9a970D84850); // CurveLPYearnV2Feed for DolaFraxBP (use DolaFraxBP LP feed)
 }
