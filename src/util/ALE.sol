@@ -117,7 +117,6 @@ contract ALE is
         address indexed market,
         address indexed account,
         uint256 dolaFlashMinted, // DOLA flash minted for buying collateral only
-        uint256 dolaFee, // Flash minter fees paid
         uint256 collateralDeposited, // amount of collateral deposited into the escrow
         uint256 dolaBorrowed, // amount of DOLA borrowed on behalf of the user
         uint256 dolaForDBR // amount of DOLA used for buying DBR
@@ -127,7 +126,6 @@ contract ALE is
         address indexed market,
         address indexed account,
         uint256 dolaFlashMinted, // Flash minted DOLA for repaying leverage only
-        uint256 dolaFee, // Flash minter fees paid
         uint256 collateralSold, // amount of collateral/underlying sold
         uint256 dolaUserRepaid, // amount of DOLA deposited by the user as part of the repay
         uint256 dbrSoldForDola // amount of DBR sold for DOLA
@@ -382,8 +380,8 @@ contract ALE is
     function onFlashLoan(
         address initiator,
         address,
-        uint amount,
-        uint fee,
+        uint256 amount,
+        uint256,
         bytes calldata data
     ) external returns (bytes32) {
         if (initiator != address(this)) revert NotALE(initiator);
@@ -404,19 +402,14 @@ contract ALE is
             )
         );
 
-        if (ACTION == LEVERAGE) _onFlashLoanLeverage(amount, fee, data);
-        else if (ACTION == DELEVERAGE)
-            _onFlashLoanDeleverage(amount, fee, data);
+        if (ACTION == LEVERAGE) _onFlashLoanLeverage(amount, data);
+        else if (ACTION == DELEVERAGE) _onFlashLoanDeleverage(amount, data);
         else revert InvalidAction(bytes32(ACTION));
 
         return CALLBACK_SUCCESS;
     }
 
-    function _onFlashLoanLeverage(
-        uint256 _value,
-        uint256 _fee,
-        bytes memory data
-    ) internal {
+    function _onFlashLoanLeverage(uint256 _value, bytes memory data) internal {
         (
             ,
             address _user,
@@ -471,8 +464,8 @@ contract ALE is
             _user,
             markets[_market].collateral.balanceOf(address(this))
         );
-        uint256 valuePlusFee = _value + _fee;
-        _borrowDola(_user, valuePlusFee, _permit, _dbrData, IMarket(_market));
+
+        _borrowDola(_user, _value, _permit, _dbrData, IMarket(_market));
 
         if (_dbrData.dola != 0) dola.transfer(_user, _dbrData.dola);
 
@@ -482,8 +475,7 @@ contract ALE is
         {
             uint256 balance = dola.balanceOf(address(this));
 
-            if (balance > valuePlusFee)
-                dola.transfer(_user, balance - valuePlusFee);
+            if (balance > _value) dola.transfer(_user, balance - _value);
         }
 
         // Refund any possible unspent fees to the sender.
@@ -494,7 +486,6 @@ contract ALE is
             _market,
             _user,
             _value,
-            _fee,
             collateralAmount,
             _dbrData.dola,
             _dbrData.amountIn
@@ -503,7 +494,6 @@ contract ALE is
 
     function _onFlashLoanDeleverage(
         uint256 _value,
-        uint256 _fee,
         bytes memory data
     ) internal {
         (
@@ -594,10 +584,8 @@ contract ALE is
         {
             uint256 balance = dola.balanceOf(address(this));
             if (balance < _value) revert DOLAInvalidRepay(_value, balance);
-            uint256 valuePlusFee = _value + _fee;
             // Send any extra DOLA to the sender (in case the collateral withdrawn and swapped exceeds the value to burn)
-            if (balance > valuePlusFee)
-                dola.transfer(_user, balance - valuePlusFee);
+            if (balance > _value) dola.transfer(_user, balance - _value);
         }
 
         if (_dbrData.amountIn != 0) {
@@ -613,7 +601,6 @@ contract ALE is
             _market,
             _user,
             _value,
-            _fee,
             _collateralAmount,
             _dbrData.dola,
             _dbrData.amountIn
