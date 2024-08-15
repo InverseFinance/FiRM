@@ -540,7 +540,7 @@ contract ALE is
                 sellToken,
                 _helperData
             );
-            // Reimbourse leftover collateral from conversion if any
+            // Reimburse leftover collateral from conversion if any
             uint256 collateralLeft = markets[_market].collateral.balanceOf(
                 address(this)
             );
