@@ -85,7 +85,7 @@ contract ALE is
     IDBR public constant DBR = IDBR(0xAD038Eb671c44b853887A7E32528FaB35dC5D710);
 
     IERC3156FlashLender public constant flash =
-        IERC3156FlashLender(0x6112818d0c0d75448551b76EC80F14de10F4E054);
+        IERC3156FlashLender(0x6C5Fdc0c53b122Ae0f15a863C349f3A481DE8f1F);
 
     bytes32 public constant CALLBACK_SUCCESS =
         keccak256("ERC3156FlashBorrower.onFlashLoan");

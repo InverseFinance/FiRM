@@ -12,6 +12,14 @@ contract ConfigAddr {
     address borrowControllerAddr =
         address(0x44B7895989Bc7886423F06DeAa844D413384b0d6);
     address fedAddr = address(0x2b34548b865ad66A2B046cb82e59eE43F75B90fd);
+
+    // Mainnet Dola Flash Minter
+    address flashMinterAddr =
+        address(0x6C5Fdc0c53b122Ae0f15a863C349f3A481DE8f1F);
+
+    // ALE
+    address aleAddr = address(0x5233f4C2515ae21B540c438862Abb5603506dEBC);
+
     // Inverse Feeds
     address styEthFeedAddr =
         address(0xbBE5FaBbB55c2c79ae1efE6b5bd52048A199e166);
