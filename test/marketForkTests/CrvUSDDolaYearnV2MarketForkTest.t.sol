@@ -57,7 +57,7 @@ contract CrvUSDDolaYearnV2MarketForkTest is MarketBaseForkTest {
 
     SimpleERC20Escrow userEscrow;
 
-    function setUp() public {
+    function setUp() public virtual {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
         vm.createSelectFork(url, 20020781);
@@ -72,7 +72,7 @@ contract CrvUSDDolaYearnV2MarketForkTest is MarketBaseForkTest {
             pauseGuardian,
             address(escrow),
             IDolaBorrowingRights(address(dbr)),
-            IERC20(address(dolaCrvUSD)),
+            IERC20(address(yearn)),
             IOracle(address(oracle)),
             5000,
             5000,

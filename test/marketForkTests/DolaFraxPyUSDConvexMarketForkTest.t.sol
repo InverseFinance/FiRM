@@ -11,7 +11,7 @@ import "src/feeds/ChainlinkBasePriceFeed.sol";
 import "src/feeds/CurveLPPessimisticFeed.sol";
 import {console} from "forge-std/console.sol";
 
-contract DolaFraxPyUSDMarketForkTest is MarketBaseForkTest {
+contract DolaFraxPyUSDConvexMarketForkTest is MarketBaseForkTest {
     LPCurveConvexEscrow escrow;
     CurveLPPessimisticFeed feedDolaFraxPyUSD;
 
@@ -66,7 +66,7 @@ contract DolaFraxPyUSDMarketForkTest is MarketBaseForkTest {
 
     LPCurveConvexEscrow userEscrow;
 
-    function setUp() public {
+    function setUp() public virtual {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
         vm.createSelectFork(url, 20060490);

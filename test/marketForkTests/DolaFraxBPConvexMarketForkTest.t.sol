@@ -64,7 +64,7 @@ contract DolaFraxBPConvexMarketForkTest is MarketBaseForkTest {
     LPCurveConvexEscrow userEscrow;
     uint256 pid = 115;
 
-    function setUp() public {
+    function setUp() public virtual {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
         vm.createSelectFork(url, 20020781);

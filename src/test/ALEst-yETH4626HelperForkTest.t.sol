@@ -28,6 +28,10 @@ interface IBC {
     function setStalenessThreshold(address market, uint256 threshold) external;
 }
 
+interface IFlashMinter {
+    function setFlashLoanRate(uint256 rate) external;
+}
+
 contract ALEstYETH4626HelperForkTest is BaseHelperForkTest {
     using stdStorage for StdStorage;
 
@@ -50,6 +54,7 @@ contract ALEstYETH4626HelperForkTest is BaseHelperForkTest {
 
     MockExchangeProxy exchangeProxy;
     ALE ale;
+    IFlashMinter flash;
     //STYETHHelper helper;
     YETHFeed feedyETH;
 
@@ -89,12 +94,7 @@ contract ALEstYETH4626HelperForkTest is BaseHelperForkTest {
         dbr.addMarket(address(market));
 
         ale = new ALE(address(exchangeProxy), triDBRAddr);
-        ale.setMarket(
-            address(market),
-            yEthAddr,
-            address(market.collateral()),
-            address(helper)
-        );
+        ale.setMarket(address(market), yEthAddr, address(helper), true);
         vm.stopPrank();
         //FiRM
         oracle = Oracle(address(market.oracle()));
@@ -109,6 +109,9 @@ contract ALEstYETH4626HelperForkTest is BaseHelperForkTest {
         borrowController.allow(address(ale));
 
         DOLA.addMinter(address(ale));
+
+        flash = IFlashMinter(address(ale.flash()));
+        flash.setFlashLoanRate(0);
         vm.stopPrank();
 
         collateralFactorBps = market.collateralFactorBps();
@@ -573,62 +576,7 @@ contract ALEstYETH4626HelperForkTest is BaseHelperForkTest {
             abi.encodeWithSelector(ALE.NoMarket.selector, fakeMarket)
         );
         vm.prank(gov);
-        ale.setMarket(fakeMarket, address(0), address(0), address(0));
-    }
-
-    function test_fail_setMarket_WrongCollateral_WithHelper() public {
-        address fakeCollateral = address(0x69);
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                ALE.WrongCollateral.selector,
-                address(market),
-                fakeCollateral,
-                address(0),
-                address(helper)
-            )
-        );
-        vm.prank(gov);
-        ale.setMarket(
-            address(market),
-            fakeCollateral,
-            address(0),
-            address(helper)
-        );
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                ALE.WrongCollateral.selector,
-                address(market),
-                address(0),
-                fakeCollateral,
-                address(helper)
-            )
-        );
-        vm.prank(gov);
-        ale.setMarket(
-            address(market),
-            address(0),
-            fakeCollateral,
-            address(helper)
-        );
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                ALE.WrongCollateral.selector,
-                address(market),
-                fakeCollateral,
-                fakeCollateral,
-                address(helper)
-            )
-        );
-        vm.prank(gov);
-        ale.setMarket(
-            address(market),
-            fakeCollateral,
-            fakeCollateral,
-            address(helper)
-        );
+        ale.setMarket(fakeMarket, address(0), address(0), true);
     }
 
     function test_fail_updateMarketHelper_NoMarket() public {
