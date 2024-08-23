@@ -13,6 +13,7 @@ contract DolaCrvUSDPriceFeedFork is CurveLPSingleFeedBaseTest, ConfigAddr {
     ChainlinkBasePriceFeed mainCrvUSDFeed;
     ChainlinkBasePriceFeed mainPyUSDFeed;
     ChainlinkBasePriceFeed baseFraxToUsd;
+    ChainlinkBasePriceFeed baseUsdcToUsd;
     ChainlinkCurve2CoinsFeed crvUSDFallback;
 
     ICurvePool public constant dolaCrvUSD =
@@ -33,37 +34,54 @@ contract DolaCrvUSDPriceFeedFork is CurveLPSingleFeedBaseTest, ConfigAddr {
 
     uint256 crvUSDIndex = 1;
 
+    ICurvePool public constant crvUSDUSDC =
+        ICurvePool(0x4DEcE678ceceb27446b35C672dC7d61F30bAD69E);
+
+    IChainlinkFeed public constant usdcToUsd =
+        IChainlinkFeed(0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6);
+
+    uint256 public usdcHeartbeat = 24 hours;
+
+    uint256 usdcIndex = 0;
+
     //  address public gov = 0x926dF14a23BE491164dCF93f4c468A50ef659D5B;
 
     function setUp() public {
         string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url, 20590050);
+        vm.createSelectFork(url, 20591674);
         // CrvUSD fallback
-        baseFraxToUsd = new ChainlinkBasePriceFeed(
-            gov,
-            address(fraxToUsd),
-            address(0),
-            fraxHeartbeat,
-            8
-        );
-        crvUSDFallback = new ChainlinkCurve2CoinsFeed(
-            address(baseFraxToUsd),
-            address(crvUSDFrax),
-            8,
-            crvUSDIndex
-        );
+        // baseFraxToUsd = new ChainlinkBasePriceFeed(
+        //     gov,
+        //     address(fraxToUsd),
+        //     address(0),
+        //     fraxHeartbeat,
+        //     8
+        // );
+        // baseUsdcToUsd = new ChainlinkBasePriceFeed(
+        //     gov,
+        //     address(usdcToUsd),
+        //     address(0),
+        //     usdcHeartbeat,
+        //     8
+        // );
+        // crvUSDFallback = new ChainlinkCurve2CoinsFeed(
+        //     address(baseUsdcToUsdAddr),
+        //     address(crvUSDUSDC),
+        //     8,
+        //     usdcIndex
+        // );
 
-        // Main feed
-        mainCrvUSDFeed = new ChainlinkBasePriceFeed(
-            gov,
-            address(crvUSDToUsd),
-            address(crvUSDFallback),
-            crvUSDHeartbeat,
-            8
-        );
+        // // Main feed
+        // mainCrvUSDFeed = new ChainlinkBasePriceFeed(
+        //     gov,
+        //     address(crvUSDToUsd),
+        //     address(crvUSDFallback),
+        //     crvUSDHeartbeat,
+        //     8
+        // );
 
         init(
-            address(baseFraxToUsdAddr),
+            address(baseUsdcToUsdAddr),
             address(crvUSDFallbackAddr),
             address(mainCrvUSDFeedAddr),
             address(dolaCrvUSD)

@@ -28,7 +28,7 @@ contract ALEDolaCrvUSDTest is CrvUSDDolaConvexMarketForkTest {
         super.setUp();
         curvePool = dolaCrvUSD;
 
-        helper = new CurveDolaLPHelper(gov, pauseGuardian, address(DOLA));
+        helper = CurveDolaLPHelper(curveDolaLPHelperAddr);
 
         vm.startPrank(gov);
         DOLA.mint(address(this), 100000 ether);

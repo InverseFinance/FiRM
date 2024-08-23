@@ -56,16 +56,18 @@ contract ConfigAddr {
     address dolaFraxPyUSDConvexEscrowAddr =
         0xfF7ec7ACA4f9e0a346e78fcCef8F41435522bA44;
 
-    // Inverse feeds after redesign
-    // CurveLPSingleFeed for CrvUSD/Dola
+    // Wrappers
     address baseFraxToUsdAddr =
         address(0xc39e4D6558dc7AA4F6457261413B4479b256572C); // ChainlinkBasePriceFeed for Frax to USD (Chainlink wrapper)
+
+    // Inverse feeds after redesign
+    // CurveLPSingleFeed for CrvUSD/Dola
     address crvUSDFallbackAddr =
-        address(0xd07833779C52fBA6C587C4B91cf5E1f0B21d4866); // ChainlinkCurve2CoinsFeed for CrvUSD fallback
+        address(0x92B57f41e90F8320EADdfCF22BB8AF45b0E5ed4E); // ChainlinkCurve2CoinsFeed for CrvUSD fallback (via USDC)
     address mainCrvUSDFeedAddr =
-        address(0x3CF0Bb54c4ee8f99f755b0f0B7F078686eB10283); // ChainlinkBasePriceFeed for main CrvUSD (has CrvUSD fallback)
+        address(0xD78527F9853da96FEbc4aF423527309810b83Ec1); // ChainlinkBasePriceFeed for main CrvUSD (has CrvUSD fallback)
     address crvUSDDolaFeedAddr =
-        address(0x3998C6b52b995B503c83808F719eECF2ca6fBdEC); // CurveLPSingleFeed for CrvUSD/Dola (uses mainCrvUSDFeed)
+        address(0x948E3435Ad0e269fDAf6259D4fb6380116Cfd366); // CurveLPSingleFeed for CrvUSD/Dola (uses mainCrvUSDFeed)
 
     // CurveLPPessimisticFeed for DolaFraxBP
     address baseCrvUsdToUsdAddr =
@@ -95,7 +97,7 @@ contract ConfigAddr {
 
     // CurveLPYearnV2Feed for CrvUSD/Dola
     address yearnCrvUSDDolaFeedAddr =
-        address(0xC112976a4F36c3C6Fbda072E485133858155E5d4); // CurveLPYearnV2Feed for CrvUSD/Dola (use crvUSD/Dola LP feed)
+        address(0x9128cE78a940B1a32Aee76C1c848658C465ba98A); // CurveLPYearnV2Feed for CrvUSD/Dola (use crvUSD/Dola LP feed)
 
     // CurveLPYearnV2Feed for DolaFraxBP
     address yearnDolaFraxBPFeedAddr =

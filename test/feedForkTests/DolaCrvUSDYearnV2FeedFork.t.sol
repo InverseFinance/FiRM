@@ -14,6 +14,7 @@ contract DolaCrvUSDYearnV2FeedFork is CurveLPYearnV2FeedBaseTest, ConfigAddr {
     ChainlinkBasePriceFeed mainCrvUSDFeed;
     ChainlinkBasePriceFeed mainPyUSDFeed;
     ChainlinkBasePriceFeed baseFraxToUsd;
+    ChainlinkBasePriceFeed baseUsdcToUsd;
     ChainlinkCurve2CoinsFeed crvUSDFallback;
 
     ICurvePool public constant dolaCrvUSD =
@@ -34,6 +35,16 @@ contract DolaCrvUSDYearnV2FeedFork is CurveLPYearnV2FeedBaseTest, ConfigAddr {
 
     uint256 crvUSDIndex = 1;
 
+    ICurvePool public constant crvUSDUSDC =
+        ICurvePool(0x4DEcE678ceceb27446b35C672dC7d61F30bAD69E);
+
+    IChainlinkFeed public constant usdcToUsd =
+        IChainlinkFeed(0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6);
+
+    uint256 public usdcHeartbeat = 24 hours;
+
+    uint256 usdcIndex = 0;
+
     //   address public gov = 0x926dF14a23BE491164dCF93f4c468A50ef659D5B;
 
     IYearnVaultV2 _yearn =
@@ -41,20 +52,20 @@ contract DolaCrvUSDYearnV2FeedFork is CurveLPYearnV2FeedBaseTest, ConfigAddr {
 
     function setUp() public {
         string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url, 20590050);
+        vm.createSelectFork(url, 20591674);
         // CrvUSD fallback
-        baseFraxToUsd = new ChainlinkBasePriceFeed(
+        baseUsdcToUsd = new ChainlinkBasePriceFeed(
             gov,
-            address(fraxToUsd),
+            address(usdcToUsd),
             address(0),
-            fraxHeartbeat,
+            usdcHeartbeat,
             8
         );
         crvUSDFallback = new ChainlinkCurve2CoinsFeed(
-            address(baseFraxToUsd),
-            address(crvUSDFrax),
+            address(baseUsdcToUsd),
+            address(crvUSDUSDC),
             8,
-            crvUSDIndex
+            usdcIndex
         );
 
         // Main feed
@@ -67,7 +78,7 @@ contract DolaCrvUSDYearnV2FeedFork is CurveLPYearnV2FeedBaseTest, ConfigAddr {
         );
 
         init(
-            address(baseFraxToUsdAddr),
+            address(baseUsdcToUsdAddr),
             address(crvUSDFallbackAddr),
             address(mainCrvUSDFeedAddr),
             address(dolaCrvUSD),

@@ -28,7 +28,7 @@ contract ALEDolaCrvUSDYearnV2Test is CrvUSDDolaYearnV2MarketForkTest {
     function setUp() public override {
         super.setUp();
 
-        helper = new CurveDolaLPHelper(gov, pauseGuardian, address(DOLA));
+        helper = CurveDolaLPHelper(curveDolaLPHelperAddr);
 
         vm.startPrank(gov);
         DOLA.mint(address(this), 100000 ether);
