@@ -77,7 +77,7 @@ contract DolaFraxBPConvexMarketForkTest is MarketBaseForkTest {
             pid
         );
 
-        feedDolaBP = _deployDolaFraxBPFeed();
+        // feedDolaBP = _deployDolaFraxBPFeed();
 
         Market market = new Market(
             gov,
@@ -93,7 +93,7 @@ contract DolaFraxBPConvexMarketForkTest is MarketBaseForkTest {
             true
         );
 
-        _advancedInit(address(market), address(feedDolaBP), true);
+        _advancedInit(address(market), address(dolaFraxBPFeedAddr), true);
 
         userEscrow = LPCurveConvexEscrow(address(market.predictEscrow(user)));
     }
@@ -112,17 +112,6 @@ contract DolaFraxBPConvexMarketForkTest is MarketBaseForkTest {
         );
         assertEq(address(userEscrow.cvx()), address(cvx), "CVX not set");
         assertEq(address(userEscrow.crv()), address(crv), "CRV not set");
-    }
-
-    function test_depositToConvex() public {
-        testDeposit();
-        userEscrow.depositToConvex();
-    }
-
-    function test_withdrawFromConvex() public {
-        testDeposit();
-        userEscrow.depositToConvex();
-        userEscrow.withdrawFromConvex();
     }
 
     function _deployDolaFraxBPFeed()

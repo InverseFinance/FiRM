@@ -115,17 +115,6 @@ contract CrvUSDDolaConvexMarketForkTest is MarketBaseForkTest {
         assertEq(address(userEscrow.crv()), address(crv), "CRV not set");
     }
 
-    function test_depositToConvex() public {
-        testDeposit();
-        userEscrow.depositToConvex();
-    }
-
-    function test_withdrawFromConvex() public {
-        testDeposit();
-        userEscrow.depositToConvex();
-        userEscrow.withdrawFromConvex();
-    }
-
     function _deployCrvUSDDolaFeed() internal returns (CurveLPSingleFeed feed) {
         // CrvUSD fallback
         baseFraxToUsd = new ChainlinkBasePriceFeed(
