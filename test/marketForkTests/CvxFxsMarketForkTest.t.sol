@@ -967,7 +967,7 @@ contract CvxFxsMarketForkTest is MarketForkTest {
         market.setLiquidationFeeBps(100);
 
         vm.expectRevert("Invalid liquidation fee");
-        market.setLiquidationFeeBps(0);
+        market.setLiquidationFeeBps(10001);
         vm.stopPrank();
 
         vm.expectRevert(onlyGov);

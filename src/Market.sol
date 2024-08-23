@@ -178,7 +178,7 @@ contract Market {
     @param _replenishmentIncentiveBps The new replenishment incentive set in basis points. 1 = 0.01%
     */
     function setReplenismentIncentiveBps(uint _replenishmentIncentiveBps) public onlyGov {
-        require(_replenishmentIncentiveBps > 0 && _replenishmentIncentiveBps < 10000, "Invalid replenishment incentive");
+        require(_replenishmentIncentiveBps < 10000, "Invalid replenishment incentive");
         replenishmentIncentiveBps = _replenishmentIncentiveBps;
     }
 
@@ -200,7 +200,7 @@ contract Market {
     @param _liquidationFeeBps The new liquidation fee set in basis points. 1 = 0.01%
     */
     function setLiquidationFeeBps(uint _liquidationFeeBps) public onlyGov liquidationParamChecker {
-        require(_liquidationFeeBps > 0 && _liquidationFeeBps + liquidationIncentiveBps < 10000, "Invalid liquidation fee");
+        require(_liquidationFeeBps + liquidationIncentiveBps < 10000, "Invalid liquidation fee");
         liquidationFeeBps = _liquidationFeeBps;
     }
 
