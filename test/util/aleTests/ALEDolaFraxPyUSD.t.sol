@@ -8,7 +8,7 @@ import {IMultiMarketTransformHelper} from "src/interfaces/IMultiMarketTransformH
 import {ALE} from "src/util/ALE.sol";
 
 interface IFlashMinter {
-    function setFlashLoanRate(uint256 rate) external;
+    function setMaxFlashLimit(uint256 _maxFlashLimit) external;
 
     function flashFee(
         address _token,
@@ -37,7 +37,8 @@ contract ALEDolaFraxPyUSDTest is DolaFraxPyUSDConvexMarketForkTest {
         ale.setMarket(address(market), address(DOLA), address(helper), false);
 
         flash = IFlashMinter(address(ale.flash()));
-        flash.setFlashLoanRate(0);
+        DOLA.addMinter(address(flash));
+        flash.setMaxFlashLimit(1000000e18);
         borrowController.allow(address(ale));
         vm.stopPrank();
         userPkEscrow = address(market.predictEscrow(userPk));

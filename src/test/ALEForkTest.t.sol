@@ -41,7 +41,7 @@ contract MockExchangeProxy {
 }
 
 interface IFlashMinter {
-    function setFlashLoanRate(uint256 rate) external;
+    function setMaxFlashLimit(uint256 limit) external;
 }
 
 contract ALEForkTest is MarketForkTest {
@@ -61,7 +61,7 @@ contract ALEForkTest is MarketForkTest {
     function setUp() public {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url, 18164420);
+        vm.createSelectFork(url, 20590050);
         init(crvMarketAddr, crvUsdFeedAddr);
 
         vm.prank(gov);
@@ -93,7 +93,8 @@ contract ALEForkTest is MarketForkTest {
         borrowController.allow(address(ale));
 
         flash = IFlashMinter(address(ale.flash()));
-        flash.setFlashLoanRate(0);
+        DOLA.addMinter(address(flash));
+        flash.setMaxFlashLimit(1000000e18);
         vm.stopPrank();
     }
 

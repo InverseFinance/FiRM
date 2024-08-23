@@ -27,7 +27,7 @@ interface IBC {
 }
 
 interface IFlashMinter {
-    function setFlashLoanRate(uint256 rate) external;
+    function setMaxFlashLimit(uint256 limit) external;
 
     function flashFee(
         address token,
@@ -63,7 +63,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
     uint collateralFactorBps;
 
     function getBlockNumber() public view override returns (uint256) {
-        return 19884238;
+        return 20590050;
     }
 
     function setUp() public override {
@@ -100,7 +100,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
             IBorrowController(address(borrowController))
         );
         market.setCollateralFactorBps(8000);
-        borrowController.setDailyLimit(address(market), 250_000 * 1e18);
+        borrowController.setDailyLimit(address(market), 1_000_000 * 1e18);
         IBC(address(borrowController)).setStalenessThreshold(
             address(market),
             3660
@@ -117,7 +117,8 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
         DOLA.addMinter(address(ale));
 
         flash = IFlashMinter(address(ale.flash()));
-        flash.setFlashLoanRate(0);
+        DOLA.addMinter(address(flash));
+        flash.setMaxFlashLimit(1000000e18);
         vm.stopPrank();
 
         collateralFactorBps = market.collateralFactorBps();

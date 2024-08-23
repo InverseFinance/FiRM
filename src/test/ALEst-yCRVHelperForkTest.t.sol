@@ -53,7 +53,7 @@ contract MockExchangeProxy {
 }
 
 interface IFlashMinter {
-    function setFlashLoanRate(uint256 rate) external;
+    function setMaxFlashLimit(uint256 limit) external;
 }
 
 contract ALEHelperForkTest is Test {
@@ -74,7 +74,7 @@ contract ALEHelperForkTest is Test {
     address pauseGuardian = address(0xE3eD95e130ad9E15643f5A5f232a3daE980784cd);
     address curvePool = address(0x056ef502C1Fc5335172bc95EC4cAE16C2eB9b5b6); // DBR/DOLA pool
     address styCRVHolder = address(0x577eBC5De943e35cdf9ECb5BbE1f7D7CB6c7C647);
-    address yCRVHolder = address(0xEE8fe4827ea1ad40e6960dDce84A97360D60dac2);
+    address yCRVHolder = address(0xEfb8B98A4BBd793317a863f1Ec9B92641aB1CBbb);
     address styCRV = address(0x27B5739e22ad9033bcBf192059122d163b60349D);
     address yCRV = address(0xFCc5c47bE19d06BF83eB04298b026F81069ff65b);
     address triDBR = address(0xC7DE47b9Ca2Fc753D6a2F167D8b3e19c6D18b19a);
@@ -110,7 +110,7 @@ contract ALEHelperForkTest is Test {
 
     function setUp() public {
         string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url, 18164420);
+        vm.createSelectFork(url, 20590050);
 
         DOLA = IMintable(0x865377367054516e17014CcdED1e7d814EDC9ce4);
         market = Market(0x27b6c301Fd441f3345d61B7a4245E1F823c3F9c4); // st-yCRV Market
@@ -163,9 +163,10 @@ contract ALEHelperForkTest is Test {
         oracle.setFeed(address(collateral), feed, 18);
         oracle.setFeed(yCRV, IChainlinkFeed(address(feedYCRV)), 18);
         borrowController.allow(address(ale));
-        DOLA.addMinter(address(ale));
+
         flash = IFlashMinter(address(ale.flash()));
-        flash.setFlashLoanRate(0);
+        DOLA.addMinter(address(flash));
+        flash.setMaxFlashLimit(1000000e18);
         vm.stopPrank();
         vm.stopPrank();
 
