@@ -71,7 +71,7 @@ contract ConfigAddr {
     address baseCrvUsdToUsdAddr =
         address(0x7325f9950544565Bd4Fd8F7b6FF732c19ffE6284); // ChainlinkBasePriceFeed for CrvUSD to USD (Chainlink wrapper)
     address fraxFallbackAddr =
-        address(0x7325f9950544565Bd4Fd8F7b6FF732c19ffE6284); // ChainlinkBasePriceFeed for Frax fallback
+        address(0x80B3Dc93B47865f7F31325D409587e2BE55F6B21); // ChainlinkCurve2CoinsFeed for Frax fallback
     address baseEthToUsdAddr =
         address(0x518f4Dd603A150fE7b6E89e8E18213aE2e909599); // ChainlinkBasePriceFeed for ETH to USD (Chainlink wrapper)
     address usdcFallbackAddr =
@@ -100,4 +100,8 @@ contract ConfigAddr {
     // CurveLPYearnV2Feed for DolaFraxBP
     address yearnDolaFraxBPFeedAddr =
         address(0x85f86F9e2dCc370c90d3a7bFC2B8E9a970D84850); // CurveLPYearnV2Feed for DolaFraxBP (use DolaFraxBP LP feed)
+
+    // CurveDolaLPHelper
+    address curveDolaLPHelperAddr =
+        address(0x6c592Fe4deA245B296476fd72863E8b2B739f911); // Helper for entering and exiting curve pools with Dola. Also support YearnV2 vaults for this LP.
 }
