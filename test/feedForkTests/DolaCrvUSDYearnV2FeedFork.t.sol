@@ -8,8 +8,9 @@ import {ChainlinkCurve2CoinsFeed} from "src/feeds/ChainlinkCurve2CoinsFeed.sol";
 import "src/feeds/CurveLPPessimisticFeed.sol";
 import {CurveLPYearnV2FeedBaseTest} from "test/feedForkTests/CurveLPYearnV2FeedBaseTest.t.sol";
 import {IYearnVaultV2} from "src/util/YearnVaultV2Helper.sol";
+import {ConfigAddr} from "src/test/ConfigAddr.sol";
 
-contract DolaCrvUSDYearnV2FeedFork is CurveLPYearnV2FeedBaseTest {
+contract DolaCrvUSDYearnV2FeedFork is CurveLPYearnV2FeedBaseTest, ConfigAddr {
     ChainlinkBasePriceFeed mainCrvUSDFeed;
     ChainlinkBasePriceFeed mainPyUSDFeed;
     ChainlinkBasePriceFeed baseFraxToUsd;
@@ -33,14 +34,14 @@ contract DolaCrvUSDYearnV2FeedFork is CurveLPYearnV2FeedBaseTest {
 
     uint256 crvUSDIndex = 1;
 
-    address public gov = 0x926dF14a23BE491164dCF93f4c468A50ef659D5B;
+    //   address public gov = 0x926dF14a23BE491164dCF93f4c468A50ef659D5B;
 
     IYearnVaultV2 _yearn =
         IYearnVaultV2(0xfb5137Aa9e079DB4b7C2929229caf503d0f6DA96);
 
     function setUp() public {
         string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url, 20060490);
+        vm.createSelectFork(url, 20590050);
         // CrvUSD fallback
         baseFraxToUsd = new ChainlinkBasePriceFeed(
             gov,
@@ -66,9 +67,9 @@ contract DolaCrvUSDYearnV2FeedFork is CurveLPYearnV2FeedBaseTest {
         );
 
         init(
-            address(baseFraxToUsd),
-            address(crvUSDFallback),
-            address(mainCrvUSDFeed),
+            address(baseFraxToUsdAddr),
+            address(crvUSDFallbackAddr),
+            address(mainCrvUSDFeedAddr),
             address(dolaCrvUSD),
             address(_yearn)
         );

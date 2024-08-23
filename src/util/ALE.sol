@@ -117,7 +117,6 @@ contract ALE is
         address indexed market,
         address indexed account,
         uint256 dolaFlashMinted, // DOLA flash minted for buying collateral only
-        uint256 dolaFee, // Flash minter fees paid
         uint256 collateralDeposited, // amount of collateral deposited into the escrow
         uint256 dolaBorrowed, // amount of DOLA borrowed on behalf of the user
         uint256 dolaForDBR // amount of DOLA used for buying DBR
@@ -127,7 +126,6 @@ contract ALE is
         address indexed market,
         address indexed account,
         uint256 dolaFlashMinted, // Flash minted DOLA for repaying leverage only
-        uint256 dolaFee, // Flash minter fees paid
         uint256 collateralSold, // amount of collateral/underlying sold
         uint256 dolaUserRepaid, // amount of DOLA deposited by the user as part of the repay
         uint256 dbrSoldForDola // amount of DBR sold for DOLA
@@ -488,7 +486,6 @@ contract ALE is
             _market,
             _user,
             _value,
-            _fee,
             collateralAmount,
             _dbrData.dola,
             _dbrData.amountIn
@@ -604,7 +601,6 @@ contract ALE is
             _market,
             _user,
             _value,
-            _fee,
             _collateralAmount,
             _dbrData.dola,
             _dbrData.amountIn

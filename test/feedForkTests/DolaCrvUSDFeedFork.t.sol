@@ -7,8 +7,9 @@ import {ChainlinkCurveFeed} from "src/feeds/ChainlinkCurveFeed.sol";
 import {ChainlinkCurve2CoinsFeed} from "src/feeds/ChainlinkCurve2CoinsFeed.sol";
 import "src/feeds/CurveLPPessimisticFeed.sol";
 import {CurveLPSingleFeedBaseTest} from "test/feedForkTests/CurveLPSingleFeedBaseTest.t.sol";
+import {ConfigAddr} from "src/test/ConfigAddr.sol";
 
-contract DolaCrvUSDPriceFeedFork is CurveLPSingleFeedBaseTest {
+contract DolaCrvUSDPriceFeedFork is CurveLPSingleFeedBaseTest, ConfigAddr {
     ChainlinkBasePriceFeed mainCrvUSDFeed;
     ChainlinkBasePriceFeed mainPyUSDFeed;
     ChainlinkBasePriceFeed baseFraxToUsd;
@@ -32,11 +33,11 @@ contract DolaCrvUSDPriceFeedFork is CurveLPSingleFeedBaseTest {
 
     uint256 crvUSDIndex = 1;
 
-    address public gov = 0x926dF14a23BE491164dCF93f4c468A50ef659D5B;
+    //  address public gov = 0x926dF14a23BE491164dCF93f4c468A50ef659D5B;
 
     function setUp() public {
         string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url, 20060490);
+        vm.createSelectFork(url, 20590050);
         // CrvUSD fallback
         baseFraxToUsd = new ChainlinkBasePriceFeed(
             gov,
@@ -62,9 +63,9 @@ contract DolaCrvUSDPriceFeedFork is CurveLPSingleFeedBaseTest {
         );
 
         init(
-            address(baseFraxToUsd),
-            address(crvUSDFallback),
-            address(mainCrvUSDFeed),
+            address(baseFraxToUsdAddr),
+            address(crvUSDFallbackAddr),
+            address(mainCrvUSDFeedAddr),
             address(dolaCrvUSD)
         );
     }

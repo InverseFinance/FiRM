@@ -21,7 +21,7 @@ abstract contract CurveLPSingleFeedBaseTest is Test {
     IChainlinkFeed public coin1ClFallback; // Chainlink feed for coin1 fallback
 
     uint256 SCALE;
-    
+
     function init(
         address _baseClFallCoin1,
         address _coin1Fallback,
