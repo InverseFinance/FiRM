@@ -50,7 +50,7 @@ contract ConfigAddr {
 
     // FiRM Escrows
     address crvUSDDolaConvexEscrowAddr =
-        0x15596Aa43ffe43f23443fF87af688607c0C5Df35;
+        0xCB21Dc82C4346cE448808A8B9C51719F13cE00c3;
     address dolaFraxBPConvexEscrowAddr =
         0xF28cCAAeB90BbE1463eb82716Fc50330084DDFf6;
     address dolaFraxPyUSDConvexEscrowAddr =
