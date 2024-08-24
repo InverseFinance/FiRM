@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 import {MarketBaseForkTest, IOracle, IDolaBorrowingRights, IERC20} from "./MarketBaseForkTest.sol";
 import {Market} from "src/Market.sol";
 
-import {LPCurveConvexEscrow} from "src/escrows/LPCurveConvexEscrow.sol";
+import {ConvexEscrowV2} from "src/escrows/ConvexEscrowV2.sol";
 import {CurveLPSingleFeed} from "src/feeds/CurveLPSingleFeed.sol";
 import {ChainlinkCurve2CoinsFeed} from "src/feeds/ChainlinkCurve2CoinsFeed.sol";
 import {ChainlinkCurveFeed} from "src/feeds/ChainlinkCurveFeed.sol";
@@ -27,7 +27,7 @@ interface IYearnVaultFactory {
 }
 
 contract CrvUSDDolaConvexMarketForkTest is MarketBaseForkTest {
-    LPCurveConvexEscrow escrow;
+    ConvexEscrowV2 escrow;
 
     CurveLPSingleFeed feedCrvUSDDola;
 
@@ -62,14 +62,14 @@ contract CrvUSDDolaConvexMarketForkTest is MarketBaseForkTest {
     IERC20 public cvx = IERC20(0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B);
     IERC20 public crv = IERC20(0xD533a949740bb3306d119CC777fa900bA034cd52);
 
-    LPCurveConvexEscrow userEscrow;
+    ConvexEscrowV2 userEscrow;
 
     function setUp() public virtual {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
         vm.createSelectFork(url, 20591674);
 
-        // escrow = new LPCurveConvexEscrow(
+        // escrow = new ConvexEscrowV2(
         //     rewardPool,
         //     booster,
         //     address(cvx),
@@ -95,7 +95,7 @@ contract CrvUSDDolaConvexMarketForkTest is MarketBaseForkTest {
 
         _advancedInit(address(market), address(crvUSDDolaFeedAddr), true);
 
-        userEscrow = LPCurveConvexEscrow(address(market.predictEscrow(user)));
+        userEscrow = ConvexEscrowV2(address(market.predictEscrow(user)));
     }
 
     function test_escrow_immutables() public {

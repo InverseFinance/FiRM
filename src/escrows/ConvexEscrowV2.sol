@@ -11,7 +11,7 @@ interface IStakingWrapper {
     function token() external returns (address);
 }
 
-contract LPCurveConvexEscrow {
+contract ConvexEscrowV2 {
     using SafeERC20 for IERC20;
 
     error AlreadyInitialized();
@@ -103,7 +103,7 @@ contract LPCurveConvexEscrow {
 
     /**
     @notice Get the token balance of the escrow
-    @return Uint representing the LP balance of the escrow
+    @return Uint representing the token balance of the escrow
     */
     function balance() public view returns (uint) {
         return

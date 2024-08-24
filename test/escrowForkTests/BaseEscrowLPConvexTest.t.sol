@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "src/escrows/LPCurveConvexEscrow.sol";
+import "src/escrows/ConvexEscrowV2.sol";
 import {console} from "forge-std/console.sol";
 import {RewardHook} from "test/mocks/RewardHook.sol";
 
@@ -41,7 +41,7 @@ abstract contract BaseEscrowLPConvexTest is Test {
     IERC20 depositToken;
     address stash;
 
-    LPCurveConvexEscrow escrow;
+    ConvexEscrowV2 escrow;
 
     struct ConvexInfo {
         uint256 pid;
@@ -83,7 +83,7 @@ abstract contract BaseEscrowLPConvexTest is Test {
             booster.earmarkRewards(pid);
         }
 
-        escrow = new LPCurveConvexEscrow(
+        escrow = new ConvexEscrowV2(
             address(rewardPool),
             address(booster),
             address(cvx),
@@ -95,7 +95,7 @@ abstract contract BaseEscrowLPConvexTest is Test {
     }
 
     function test_initialize() public {
-        LPCurveConvexEscrow freshEscrow = new LPCurveConvexEscrow(
+        ConvexEscrowV2 freshEscrow = new ConvexEscrowV2(
             address(rewardPool),
             address(booster),
             address(cvx),
@@ -247,7 +247,7 @@ abstract contract BaseEscrowLPConvexTest is Test {
         escrow.onDeposit();
 
         vm.prank(lpHolder, lpHolder);
-        vm.expectRevert(LPCurveConvexEscrow.OnlyMarket.selector);
+        vm.expectRevert(ConvexEscrowV2.OnlyMarket.selector);
         escrow.pay(beneficiary, 1 ether);
     }
 
@@ -419,9 +419,7 @@ abstract contract BaseEscrowLPConvexTest is Test {
         escrow.disallowClaimOnBehalf(friend);
 
         vm.prank(friend);
-        vm.expectRevert(
-            LPCurveConvexEscrow.OnlyBeneficiaryOrAllowlist.selector
-        );
+        vm.expectRevert(ConvexEscrowV2.OnlyBeneficiaryOrAllowlist.selector);
         escrow.claimTo(beneficiary);
     }
 
@@ -433,15 +431,13 @@ abstract contract BaseEscrowLPConvexTest is Test {
 
         vm.warp(block.timestamp + 14 days);
         vm.prank(friend);
-        vm.expectRevert(
-            LPCurveConvexEscrow.OnlyBeneficiaryOrAllowlist.selector
-        );
+        vm.expectRevert(ConvexEscrowV2.OnlyBeneficiaryOrAllowlist.selector);
         escrow.claimTo(beneficiary);
     }
 
     function testAllowClaimOnBehalf_fails_whenCalledByNonBeneficiary() public {
         vm.prank(friend);
-        vm.expectRevert(LPCurveConvexEscrow.OnlyBeneficiary.selector);
+        vm.expectRevert(ConvexEscrowV2.OnlyBeneficiary.selector);
         escrow.allowClaimOnBehalf(friend);
     }
 
@@ -449,7 +445,7 @@ abstract contract BaseEscrowLPConvexTest is Test {
         public
     {
         vm.prank(friend);
-        vm.expectRevert(LPCurveConvexEscrow.OnlyBeneficiary.selector);
+        vm.expectRevert(ConvexEscrowV2.OnlyBeneficiary.selector);
         escrow.disallowClaimOnBehalf(friend);
     }
 }
