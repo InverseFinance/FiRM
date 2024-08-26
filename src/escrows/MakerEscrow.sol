@@ -1,22 +1,19 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-///  * @dev Caution: We assume all failed transfers cause reverts and ignore the returned bool.
-interface IERC20 {
-    function transfer(address,uint) external returns (bool);
-    function transferFrom(address,address,uint) external returns (bool);
-    function balanceOf(address) external view returns (uint);
-}
+import "src/interfaces/IERC20.sol";
 
+///  * @dev Caution: We assume all failed transfers cause reverts and ignore the returned bool.
 interface IVoteDelegate {
     function lock(uint) external;
     function free(uint) external;
     function stake(address) external returns(uint);
+    function delegate() external returns(address);
 }
 
 interface IVoteDelegateFactory {
     function isDelegate(address) external returns(bool);
-    function delegate(address) external returns(address);
+    function delegates(address) external returns(address);
 }
 
 /**
@@ -26,24 +23,23 @@ interface IVoteDelegateFactory {
  */
 contract MakerEscrow {
     address public market;
-    address public delegate;
     address public beneficiary;
+    IVoteDelegate public voteDelegate;
     IVoteDelegateFactory public constant voteDelegateFactory = IVoteDelegateFactory(0xD897F108670903D1d6070fcf818f9db3615AF272);
-    IERC20 public token;
+    address public constant chief = 0x0a3f6849f78076aefaDf113F5BED87720274dDC0;
+    IERC20 public constant iou = IERC20(0xA618E54de493ec29432EbD2CA7f14eFbF6Ac17F7);
+    IERC20 public constant token = IERC20(0x9f8F72aA9304c8B593d555F12eF6589cC3A579A2);
    
     error OnlyBeneficiary();
-    error AddressNotDelegate();
 
     /**
      * @notice Initialize escrow with a token
      * @dev Must be called right after proxy is created
-     * @param _token The IERC20 token to be stored in this specific escrow
      * @param _beneficiary Address of the owner of the escrow
      */
-    function initialize(IERC20 _token, address _beneficiary) public {
+    function initialize(IERC20, address _beneficiary) public {
         require(market == address(0), "ALREADY INITIALIZED");
         market = msg.sender;
-        token = _token;
         beneficiary = _beneficiary;
     }
     
@@ -54,6 +50,10 @@ contract MakerEscrow {
      */
     function pay(address recipient, uint amount) public {
         require(msg.sender == market, "ONLY MARKET");
+        uint mkrBal = token.balanceOf(address(this));
+        if(amount > mkrBal){
+            voteDelegate.free(amount - mkrBal);
+        }
         token.transfer(recipient, amount);
     }
 
@@ -62,7 +62,7 @@ contract MakerEscrow {
      * @return Uint representing the token balance of the escrow
      */
     function balance() public view returns (uint) {
-        return token.balanceOf(address(this));
+        return token.balanceOf(address(this)) + iou.balanceOf(address(this));
     }
 
     /**
@@ -71,16 +71,14 @@ contract MakerEscrow {
      */
     function onDeposit() external {
         uint mkrBal = token.balanceOf(address(this));
-        if(delegate != address(0)){
-            //TODO: Check if this will fail if some mkr has already been locked/delegated
-            IVoteDelegate voteDelegate = IVoteDelegate(voteDelegateFactory.delegate(delegate));
+        if(address(voteDelegate) != address(0)){
             uint staked = voteDelegate.stake(address(this));
             voteDelegate.lock(mkrBal - staked);
         } else if(voteDelegateFactory.isDelegate(beneficiary)){
-            delegate = beneficiary;
-            IVoteDelegate voteDelegate = IVoteDelegate(voteDelegateFactory.delegate(beneficiary));
-            uint staked = voteDelegate.stake(address(this));
-            voteDelegate.lock(mkrBal - staked);
+            _setVoteDelegate(
+                IVoteDelegate(voteDelegateFactory.delegates(beneficiary))
+            );
+            voteDelegate.lock(mkrBal);
         }
     }
 
@@ -91,17 +89,22 @@ contract MakerEscrow {
      */
     function delegateTo(address _newDelegate) external {
         if(msg.sender != beneficiary) revert OnlyBeneficiary();
-        if(!voteDelegateFactory.isDelegate(_newDelegate)) revert AddressNotDelegate();
-        IVoteDelegate voteDelegate;
-        if(delegate != address(0)){
-            voteDelegate = IVoteDelegate(voteDelegateFactory.delegate(delegate));
+        if(address(voteDelegate) != address(0)){
             uint stake = voteDelegate.stake(address(this));
+            iou.approve(address(voteDelegate), stake);
             voteDelegate.free(stake);
         }
-        delegate = _newDelegate;
         uint mkrBal = token.balanceOf(address(this));
-        voteDelegate = IVoteDelegate(voteDelegateFactory.delegate(delegate));
+        _setVoteDelegate(
+            IVoteDelegate(voteDelegateFactory.delegates(_newDelegate))
+        );
         voteDelegate.lock(mkrBal);
+    }
+
+    function _setVoteDelegate(IVoteDelegate newVoteDelegate) internal {
+        voteDelegate = newVoteDelegate;
+        iou.approve(address(newVoteDelegate), type(uint).max);
+        token.approve(address(newVoteDelegate), type(uint).max);
     }
 
     /**
@@ -109,11 +112,21 @@ contract MakerEscrow {
      */
     function undelegate() external {
         if(msg.sender != beneficiary) revert OnlyBeneficiary();
-        if(delegate != address(0)){
-            IVoteDelegate voteDelegate = IVoteDelegate(voteDelegateFactory.delegate(delegate));
+        if(address(voteDelegate) != address(0)){
             uint stake = voteDelegate.stake(address(this));
             voteDelegate.free(stake);
-            delegate = address(0);
+            voteDelegate = IVoteDelegate(address(0));
+        }
+    }
+
+    /**
+     * @notice Get the owner of the `voteDelegate` contract that is being delegated to.
+     */
+    function delegate() external returns(address){
+        if(address(voteDelegate) != address(0)){
+            return voteDelegate.delegate();
+        } else {
+            return address(0);
         }
     }
 }
