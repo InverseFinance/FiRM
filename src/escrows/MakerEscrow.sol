@@ -7,13 +7,14 @@ import "src/interfaces/IERC20.sol";
 interface IVoteDelegate {
     function lock(uint) external;
     function free(uint) external;
-    function stake(address) external returns(uint);
-    function delegate() external returns(address);
+    function stake(address) external view returns(uint);
+    function delegate() external view returns(address);
+    function expiration() external view returns(uint);
 }
 
 interface IVoteDelegateFactory {
-    function isDelegate(address) external returns(bool);
-    function delegates(address) external returns(address);
+    function isDelegate(address) external view returns(bool);
+    function delegates(address) external view returns(address);
 }
 
 /**
@@ -26,7 +27,6 @@ contract MakerEscrow {
     address public beneficiary;
     IVoteDelegate public voteDelegate;
     IVoteDelegateFactory public constant voteDelegateFactory = IVoteDelegateFactory(0xD897F108670903D1d6070fcf818f9db3615AF272);
-    address public constant chief = 0x0a3f6849f78076aefaDf113F5BED87720274dDC0;
     IERC20 public constant iou = IERC20(0xA618E54de493ec29432EbD2CA7f14eFbF6Ac17F7);
     IERC20 public constant token = IERC20(0x9f8F72aA9304c8B593d555F12eF6589cC3A579A2);
    
@@ -70,11 +70,11 @@ contract MakerEscrow {
      * @dev This function should remain callable by anyone to handle direct inbound transfers.
      */
     function onDeposit() external {
-        uint mkrBal = token.balanceOf(address(this));
         if(address(voteDelegate) != address(0)){
-            uint staked = voteDelegate.stake(address(this));
-            voteDelegate.lock(mkrBal - staked);
+            uint mkrBal = token.balanceOf(address(this));
+            voteDelegate.lock(mkrBal);
         } else if(voteDelegateFactory.isDelegate(beneficiary)){
+            uint mkrBal = token.balanceOf(address(this));
             _setVoteDelegate(
                 IVoteDelegate(voteDelegateFactory.delegates(beneficiary))
             );
@@ -91,7 +91,6 @@ contract MakerEscrow {
         if(msg.sender != beneficiary) revert OnlyBeneficiary();
         if(address(voteDelegate) != address(0)){
             uint stake = voteDelegate.stake(address(this));
-            iou.approve(address(voteDelegate), stake);
             voteDelegate.free(stake);
         }
         uint mkrBal = token.balanceOf(address(this));
@@ -122,11 +121,23 @@ contract MakerEscrow {
     /**
      * @notice Get the owner of the `voteDelegate` contract that is being delegated to.
      */
-    function delegate() external returns(address){
+    function delegate() external view returns(address){
         if(address(voteDelegate) != address(0)){
             return voteDelegate.delegate();
         } else {
             return address(0);
         }
     }
+
+    /**
+     * @notice Return the expiry of the delegation contract, at which point the contract will have to be redelegated.
+     */
+    function expiration() external view returns(uint){
+        if(address(voteDelegate) != address(0)){
+            return voteDelegate.expiration();
+        } else {
+            return 0;
+        }
+    }
+
 }
