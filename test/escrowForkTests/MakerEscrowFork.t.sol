@@ -72,6 +72,21 @@ contract MakerEscrowFork is BaseEscrowTest {
         assertEq(balBefore, freshEscrow.balance(), "Balance after");
     }
 
+    function test_onDeposit_DelegateCorrectlyAfterExpiry() public {
+        MakerEscrow freshEscrow = new MakerEscrow();
+        deal(address(maker), address(freshEscrow), 1 ether);
+        vm.prank(market);
+        freshEscrow.initialize(maker, delegate);
+        assertTrue(voteDelegateFactory.isDelegate(freshEscrow.beneficiary()), "`delegate` is not a Delegate");
+        uint balBefore = freshEscrow.balance();
+        freshEscrow.onDeposit();
+        assertEq(freshEscrow.market(), market);
+        assertEq(freshEscrow.beneficiary(), delegate);
+        assertEq(address(freshEscrow.token()), address(maker));
+        assertEq(freshEscrow.delegate(), freshEscrow.beneficiary(), "Delegate not set");
+        assertEq(balBefore, freshEscrow.balance(), "Balance after");
+    }
+
     function test_undelegate() public {
         deal(address(maker), address(escrowImplementation), 1 ether);
         assertEq(escrowImplementation.delegate(), address(0));
