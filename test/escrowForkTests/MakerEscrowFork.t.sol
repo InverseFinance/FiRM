@@ -23,6 +23,7 @@ contract MakerEscrowFork is BaseEscrowTest {
         assertEq(escrowImplementation.delegate(), address(0));
         vm.prank(beneficiary);
         escrowImplementation.delegateTo(delegate);
+        assertEq(address(escrowImplementation.voteDelegate()), voteDelegateFactory.delegates(delegate));
         assertEq(escrowImplementation.delegate(), delegate);
         assertEq(escrowImplementation.iou().balanceOf(address(escrowImplementation)), 1 ether);
         assertEq(escrowImplementation.balance(), 1 ether);
@@ -85,10 +86,18 @@ contract MakerEscrowFork is BaseEscrowTest {
         assertEq(maker.balanceOf(address(escrowImplementation)), 1 ether);
     }
 
-    function test_delegate_failsWhenCalledByNonBeneficiary() public {
+    function test_delegateTo_failsWhenCalledByNonBeneficiary() public {
         vm.expectRevert();
         vm.prank(holder);
         escrowImplementation.delegateTo(holder);
+    }
+
+    function test_expiration() public {
+        assertEq(escrowImplementation.expiration(), 0);
+        vm.prank(beneficiary);
+        escrowImplementation.delegateTo(delegate);
+        IVoteDelegate voteDelegate = escrowImplementation.voteDelegate();
+        assertEq(escrowImplementation.expiration(), voteDelegate.expiration()); 
     }
 
 }
