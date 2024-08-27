@@ -67,35 +67,13 @@ contract CrvUSDDolaConvexMarketForkTest is MarketBaseForkTest {
     function setUp() public virtual {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url, 20597565);
+        vm.createSelectFork(url, 20612315);
 
-        // escrow = new ConvexEscrowV2(
-        //     rewardPool,
-        //     booster,
-        //     address(cvx),
-        //     address(crv),
-        //     pid
-        // );
+        _advancedInit(crvUSDDolaConvexAddr, address(crvUSDDolaFeedAddr), true);
 
-        // feedCrvUSDDola = _deployCrvUSDDolaFeed();
-
-        Market market = new Market(
-            gov,
-            lender,
-            pauseGuardian,
-            address(crvUSDDolaConvexEscrowAddr),
-            IDolaBorrowingRights(address(dbr)),
-            IERC20(address(dolaCrvUSD)),
-            IOracle(address(oracle)),
-            5000,
-            5000,
-            1000,
-            true
+        userEscrow = ConvexEscrowV2(
+            address(Market(crvUSDDolaConvexAddr).predictEscrow(user))
         );
-
-        _advancedInit(address(market), address(crvUSDDolaFeedAddr), true);
-
-        userEscrow = ConvexEscrowV2(address(market.predictEscrow(user)));
     }
 
     function test_escrow_immutables() public {

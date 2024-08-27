@@ -60,29 +60,19 @@ contract CrvUSDDolaYearnV2MarketForkTest is MarketBaseForkTest {
     function setUp() public virtual {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url, 20591724);
+        vm.createSelectFork(url, 20615353);
 
         escrow = new SimpleERC20Escrow();
 
-        //  feedCrvUSDDolaYearnV2 = _deployCrvUSDDolaYearnV2Feed();
-
-        Market market = new Market(
-            gov,
-            lender,
-            pauseGuardian,
-            address(escrow),
-            IDolaBorrowingRights(address(dbr)),
-            IERC20(address(yearn)),
-            IOracle(address(oracle)),
-            5000,
-            5000,
-            1000,
+        _advancedInit(
+            crvUSDDolaYearnAddr,
+            address(yearnCrvUSDDolaFeedAddr),
             true
         );
 
-        _advancedInit(address(market), address(yearnCrvUSDDolaFeedAddr), true);
-
-        userEscrow = SimpleERC20Escrow(address(market.predictEscrow(user)));
+        userEscrow = SimpleERC20Escrow(
+            address(Market(crvUSDDolaYearnAddr).predictEscrow(user))
+        );
     }
 
     function _deployCrvUSDDolaYearnV2Feed()

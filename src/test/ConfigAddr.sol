@@ -37,7 +37,10 @@ contract ConfigAddr {
         address(0xFEA3A862eE4b3F9b6015581d6d2D25AF816C54f1);
     address styEthMarketAddr =
         address(0x0c0bb843FAbda441edeFB93331cFff8EC92bD168);
-
+    address crvUSDDolaConvexAddr =
+        address(0x6A522f3BD3fDA15e74180953f203cf55aA6C631E);
+    address crvUSDDolaYearnAddr =
+        address(0xe85943e280776254ee6C9801553B93F10Ef4C99C);
     // Chainlink
     address crvUsdFeedAddr =
         address(0xCd627aA160A6fA45Eb793D19Ef54f5062F20f33f);
@@ -49,6 +52,8 @@ contract ConfigAddr {
     // Balancer Pools
 
     // FiRM Escrows
+    address simpleERC20EscrowAddr =
+        address(0xc06053FcAd0A0Df7cC32289A135bBEA9030C010f);
     address crvUSDDolaConvexEscrowAddr =
         0xCB21Dc82C4346cE448808A8B9C51719F13cE00c3;
     address dolaFraxBPConvexEscrowAddr =
