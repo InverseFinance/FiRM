@@ -7,7 +7,7 @@ import {ChainlinkCurve2CoinsFeed} from "src/feeds/ChainlinkCurve2CoinsFeed.sol";
 import {ChainlinkCurveFeed} from "src/feeds/ChainlinkCurveFeed.sol";
 import "src/feeds/ChainlinkBasePriceFeed.sol";
 import "src/feeds/CurveLPPessimisticFeed.sol";
-import {CurveLPPessimiticYearnV2FeedBaseTest} from "test/feedForkTests/CurveLPPessimsticYearnV2FeedBaseTest.t.sol";
+import {CurveLPPessimiticYearnV2FeedBaseTest} from "test/feedForkTests/base/CurveLPPessimsticYearnV2FeedBaseTest.t.sol";
 
 contract DolaFraxBPYearnV2FeedFork is CurveLPPessimiticYearnV2FeedBaseTest {
     ChainlinkCurveFeed usdcFallback;

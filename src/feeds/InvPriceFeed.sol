@@ -51,14 +51,14 @@ contract InvPriceFeed {
     address public gov = 0x926dF14a23BE491164dCF93f4c468A50ef659D5B;
 
     modifier onlyGov() {
-        if(msg.sender != gov) revert OnlyGov();
+        if (msg.sender != gov) revert OnlyGov();
         _;
     }
-    
+
     /**
      * @notice Retrieves the latest round data for the INV token price feed
-     * @dev This function calculates the INV price in USD by combining the USDC to USD price from a Chainlink oracle 
-     * and the INV to USDC ratio from the tricrypto pool. 
+     * @dev This function calculates the INV price in USD by combining the USDC to USD price from a Chainlink oracle
+     * and the INV to USDC ratio from the tricrypto pool.
      * If USDC/USD price is out of bounds, it will fallback to ETH/USD price oracle and USDC to ETH ratio from the tricrypto pool
      * @return roundId The round ID of the Chainlink price feed
      * @return usdcUsdPrice The latest USDC price in USD computed from the INV/USDC and USDC/USD feeds
@@ -71,7 +71,7 @@ contract InvPriceFeed {
         view
         returns (uint80, int256, uint256, uint256, uint80)
     {
-             (
+        (
             uint80 roundId,
             int256 usdcUsdPrice,
             uint startedAt,
@@ -90,8 +90,7 @@ contract InvPriceFeed {
         }
         int256 invUsdcPrice = int256(tricryptoINV.price_oracle(invK));
 
-        int256 invDollarPrice =
-            invUsdcPrice * usdcUsdPrice /
+        int256 invDollarPrice = (invUsdcPrice * usdcUsdPrice) /
             int(10 ** (decimals() - 10));
 
         return (roundId, invDollarPrice, startedAt, updatedAt, answeredInRound);
@@ -154,9 +153,12 @@ contract InvPriceFeed {
             uint80 answeredInRound
         ) = ethToUsd.latestRoundData();
 
-        int256 usdcToUsdPrice = ethToUsdPrice * 10 ** 18 / crvEthToUsdc;
+        int256 usdcToUsdPrice = (ethToUsdPrice * 10 ** 18) / crvEthToUsdc;
 
-        if(isPriceOutOfBounds(ethToUsdPrice, ethToUsd) || block.timestamp - updatedAt > ethHeartbeat) {
+        if (
+            isPriceOutOfBounds(ethToUsdPrice, ethToUsd) ||
+            block.timestamp - updatedAt > ethHeartbeat
+        ) {
             // Will force stale price on borrow controller
             updatedAt = 0;
         }

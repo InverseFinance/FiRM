@@ -6,8 +6,8 @@ import "src/feeds/ChainlinkBasePriceFeed.sol";
 import {ChainlinkCurveFeed} from "src/feeds/ChainlinkCurveFeed.sol";
 import {ChainlinkCurve2CoinsFeed} from "src/feeds/ChainlinkCurve2CoinsFeed.sol";
 import "src/feeds/CurveLPPessimisticFeed.sol";
-import {CurveLPSingleFeedBaseTest} from "test/feedForkTests/CurveLPSingleFeedBaseTest.t.sol";
-import {ConfigAddr} from "src/test/ConfigAddr.sol";
+import {CurveLPSingleFeedBaseTest} from "test/feedForkTests/base/CurveLPSingleFeedBaseTest.t.sol";
+import {ConfigAddr} from "test/ConfigAddr.sol";
 
 contract DolaCrvUSDPriceFeedFork is CurveLPSingleFeedBaseTest, ConfigAddr {
     ChainlinkBasePriceFeed mainCrvUSDFeed;

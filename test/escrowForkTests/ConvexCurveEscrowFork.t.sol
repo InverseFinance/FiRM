@@ -4,8 +4,7 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 import "src/escrows/ConvexCurveEscrow.sol";
 
-contract ConvexCurveEscrowForkTest is Test{
-
+contract ConvexCurveEscrowForkTest is Test {
     address market = address(0xA);
     address beneficiary = address(0xB);
     address friend = address(0xC);
@@ -14,16 +13,16 @@ contract ConvexCurveEscrowForkTest is Test{
     IERC20 threeCrv = IERC20(0x6c3F90f043a72FA612cbac8115EE7e52BDe6E490);
     IERC20 cvx = IERC20(0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B);
     IERC20 crv = IERC20(0xD533a949740bb3306d119CC777fa900bA034cd52);
-    ICvxCrvStakingWrapper stakingWrapper = ICvxCrvStakingWrapper(0xaa0C3f5F7DFD688C6E646F66CD2a6B66ACdbE434);
-        
-    ConvexCurveEscrow escrow;
+    ICvxCrvStakingWrapper stakingWrapper =
+        ICvxCrvStakingWrapper(0xaa0C3f5F7DFD688C6E646F66CD2a6B66ACdbE434);
 
+    ConvexCurveEscrow escrow;
 
     function setUp() public {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url);
-        
+        vm.createSelectFork(url, 18000000);
+
         escrow = new ConvexCurveEscrow();
         vm.startPrank(market, market);
         escrow.initialize(cvxCrv, beneficiary);
@@ -34,21 +33,32 @@ contract ConvexCurveEscrowForkTest is Test{
         ConvexCurveEscrow freshEscrow = new ConvexCurveEscrow();
         vm.prank(address(market));
         freshEscrow.initialize(cvxCrv, holder);
-        assertEq(address(freshEscrow.market()), address(market), "Market not equal market");
+        assertEq(
+            address(freshEscrow.market()),
+            address(market),
+            "Market not equal market"
+        );
         assertEq(freshEscrow.beneficiary(), holder, "Holder not beneficiary");
-        assertEq(address(freshEscrow.token()), address(cvxCrv), "cvxCrv not Token");
+        assertEq(
+            address(freshEscrow.token()),
+            address(cvxCrv),
+            "cvxCrv not Token"
+        );
     }
 
     function testOnDeposit_successful_whenContractHoldsCvxCrv() public {
         uint balanceBefore = escrow.balance();
         uint stakedBalanceBefore = stakingWrapper.balanceOf(address(escrow));
-        
+
         vm.prank(holder, holder);
         cvxCrv.transfer(address(escrow), 1 ether);
         escrow.onDeposit();
 
         assertEq(escrow.balance(), balanceBefore + 1 ether);
-        assertEq(stakingWrapper.balanceOf(address(escrow)), stakedBalanceBefore + 1 ether);
+        assertEq(
+            stakingWrapper.balanceOf(address(escrow)),
+            stakedBalanceBefore + 1 ether
+        );
     }
 
     function testPay_successful_whenContractHasStakedCvxCrv() public {
@@ -62,10 +72,15 @@ contract ConvexCurveEscrowForkTest is Test{
         vm.prank(market, market);
         escrow.pay(beneficiary, 1 ether);
 
-
         assertEq(escrow.balance(), balanceBefore - 1 ether);
-        assertEq(stakingWrapper.balanceOf(address(escrow)), stakedBalanceBefore - 1 ether);
-        assertEq(cvxCrv.balanceOf(beneficiary), beneficiaryBalanceBefore + 1 ether);
+        assertEq(
+            stakingWrapper.balanceOf(address(escrow)),
+            stakedBalanceBefore - 1 ether
+        );
+        assertEq(
+            cvxCrv.balanceOf(beneficiary),
+            beneficiaryBalanceBefore + 1 ether
+        );
     }
 
     function testPay_failWithONLYMARKET_whenCalledByNonMarket() public {
@@ -120,16 +135,28 @@ contract ConvexCurveEscrowForkTest is Test{
         vm.prank(holder, holder);
         cvxCrv.transfer(address(escrow), 1 ether);
         escrow.onDeposit();
-        
+
         vm.startPrank(beneficiary);
         escrow.setRewardWeight(5000);
         vm.warp(block.timestamp + 14 days);
         escrow.claim();
         vm.stopPrank();
 
-        assertGt(crv.balanceOf(beneficiary), crvBalanceBefore, "Crv balance did not increase");
-        assertGt(cvx.balanceOf(beneficiary), cvxBalanceBefore, "Cvx balance did not increase");
-        assertGt(threeCrv.balanceOf(beneficiary), threeCrvBalanceBefore, "Three curve balance did not increase");
+        assertGt(
+            crv.balanceOf(beneficiary),
+            crvBalanceBefore,
+            "Crv balance did not increase"
+        );
+        assertGt(
+            cvx.balanceOf(beneficiary),
+            cvxBalanceBefore,
+            "Cvx balance did not increase"
+        );
+        assertGt(
+            threeCrv.balanceOf(beneficiary),
+            threeCrvBalanceBefore,
+            "Three curve balance did not increase"
+        );
     }
 
     function testClaim_successful_whenRewardWeightSetTo10000() public {
@@ -139,7 +166,7 @@ contract ConvexCurveEscrowForkTest is Test{
         vm.prank(holder, holder);
         cvxCrv.transfer(address(escrow), 1 ether);
         escrow.onDeposit();
-        
+
         vm.startPrank(beneficiary);
         escrow.setRewardWeight(10000);
         vm.warp(block.timestamp + 14 days);
@@ -148,7 +175,11 @@ contract ConvexCurveEscrowForkTest is Test{
 
         assertEq(crv.balanceOf(beneficiary), crvBalanceBefore);
         assertEq(cvx.balanceOf(beneficiary), cvxBalanceBefore);
-        assertGt(threeCrv.balanceOf(beneficiary), threeCrvBalanceBefore, "Three curve balance did not increase");
+        assertGt(
+            threeCrv.balanceOf(beneficiary),
+            threeCrvBalanceBefore,
+            "Three curve balance did not increase"
+        );
     }
 
     function testClaimTo_successful_whenCalledByBeneficiary() public {
@@ -205,7 +236,6 @@ contract ConvexCurveEscrowForkTest is Test{
         escrow.claimTo(beneficiary);
     }
 
-
     function testClaimTo_fails_whenCalledByNonAllowlistedAddress() public {
         vm.prank(holder, holder);
         cvxCrv.transfer(address(escrow), 1 ether);
@@ -223,7 +253,9 @@ contract ConvexCurveEscrowForkTest is Test{
         escrow.allowClaimOnBehalf(friend);
     }
 
-    function testDisallowClaimOnBehalf_fails_whenCalledByNonBeneficiary() public {
+    function testDisallowClaimOnBehalf_fails_whenCalledByNonBeneficiary()
+        public
+    {
         vm.prank(friend);
         vm.expectRevert("ONLY BENEFICIARY");
         escrow.disallowClaimOnBehalf(friend);

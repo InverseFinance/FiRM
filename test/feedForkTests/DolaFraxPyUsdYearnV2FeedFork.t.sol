@@ -6,7 +6,7 @@ import "src/feeds/ChainlinkBasePriceFeed.sol";
 import {ChainlinkCurveFeed} from "src/feeds/ChainlinkCurveFeed.sol";
 import {ChainlinkCurve2CoinsFeed} from "src/feeds/ChainlinkCurve2CoinsFeed.sol";
 import "src/feeds/CurveLPPessimisticFeed.sol";
-import {CurveLPPessimiticYearnV2FeedBaseTest} from "test/feedForkTests/CurveLPPessimsticYearnV2FeedBaseTest.t.sol";
+import {CurveLPPessimiticYearnV2FeedBaseTest} from "test/feedForkTests/base/CurveLPPessimsticYearnV2FeedBaseTest.t.sol";
 import {IERC20} from "src/interfaces/IERC20.sol";
 import {IYearnVaultV2} from "src/interfaces/IYearnVaultV2.sol";
 
