@@ -47,8 +47,6 @@ contract DolaFraxPyUsdPriceFeedFork is CurveLPPessimiticFeedBaseTest {
 
     uint256 public usdcHeartbeat = 24 hours;
 
-    address public gov = 0x926dF14a23BE491164dCF93f4c468A50ef659D5B;
-
     function setUp() public {
         string memory url = vm.rpcUrl("mainnet");
         vm.createSelectFork(url, 20060490); // FRAX < pyUSD at this block  coin1 < coin2 at this block

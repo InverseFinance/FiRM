@@ -7,8 +7,9 @@ import "src/feeds/ChainlinkBasePriceFeed.sol";
 import {ChainlinkCurveFeed} from "src/feeds/ChainlinkCurveFeed.sol";
 import {ChainlinkCurve2CoinsFeed} from "src/feeds/ChainlinkCurve2CoinsFeed.sol";
 import "src/feeds/CurveLPSingleFeed.sol";
+import {ConfigAddr} from "test/ConfigAddr.sol";
 
-abstract contract CurveLPSingleFeedBaseTest is Test {
+abstract contract CurveLPSingleFeedBaseTest is Test, ConfigAddr {
     CurveLPSingleFeed feed;
     ChainlinkBasePriceFeed coin1Feed; // main coin1 feed
 
@@ -38,17 +39,17 @@ abstract contract CurveLPSingleFeedBaseTest is Test {
         feed = new CurveLPSingleFeed(address(curvePool), address(coin1Feed));
     }
 
-    function test_decimals() public {
+    function test_decimals() public view {
         assertEq(feed.decimals(), 18);
     }
 
-    function test_latestAnswer() public {
+    function test_latestAnswer() public view {
         (, int256 lpUsdPrice, , , ) = feed.latestRoundData();
 
         assertEq(feed.latestAnswer(), lpUsdPrice);
     }
 
-    function test_latestRoundData() public {
+    function test_latestRoundData() public view {
         (
             uint80 roundId,
             int256 lpUsdPrice,
@@ -72,7 +73,7 @@ abstract contract CurveLPSingleFeedBaseTest is Test {
         assertEq(answeredInRound, oracleAnsweredInRound);
     }
 
-    function test_use_coin1_main_feed() public {
+    function test_use_coin1_main_feed() public view {
         (
             uint80 clRoundId,
             int256 coin1UsdPrice,
@@ -262,7 +263,7 @@ abstract contract CurveLPSingleFeedBaseTest is Test {
         assertEq(uint256(lpUsdPrice), uint(feed.latestAnswer()));
     }
 
-    function test_coin1FallBack_oracle() public {
+    function test_coin1FallBack_oracle() public view {
         (
             uint80 roundIdFall,
             int256 coin1ClFallbackPrice,

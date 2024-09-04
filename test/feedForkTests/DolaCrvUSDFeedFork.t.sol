@@ -7,9 +7,8 @@ import {ChainlinkCurveFeed} from "src/feeds/ChainlinkCurveFeed.sol";
 import {ChainlinkCurve2CoinsFeed} from "src/feeds/ChainlinkCurve2CoinsFeed.sol";
 import "src/feeds/CurveLPPessimisticFeed.sol";
 import {CurveLPSingleFeedBaseTest} from "test/feedForkTests/base/CurveLPSingleFeedBaseTest.t.sol";
-import {ConfigAddr} from "test/ConfigAddr.sol";
 
-contract DolaCrvUSDPriceFeedFork is CurveLPSingleFeedBaseTest, ConfigAddr {
+contract DolaCrvUSDPriceFeedFork is CurveLPSingleFeedBaseTest {
     ChainlinkBasePriceFeed mainCrvUSDFeed;
     ChainlinkBasePriceFeed mainPyUSDFeed;
     ChainlinkBasePriceFeed baseFraxToUsd;

@@ -9,8 +9,9 @@ import {ChainlinkCurve2CoinsFeed} from "src/feeds/ChainlinkCurve2CoinsFeed.sol";
 import "src/feeds/CurveLPPessimisticFeed.sol";
 import "src/feeds/CurveLPYearnV2Feed.sol";
 import {YearnVaultV2Helper, IYearnVaultV2} from "src/util/YearnVaultV2Helper.sol";
+import {ConfigAddr} from "test/ConfigAddr.sol";
 
-abstract contract CurveLPPessimiticYearnV2FeedBaseTest is Test {
+abstract contract CurveLPPessimiticYearnV2FeedBaseTest is Test, ConfigAddr {
     CurveLPYearnV2Feed feed;
     CurveLPPessimisticFeed curveFeed;
     ChainlinkBasePriceFeed coin1Feed; // main coin1 feed
@@ -59,17 +60,17 @@ abstract contract CurveLPPessimiticYearnV2FeedBaseTest is Test {
         feed = new CurveLPYearnV2Feed(_yearn, address(curveFeed));
     }
 
-    function test_decimals() public {
+    function test_decimals() public view {
         assertEq(feed.decimals(), 18);
     }
 
-    function test_latestAnswer() public {
+    function test_latestAnswer() public view {
         (, int256 lpUsdPrice, , , ) = feed.latestRoundData();
 
         assertEq(feed.latestAnswer(), lpUsdPrice);
     }
 
-    function test_latestRoundData() public {
+    function test_latestRoundData() public view {
         (
             uint80 roundId,
             int256 yearnUsdPrice,
@@ -97,7 +98,7 @@ abstract contract CurveLPPessimiticYearnV2FeedBaseTest is Test {
         assertEq(answeredInRound, oracleAnsweredInRound);
     }
 
-    function test_use_coin1_when_coin2_gt_coin1() public {
+    function test_use_coin1_when_coin2_gt_coin1() public view {
         (
             uint80 clRoundId,
             int256 coin1UsdPrice,
@@ -846,7 +847,7 @@ abstract contract CurveLPPessimiticYearnV2FeedBaseTest is Test {
         assertEq(uint256(yearnUsdPrice), uint(feed.latestAnswer()));
     }
 
-    function test_coin1FallBack_oracle() public {
+    function test_coin1FallBack_oracle() public view {
         (
             uint80 roundIdFall,
             int256 coin1ClFallbackPrice,
@@ -874,7 +875,7 @@ abstract contract CurveLPPessimiticYearnV2FeedBaseTest is Test {
         assertEq(answeredInRoundFall, answeredInRound);
     }
 
-    function test_coin2FallBack_oracle() public {
+    function test_coin2FallBack_oracle() public view {
         (
             uint80 clRoundId2,
             int256 coin2ClFallbackPrice,
