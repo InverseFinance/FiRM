@@ -9,7 +9,7 @@ import {ALE} from "src/util/ALE.sol";
 import {YearnVaultV2Helper, IYearnVaultV2} from "src/util/YearnVaultV2Helper.sol";
 
 interface IFlashMinter {
-    function setFlashLoanRate(uint256 rate) external;
+    function setMaxFlashLimit(uint256 _maxFlashLimit) external;
 
     function flashFee(
         address _token,
@@ -28,7 +28,7 @@ contract ALEDolaCrvUSDYearnV2Test is CrvUSDDolaYearnV2MarketForkTest {
     function setUp() public override {
         super.setUp();
 
-        helper = new CurveDolaLPHelper(gov, pauseGuardian, address(DOLA));
+        helper = CurveDolaLPHelper(curveDolaLPHelperAddr);
 
         vm.startPrank(gov);
         DOLA.mint(address(this), 100000 ether);
@@ -37,7 +37,8 @@ contract ALEDolaCrvUSDYearnV2Test is CrvUSDDolaYearnV2MarketForkTest {
         ale.setMarket(address(market), address(DOLA), address(helper), false);
 
         flash = IFlashMinter(address(ale.flash()));
-        flash.setFlashLoanRate(0);
+        flash.setMaxFlashLimit(100000 ether);
+        DOLA.addMinter(address(flash));
         borrowController.allow(address(ale));
         vm.stopPrank();
         userPkEscrow = address(market.predictEscrow(userPk));

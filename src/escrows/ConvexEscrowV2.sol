@@ -11,7 +11,7 @@ interface IStakingWrapper {
     function token() external returns (address);
 }
 
-contract LPCurveConvexEscrow {
+contract ConvexEscrowV2 {
     using SafeERC20 for IERC20;
 
     error AlreadyInitialized();
@@ -63,7 +63,7 @@ contract LPCurveConvexEscrow {
     @notice Initialize escrow with a token
     @dev Must be called right after proxy is created.
     @param _token The IERC20 token representing the governance token
-    @param _beneficiary The beneficiary who cvxCRV is staked on behalf
+    @param _beneficiary The beneficiary who the token is staked on behalf
     */
     function initialize(IERC20 _token, address _beneficiary) public {
         if (market != address(0)) revert AlreadyInitialized();
@@ -75,7 +75,7 @@ contract LPCurveConvexEscrow {
 
     /**
     @notice Withdraws the wrapped token from the reward pool and transfers the associated ERC20 token to a recipient.
-    @dev Will first try to pay from the escrow balance, if not enough or any, will try to pay the missing amount from convex, then from yearn if needed
+    @dev Will first try to pay from the escrow balance, if not enough or any, will try to pay the missing amount withdrawing from Convex
     @param recipient The address to receive payment from the escrow
     @param amount The amount of ERC20 token to be transferred.
     */
@@ -103,7 +103,7 @@ contract LPCurveConvexEscrow {
 
     /**
     @notice Get the token balance of the escrow
-    @return Uint representing the staked balance of the escrow
+    @return Uint representing the token balance of the escrow
     */
     function balance() public view returns (uint) {
         return
@@ -112,10 +112,14 @@ contract LPCurveConvexEscrow {
     }
 
     /**
-    @notice Function called by market on deposit. Stakes deposited collateral into convex reward pool
+    @notice Function called by market on deposit. Stakes deposited collateral into Convex reward pool
     @dev This function should remain callable by anyone to handle direct inbound transfers.
     */
-    function onDeposit() public {}
+    function onDeposit() public {
+        uint256 tokenBal = token.balanceOf(address(this));
+        if (tokenBal == 0) return;
+        booster.deposit(pid, tokenBal, true);
+    }
 
     /**
     @notice Claims reward tokens to the specified address. Only callable by beneficiary and allowlisted addresses
@@ -180,28 +184,5 @@ contract LPCurveConvexEscrow {
     function disallowClaimOnBehalf(address allowee) external onlyBeneficiary {
         allowlist[allowee] = false;
         emit AllowClaim(allowee, false);
-    }
-
-    /**
-     * @notice Deposit token balance in the escrow into Convex
-     * @dev Cannot deposit if there are Yearn tokens in the escrow (only 1 strategy at a time)
-     */
-    function depositToConvex() external onlyBeneficiary {
-        uint256 tokenBal = token.balanceOf(address(this));
-        if (tokenBal == 0) return;
-        booster.deposit(pid, tokenBal, true);
-    }
-
-    /**
-     * @notice Withdraw all tokens from Convex
-     * @return lpAmount The amount of tokens withdrawn from Convex
-     */
-    function withdrawFromConvex()
-        public
-        onlyBeneficiary
-        returns (uint256 lpAmount)
-    {
-        lpAmount = rewardPool.balanceOf(address(this));
-        rewardPool.withdrawAndUnwrap(lpAmount, false);
     }
 }

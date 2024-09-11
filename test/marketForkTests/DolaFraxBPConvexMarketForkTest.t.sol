@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import {MarketBaseForkTest, IOracle, IDolaBorrowingRights, IERC20} from "./MarketBaseForkTest.sol";
 import {Market} from "src/Market.sol";
-import {LPCurveConvexEscrow} from "src/escrows/LPCurveConvexEscrow.sol";
+import {ConvexEscrowV2} from "src/escrows/ConvexEscrowV2.sol";
 import {CurveLPPessimisticFeed} from "src/feeds/CurveLPPessimisticFeed.sol";
 import {ChainlinkCurve2CoinsFeed} from "src/feeds/ChainlinkCurve2CoinsFeed.sol";
 import {ChainlinkCurveFeed} from "src/feeds/ChainlinkCurveFeed.sol";
@@ -12,7 +12,7 @@ import "src/feeds/CurveLPPessimisticFeed.sol";
 import {console} from "forge-std/console.sol";
 
 contract DolaFraxBPConvexMarketForkTest is MarketBaseForkTest {
-    LPCurveConvexEscrow escrow;
+    ConvexEscrowV2 escrow;
     CurveLPPessimisticFeed feedDolaBP;
 
     ChainlinkCurveFeed usdcFallback;
@@ -61,15 +61,15 @@ contract DolaFraxBPConvexMarketForkTest is MarketBaseForkTest {
     address rewardPool = address(0x0404d05F3992347d2f0dC3a97bdd147D77C85c1c);
     address booster = address(0xF403C135812408BFbE8713b5A23a04b3D48AAE31);
 
-    LPCurveConvexEscrow userEscrow;
+    ConvexEscrowV2 userEscrow;
     uint256 pid = 115;
 
     function setUp() public virtual {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url, 20020781);
+        vm.createSelectFork(url, 20590050);
 
-        escrow = new LPCurveConvexEscrow(
+        escrow = new ConvexEscrowV2(
             address(rewardPool),
             address(booster),
             address(cvx),
@@ -77,7 +77,7 @@ contract DolaFraxBPConvexMarketForkTest is MarketBaseForkTest {
             pid
         );
 
-        feedDolaBP = _deployDolaFraxBPFeed();
+        // feedDolaBP = _deployDolaFraxBPFeed();
 
         Market market = new Market(
             gov,
@@ -93,9 +93,9 @@ contract DolaFraxBPConvexMarketForkTest is MarketBaseForkTest {
             true
         );
 
-        _advancedInit(address(market), address(feedDolaBP), true);
+        _advancedInit(address(market), address(dolaFraxBPFeedAddr), true);
 
-        userEscrow = LPCurveConvexEscrow(address(market.predictEscrow(user)));
+        userEscrow = ConvexEscrowV2(address(market.predictEscrow(user)));
     }
 
     function test_escrow_immutables() public {
@@ -112,17 +112,6 @@ contract DolaFraxBPConvexMarketForkTest is MarketBaseForkTest {
         );
         assertEq(address(userEscrow.cvx()), address(cvx), "CVX not set");
         assertEq(address(userEscrow.crv()), address(crv), "CRV not set");
-    }
-
-    function test_depositToConvex() public {
-        testDeposit();
-        userEscrow.depositToConvex();
-    }
-
-    function test_withdrawFromConvex() public {
-        testDeposit();
-        userEscrow.depositToConvex();
-        userEscrow.withdrawFromConvex();
     }
 
     function _deployDolaFraxBPFeed()

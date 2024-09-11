@@ -8,7 +8,7 @@ import {IMultiMarketTransformHelper} from "src/interfaces/IMultiMarketTransformH
 import {ALE} from "src/util/ALE.sol";
 
 interface IFlashMinter {
-    function setFlashLoanRate(uint256 rate) external;
+    function setMaxFlashLimit(uint256 limit) external;
 
     function flashFee(
         address _token,
@@ -28,7 +28,7 @@ contract ALEDolaCrvUSDTest is CrvUSDDolaConvexMarketForkTest {
         super.setUp();
         curvePool = dolaCrvUSD;
 
-        helper = new CurveDolaLPHelper(gov, pauseGuardian, address(DOLA));
+        helper = CurveDolaLPHelper(curveDolaLPHelperAddr);
 
         vm.startPrank(gov);
         DOLA.mint(address(this), 100000 ether);
@@ -37,7 +37,8 @@ contract ALEDolaCrvUSDTest is CrvUSDDolaConvexMarketForkTest {
         ale.setMarket(address(market), address(DOLA), address(helper), false);
 
         flash = IFlashMinter(address(ale.flash()));
-        flash.setFlashLoanRate(0);
+        flash.setMaxFlashLimit(100000 ether);
+        DOLA.addMinter(address(flash));
         borrowController.allow(address(ale));
         vm.stopPrank();
         userPkEscrow = address(market.predictEscrow(userPk));
@@ -56,7 +57,8 @@ contract ALEDolaCrvUSDTest is CrvUSDDolaConvexMarketForkTest {
         );
         vm.stopPrank();
 
-        uint256 lpAmount = IERC20(address(curvePool)).balanceOf(userPkEscrow);
+        uint256 lpAmount = ConvexEscrowV2(address(userPkEscrow)).balance();
+        console.log("lpAmount", lpAmount);
         gibDBR(userPk, 20000 ether);
 
         uint maxBorrowAmount = _getMaxBorrowAmount(lpAmount);
@@ -104,7 +106,7 @@ contract ALEDolaCrvUSDTest is CrvUSDDolaConvexMarketForkTest {
 
         assertEq(DOLA.balanceOf(userPk), 0);
         assertEq(
-            IERC20(address(curvePool)).balanceOf(userPkEscrow),
+            ConvexEscrowV2(address(userPkEscrow)).balance(),
             lpAmount + lpAmountAdded
         );
     }
@@ -122,7 +124,7 @@ contract ALEDolaCrvUSDTest is CrvUSDDolaConvexMarketForkTest {
         );
         vm.stopPrank();
 
-        uint256 lpAmount = IERC20(address(curvePool)).balanceOf(userPkEscrow);
+        uint256 lpAmount = ConvexEscrowV2(address(userPkEscrow)).balance();
 
         uint maxBorrowAmount = _getMaxBorrowAmount(lpAmount);
 
@@ -157,7 +159,7 @@ contract ALEDolaCrvUSDTest is CrvUSDDolaConvexMarketForkTest {
 
         ALE.DBRHelper memory dbrData = ALE.DBRHelper(
             dolaForDBR,
-            (dbrAmount * 98) / 100,
+            (dbrAmount * 97) / 100,
             0
         );
 
@@ -177,10 +179,10 @@ contract ALEDolaCrvUSDTest is CrvUSDDolaConvexMarketForkTest {
 
         assertEq(DOLA.balanceOf(userPk), 0);
         assertEq(
-            IERC20(address(curvePool)).balanceOf(userPkEscrow),
+            ConvexEscrowV2(address(userPkEscrow)).balance(),
             lpAmount + lpAmountAdded
         );
-        assertGt(dbr.balanceOf(userPk), (dbrAmount * 98) / 100);
+        assertGt(dbr.balanceOf(userPk), (dbrAmount * 97) / 100);
     }
 
     function test_depositAndLeveragePosition_DOLA() public {
@@ -197,7 +199,7 @@ contract ALEDolaCrvUSDTest is CrvUSDDolaConvexMarketForkTest {
         );
         vm.stopPrank();
 
-        uint256 lpAmount = IERC20(address(curvePool)).balanceOf(userPkEscrow);
+        uint256 lpAmount = ConvexEscrowV2(address(userPkEscrow)).balance();
         gibDBR(userPk, 20000 ether);
 
         uint maxBorrowAmount = _getMaxBorrowAmount(lpAmount);
@@ -248,7 +250,7 @@ contract ALEDolaCrvUSDTest is CrvUSDDolaConvexMarketForkTest {
 
         assertEq(DOLA.balanceOf(userPk), 0);
         assertEq(
-            IERC20(address(curvePool)).balanceOf(userPkEscrow),
+            ConvexEscrowV2(address(userPkEscrow)).balance(),
             lpAmount + lpAmountAdded
         );
     }
@@ -270,7 +272,7 @@ contract ALEDolaCrvUSDTest is CrvUSDDolaConvexMarketForkTest {
         );
         vm.stopPrank();
 
-        uint256 lpAmount = IERC20(address(curvePool)).balanceOf(userPkEscrow);
+        uint256 lpAmount = ConvexEscrowV2(address(userPkEscrow)).balance();
         gibDBR(userPk, 20000 ether);
 
         uint maxBorrowAmount = _getMaxBorrowAmount(lpAmount);
@@ -321,14 +323,14 @@ contract ALEDolaCrvUSDTest is CrvUSDDolaConvexMarketForkTest {
 
         assertEq(DOLA.balanceOf(userPk), 0);
         assertEq(
-            IERC20(address(curvePool)).balanceOf(userPkEscrow),
+            ConvexEscrowV2(address(userPkEscrow)).balance(),
             lpAmount + lpAmountAdded + initialLpAmount
         );
     }
 
     function test_deleveragePosition() public {
         test_leveragePosition();
-        uint256 lpAmount = IERC20(address(curvePool)).balanceOf(userPkEscrow);
+        uint256 lpAmount = ConvexEscrowV2(address(userPkEscrow)).balance();
         uint256 amountToWithdraw = lpAmount / 2;
 
         uint256 dolaRedeemed = curvePool.calc_withdraw_one_coin(
@@ -374,7 +376,7 @@ contract ALEDolaCrvUSDTest is CrvUSDDolaConvexMarketForkTest {
         );
 
         assertEq(
-            IERC20(address(curvePool)).balanceOf(userPkEscrow),
+            ConvexEscrowV2(address(userPkEscrow)).balance(),
             lpAmount - amountToWithdraw
         );
         assertApproxEqAbs(DOLA.balanceOf(userPk), dolaRedeemed / 2, 1);
@@ -382,7 +384,7 @@ contract ALEDolaCrvUSDTest is CrvUSDDolaConvexMarketForkTest {
 
     function test_deleveragePosition_sellDBR() public {
         test_leveragePosition();
-        uint256 lpAmount = IERC20(address(curvePool)).balanceOf(userPkEscrow);
+        uint256 lpAmount = ConvexEscrowV2(address(userPkEscrow)).balance();
         uint256 amountToWithdraw = lpAmount;
 
         uint256 dolaRedeemed = curvePool.calc_withdraw_one_coin(
@@ -436,7 +438,7 @@ contract ALEDolaCrvUSDTest is CrvUSDDolaConvexMarketForkTest {
         );
 
         assertEq(
-            IERC20(address(curvePool)).balanceOf(userPkEscrow),
+            ConvexEscrowV2(address(userPkEscrow)).balance(),
             lpAmount - amountToWithdraw
         );
         // Dbrs have also been sold

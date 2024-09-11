@@ -14,7 +14,7 @@ library YearnVaultV2Helper {
     function assetToCollateral(
         IYearnVaultV2 vault,
         uint assetAmount
-    ) public view returns (uint collateralAmount) {
+    ) internal view returns (uint collateralAmount) {
         uint totalSupply = vault.totalSupply();
         if (totalSupply > 0)
             return (assetAmount * totalSupply) / getFreeFunds(vault);
@@ -27,28 +27,20 @@ library YearnVaultV2Helper {
     function collateralToAsset(
         IYearnVaultV2 vault,
         uint collateralAmount
-    ) public view returns (uint assetAmount) {
+    ) internal view returns (uint assetAmount) {
         uint totalSupply = vault.totalSupply();
         if (totalSupply > 0)
             return (collateralAmount * getFreeFunds(vault)) / totalSupply;
         return collateralAmount;
     }
 
-    /// @notice View function for the exchange rate between asset and collateral
-    /// @return ratio Amount of asset per share of collateral
-    function assetToCollateralRatio(
-        IYearnVaultV2 vault
-    ) external view returns (uint ratio) {
-        return vault.pricePerShare();
-    }
-
-    function getFreeFunds(IYearnVaultV2 vault) public view returns (uint256) {
+    function getFreeFunds(IYearnVaultV2 vault) internal view returns (uint256) {
         return vault.totalAssets() - calculateLockedProfit(vault);
     }
 
     function calculateLockedProfit(
         IYearnVaultV2 vault
-    ) public view returns (uint256) {
+    ) internal view returns (uint256) {
         uint256 lockedFundsRatio = (block.timestamp - vault.lastReport()) *
             vault.lockedProfitDegradation();
 

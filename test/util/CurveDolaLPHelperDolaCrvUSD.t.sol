@@ -75,9 +75,8 @@ contract CurveDolaLPHelperTest is CrvUSDDolaConvexMarketForkTest {
         );
         assertEq(IERC20(address(dolaCrvUSD)).balanceOf(address(this)), 0);
         assertEq(
-            IERC20(address(dolaCrvUSD)).balanceOf(
-                address(market.predictEscrow(address(this)))
-            ),
+            ConvexEscrowV2(address(market.predictEscrow(address(this))))
+                .balance(),
             lpAmount
         );
         assertEq(lpAmount, estLpAmount);
@@ -97,9 +96,7 @@ contract CurveDolaLPHelperTest is CrvUSDDolaConvexMarketForkTest {
         );
         assertEq(IERC20(address(dolaCrvUSD)).balanceOf(receiver), 0);
         assertEq(
-            IERC20(address(dolaCrvUSD)).balanceOf(
-                address(market.predictEscrow(receiver))
-            ),
+            ConvexEscrowV2(address(market.predictEscrow(receiver))).balance(),
             lpAmount
         );
         assertEq(lpAmount, estLpAmount);
@@ -140,9 +137,8 @@ contract CurveDolaLPHelperTest is CrvUSDDolaConvexMarketForkTest {
 
     function test_withdrawAndTransformFromCollateral() public {
         test_transformToCollateralAndDeposit_receiver();
-        uint256 amount = IERC20(address(dolaCrvUSD)).balanceOf(
-            address(market.predictEscrow(receiver))
-        );
+        uint256 amount = ConvexEscrowV2(address(market.predictEscrow(receiver)))
+            .balance();
         // Estimate DOLA amount
         uint estDolaAmount = dolaCrvUSD.calc_withdraw_one_coin(amount, 0);
 
@@ -188,9 +184,8 @@ contract CurveDolaLPHelperTest is CrvUSDDolaConvexMarketForkTest {
 
     function test_withdrawAndTransformFromCollateral_other_receiver() public {
         test_transformToCollateralAndDeposit_receiver();
-        uint256 amount = IERC20(address(dolaCrvUSD)).balanceOf(
-            address(market.predictEscrow(receiver))
-        );
+        uint256 amount = ConvexEscrowV2(address(market.predictEscrow(receiver)))
+            .balance();
         // Estimate DOLA amount
         uint estDolaAmount = dolaCrvUSD.calc_withdraw_one_coin(amount, 0);
         uint dolaBalBefore = DOLA.balanceOf(address(this));

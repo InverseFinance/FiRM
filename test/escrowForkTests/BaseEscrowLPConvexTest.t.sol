@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "src/escrows/LPCurveConvexEscrow.sol";
+import "src/escrows/ConvexEscrowV2.sol";
 import {console} from "forge-std/console.sol";
 import {RewardHook} from "test/mocks/RewardHook.sol";
 
@@ -41,7 +41,7 @@ abstract contract BaseEscrowLPConvexTest is Test {
     IERC20 depositToken;
     address stash;
 
-    LPCurveConvexEscrow escrow;
+    ConvexEscrowV2 escrow;
 
     struct ConvexInfo {
         uint256 pid;
@@ -83,7 +83,7 @@ abstract contract BaseEscrowLPConvexTest is Test {
             booster.earmarkRewards(pid);
         }
 
-        escrow = new LPCurveConvexEscrow(
+        escrow = new ConvexEscrowV2(
             address(rewardPool),
             address(booster),
             address(cvx),
@@ -95,7 +95,7 @@ abstract contract BaseEscrowLPConvexTest is Test {
     }
 
     function test_initialize() public {
-        LPCurveConvexEscrow freshEscrow = new LPCurveConvexEscrow(
+        ConvexEscrowV2 freshEscrow = new ConvexEscrowV2(
             address(rewardPool),
             address(booster),
             address(cvx),
@@ -117,7 +117,7 @@ abstract contract BaseEscrowLPConvexTest is Test {
         );
     }
 
-    function test_depositToConvex_successful_when_contract_holds_CurveLP(
+    function test_onDeposit_successful_when_contract_holds_CurveLP(
         uint256 amount
     ) public {
         vm.assume(amount > 1);
@@ -129,7 +129,7 @@ abstract contract BaseEscrowLPConvexTest is Test {
         vm.prank(lpHolder, lpHolder);
         curvePool.transfer(address(escrow), amount);
         vm.prank(beneficiary, beneficiary);
-        escrow.depositToConvex();
+        escrow.onDeposit();
 
         assertEq(
             escrow.balance(),
@@ -148,73 +148,6 @@ abstract contract BaseEscrowLPConvexTest is Test {
         );
     }
 
-    function test_withdrawFromConvex_successful_if_deposited(
-        uint amount
-    ) public {
-        vm.assume(amount > 1);
-        vm.assume(amount < curvePool.balanceOf(lpHolder));
-
-        vm.prank(lpHolder, lpHolder);
-        curvePool.transfer(address(escrow), amount);
-
-        vm.startPrank(beneficiary, beneficiary);
-
-        escrow.depositToConvex();
-
-        assertGt(
-            rewardPool.balanceOf(address(escrow)),
-            0,
-            "Staked balance is 0"
-        );
-        assertGt(
-            rewardPool.balanceOf(address(escrow)),
-            0,
-            "Reward Pool balance is 0"
-        );
-        assertEq(
-            curvePool.balanceOf(address(escrow)),
-            0,
-            "LP Token balance is greater than 0"
-        );
-        assertEq(
-            depositToken.balanceOf(address(escrow)),
-            0,
-            "Convex Deposit Token balance is greater than 0"
-        );
-        assertGt(
-            rewardPool.balanceOf(address(escrow)),
-            0,
-            "RewardPool Balance is 0"
-        );
-        escrow.withdrawFromConvex();
-
-        assertEq(
-            rewardPool.balanceOf(address(escrow)),
-            0,
-            "Staked balance is not correct"
-        );
-        assertEq(
-            rewardPool.balanceOf(address(escrow)),
-            0,
-            "Reward Pool balance is 0"
-        );
-        assertEq(
-            curvePool.balanceOf(address(escrow)),
-            amount,
-            "LP Token balance is not correct"
-        );
-        assertEq(
-            depositToken.balanceOf(address(escrow)),
-            0,
-            "Convex Deposit Token balance is greater than 0"
-        );
-        assertEq(
-            rewardPool.balanceOf(address(escrow)),
-            0,
-            "RewardPool Balance is not 0"
-        );
-    }
-
     function test_Pay_when_escrow_has_CurveLP_in_Convex(uint amount) public {
         vm.assume(amount > 1);
         vm.assume(amount < curvePool.balanceOf(lpHolder));
@@ -223,7 +156,7 @@ abstract contract BaseEscrowLPConvexTest is Test {
         curvePool.transfer(address(escrow), amount);
 
         vm.prank(beneficiary, beneficiary);
-        escrow.depositToConvex();
+        escrow.onDeposit();
 
         uint balanceBefore = escrow.balance();
         uint rewardPoolBalBefore = rewardPool.balanceOf(address(escrow));
@@ -255,7 +188,7 @@ abstract contract BaseEscrowLPConvexTest is Test {
         curvePool.transfer(address(escrow), amount);
 
         vm.prank(beneficiary, beneficiary);
-        escrow.depositToConvex();
+        escrow.onDeposit();
 
         // Send extra CurveLP to the escrow
         vm.prank(lpHolder, lpHolder);
@@ -292,7 +225,7 @@ abstract contract BaseEscrowLPConvexTest is Test {
         curvePool.transfer(address(escrow), amount);
 
         vm.prank(beneficiary, beneficiary);
-        escrow.depositToConvex();
+        escrow.onDeposit();
 
         // Donate lp to the escrow
         vm.prank(lpHolder, lpHolder);
@@ -311,10 +244,10 @@ abstract contract BaseEscrowLPConvexTest is Test {
         vm.prank(lpHolder, lpHolder);
         curvePool.transfer(address(escrow), 1 ether);
         vm.prank(beneficiary, beneficiary);
-        escrow.depositToConvex();
+        escrow.onDeposit();
 
         vm.prank(lpHolder, lpHolder);
-        vm.expectRevert(LPCurveConvexEscrow.OnlyMarket.selector);
+        vm.expectRevert(ConvexEscrowV2.OnlyMarket.selector);
         escrow.pay(beneficiary, 1 ether);
     }
 
@@ -330,7 +263,7 @@ abstract contract BaseEscrowLPConvexTest is Test {
         curvePool.transfer(address(escrow), amount);
 
         vm.prank(beneficiary, beneficiary);
-        escrow.depositToConvex();
+        escrow.onDeposit();
 
         vm.warp(block.timestamp + 14 days);
 
@@ -365,7 +298,7 @@ abstract contract BaseEscrowLPConvexTest is Test {
         curvePool.transfer(address(escrow), amount);
 
         vm.prank(beneficiary, beneficiary);
-        escrow.depositToConvex();
+        escrow.onDeposit();
 
         vm.warp(block.timestamp + 30 days);
 
@@ -402,7 +335,7 @@ abstract contract BaseEscrowLPConvexTest is Test {
         curvePool.transfer(address(escrow), amount);
 
         vm.prank(beneficiary, beneficiary);
-        escrow.depositToConvex();
+        escrow.onDeposit();
 
         vm.warp(block.timestamp + 30 days);
 
@@ -444,7 +377,7 @@ abstract contract BaseEscrowLPConvexTest is Test {
         curvePool.transfer(address(escrow), amount);
 
         vm.prank(beneficiary, beneficiary);
-        escrow.depositToConvex();
+        escrow.onDeposit();
 
         vm.warp(block.timestamp + 30 days);
 
@@ -470,7 +403,7 @@ abstract contract BaseEscrowLPConvexTest is Test {
         vm.prank(lpHolder, lpHolder);
         curvePool.transfer(address(escrow), 1 ether);
         vm.prank(beneficiary);
-        escrow.depositToConvex();
+        escrow.onDeposit();
 
         vm.warp(block.timestamp + 14 days);
 
@@ -486,9 +419,7 @@ abstract contract BaseEscrowLPConvexTest is Test {
         escrow.disallowClaimOnBehalf(friend);
 
         vm.prank(friend);
-        vm.expectRevert(
-            LPCurveConvexEscrow.OnlyBeneficiaryOrAllowlist.selector
-        );
+        vm.expectRevert(ConvexEscrowV2.OnlyBeneficiaryOrAllowlist.selector);
         escrow.claimTo(beneficiary);
     }
 
@@ -496,19 +427,17 @@ abstract contract BaseEscrowLPConvexTest is Test {
         vm.prank(lpHolder, lpHolder);
         curvePool.transfer(address(escrow), 1 ether);
         vm.prank(beneficiary);
-        escrow.depositToConvex();
+        escrow.onDeposit();
 
         vm.warp(block.timestamp + 14 days);
         vm.prank(friend);
-        vm.expectRevert(
-            LPCurveConvexEscrow.OnlyBeneficiaryOrAllowlist.selector
-        );
+        vm.expectRevert(ConvexEscrowV2.OnlyBeneficiaryOrAllowlist.selector);
         escrow.claimTo(beneficiary);
     }
 
     function testAllowClaimOnBehalf_fails_whenCalledByNonBeneficiary() public {
         vm.prank(friend);
-        vm.expectRevert(LPCurveConvexEscrow.OnlyBeneficiary.selector);
+        vm.expectRevert(ConvexEscrowV2.OnlyBeneficiary.selector);
         escrow.allowClaimOnBehalf(friend);
     }
 
@@ -516,7 +445,7 @@ abstract contract BaseEscrowLPConvexTest is Test {
         public
     {
         vm.prank(friend);
-        vm.expectRevert(LPCurveConvexEscrow.OnlyBeneficiary.selector);
+        vm.expectRevert(ConvexEscrowV2.OnlyBeneficiary.selector);
         escrow.disallowClaimOnBehalf(friend);
     }
 }

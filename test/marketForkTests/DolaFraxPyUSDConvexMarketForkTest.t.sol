@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import {MarketBaseForkTest, IOracle, IDolaBorrowingRights, IERC20} from "./MarketBaseForkTest.sol";
 import {Market} from "src/Market.sol";
-import {LPCurveConvexEscrow} from "src/escrows/LPCurveConvexEscrow.sol";
+import {ConvexEscrowV2} from "src/escrows/ConvexEscrowV2.sol";
 import {CurveLPPessimisticFeed} from "src/feeds/CurveLPPessimisticFeed.sol";
 import {ChainlinkCurve2CoinsFeed} from "src/feeds/ChainlinkCurve2CoinsFeed.sol";
 import {ChainlinkCurveFeed} from "src/feeds/ChainlinkCurveFeed.sol";
@@ -12,7 +12,7 @@ import "src/feeds/CurveLPPessimisticFeed.sol";
 import {console} from "forge-std/console.sol";
 
 contract DolaFraxPyUSDConvexMarketForkTest is MarketBaseForkTest {
-    LPCurveConvexEscrow escrow;
+    ConvexEscrowV2 escrow;
     CurveLPPessimisticFeed feedDolaFraxPyUSD;
 
     ChainlinkBasePriceFeed mainFraxFeed;
@@ -64,14 +64,14 @@ contract DolaFraxPyUSDConvexMarketForkTest is MarketBaseForkTest {
     IERC20 public cvx = IERC20(0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B);
     IERC20 public crv = IERC20(0xD533a949740bb3306d119CC777fa900bA034cd52);
 
-    LPCurveConvexEscrow userEscrow;
+    ConvexEscrowV2 userEscrow;
 
     function setUp() public virtual {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url, 20060490);
+        vm.createSelectFork(url, 20590050);
 
-        escrow = new LPCurveConvexEscrow(
+        escrow = new ConvexEscrowV2(
             rewardPool,
             booster,
             address(cvx),
@@ -97,7 +97,7 @@ contract DolaFraxPyUSDConvexMarketForkTest is MarketBaseForkTest {
 
         _advancedInit(address(market), address(feedDolaFraxPyUSD), true);
 
-        userEscrow = LPCurveConvexEscrow(address(market.predictEscrow(user)));
+        userEscrow = ConvexEscrowV2(address(market.predictEscrow(user)));
     }
 
     function test_escrow_immutables() public {
@@ -114,17 +114,6 @@ contract DolaFraxPyUSDConvexMarketForkTest is MarketBaseForkTest {
         );
         assertEq(address(userEscrow.cvx()), address(cvx), "CVX not set");
         assertEq(address(userEscrow.crv()), address(crv), "CRV not set");
-    }
-
-    function test_depositToConvex() public {
-        testDeposit();
-        userEscrow.depositToConvex();
-    }
-
-    function test_withdrawFromConvex() public {
-        testDeposit();
-        userEscrow.depositToConvex();
-        userEscrow.withdrawFromConvex();
     }
 
     function _deployDolaFraxPyUSDFeed()

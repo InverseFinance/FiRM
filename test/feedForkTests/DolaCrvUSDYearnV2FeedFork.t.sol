@@ -8,11 +8,13 @@ import {ChainlinkCurve2CoinsFeed} from "src/feeds/ChainlinkCurve2CoinsFeed.sol";
 import "src/feeds/CurveLPPessimisticFeed.sol";
 import {CurveLPYearnV2FeedBaseTest} from "test/feedForkTests/CurveLPYearnV2FeedBaseTest.t.sol";
 import {IYearnVaultV2} from "src/util/YearnVaultV2Helper.sol";
+import {ConfigAddr} from "src/test/ConfigAddr.sol";
 
-contract DolaCrvUSDYearnV2FeedFork is CurveLPYearnV2FeedBaseTest {
+contract DolaCrvUSDYearnV2FeedFork is CurveLPYearnV2FeedBaseTest, ConfigAddr {
     ChainlinkBasePriceFeed mainCrvUSDFeed;
     ChainlinkBasePriceFeed mainPyUSDFeed;
     ChainlinkBasePriceFeed baseFraxToUsd;
+    ChainlinkBasePriceFeed baseUsdcToUsd;
     ChainlinkCurve2CoinsFeed crvUSDFallback;
 
     ICurvePool public constant dolaCrvUSD =
@@ -33,27 +35,37 @@ contract DolaCrvUSDYearnV2FeedFork is CurveLPYearnV2FeedBaseTest {
 
     uint256 crvUSDIndex = 1;
 
-    address public gov = 0x926dF14a23BE491164dCF93f4c468A50ef659D5B;
+    ICurvePool public constant crvUSDUSDC =
+        ICurvePool(0x4DEcE678ceceb27446b35C672dC7d61F30bAD69E);
+
+    IChainlinkFeed public constant usdcToUsd =
+        IChainlinkFeed(0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6);
+
+    uint256 public usdcHeartbeat = 24 hours;
+
+    uint256 usdcIndex = 0;
+
+    //   address public gov = 0x926dF14a23BE491164dCF93f4c468A50ef659D5B;
 
     IYearnVaultV2 _yearn =
         IYearnVaultV2(0xfb5137Aa9e079DB4b7C2929229caf503d0f6DA96);
 
     function setUp() public {
         string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url, 20060490);
+        vm.createSelectFork(url, 20591674);
         // CrvUSD fallback
-        baseFraxToUsd = new ChainlinkBasePriceFeed(
+        baseUsdcToUsd = new ChainlinkBasePriceFeed(
             gov,
-            address(fraxToUsd),
+            address(usdcToUsd),
             address(0),
-            fraxHeartbeat,
+            usdcHeartbeat,
             8
         );
         crvUSDFallback = new ChainlinkCurve2CoinsFeed(
-            address(baseFraxToUsd),
-            address(crvUSDFrax),
+            address(baseUsdcToUsd),
+            address(crvUSDUSDC),
             8,
-            crvUSDIndex
+            usdcIndex
         );
 
         // Main feed
@@ -66,9 +78,9 @@ contract DolaCrvUSDYearnV2FeedFork is CurveLPYearnV2FeedBaseTest {
         );
 
         init(
-            address(baseFraxToUsd),
-            address(crvUSDFallback),
-            address(mainCrvUSDFeed),
+            address(baseUsdcToUsdAddr),
+            address(crvUSDFallbackAddr),
+            address(mainCrvUSDFeedAddr),
             address(dolaCrvUSD),
             address(_yearn)
         );

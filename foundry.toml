@@ -1,9 +1,11 @@
 [profile.default]
-src = 'src'
-out = 'out'
-libs = ['lib']
-solc = "0.8.20"
 evm_version = "shanghai"
+libs = ['lib']
+optimizer = true
+optimizer_runs = 10000
+out = 'out'
+solc = "0.8.20"
+src = 'src'
 [rpc_endpoints]
 mainnet = "${RPC_MAINNET}"
 [etherscan]

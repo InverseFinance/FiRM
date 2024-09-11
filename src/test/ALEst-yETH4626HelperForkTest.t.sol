@@ -29,7 +29,7 @@ interface IBC {
 }
 
 interface IFlashMinter {
-    function setFlashLoanRate(uint256 rate) external;
+    function setMaxFlashLimit(uint256 limit) external;
 }
 
 contract ALEstYETH4626HelperForkTest is BaseHelperForkTest {
@@ -41,7 +41,7 @@ contract ALEstYETH4626HelperForkTest is BaseHelperForkTest {
     BorrowController borrowController;
 
     address styETHHolder = 0x42b126099beDdCE8f5CcC06b4b39E8343e8F4260;
-    address yETHHolder = 0x72baFC1751A21c72C501dFC865065a98FC42d6Ca; // 2 yEthAddr
+    address yETHHolder = 0x12227DFe5363cbE55919e230653810de0fF317e2; // 2 yEthAddr
 
     //ERC-20s
     IMintable DOLA;
@@ -63,7 +63,7 @@ contract ALEstYETH4626HelperForkTest is BaseHelperForkTest {
     uint collateralFactorBps;
 
     function getBlockNumber() public view override returns (uint256) {
-        return 19869427; // Random block number
+        return 20590050; // Random block number
     }
 
     function setUp() public override {
@@ -95,6 +95,7 @@ contract ALEstYETH4626HelperForkTest is BaseHelperForkTest {
 
         ale = new ALE(address(exchangeProxy), triDBRAddr);
         ale.setMarket(address(market), yEthAddr, address(helper), true);
+
         vm.stopPrank();
         //FiRM
         oracle = Oracle(address(market.oracle()));
@@ -108,10 +109,9 @@ contract ALEstYETH4626HelperForkTest is BaseHelperForkTest {
         oracle.setFeed(yEthAddr, IChainlinkFeed(address(feedyETH)), 18);
         borrowController.allow(address(ale));
 
-        DOLA.addMinter(address(ale));
-
         flash = IFlashMinter(address(ale.flash()));
-        flash.setFlashLoanRate(0);
+        DOLA.addMinter(address(flash));
+        flash.setMaxFlashLimit(1000000e18);
         vm.stopPrank();
 
         collateralFactorBps = market.collateralFactorBps();
