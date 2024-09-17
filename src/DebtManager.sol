@@ -1,86 +1,112 @@
+//SPDX-License-Identifier: Unlicensed
 pragma solidity ^0.8.20;
 
 interface IDebtManager {
-    function onBorrow(address user, uint additionalDebt) external;
-    function onRepay(address user, uint repaidDebt) external;
-    function onLiquidate(address user, uint liquidatedDebt) external;
+    function increaseDebt(address user, uint amount) external;
+    function decreaseDebt(address user, uint amount) external returns(uint);
     function debt(address market, address user) external view returns (uint);
 }
 
 interface IDbrAMM {
-    function dolaInDbrOut(uint dolaIn) external view returns (uint dbrOut);
-    function dbrNeededForDola(uint dolaOut) external view returns (uint dbrIn);
-    function dbrInDolaOut(uint dbrIn) external view returns (uint dolaOut);
+    function burnDbr(uint exactDolaIn, uint exactDbrBurn) external returns (uint dolaIn);
+}
+
+interface IHelper {
     function dolaNeededForDbr(uint dbrOut) external view returns (uint dolaIn);
-    function buyDbr(uint dbrAmount) external returns (uint dolaIn);
+}
+
+interface IDBR {
+    function markets(address) external view returns (bool);
+}
+
+interface IDOLA {
+    function approve(address, uint) external returns (bool);
+    function mint(address, uint) external;
 }
 
 
-//TODO: Add governance if needed
-//TODO: Add streaming logic for DbrAMM
 contract DebtManager is IDebtManager {
 
-    IDbrAMM public amm;
-    mapping(address => bool) public markets;
+    IDbrAMM public immutable amm; //TODO: Doesn't necessarily have to be immutable. Can consider making mutable.
+    IDBR public immutable dbr;
+    IDOLA public immutable dola;
+    IHelper public helper; //Should this functionality be a part of the AMM?
     mapping(address => mapping(address => uint)) public debtShares;
-    uint public constant DEBT_MULTIPLIER = 1e36;
+    uint public constant MANTISSA = 10 ** 36;
     uint public totalDebt;
+    uint public totalDebtShares;
     uint public lastUpdate;
 
-    constructor() {
+    constructor(address _amm, address _helper, address _dbr, address _dola) {
         lastUpdate = block.timestamp;
+        helper = IHelper(_helper);
+        amm = IDbrAMM(_amm);
+        dbr = IDBR(_dbr);
+        dola = IDOLA(_dola);
     }
 
     modifier onlyMarket() {
-        if(!markets[msg.sender]){
+        if(!dbr.markets(msg.sender)){
             revert OnlyMarket();
-        }
+        } 
         _;
     }
 
     modifier updateDebt() {
-        uint dbrDeficit = (block.timestamp - lastUpdate) * totalDebt / 365 days;
-        uint dolaNeeded = amm.dolaNeededForDbr(dbrDeficit);
-        totalDebt += dolaNeeded;
-        lastUpdate = block.timestamp;
-        amm.buyDbr(dbrDeficit);
+        _burnDbrDeficit();
         _;
     }
 
     error OnlyMarket();
-
-    function onBorrow(address user, uint additionalDebt) external onlyMarket updateDebt {
+    
+    //Should be called when switching fixed rate debt to variable debt and when borrowing variable debt
+    function increaseDebt(address user, uint additionalDebt) external onlyMarket updateDebt {
         address market = msg.sender;
         totalDebt += additionalDebt;
-        debtShares[market][user] += additionalDebt * DEBT_MULTIPLIER / totalDebt;
-        
+        uint additionalDebtShares;
+        if(totalDebt == 0){
+            additionalDebtShares = additionalDebt * MANTISSA; //Minting a high amount of initial debt shares, as debt per share will increase exponentially over the lifetime of the contract
+        } else {
+            additionalDebtShares = additionalDebt * totalDebtShares / totalDebt; //TODO: Consider rounding up in favour of other users
+        }
+        totalDebtShares += additionalDebtShares;
+        debtShares[market][user] += additionalDebtShares;
     }
 
-    function onRepay(address user, uint repaidDebt) external onlyMarket updateDebt {
+    //Should be called when switching variable debt with fixed rate debt, when repaying and when a user is liquidated
+    function decreaseDebt(address user, uint amount) external onlyMarket updateDebt returns(uint){
         address market = msg.sender;
         uint _debt = debt(market, user);
-        if(_debt < repaidDebt){
+        if(_debt <= amount){
+            totalDebtShares -= debtShares[market][user];
             debtShares[market][user] = 0;
             totalDebt -= _debt;
+            return _debt;
         } else {
-            totalDebt -= repaidDebt;
-            debtShares[market][user] = (_debt - repaidDebt) * DEBT_MULTIPLIER / totalDebt;
+            uint removedDebtShares = totalDebtShares * amount / totalDebt;
+            totalDebt -= amount;
+            totalDebtShares -= removedDebtShares; //TODO: Make sure this doesn't underflow
+            debtShares[market][user] -= removedDebtShares; //TODO: Make sure this doesn't underflow
+            return amount;
         }
     }
 
-    function onLiquidate(address user, uint liquidatedDebt) external onlyMarket updateDebt {
-        address market = msg.sender;
-        uint _debt = debt(market, user);
-        if(_debt < liquidatedDebt){
-            debtShares[market][user] = 0;
-            totalDebt -= _debt;
-        } else {
-            totalDebt -= liquidatedDebt;
-            debtShares[market][user] = (_debt - liquidatedDebt) * DEBT_MULTIPLIER / totalDebt;
+    function buyHook() external {
+        _burnDbrDeficit();
+    }
+
+    function _burnDbrDeficit() internal {
+        if(lastUpdate < block.timestamp){
+            uint dbrDeficit = (block.timestamp - lastUpdate) * totalDebt / 365 days;
+            uint dolaNeeded = helper.dolaNeededForDbr(dbrDeficit);
+            totalDebt += dolaNeeded;
+            lastUpdate = block.timestamp;
+            dola.mint(address(this), dolaNeeded);
+            amm.burnDbr(dolaNeeded, dbrDeficit);
         }
     }
 
     function debt(address market, address user) public view returns (uint) {
-        return totalDebt * DEBT_MULTIPLIER / debtShares[market][user];
+        return totalDebt * debtShares[market][user] / totalDebtShares;
     }
 }

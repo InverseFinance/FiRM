@@ -7,29 +7,35 @@ interface IERC20 {
     function balanceOf(address) external view returns (uint);
 }
 
-interface IERC20Stream {
-    function unclaimed() external view returns (uint amountUnclaimed);
-    function claimTo(uint amount, address receiver) external;
-    function claimTo(address receiver) external returns (uint amountClaimed);
+interface Mintable is IERC20 {
+    function burn(uint) external;
+    function mint(address, uint) external;
+}
+
+interface IVariableDebtManager {
+    function buyHook() external returns (bool);
 }
 
 /**
- * @title sDola
- * @dev Auto-compounding ERC4626 wrapper for DolaSacings utilizing xy=k auctions.
- * WARNING: While this vault is safe to be used as collateral in lending markets, it should not be allowed as a borrowable asset.
- * Any protocol in which sudden, large and atomic increases in the value of an asset may be a securit risk should not integrate this vault.
- */
+ * @title HookAMM
+ * @dev Limited access xy=k AMM designed to be maximally manipulation resistant on behalf of the DebtManager and FiRMv2 markets
+*/
 contract HookAMM {
     
-    IERC20 public immutable dbr;
+    Mintable public immutable dbr;
     IERC20 public immutable dola;
-    IERC20Stream public dbrStream;
-    IERC20Stream public dolaStream;
+    IVariableDebtManager public variableDebtManager;
     address public gov;
     address public pendingGov;
+    address public feeRecipient;
     uint public prevK;
     uint public targetK;
     uint public lastKUpdate;
+    uint public maxDbrPrice;
+    uint public dbrBuyFee;
+    uint public feesAccrued;
+
+    error Invariant();
 
     /**
      * @dev Constructor for sDola contract.
@@ -42,16 +48,24 @@ contract HookAMM {
         address _dola,
         address _dbr,
         address _gov,
+        address _feeRecipient,
         uint _K
     ) {
         require(_K > 0, "_K must be positive");
-        dbr = _dbr;
+        dbr = Mintable(_dbr);
+        dola = IERC20(_dola);
         gov = _gov;
+        feeRecipient = _feeRecipient;
         targetK = _K;
     }
 
     modifier onlyGov() {
         require(msg.sender == gov, "ONLY GOV");
+        _;
+    }
+
+    modifier buyHook() {
+        variableDebtManager.buyHook();
         _;
     }
 
@@ -75,16 +89,7 @@ contract HookAMM {
      * @return The calculated DOLA reserve.
      */
     function getDolaReserve() public view returns (uint) {
-        return getK() / getDbrReserve() + dolaStream.claimable();
-    }
-
-    /**
-     * @dev Calculates the DOLA reserve for a given DBR reserve.
-     * @param dbrReserve The DBR reserve value.
-     * @return The calculated DOLA reserve.
-     */
-    function getDolaReserve(uint dbrReserve) public view returns (uint) {
-        return getK() / dbrReserve;
+        return dola.balanceOf(address(this));
     }
 
     /**
@@ -92,7 +97,7 @@ contract HookAMM {
      * @return The current DBR reserve.
      */
     function getDbrReserve() public view returns (uint) {
-        return dbr.balanceOf(address(this)) + dbrStream.claimable();
+        return getK() / getDolaReserve();
     }
 
     /**
@@ -115,21 +120,40 @@ contract HookAMM {
      * @param exactDbrOut The exact amount of DBR to receive.
      * @param to The address that will receive the DBR.
      */
-    function buyDBR(uint exactDolaIn, uint exactDbrOut, address to) external {
+    function buyDBR(uint exactDolaIn, uint exactDbrOut, address to) external buyHook {
         require(to != address(0), "Zero address");
-        uint dbrBalance = getDbrReserve();
-        if(exactDbrOut > dbr.balanceOf(address(this))){
-            savings.claim(address(this));
-        }
+        _invariantCheck(exactDolaIn, exactDbrOut, getDbrReserve());
+        dola.transferFrom(msg.sender, address(this), exactDolaIn);
+        uint dbrBal = dbr.balanceOf(address(this));
+        if(exactDbrOut > dbrBal)
+            dbr.mint(address(this), exactDbrOut - dbrBal);
+        uint exactDbrOutAfterFee = exactDbrOut * (1e18 - dbrBuyFee) / 1e18;
+        feesAccrued += exactDbrOut - exactDbrOutAfterFee;
+        dbr.transfer(to, exactDbrOutAfterFee);
+        emit BuyDBR(msg.sender, to, exactDolaIn, exactDbrOut);
+    }
+
+    function burnDBR(uint exactDolaIn, uint exactDbrBurn) external buyHook {
+        _invariantCheck(exactDolaIn, exactDbrBurn, getDbrReserve());
+        dola.transferFrom(msg.sender, address(this), exactDolaIn);
+        dbr.burn(exactDbrBurn);
+        emit Burn(msg.sender, exactDolaIn, exactDbrBurn);
+    }
+
+    function buyDola(uint exactDbrIn, uint exactDolaOut, address to) external buyHook {
+        require(to != address(0), "Zero address");
+        _invariantCheck(exactDbrIn, exactDolaOut, getDolaReserve());
+        dbr.transferFrom(msg.sender, address(this), exactDolaOut);
+        dola.transfer(to, exactDbrIn);
+        emit BuyDOLA(msg.sender, to, exactDbrIn, exactDolaOut);
+    }
+
+    function _invariantCheck(uint exactIn, uint exactOut, uint outBalance) internal view {
+        //TODO: Add max dbr price check
         uint k = getK();
-        uint dbrReserve = dbrBalance - exactDbrOut;
-        uint dolaReserve = k / dbrBalance + exactDolaIn;
-        require(dolaReserve * dbrReserve >= k, "Invariant");
-        asset.transferFrom(msg.sender, address(this), exactDolaIn);
-        savings.stake(exactDolaIn, address(this));
-        weeklyRevenue[block.timestamp / 7 days] += exactDolaIn;
-        dbr.transfer(to, exactDbrOut);
-        emit Buy(msg.sender, to, exactDolaIn, exactDbrOut);
+        uint reserveOut = outBalance - exactOut;
+        uint reserveIn = k / outBalance + exactIn;
+        if(reserveOut * reserveIn < k) revert Invariant();
     }
 
     /**
@@ -150,13 +174,6 @@ contract HookAMM {
     }
 
     /**
-     * @dev Re-approves the DOLA token to be spent by the DolaSavings contract.
-     */
-    function reapprove() external {
-        asset.approve(address(savings), type(uint).max);
-    }
-
-    /**
      * @dev Allows governance to sweep any ERC20 token from the contract.
      * @dev Excludes the ability to sweep DBR tokens.
      * @param token The address of the ERC20 token to sweep.
@@ -168,6 +185,17 @@ contract HookAMM {
         IERC20(token).transfer(to, amount);
     }
 
-    event Buy(address indexed caller, address indexed to, uint exactDolaIn, uint exactDbrOut);
+    function harvest() public {
+        uint dbrBalance = dbr.balanceOf(address(this));
+        if(dbrBalance < feesAccrued){
+            dbr.mint(address(this), feesAccrued - dbrBalance);
+        }
+        dbr.transfer(feeRecipient, feesAccrued);
+        feesAccrued = 0;
+    }
+
+    event BuyDBR(address indexed caller, address indexed to, uint exactDolaIn, uint exactDbrOut);
+    event BuyDOLA(address indexed caller, address indexed to, uint exactDbrIn, uint exactDolaOut);
+    event Burn(address indexed caller, uint exactDolaIn, uint exactDbrBurn);
     event SetTargetK(uint newTargetK);
 }
