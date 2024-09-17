@@ -15,16 +15,25 @@ interface IEscrow {
     function balance() external view returns (uint);
 }
 
-interface IDebtManager {
+interface IDolaBorrowingRights {
     function onBorrow(address user, uint additionalDebt) external;
     function onRepay(address user, uint repaidDebt) external;
-    function onLiquidate(address user, uint liquidatedDebt) external;
-    function debt(address market, address user) external returns (uint);
+    function onForceReplenish(address user, address replenisher, uint amount, uint replenisherReward) external;
+    function balanceOf(address user) external view returns (uint);
+    function deficitOf(address user) external view returns (uint);
+    function replenishmentPriceBps() external view returns (uint);
 }
 
 interface IBorrowController {
     function borrowAllowed(address msgSender, address borrower, uint amount) external returns (bool);
     function onRepay(uint amount) external;
+}
+
+interface IVariableDebtManager {
+    function debt(address market, address user) external view returns (uint);
+    function marketDebt(address market) external view returns (uint);
+    function increaseDebt(address user, uint amount) external;
+    function decreaseDebt(address user, uint amount) external returns (uint);
 }
 
 contract VariableRateMarket {
@@ -33,21 +42,25 @@ contract VariableRateMarket {
     address public lender;
     address public pauseGuardian;
     address public immutable escrowImplementation;
-    IDebtManager public immutable debtManager;
+    IDolaBorrowingRights public immutable dbr;
+    IVariableDebtManager public immutable variableDebtManager;
     IBorrowController public borrowController;
     IERC20 public immutable dola = IERC20(0x865377367054516e17014CcdED1e7d814EDC9ce4);
     IERC20 public immutable collateral;
     IOracle public oracle;
     uint public collateralFactorBps;
+    uint public replenishmentIncentiveBps;
     uint public liquidationIncentiveBps;
     uint public liquidationFeeBps;
     uint public liquidationFactorBps = 5000; // 50% by default
     bool immutable callOnDepositCallback;
     bool public borrowPaused;
-    uint public totalDebt;
+    uint public totalFixedDebt;
     uint256 internal immutable INITIAL_CHAIN_ID;
     bytes32 internal immutable INITIAL_DOMAIN_SEPARATOR;
     mapping (address => IEscrow) public escrows; // user => escrow
+    mapping (address => uint) public debts; // user => debt
+    mapping (address => bool) public isFixedBorrower; //user => is Variable Rate Borrower
     mapping(address => uint256) public nonces; // user => nonce
 
     constructor (
@@ -55,23 +68,28 @@ contract VariableRateMarket {
         address _lender,
         address _pauseGuardian,
         address _escrowImplementation,
-        IDebtManager _debtManager,
+        IDolaBorrowingRights _dbr,
+        IVariableDebtManager _variableDebtManager,
         IERC20 _collateral,
         IOracle _oracle,
         uint _collateralFactorBps,
+        uint _replenishmentIncentiveBps,
         uint _liquidationIncentiveBps,
         bool _callOnDepositCallback
     ) {
         require(_collateralFactorBps < 10000, "Invalid collateral factor");
         require(_liquidationIncentiveBps > 0 && _liquidationIncentiveBps < 10000, "Invalid liquidation incentive");
+        require(_replenishmentIncentiveBps < 10000, "Replenishment incentive must be less than 100%");
         gov = _gov;
         lender = _lender;
         pauseGuardian = _pauseGuardian;
         escrowImplementation = _escrowImplementation;
-        debtManager = _debtManager;
+        dbr = _dbr;
+        variableDebtManager = _variableDebtManager;
         collateral = _collateral;
         oracle = _oracle;
         collateralFactorBps = _collateralFactorBps;
+        replenishmentIncentiveBps = _replenishmentIncentiveBps;
         liquidationIncentiveBps = _liquidationIncentiveBps;
         callOnDepositCallback = _callOnDepositCallback;
         INITIAL_CHAIN_ID = block.chainid;
@@ -162,6 +180,17 @@ contract VariableRateMarket {
     function setLiquidationFactorBps(uint _liquidationFactorBps) public onlyGov {
         require(_liquidationFactorBps > 0 && _liquidationFactorBps <= 10000, "Invalid liquidation factor");
         liquidationFactorBps = _liquidationFactorBps;
+    }
+
+    /**
+    @notice sets the Replenishment Incentive of the market as denoted in basis points.
+     The Replenishment Incentive is the percentage paid out to replenishers on a successful forceReplenish call, denoted in basis points.
+    @dev Must be set between 1 and 10000.
+    @param _replenishmentIncentiveBps The new replenishment incentive set in basis points. 1 = 0.01%
+    */
+    function setReplenismentIncentiveBps(uint _replenishmentIncentiveBps) public onlyGov {
+        require(_replenishmentIncentiveBps > 0 && _replenishmentIncentiveBps < 10000, "Invalid replenishment incentive");
+        replenishmentIncentiveBps = _replenishmentIncentiveBps;
     }
 
     /**
@@ -335,6 +364,22 @@ contract VariableRateMarket {
         uint collateralValue = getCollateralValueInternal(user);
         return collateralValue * collateralFactorBps / 10000;
     }
+    /**
+    @notice Internal function for getting the withdrawal limit of a user.
+     The withdrawal limit is how much collateral a user can withdraw before their loan would be underwater. Updates the pessimistic oracle.
+    @param user Address of the user.
+    */
+    function getWithdrawalLimitInternal(address user) internal returns (uint) {
+        IEscrow escrow = predictEscrow(user);
+        uint collateralBalance = escrow.balance();
+        if(collateralBalance == 0) return 0;
+        uint debt = isFixedBorrower[user] ? debts[user] : variableDebtManager.debt(address(this), user);
+        if(debt == 0) return collateralBalance;
+        if(collateralFactorBps == 0) return 0;
+        uint minimumCollateral = debt * 1 ether / oracle.getPrice(address(collateral), collateralFactorBps) * 10000 / collateralFactorBps;
+        if(collateralBalance <= minimumCollateral) return 0;
+        return collateralBalance - minimumCollateral;
+    }
 
     /**
     @notice View function for getting the withdrawal limit of a user.
@@ -345,7 +390,7 @@ contract VariableRateMarket {
         IEscrow escrow = predictEscrow(user);
         uint collateralBalance = escrow.balance();
         if(collateralBalance == 0) return 0;
-        uint debt = debtManager.debt(user, address(this));
+        uint debt = isFixedBorrower[user] ? debts[user] : variableDebtManager.debt(address(this), user);
         if(debt == 0) return collateralBalance;
         if(collateralFactorBps == 0) return 0;
         uint minimumCollateral = debt * 1 ether / oracle.viewPrice(address(collateral), collateralFactorBps) * 10000 / collateralFactorBps;
@@ -366,12 +411,18 @@ contract VariableRateMarket {
             require(borrowController.borrowAllowed(msg.sender, borrower, amount), "Denied by borrow controller");
         }
         uint credit = getCreditLimitInternal(borrower);
-        debts[borrower] += amount;
-        require(credit >= debts[borrower], "Exceeded credit limit");
-        totalDebt += amount;
-        debtManager.onBorrow(borrower, amount);
+        if(isFixedBorrower[borrower]){
+            debts[borrower] += amount;
+            require(credit >= debts[borrower], "Exceeded credit limit");
+            totalFixedDebt += amount;
+            dbr.onBorrow(borrower, amount);
+            emit Borrow(borrower, amount, true);
+        } else {
+            variableDebtManager.increaseDebt(borrower, amount);
+            require(credit >= variableDebtManager.debt(address(this), borrower), "Exceeded credit limit");
+            emit Borrow(borrower, amount, false);
+        }
         dola.transfer(to, amount);
-        emit Borrow(borrower, amount);
     }
 
     /**
@@ -432,8 +483,9 @@ contract VariableRateMarket {
     @param amount The amount being withdrawn.
     */
     function withdrawInternal(address from, address to, uint amount) internal {
-        uint limit = getWithdrawalLimit(from);
+        uint limit = getWithdrawalLimitInternal(from);
         require(limit >= amount, "Insufficient withdrawal limit");
+        require(dbr.deficitOf(from) == 0, "Can't withdraw with DBR deficit");
         IEscrow escrow = getEscrow(from);
         escrow.pay(to, amount);
         emit Withdraw(from, to, amount);
@@ -453,7 +505,7 @@ contract VariableRateMarket {
     @dev Dangerous to use when the user has any amount of debt!
     */
     function withdrawMax() public {
-        withdrawInternal(msg.sender, msg.sender, getWithdrawalLimit(msg.sender));
+        withdrawInternal(msg.sender, msg.sender, getWithdrawalLimitInternal(msg.sender));
     }
 
     /**
@@ -534,7 +586,7 @@ contract VariableRateMarket {
                 s
             );
             require(recoveredAddress != address(0) && recoveredAddress == from, "INVALID_SIGNER");
-            withdrawInternal(from, msg.sender, getWithdrawalLimit(from));
+            withdrawInternal(from, msg.sender, getWithdrawalLimitInternal(from));
         }
     }
 
@@ -552,16 +604,22 @@ contract VariableRateMarket {
     @param amount DOLA amount to be repaid. If set to max uint debt will be repaid in full.
     */
     function repay(address user, uint amount) public {
-        uint userDebt = debtManager.debt(address(this), user);
-        if(userDebt < amount){
-            amount = userDebt;
+        uint debt = isFixedBorrower[user] ? debts[user] : variableDebtManager.debt(address(this), user);
+        if(amount == type(uint).max){
+            amount = debt;
         }
-        dola.transferFrom(msg.sender, address(this), amount);
-        totalDebt -= amount;
+        require(debt >= amount, "Repayment greater than debt");
+        if(isFixedBorrower[user]){
+            debts[user] -= amount;
+            totalFixedDebt -= amount;
+            dbr.onRepay(user, amount);
+        } else {
+            amount = variableDebtManager.decreaseDebt(user, amount);
+        }
         if(address(borrowController) != address(0)){
             borrowController.onRepay(amount);
         }
-        debtManager.onRepay(user, amount);
+        dola.transferFrom(msg.sender, address(this), amount);
         emit Repay(user, msg.sender, amount);
     }
 
@@ -576,21 +634,63 @@ contract VariableRateMarket {
     }
 
     /**
+    @notice Function for forcing a user to replenish their DBR deficit at a pre-determined price.
+     The replenishment will accrue additional DOLA debt.
+     On a successful call, the caller will be paid a replenishment incentive.
+    @dev The function will only top the user back up to 0, meaning that the user will have a DBR deficit again in the next block.
+    @param user The address of the user being forced to replenish DBR
+    @param amount The amount of DBR the user will be replenished.
+    */
+    function forceReplenish(address user, uint amount) internal {
+        uint deficit = dbr.deficitOf(user);
+        require(deficit > 0, "No DBR deficit");
+        require(deficit >= amount, "Amount > deficit");
+        uint collateralValue = getCollateralValueInternal(user) * (10000 - liquidationIncentiveBps - liquidationFeeBps) / 10000;
+        uint replenishmentCost = amount * dbr.replenishmentPriceBps() / 10000;
+        if(replenishmentCost + debts[user] > collateralValue){
+            replenishmentCost = collateralValue - debts[user]; //Should fail if collateralValue < debts[user]
+        }
+        uint replenisherReward = replenishmentCost * replenishmentIncentiveBps / 10000;
+        debts[user] += replenishmentCost;
+        totalFixedDebt += replenishmentCost;
+        dbr.onForceReplenish(user, msg.sender, amount, replenisherReward);
+        dola.transfer(msg.sender, replenisherReward);
+        if(collateralValue > debts[user]){
+            _switchToVariableBorrowing(user);
+        }
+    }
+    /**
+    @notice Function for forcing a user to replenish all of their DBR deficit at a pre-determined price.
+     The replenishment will accrue additional DOLA debt.
+     On a successful call, the caller will be paid a replenishment incentive.
+    @dev The function will only top the user back up to 0, meaning that the user will have a DBR deficit again in the next block.
+    @param user The address of the user being forced to replenish DBR
+    */
+    function forceReplenishAll(address user) public {
+        uint deficit = dbr.deficitOf(user);
+        forceReplenish(user, deficit);
+    }
+
+    /**
     @notice Function for liquidating a user's under water debt. Debt is under water when the value of a user's debt is above their collateral factor.
     @param user The user to be liquidated
     @param repaidDebt Th amount of user user debt to liquidate.
     */
     function liquidate(address user, uint repaidDebt) public {
         require(repaidDebt > 0, "Must repay positive debt");
-        uint debt = debtManager.debt(user, address(this));
+        uint debt = isFixedBorrower[user] ? debts[user] : variableDebtManager.debt(address(this), user);
         require(getCreditLimitInternal(user) < debt, "User debt is healthy");
         require(repaidDebt <= debt * liquidationFactorBps / 10000, "Exceeded liquidation factor");
         uint price = oracle.getPrice(address(collateral), collateralFactorBps);
         uint liquidatorReward = repaidDebt * 1 ether / price;
         liquidatorReward += liquidatorReward * liquidationIncentiveBps / 10000;
-        debtManager.debt(user, address(this)) -= repaidDebt;
-        totalDebt -= repaidDebt;
-        debtManager.onLiquidate(user, repaidDebt);
+        if(isFixedBorrower[user]){
+            debts[user] -= repaidDebt;
+            totalFixedDebt -= repaidDebt;
+            dbr.onRepay(user, repaidDebt);
+        } else {
+            variableDebtManager.decreaseDebt(user, repaidDebt);
+        }
         if(address(borrowController) != address(0)){
             borrowController.onRepay(repaidDebt);
         }
@@ -608,11 +708,46 @@ contract VariableRateMarket {
         }
         emit Liquidate(user, msg.sender, repaidDebt, liquidatorReward);
     }
+
+    function switchToFixedBorrowing() external {
+        _switchToFixedBorrowing(msg.sender);
+    }
+
+    function _switchToFixedBorrowing(address borrower) internal {
+        require(!isFixedBorrower[borrower], "Already fixed borrower");
+        uint debt = variableDebtManager.debt(address(this), borrower);
+        isFixedBorrower[borrower] = true;
+        variableDebtManager.decreaseDebt(borrower, debt);
+        debts[borrower] += debt;
+        totalFixedDebt += debt;
+        dbr.onBorrow(borrower, debt);
+        emit Switch(borrower, debt, true);
+    }
+
+    function switchToVariableBorrowing() external {
+        _switchToVariableBorrowing(msg.sender);
+    }
+
+    function _switchToVariableBorrowing(address borrower) internal {
+        require(isFixedBorrower[borrower], "Already variable borrower");
+        uint debt = debts[borrower];
+        debts[borrower] = 0;
+        totalFixedDebt -= debt;
+        dbr.onRepay(borrower, debt);
+        isFixedBorrower[borrower] = false;
+        variableDebtManager.increaseDebt(borrower, debt);
+        emit Switch(borrower, debt, false);
+    }
+
+    function totalDebt() external view returns(uint){
+        return totalFixedDebt + variableDebtManager.marketDebt(address(this));
+    }
     
     event Deposit(address indexed account, uint amount);
-    event Borrow(address indexed account, uint amount);
+    event Borrow(address indexed account, uint amount, bool isFixed);
     event Withdraw(address indexed account, address indexed to, uint amount);
     event Repay(address indexed account, address indexed repayer, uint amount);
     event Liquidate(address indexed account, address indexed liquidator, uint repaidDebt, uint liquidatorReward);
     event CreateEscrow(address indexed user, address escrow);
+    event Switch(address indexed borrower, uint amount, bool toFixedBorrowing);
 }

@@ -5,6 +5,7 @@ interface IDebtManager {
     function increaseDebt(address user, uint amount) external;
     function decreaseDebt(address user, uint amount) external returns(uint);
     function debt(address market, address user) external view returns (uint);
+    function marketDebt(address market) external view returns(uint);
 }
 
 interface IDbrAMM {
@@ -25,13 +26,14 @@ interface IDOLA {
 }
 
 
-contract DebtManager is IDebtManager {
+contract VariableDebtManager is IDebtManager {
 
     IDbrAMM public immutable amm; //TODO: Doesn't necessarily have to be immutable. Can consider making mutable.
     IDBR public immutable dbr;
     IDOLA public immutable dola;
     IHelper public helper; //Should this functionality be a part of the AMM?
     mapping(address => mapping(address => uint)) public debtShares;
+    mapping(address => uint) public marketDebtShares;
     uint public constant MANTISSA = 10 ** 36;
     uint public totalDebt;
     uint public totalDebtShares;
@@ -70,22 +72,25 @@ contract DebtManager is IDebtManager {
             additionalDebtShares = additionalDebt * totalDebtShares / totalDebt; //TODO: Consider rounding up in favour of other users
         }
         totalDebtShares += additionalDebtShares;
+        marketDebtShares[market] += additionalDebtShares;
         debtShares[market][user] += additionalDebtShares;
     }
 
     //Should be called when switching variable debt with fixed rate debt, when repaying and when a user is liquidated
     function decreaseDebt(address user, uint amount) external onlyMarket updateDebt returns(uint){
         address market = msg.sender;
-        uint _debt = debt(market, user);
-        if(_debt <= amount){
+        uint userDebt = _debt(market, user);
+        if(userDebt <= amount){
             totalDebtShares -= debtShares[market][user];
+            marketDebtShares[market] -= debtShares[market][user];
             debtShares[market][user] = 0;
-            totalDebt -= _debt;
-            return _debt;
+            totalDebt -= userDebt;
+            return userDebt;
         } else {
             uint removedDebtShares = totalDebtShares * amount / totalDebt;
             totalDebt -= amount;
             totalDebtShares -= removedDebtShares; //TODO: Make sure this doesn't underflow
+            marketDebtShares[market] -= removedDebtShares; //TODO: Make sure this doesn't underflow
             debtShares[market][user] -= removedDebtShares; //TODO: Make sure this doesn't underflow
             return amount;
         }
@@ -97,16 +102,31 @@ contract DebtManager is IDebtManager {
 
     function _burnDbrDeficit() internal {
         if(lastUpdate < block.timestamp){
-            uint dbrDeficit = (block.timestamp - lastUpdate) * totalDebt / 365 days;
-            uint dolaNeeded = helper.dolaNeededForDbr(dbrDeficit);
+            uint _dbrDeficit = dbrDeficit();
+            uint dolaNeeded = helper.dolaNeededForDbr(_dbrDeficit);
             totalDebt += dolaNeeded;
             lastUpdate = block.timestamp;
             dola.mint(address(this), dolaNeeded);
-            amm.burnDbr(dolaNeeded, dbrDeficit);
+            amm.burnDbr(dolaNeeded, _dbrDeficit);
         }
     }
 
+    function dbrDeficit() public view returns (uint){
+        return (block.timestamp - lastUpdate) * totalDebt / 365 days;
+    }
+
     function debt(address market, address user) public view returns (uint) {
+        uint dolaNeeded = helper.dolaNeededForDbr(dbrDeficit());
+        return (totalDebt + dolaNeeded) * debtShares[market][user] / totalDebtShares;
+    }
+
+    function marketDebt(address market) public view returns (uint) {
+        uint dolaNeeded = helper.dolaNeededForDbr(dbrDeficit());
+        return (totalDebt + dolaNeeded) * marketDebtShares[market] / totalDebtShares;
+    }
+
+    //Only safe to use if DBR deficit is 0
+    function _debt(address market, address user) internal view returns (uint){
         return totalDebt * debtShares[market][user] / totalDebtShares;
     }
 }
