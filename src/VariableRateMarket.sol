@@ -21,6 +21,7 @@ interface IDolaBorrowingRights {
     function onForceReplenish(address user, address replenisher, uint amount, uint replenisherReward) external;
     function balanceOf(address user) external view returns (uint);
     function deficitOf(address user) external view returns (uint);
+    function debts(address user) external view returns (uint);
     function replenishmentPriceBps() external view returns (uint);
 }
 
@@ -650,11 +651,10 @@ contract VariableRateMarket {
         if(replenishmentCost + debts[user] > collateralValue){
             replenishmentCost = collateralValue - debts[user]; //Should fail if collateralValue < debts[user]
         }
-        uint replenisherReward = replenishmentCost * replenishmentIncentiveBps / 10000;
         debts[user] += replenishmentCost;
         totalFixedDebt += replenishmentCost;
-        dbr.onForceReplenish(user, msg.sender, amount, replenisherReward);
-        dola.transfer(msg.sender, replenisherReward);
+        dbr.onForceReplenish(user, msg.sender, amount, replenishmentCost);
+        dola.transfer(msg.sender, replenishmentCost);
         if(collateralValue > debts[user]){
             _switchToVariableBorrowing(user);
         }
@@ -730,6 +730,7 @@ contract VariableRateMarket {
 
     function _switchToVariableBorrowing(address borrower) internal {
         require(isFixedBorrower[borrower], "Already variable borrower");
+        require(dbr.deficitOf(borrower) == 0, "DBR deficit not 0");
         uint debt = debts[borrower];
         debts[borrower] = 0;
         totalFixedDebt -= debt;
