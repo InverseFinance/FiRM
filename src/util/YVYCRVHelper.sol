@@ -15,7 +15,6 @@ contract YVYCRVHelper is Sweepable, ReentrancyGuard {
     error NotEnoughShares();
     error DepositFailed(uint256 expected, uint256 received);
     error WithdrawFailed(uint256 expected, uint256 received);
-    error HelperPaused();
 
     IYearnVaultV2 public constant vault =
         IYearnVaultV2(0x27B5739e22ad9033bcBf192059122d163b60349D); // yvyCRV
