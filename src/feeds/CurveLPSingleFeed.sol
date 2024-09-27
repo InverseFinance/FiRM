@@ -12,6 +12,10 @@ contract CurveLPSingleFeed {
     constructor(address _curvePool, address _coinFeed) {
         curvePool = ICurvePool(_curvePool);
         coinFeed = IChainlinkBasePriceFeed(_coinFeed);
+        require(
+            coinFeed.decimals() == 18,
+            "CurveLPSingleFeed: Invalid decimals"
+        );
     }
 
     /**

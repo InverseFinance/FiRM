@@ -8,13 +8,29 @@ contract CurveLPPessimisticFeed {
     ICurvePool public immutable curvePool;
 
     IChainlinkBasePriceFeed public immutable coin1Feed;
-
     IChainlinkBasePriceFeed public immutable coin2Feed;
+
+    string public description;
 
     constructor(address _curvePool, address _coin1Feed, address _coin2Feed) {
         curvePool = ICurvePool(_curvePool);
         coin1Feed = IChainlinkBasePriceFeed(_coin1Feed);
         coin2Feed = IChainlinkBasePriceFeed(_coin2Feed);
+        require(
+            coin1Feed.decimals() == coin2Feed.decimals() &&
+                coin1Feed.decimals() == 18,
+            "CurveLPPessimisticFeed: DECIMALS_MISMATCH"
+        );
+
+        description = string(
+            abi.encodePacked(
+                curvePool.symbol(),
+                " LP with ",
+                coin1Feed.description(),
+                " and ",
+                coin2Feed.description()
+            )
+        );
     }
 
     /**
@@ -48,14 +64,14 @@ contract CurveLPPessimisticFeed {
         int256 minLpUsdPrice;
 
         // If coin1 price is lower than coin2 price, use coin1 price
-        if ((usdPriceCoin1 < usdPriceCoin2 && updatedAt > 0)) {
+        if (usdPriceCoin1 < usdPriceCoin2 && updatedAt > 0) {
             minLpUsdPrice =
-                (usdPriceCoin1 * int(curvePool.get_virtual_price())) /
-                int(10 ** coin1Feed.decimals());
+                (usdPriceCoin1 * int256(curvePool.get_virtual_price())) /
+                int256(10 ** decimals());
         } else {
             minLpUsdPrice =
                 (usdPriceCoin2 * int(curvePool.get_virtual_price())) /
-                int(10 ** coin2Feed.decimals());
+                int256(10 ** decimals());
             roundId = roundIdCoin2;
             startedAt = startedAtCoin2;
             updatedAt = updatedAtCoin2;

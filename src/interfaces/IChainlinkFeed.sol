@@ -17,6 +17,8 @@ interface IChainlinkFeed {
         );
 
     function latestAnswer() external view returns (int256 price);
+
+    function description() external view returns (string memory description);
 }
 
 interface IChainlinkBasePriceFeed is IChainlinkFeed {
