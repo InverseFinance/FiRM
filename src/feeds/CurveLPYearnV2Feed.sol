@@ -9,12 +9,17 @@ contract CurveLPYearnV2Feed {
 
     IChainlinkBasePriceFeed public immutable coinFeed;
 
+    string public description;
+
     constructor(address _yearn, address _coinFeed) {
         yearn = IYearnVaultV2(_yearn);
         coinFeed = IChainlinkBasePriceFeed(_coinFeed);
         require(
             coinFeed.decimals() == 18,
             "CurveLPYearnV2Feed: Invalid decimals"
+        );
+        description = string(
+            abi.encodePacked("YearnV2 for ", coinFeed.description())
         );
     }
 
