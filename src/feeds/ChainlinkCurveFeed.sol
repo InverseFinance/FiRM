@@ -38,9 +38,7 @@ contract ChainlinkCurveFeed {
         targetIndex = _targetIndex;
 
         string memory coin = IERC20(curvePool.coins(_targetIndex)).symbol();
-        description = string(
-            abi.encodePacked(coin, " / USD via ", assetToUsd.description())
-        );
+        description = string(abi.encodePacked(coin, " / USD"));
     }
 
     /**

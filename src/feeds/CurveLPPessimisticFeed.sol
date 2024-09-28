@@ -22,15 +22,7 @@ contract CurveLPPessimisticFeed {
             "CurveLPPessimisticFeed: DECIMALS_MISMATCH"
         );
 
-        description = string(
-            abi.encodePacked(
-                curvePool.symbol(),
-                " LP with ",
-                coin1Feed.description(),
-                " and ",
-                coin2Feed.description()
-            )
-        );
+        description = string(abi.encodePacked(curvePool.symbol(), " / USD"));
     }
 
     /**

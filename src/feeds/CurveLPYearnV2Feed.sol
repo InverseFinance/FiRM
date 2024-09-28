@@ -18,9 +18,7 @@ contract CurveLPYearnV2Feed {
             coinFeed.decimals() == 18,
             "CurveLPYearnV2Feed: Invalid decimals"
         );
-        description = string(
-            abi.encodePacked("YearnV2 for ", coinFeed.description())
-        );
+        description = string(abi.encodePacked(yearn.symbol(), " / USD"));
     }
 
     /**
