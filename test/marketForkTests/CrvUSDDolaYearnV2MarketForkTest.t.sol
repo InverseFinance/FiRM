@@ -6,11 +6,10 @@ import {Market} from "src/Market.sol";
 import {SimpleERC20Escrow} from "src/escrows/SimpleERC20Escrow.sol";
 import {CurveLPYearnV2Feed} from "src/feeds/CurveLPYearnV2Feed.sol";
 import {ChainlinkCurve2CoinsFeed} from "src/feeds/ChainlinkCurve2CoinsFeed.sol";
-import {ChainlinkCurveFeed} from "src/feeds/ChainlinkCurveFeed.sol";
+import {ChainlinkCurveFeed, ICurvePool} from "src/feeds/ChainlinkCurveFeed.sol";
 import "src/feeds/ChainlinkBasePriceFeed.sol";
 import "src/feeds/CurveLPYearnV2Feed.sol";
 import {console} from "forge-std/console.sol";
-import {ICurvePool} from "src/feeds/CurveLPSingleFeed.sol";
 import {YearnVaultV2Helper, IYearnVaultV2} from "src/util/YearnVaultV2Helper.sol";
 
 interface IYearnVaultFactory {
@@ -84,13 +83,11 @@ contract CrvUSDDolaYearnV2MarketForkTest is MarketBaseForkTest {
             gov,
             address(fraxToUsd),
             address(0),
-            fraxHeartbeat,
-            8
+            fraxHeartbeat
         );
         crvUSDFallback = new ChainlinkCurve2CoinsFeed(
             address(baseFraxToUsd),
             address(crvUSDFrax),
-            8,
             crvUSDIndex
         );
 
@@ -99,8 +96,7 @@ contract CrvUSDDolaYearnV2MarketForkTest is MarketBaseForkTest {
             gov,
             address(crvUSDToUsd),
             address(crvUSDFallback),
-            crvUSDHeartbeat,
-            8
+            crvUSDHeartbeat
         );
 
         feed = new CurveLPYearnV2Feed(address(yearn), address(mainCrvUSDFeed));

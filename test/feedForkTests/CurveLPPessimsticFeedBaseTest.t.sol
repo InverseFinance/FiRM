@@ -5,7 +5,7 @@ import "forge-std/Test.sol";
 import {console} from "forge-std/console.sol";
 import "src/feeds/ChainlinkBasePriceFeed.sol";
 import {ChainlinkCurveFeed} from "src/feeds/ChainlinkCurveFeed.sol";
-import {ChainlinkCurve2CoinsFeed} from "src/feeds/ChainlinkCurve2CoinsFeed.sol";
+//import {ChainlinkCurveFeed} from "src/feeds/ChainlinkCurveFeed.sol";
 import "src/feeds/CurveLPPessimisticFeed.sol";
 
 abstract contract CurveLPPessimiticFeedBaseTest is Test {
@@ -14,7 +14,7 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
     ChainlinkBasePriceFeed coin2Feed; // main coin2 feed
     ChainlinkBasePriceFeed baseClFallCoin1; //cl base price feed for coin1 fallback
     ChainlinkBasePriceFeed baseClFallCoin2; // cl base price feed for coin2 fallback
-    ChainlinkCurve2CoinsFeed coin1Fallback; // coin1 fallback
+    ChainlinkCurveFeed coin1Fallback; // coin1 fallback
     ChainlinkCurveFeed coin2Fallback; // coin2 fallback
 
     ICurvePool public curvePool; // Curve Pool for virtual price
@@ -26,6 +26,7 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
     IChainlinkFeed public coin2ClFallback;
 
     //address public gov = 0x926dF14a23BE491164dCF93f4c468A50ef659D5B;
+    uint256 public constant SCALE = 1e18;
 
     function init(
         address _baseClFallCoin1,
@@ -37,7 +38,7 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
         address _curvePool
     ) public {
         baseClFallCoin1 = ChainlinkBasePriceFeed(_baseClFallCoin1);
-        coin1Fallback = ChainlinkCurve2CoinsFeed(_coin1Fallback);
+        coin1Fallback = ChainlinkCurveFeed(_coin1Fallback);
         coin1Feed = ChainlinkBasePriceFeed(_coin1Feed);
         baseClFallCoin2 = ChainlinkBasePriceFeed(_baseClFallCoin2);
         coin2Fallback = ChainlinkCurveFeed(_coin2Fallback);
@@ -51,6 +52,7 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
             address(coin1Feed),
             address(coin2Feed)
         );
+        // console.log("feed :", feed.description());
     }
 
     function test_decimals() public {
@@ -144,7 +146,7 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
 
         uint256 estimLPUsdPrice = uint256(
             ((feed.curvePool().get_virtual_price() * uint256(coin2UsdPrice)) /
-                10 ** 8)
+                10 ** coin2Feed.assetToUsd().decimals())
         );
         assertEq(clRoundId, roundId);
         assertEq(clStartedAt, startedAt);
@@ -212,7 +214,7 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
         }
         int lpPrice = int(
             ((feed.curvePool().get_virtual_price() * coin2UsdFallPrice) /
-                10 ** 8)
+                10 ** 18)
         );
         assertEq(uint256(lpUsdPrice), uint256(lpPrice));
         assertEq(uint256(lpUsdPrice), uint(feed.latestAnswer()));
@@ -278,7 +280,7 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
 
         int lpPrice = int(
             ((feed.curvePool().get_virtual_price() * coin2UsdFallPrice) /
-                10 ** 8)
+                10 ** 18)
         );
         assertEq(uint256(lpUsdPrice), uint256(lpPrice));
         assertEq(uint256(lpUsdPrice), uint(feed.latestAnswer()));
@@ -319,10 +321,21 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
         assertEq(updatedAtFall, updatedAt);
         assertEq(answeredInRoundFall, answeredInRound);
 
-        uint256 coin1FallPrice = (uint256(coin1ClFallbackPrice) * 10 ** 18) /
-            coin1Fallback.curvePool().price_oracle();
+        uint256 coin1UsdFallPrice;
+        if (coin1Fallback.targetIndex() == 0) {
+            coin1UsdFallPrice = ((uint256(coin1ClFallbackPrice) * 10 ** 18) /
+                coin1Fallback.curvePool().price_oracle(
+                    coin1Fallback.assetOrTargetK()
+                ));
+        } else {
+            coin1UsdFallPrice = ((uint256(coin1ClFallbackPrice) *
+                coin1Fallback.curvePool().price_oracle(
+                    coin1Fallback.assetOrTargetK()
+                )) / 10 ** 18);
+        }
         int lpPrice = int(
-            ((feed.curvePool().get_virtual_price() * coin1FallPrice) / 10 ** 8)
+            ((feed.curvePool().get_virtual_price() * coin1UsdFallPrice) /
+                10 ** 18)
         );
         assertEq(uint256(lpUsdPrice), uint256(lpPrice));
         assertEq(uint256(lpUsdPrice), uint(feed.latestAnswer()));
@@ -363,13 +376,27 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
         assertEq(updatedAtFall, updatedAt);
         assertEq(answeredInRoundFall, answeredInRound);
 
-        uint256 coin1FallPrice = (uint256(coin1ClFallbackPrice) * 10 ** 18) /
-            coin1Fallback.curvePool().price_oracle();
+        uint256 coin1UsdFallPrice;
+        if (coin1Fallback.targetIndex() == 0) {
+            coin1UsdFallPrice = ((uint256(coin1ClFallbackPrice) * 10 ** 18) /
+                coin1Fallback.curvePool().price_oracle(
+                    coin1Fallback.assetOrTargetK()
+                ));
+        } else {
+            coin1UsdFallPrice = ((uint256(coin1ClFallbackPrice) *
+                coin1Fallback.curvePool().price_oracle(
+                    coin1Fallback.assetOrTargetK()
+                )) / 10 ** 18);
+        }
         int lpPrice = int(
-            ((feed.curvePool().get_virtual_price() * coin1FallPrice) / 10 ** 8)
+            ((feed.curvePool().get_virtual_price() * coin1UsdFallPrice) /
+                10 ** 18)
         );
+
         assertEq(uint256(lpUsdPrice), uint256(lpPrice));
         assertEq(uint256(lpUsdPrice), uint(feed.latestAnswer()));
+        console.log("coin1UsdFallPrice", coin1UsdFallPrice);
+        console.log("lpUsdPrice: ", uint(lpUsdPrice));
     }
 
     function test_coin2_Out_of_bounds_MAX_use_coin2_fallback_when_coin2_lt_coin1()
@@ -440,7 +467,7 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
         assertEq(uint256(coin2FallPrice), estimatedCoin2Price);
         int lpPrice = int(
             ((feed.curvePool().get_virtual_price() * uint(coin2FallPrice)) /
-                10 ** 8)
+                10 ** 18)
         );
         assertEq(uint256(lpUsdPrice), uint256(lpPrice));
         assertEq(uint256(lpUsdPrice), uint(feed.latestAnswer()));
@@ -508,10 +535,12 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
         assertEq(clAnsweredInRound2, answeredInRound);
 
         (, int256 coin2FallPrice, , , ) = coin2Fallback.latestRoundData();
+        console.log(uint256(coin2FallPrice), "price coin2 fallback");
+        console.log(uint256(coin2ClFallbackPrice), "price coin2 cl fallback");
         uint256 estimatedCoin2Fallback;
         if (coin2Fallback.targetIndex() == 0) {
             estimatedCoin2Fallback = ((uint256(coin2ClFallbackPrice) *
-                10 ** 18) /
+                10 ** 28) /
                 coin2Fallback.curvePool().price_oracle(
                     coin2Fallback.assetOrTargetK()
                 ));
@@ -519,15 +548,19 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
             estimatedCoin2Fallback = ((uint256(coin2ClFallbackPrice) *
                 coin2Fallback.curvePool().price_oracle(
                     coin2Fallback.assetOrTargetK()
-                )) / 10 ** 18);
+                )) / 10 ** 8);
         }
-        assertEq(uint256(coin2FallPrice), estimatedCoin2Fallback);
+        assertEq(uint256(coin2FallPrice), estimatedCoin2Fallback, "fallback");
         int lpPrice = int(
             ((feed.curvePool().get_virtual_price() * uint(coin2FallPrice)) /
-                10 ** 8)
+                10 ** 18)
         );
-        assertEq(uint256(lpUsdPrice), uint256(lpPrice));
-        assertEq(uint256(lpUsdPrice), uint(feed.latestAnswer()));
+        assertEq(
+            uint256(lpUsdPrice),
+            uint256(lpPrice),
+            "calculated price not correct"
+        );
+        assertEq(uint256(lpUsdPrice), uint(feed.latestAnswer()), "latest");
     }
 
     function test_STALE_ClFeed_for_coin2_fallback_When_Out_Of_MAX_Bound_coin2_and_coin1_gt_coin2()
@@ -557,7 +590,9 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
             uint clUpdatedAt2,
             uint80 clAnsweredInRound2
         ) = coin2Fallback.assetToUsd().latestRoundData();
-
+        console.log(uint(coin2ClFallbackPrice), "test");
+        (, int256 coin2FallPriceBefore, , , ) = coin2Fallback.latestRoundData();
+        console.log(uint(coin2FallPriceBefore), "before mock");
         // Out of MIN bounds main coin2 price
         _mockCall_Chainlink(
             address(coin2Feed.assetToUsd()),
@@ -572,7 +607,7 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
         _mockCall_Chainlink(
             address(baseClFallCoin2.assetToUsd()),
             clRoundId2,
-            coin2ClFallbackPrice,
+            coin2ClFallbackPrice / 10 ** 10,
             clStartedAt2,
             clUpdatedAt2 - 1 - baseClFallCoin2.assetToUsdHeartbeat(),
             clAnsweredInRound2
@@ -588,11 +623,13 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
 
         assertEq(clRoundId2, roundId);
         assertEq(clStartedAt2, startedAt);
-        assertEq(0, updatedAt); // This will cause STALE price on the borrow controller
+        assertEq(0, updatedAt, "stale"); // This will cause STALE price on the borrow controller
         assertEq(clAnsweredInRound2, answeredInRound);
 
         (, int256 coin2FallPrice, , , ) = coin2Fallback.latestRoundData();
         uint256 estimatedCoin2Fallback;
+        console.log(uint(coin2FallPrice), "coin2FallPrice");
+        console.log(uint256(coin2ClFallbackPrice), "coin2ClFallbackPrice");
         if (coin2Fallback.targetIndex() == 0) {
             estimatedCoin2Fallback = ((uint256(coin2ClFallbackPrice) *
                 10 ** 18) /
@@ -609,9 +646,9 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
         assertEq(uint256(coin2FallPrice), estimatedCoin2Fallback);
         int lpPrice = int(
             ((feed.curvePool().get_virtual_price() * uint(coin2FallPrice)) /
-                10 ** 8)
+                10 ** 18)
         );
-        assertEq(uint256(lpUsdPrice), uint256(lpPrice));
+        assertEq(uint256(lpUsdPrice), uint256(lpPrice), "lpPrice");
         assertEq(uint256(lpUsdPrice), uint(feed.latestAnswer()));
     }
 
@@ -655,13 +692,27 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
         assertEq(clStartedAt2, startedAt);
         assertEq(clUpdatedAt2, updatedAt);
         assertEq(clAnsweredInRound2, answeredInRound);
+        uint256 coin1UsdFallPrice;
+        console.log(uint(coin1ClFallbackPrice), "lp Price");
 
-        uint256 calculatedLPUsdPrice = (((uint256(coin1ClFallbackPrice) *
-            10 ** 18) / coin1Fallback.curvePool().price_oracle()) *
-            feed.curvePool().get_virtual_price()) / 10 ** 8;
+        if (coin1Fallback.targetIndex() == 0) {
+            coin1UsdFallPrice = ((uint256(coin1ClFallbackPrice) * 10 ** 18) /
+                coin1Fallback.curvePool().price_oracle(
+                    coin1Fallback.assetOrTargetK()
+                ));
+        } else {
+            coin1UsdFallPrice = ((uint256(coin1ClFallbackPrice) *
+                coin1Fallback.curvePool().price_oracle(
+                    coin1Fallback.assetOrTargetK()
+                )) / 10 ** 18);
+        }
+        uint256 calculatedLPUsdPrice = (coin1UsdFallPrice *
+            feed.curvePool().get_virtual_price()) / 10 ** 18;
 
-        assertEq(uint256(lpUsdPrice), calculatedLPUsdPrice);
+        assertEq(uint256(lpUsdPrice), calculatedLPUsdPrice, "lp Price");
         assertEq(uint256(lpUsdPrice), uint(feed.latestAnswer()));
+        console.log("coin1UsdFallPrice", coin1UsdFallPrice);
+        console.log("lpUsdPrice: ", uint(lpUsdPrice));
     }
 
     function test_STALE_coin1_and_STALE_coin1_fallback_then_use_coin2_even_if_coin1_lt_coin2()
@@ -799,8 +850,9 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
                     coin2Fallback.assetOrTargetK()
                 )) / 10 ** 18);
         }
+
         uint256 calculatedLPUsdPrice = (feed.curvePool().get_virtual_price() *
-            uint256(estimatedCoin2Fallback)) / 10 ** 8;
+            uint256(estimatedCoin2Fallback)) / 10 ** 18;
 
         assertEq(uint256(lpUsdPrice), calculatedLPUsdPrice);
         assertEq(uint256(lpUsdPrice), uint(feed.latestAnswer()));
@@ -826,7 +878,11 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
         assertEq(
             uint(coin1FallPrice),
             (uint(coin1ClFallbackPrice) * 10 ** 18) /
-                uint(coin1Fallback.curvePool().price_oracle())
+                uint(
+                    coin1Fallback.curvePool().price_oracle(
+                        coin1Fallback.assetOrTargetK()
+                    )
+                )
         );
         assertEq(roundIdFall, roundId);
         assertEq(startedAtFall, startedAt);

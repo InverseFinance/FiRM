@@ -127,13 +127,11 @@ contract DolaFraxPyUSDYearnV2MarketForkTest is MarketBaseForkTest {
             gov,
             address(crvUSDToUsd),
             address(0),
-            crvUSDHeartbeat,
-            8
+            crvUSDHeartbeat
         );
         fraxFallback = new ChainlinkCurve2CoinsFeed(
             address(baseCrvUsdToUsd),
             address(crvUSDFrax),
-            8,
             fraxIndex
         );
 
@@ -142,15 +140,13 @@ contract DolaFraxPyUSDYearnV2MarketForkTest is MarketBaseForkTest {
             gov,
             address(usdcToUsd),
             address(0),
-            usdcHeartbeat,
-            8
+            usdcHeartbeat
         );
 
         pyUSDFallback = new ChainlinkCurveFeed(
             address(baseUsdcToUsd),
             address(pyUsdUsdc),
             targetKPyUsd,
-            8,
             1
         );
 
@@ -159,16 +155,14 @@ contract DolaFraxPyUSDYearnV2MarketForkTest is MarketBaseForkTest {
             gov,
             address(fraxToUsd),
             address(fraxFallback),
-            fraxHeartbeat,
-            8
+            fraxHeartbeat
         );
 
         mainPyUSDFeed = new ChainlinkBasePriceFeed(
             gov,
             address(pyUsdToUsd),
             address(pyUSDFallback),
-            pyUSDHeartbeat,
-            8
+            pyUSDHeartbeat
         );
 
         feedDolaFraxPyUSD = new CurveLPPessimisticFeed(

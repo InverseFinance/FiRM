@@ -6,9 +6,11 @@ import "src/feeds/ChainlinkBasePriceFeed.sol";
 import {ChainlinkCurveFeed} from "src/feeds/ChainlinkCurveFeed.sol";
 import {ChainlinkCurve2CoinsFeed} from "src/feeds/ChainlinkCurve2CoinsFeed.sol";
 import "src/feeds/CurveLPPessimisticFeed.sol";
-import {CurveLPPessimiticYearnV2FeedBaseTest} from "test/feedForkTests/CurveLPPessimsticYearnV2FeedBaseTest.t.sol";
 import {IERC20} from "src/interfaces/IERC20.sol";
 import {IYearnVaultV2} from "src/interfaces/IYearnVaultV2.sol";
+import {DolaFixedPriceFeed} from "src/feeds/DolaFixedPriceFeed.sol";
+import {CurveLPYearnV2Feed} from "src/feeds/CurveLPYearnV2Feed.sol";
+import {CurveLPYearnV2FeedBaseTest} from "test/feedForkTests/CurveLPYearnV2FeedBaseTest.t.sol";
 
 interface IYearnVaultFactory {
     function createNewVaultsAndStrategies(
@@ -23,17 +25,21 @@ interface IYearnVaultFactory {
         );
 }
 
-contract DolaFraxPyUsdYearnV2FeedFork is CurveLPPessimiticYearnV2FeedBaseTest {
+contract DolaFraxPyUsdYearnV2FeedFork is CurveLPYearnV2FeedBaseTest {
     ChainlinkBasePriceFeed mainFraxFeed;
     ChainlinkBasePriceFeed mainPyUSDFeed;
     ChainlinkBasePriceFeed baseCrvUsdToUsd;
     ChainlinkBasePriceFeed baseUsdcToUsd;
     ChainlinkCurveFeed pyUSDFallback;
     ChainlinkCurve2CoinsFeed fraxFallback;
+    CurveLPPessimisticFeed fraxPyUsdFeed;
+    CurveLPPessimisticFeed dolaFraxPyUsdFeed;
+    DolaFixedPriceFeed dolaFeed;
 
     ICurvePool public constant dolaPyUSDFrax =
         ICurvePool(0xef484de8C07B6e2d732A92B5F78e81B38f99f95E);
-
+    ICurvePool public constant pyUSDFrax =
+        ICurvePool(0xA5588F7cdf560811710A2D82D3C9c99769DB1Dcb);
     IChainlinkFeed public constant pyUsdToUsd =
         IChainlinkFeed(0x8f1dF6D7F2db73eECE86a18b4381F4707b918FB1);
 
@@ -66,26 +72,24 @@ contract DolaFraxPyUsdYearnV2FeedFork is CurveLPPessimiticYearnV2FeedBaseTest {
     // For yearn vault creation and initial deposit
     address lpHolder = 0xBFa04e5D6Ac1163b7Da3E873e5B9C969E91A0Ac0;
     address gauge = 0x4B092818708A721cB187dFACF41f440ADb79044D;
-    address _yearn;
+    address _yearn = 0xcC2EFb8bEdB6eD69ADeE0c3762470c38D4730C50;
     address yearnHolder = address(0xD);
     IYearnVaultFactory yearnFactory =
         IYearnVaultFactory(0x21b1FC8A52f179757bf555346130bF27c0C2A17A);
 
     function setUp() public {
         string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url, 20060490); // FRAX < pyUSD at this block  coin1 < coin2 at this block
+        vm.createSelectFork(url, 20816091); // FRAX < pyUSD at this block  coin1 < coin2 at this block
         // FRAX fallback
         baseCrvUsdToUsd = new ChainlinkBasePriceFeed(
             gov,
             address(crvUSDToUsd),
             address(0),
-            crvUSDHeartbeat,
-            8
+            crvUSDHeartbeat
         );
         fraxFallback = new ChainlinkCurve2CoinsFeed(
             address(baseCrvUsdToUsd),
             address(crvUSDFrax),
-            8,
             fraxIndex
         );
 
@@ -94,15 +98,13 @@ contract DolaFraxPyUsdYearnV2FeedFork is CurveLPPessimiticYearnV2FeedBaseTest {
             gov,
             address(usdcToUsd),
             address(0),
-            usdcHeartbeat,
-            8
+            usdcHeartbeat
         );
 
         pyUSDFallback = new ChainlinkCurveFeed(
             address(baseUsdcToUsd),
             address(pyUsdUsdc),
             targetKPyUsd,
-            8,
             1
         );
 
@@ -111,39 +113,53 @@ contract DolaFraxPyUsdYearnV2FeedFork is CurveLPPessimiticYearnV2FeedBaseTest {
             gov,
             address(fraxToUsd),
             address(fraxFallback),
-            fraxHeartbeat,
-            8
+            fraxHeartbeat
         );
 
         mainPyUSDFeed = new ChainlinkBasePriceFeed(
             gov,
             address(pyUsdToUsd),
             address(pyUSDFallback),
-            pyUSDHeartbeat,
-            8
+            pyUSDHeartbeat
         );
 
-        if (_yearn == address(0)) {
-            // Setup YearnVault
+        fraxPyUsdFeed = new CurveLPPessimisticFeed(
+            address(pyUSDFrax),
+            address(mainFraxFeed),
+            address(mainPyUSDFeed)
+        );
 
-            (address yearnVault, , , ) = yearnFactory
-                .createNewVaultsAndStrategies(gauge);
-            _yearn = yearnVault;
-            vm.startPrank(lpHolder, lpHolder);
-            IERC20(address(dolaPyUSDFrax)).approve(_yearn, type(uint256).max);
-            IYearnVaultV2(_yearn).deposit(1000000, yearnHolder);
-            vm.stopPrank();
-        }
+        dolaFeed = new DolaFixedPriceFeed();
+
+        dolaFraxPyUsdFeed = new CurveLPPessimisticFeed(
+            address(dolaPyUSDFrax),
+            address(fraxPyUsdFeed),
+            address(dolaFeed)
+        );
+        // if (_yearn == address(0)) {
+        //     // Setup YearnVault
+
+        //     (address yearnVault, , , ) = yearnFactory
+        //         .createNewVaultsAndStrategies(gauge);
+        //     _yearn = yearnVault;
+        //     vm.startPrank(lpHolder, lpHolder);
+        //     IERC20(address(dolaPyUSDFrax)).approve(_yearn, type(uint256).max);
+        //     IYearnVaultV2(_yearn).deposit(1000000, yearnHolder);
+        //     vm.stopPrank();
+        // }
+        // feed = new CurveLPYearnV2Feed(
+        //     address(yearn),
+        //     address(dolaFraxPyUsdFeed)
+        // );
 
         init(
-            address(baseCrvUsdToUsd),
-            address(fraxFallback),
-            address(mainFraxFeed),
-            address(baseUsdcToUsd),
-            address(pyUSDFallback),
-            address(mainPyUSDFeed),
+            address(dolaFraxPyUsdFeed),
             address(dolaPyUSDFrax),
             address(_yearn)
         );
+    }
+
+    function test_description() public {
+        console.log("feed:", feed.description());
     }
 }

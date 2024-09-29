@@ -6,11 +6,9 @@ import "src/feeds/ChainlinkBasePriceFeed.sol";
 import {ChainlinkCurveFeed} from "src/feeds/ChainlinkCurveFeed.sol";
 import {ChainlinkCurveFeed} from "src/feeds/ChainlinkCurveFeed.sol";
 import "src/feeds/CurveLPPessimisticFeed.sol";
-import {CurveLPPessimisticFeed} from "src/feeds/CurveLPPessimisticFeed.sol";
-import {DolaCurveLPPessimsticFeedBaseTest} from "test/feedForkTests/DolaCurveLPPessimsticFeedBaseTest.t.sol";
-import {DolaFixedPriceFeed} from "src/feeds/DolaFixedPriceFeed.sol";
+import {CurveLPPessimiticFeedBaseTest} from "test/feedForkTests/CurveLPPessimsticFeedBaseTest.t.sol";
 
-contract DolaFraxPyUsdPriceFeedFork is DolaCurveLPPessimsticFeedBaseTest {
+contract FraxPyUsdPriceFeedFork is CurveLPPessimiticFeedBaseTest {
     ChainlinkBasePriceFeed mainFraxFeed;
     ChainlinkBasePriceFeed mainPyUSDFeed;
     ChainlinkBasePriceFeed baseCrvUsdToUsd;
@@ -18,11 +16,6 @@ contract DolaFraxPyUsdPriceFeedFork is DolaCurveLPPessimsticFeedBaseTest {
     ChainlinkBasePriceFeed baseUsdeToUsd;
     ChainlinkCurveFeed pyUSDFallback;
     ChainlinkCurveFeed fraxFallback;
-    CurveLPPessimisticFeed fraxPyUsdFeed;
-    CurveLPPessimisticFeed dolaFraxPyUsdFeed;
-
-    ICurvePool public constant dolaPyUSDFrax =
-        ICurvePool(0xef484de8C07B6e2d732A92B5F78e81B38f99f95E);
 
     ICurvePool public constant pyUSDFrax =
         ICurvePool(0xA5588F7cdf560811710A2D82D3C9c99769DB1Dcb);
@@ -111,19 +104,14 @@ contract DolaFraxPyUsdPriceFeedFork is DolaCurveLPPessimsticFeedBaseTest {
             pyUSDHeartbeat
         );
 
-        fraxPyUsdFeed = new CurveLPPessimisticFeed(
-            address(pyUSDFrax),
+        init(
+            address(baseUsdeToUsd),
+            address(fraxFallback),
             address(mainFraxFeed),
-            address(mainPyUSDFeed)
+            address(baseUsdcToUsd),
+            address(pyUSDFallback),
+            address(mainPyUSDFeed),
+            address(pyUSDFrax)
         );
-
-        //   dolaFeed = new DolaFixedPriceFeed();
-
-        // dolaFraxPyUsdFeed = new CurveLPPessimisticFeed(
-        //     address(dolaPyUSDFrax),
-        //     address(fraxPyUsdFeed),
-        //     address(dolaFeed)
-        // );
-        init(address(0), address(fraxPyUsdFeed), address(dolaPyUSDFrax));
     }
 }

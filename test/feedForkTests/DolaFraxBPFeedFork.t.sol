@@ -61,13 +61,11 @@ contract DolaFraxBPPriceFeedFork is CurveLPPessimiticFeedBaseTest {
             gov,
             address(crvUSDToUsd),
             address(0),
-            crvUSDHeartbeat,
-            8
+            crvUSDHeartbeat
         );
         fraxFallback = new ChainlinkCurve2CoinsFeed(
             address(baseCrvUsdToUsd),
             address(crvUSDFrax),
-            8,
             fraxIndex
         );
 
@@ -76,14 +74,12 @@ contract DolaFraxBPPriceFeedFork is CurveLPPessimiticFeedBaseTest {
             gov,
             address(ethToUsd),
             address(0),
-            ethHeartbeat,
-            8
+            ethHeartbeat
         );
         usdcFallback = new ChainlinkCurveFeed(
             address(baseEthToUsd),
             address(tricryptoETH),
             ethK,
-            8,
             0
         );
 
@@ -92,16 +88,14 @@ contract DolaFraxBPPriceFeedFork is CurveLPPessimiticFeedBaseTest {
             gov,
             address(fraxToUsd),
             address(fraxFallback),
-            fraxHeartbeat,
-            8
+            fraxHeartbeat
         );
 
         mainUsdcFeed = new ChainlinkBasePriceFeed(
             gov,
             address(usdcToUsd),
             address(usdcFallback),
-            usdcHeartbeat,
-            8
+            usdcHeartbeat
         );
 
         init(
