@@ -80,7 +80,7 @@ contract YVYCRVHelper is Sweepable, ReentrancyGuard {
 
         underlyingAmount = vault.withdraw(_value, msg.sender, maxLoss);
 
-        if (underlyingAmount < estimateAmount)
+        if (underlyingAmount < estimateAmount - 1)
             revert WithdrawFailed(estimateAmount, underlyingAmount);
     }
 

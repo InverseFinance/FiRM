@@ -409,10 +409,7 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
     }
 
     function test_deleveragePosition_sellDBR(uint256 styCRVAmount) public {
-        // the max amount available on yearn at this block is 19742662569980907761513 yCRV before reverting
-        // when attempting to unstake from a strategy with EVM not Activated even with evm_version = "shanghai"
-        // which means a max styCRVAmount of 111484195784517511375649 for this test
-        vm.assume(styCRVAmount < 111484195784517511375650); // 111484 * 1e18 styCRV
+        vm.assume(styCRVAmount < IERC20(yvyCRVAddr).balanceOf(styCRVHolder));
         vm.assume(styCRVAmount > 0.00000001 ether);
         // We are going to deposit some st-yCRV, then borrow and then deleverage the position
 
@@ -450,7 +447,7 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
 
         // recharge mocked proxy for swap, we need to swap DOLA to unwrapped collateral
         vm.startPrank(gov);
-        DOLA.mint(address(exchangeProxy), dolaAmountForSwap);
+        DOLA.mint(address(exchangeProxy), dolaAmountForSwap + 1);
         vm.stopPrank();
 
         bytes32 hash = keccak256(
@@ -487,14 +484,14 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
             YearnVaultV2Helper.collateralToAsset(
                 IYearnVaultV2(yvyCRVAddr),
                 amountToWithdraw
-            )
+            ) - 1
         );
 
         vm.startPrank(userPk, userPk);
         dbr.approve(address(ale), type(uint).max);
 
         ale.deleveragePosition(
-            _convertCollatToDola(amountToWithdraw),
+            _convertCollatToDola(amountToWithdraw) - 1, // repay little less bc of yearn 1 wei conversion loss
             address(market),
             amountToWithdraw,
             address(exchangeProxy),
@@ -520,10 +517,7 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
     }
 
     function test_deleveragePosition(uint256 styCRVAmount) public {
-        // the max amount available on yearn at this block is 19742662569980907761513 yCRV before reverting
-        // when attempting to unstake from a strategy with EVM not Activated even with evm_version = "shanghai"
-        // which means a max styCRVAmount of 111484195784517511375649 for this test
-        vm.assume(styCRVAmount < 111484195784517511375650); // 111484 * 1e18 styCRV
+        vm.assume(styCRVAmount < IERC20(yvyCRVAddr).balanceOf(styCRVHolder));
         vm.assume(styCRVAmount > 0.00000001 ether);
 
         // We are going to deposit some st-yCRV, then borrow and then deleverage the position
@@ -558,7 +552,7 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
 
         // recharge mocked proxy for swap, we need to swap DOLA to unwrapped collateral
         vm.startPrank(gov);
-        DOLA.mint(address(exchangeProxy), dolaAmountForSwap);
+        DOLA.mint(address(exchangeProxy), dolaAmountForSwap + 2);
         vm.stopPrank();
 
         bytes32 hash = keccak256(
@@ -591,14 +585,14 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
             YearnVaultV2Helper.collateralToAsset(
                 IYearnVaultV2(yvyCRVAddr),
                 amountToWithdraw
-            )
+            ) - 1 // swap little less because of yearn 1 wei conversion loss if withdrawing from strategy
         );
 
         vm.startPrank(userPk, userPk);
         DOLA.approve(address(ale), borrowAmount / 2);
 
         ale.deleveragePosition(
-            _convertCollatToDola(amountToWithdraw),
+            _convertCollatToDola(amountToWithdraw) - 1,
             address(market),
             amountToWithdraw,
             address(exchangeProxy),
@@ -618,7 +612,7 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
             styCRVAmount - amountToWithdraw
         );
         // User still has dola but has some debt repaid
-        assertApproxEqAbs(DOLA.balanceOf(userPk), borrowAmount / 2, 1);
+        assertApproxEqAbs(DOLA.balanceOf(userPk), borrowAmount / 2, 2);
     }
 
     function test_depositAndLeveragePosition_buyDBR(uint256 amount) public {
