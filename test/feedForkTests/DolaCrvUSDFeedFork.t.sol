@@ -53,12 +53,12 @@ contract DolaCrvUSDPriceFeedFork is
         string memory url = vm.rpcUrl("mainnet");
         vm.createSelectFork(url, 20591674);
         //CrvUSD fallback
-        baseFraxToUsd = new ChainlinkBasePriceFeed(
-            gov,
-            address(fraxToUsd),
-            address(0),
-            fraxHeartbeat
-        );
+        // baseFraxToUsd = new ChainlinkBasePriceFeed(
+        //     gov,
+        //     address(fraxToUsd),
+        //     address(0),
+        //     fraxHeartbeat
+        // );
         baseUsdcToUsd = new ChainlinkBasePriceFeed(
             gov,
             address(usdcToUsd),
@@ -70,7 +70,7 @@ contract DolaCrvUSDPriceFeedFork is
             address(crvUSDUSDC),
             crvUSDIndex
         );
-        console.log("crvUSDFallback: ", crvUSDFallback.description());
+        //  console.log("crvUSDFallback: ", crvUSDFallback.description());
         // Main feed
         mainCrvUSDFeed = new ChainlinkBasePriceFeed(
             gov,
@@ -78,7 +78,7 @@ contract DolaCrvUSDPriceFeedFork is
             address(crvUSDFallback),
             crvUSDHeartbeat
         );
-        console.log("mainCrvUSDFeed: ", mainCrvUSDFeed.description());
+        // console.log("mainCrvUSDFeed: ", mainCrvUSDFeed.description());
 
         init(
             address(crvUSDFallback),

@@ -7,10 +7,12 @@ import {ChainlinkCurveFeed} from "src/feeds/ChainlinkCurveFeed.sol";
 import {ChainlinkCurveFeed} from "src/feeds/ChainlinkCurveFeed.sol";
 import "src/feeds/CurveLPPessimisticFeed.sol";
 import {CurveLPPessimisticFeed} from "src/feeds/CurveLPPessimisticFeed.sol";
-import {DolaCurveLPPessimsticFeedBaseTest} from "test/feedForkTests/DolaCurveLPPessimsticFeedBaseTest.t.sol";
+import {DolaCurveLPPessimisticNestedFeedBaseTest} from "test/feedForkTests/DolaCurveLPPessimisticNestedFeedBaseTest.t.sol";
 import {DolaFixedPriceFeed} from "src/feeds/DolaFixedPriceFeed.sol";
 
-contract DolaFraxPyUsdPriceFeedFork is DolaCurveLPPessimsticFeedBaseTest {
+contract DolaFraxPyUsdPriceFeedFork is
+    DolaCurveLPPessimisticNestedFeedBaseTest
+{
     ChainlinkBasePriceFeed mainFraxFeed;
     ChainlinkBasePriceFeed mainPyUSDFeed;
     ChainlinkBasePriceFeed baseCrvUsdToUsd;
@@ -124,6 +126,14 @@ contract DolaFraxPyUsdPriceFeedFork is DolaCurveLPPessimsticFeedBaseTest {
         //     address(fraxPyUsdFeed),
         //     address(dolaFeed)
         // );
-        init(address(0), address(fraxPyUsdFeed), address(dolaPyUSDFrax));
+        console.log(
+            "fraxPyUSDFallbck, ",
+            address(fraxPyUsdFeed.coin1Feed().assetToUsdFallback())
+        );
+        init(
+            address(fraxPyUsdFeed.coin1Feed().assetToUsdFallback()),
+            address(fraxPyUsdFeed),
+            address(dolaPyUSDFrax)
+        );
     }
 }

@@ -25,4 +25,6 @@ interface IChainlinkBasePriceFeed is IChainlinkFeed {
     function assetToUsd() external view returns (IChainlinkFeed);
 
     function assetToUsdFallback() external view returns (IChainlinkFeed);
+
+    function assetToUsdHeartbeat() external view returns (uint256 heartbeat);
 }

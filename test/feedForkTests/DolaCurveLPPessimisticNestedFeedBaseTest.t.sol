@@ -9,7 +9,7 @@ import {ChainlinkCurveFeed} from "src/feeds/ChainlinkCurveFeed.sol";
 import "src/feeds/CurveLPPessimisticFeed.sol";
 import {DolaFixedPriceFeed} from "src/feeds/DolaFixedPriceFeed.sol";
 
-abstract contract DolaCurveLPPessimsticFeedBaseTest is Test {
+abstract contract DolaCurveLPPessimisticNestedFeedBaseTest is Test {
     CurveLPPessimisticFeed feed;
     ChainlinkBasePriceFeed coin1Feed; // main coin1 feed
     DolaFixedPriceFeed dolaFeed; // main coin2 feed
@@ -38,6 +38,10 @@ abstract contract DolaCurveLPPessimsticFeedBaseTest is Test {
             address(coin1Feed),
             address(dolaFeed)
         );
+        console.log("coin1Fallback: ", address(coin1Fallback));
+        if (address(coin1ClFallback) != address(0)) {
+            coin1ClFallback = coin1Fallback.assetToUsd();
+        }
     }
 
     function test_description() public {
@@ -149,125 +153,22 @@ abstract contract DolaCurveLPPessimsticFeedBaseTest is Test {
         assertEq(uint256(lpUsdPrice), estimLPUsdPrice, "lpUsdPrice");
     }
 
-    function test_coin1_Out_of_bounds_MAX_use_coin1_Fallback_when_coin1_lt_coin2()
-        public
-    {
-        //Set Out of MAX bounds coin1 main price
-        _mockCall_Chainlink(
-            address(coin1Feed.assetToUsd()),
-            0,
-            IAggregator(coin1Feed.assetToUsd().aggregator()).maxAnswer(),
-            0,
-            0,
-            0
-        );
-
-        // Use coin1 fallback data (from coin1 fallback chainlink feed)
-        (
-            uint80 roundIdFall,
-            int256 coin1ClFallbackPrice,
-            uint256 startedAtFall,
-            uint256 updatedAtFall,
-            uint80 answeredInRoundFall
-        ) = coin1Fallback.assetToUsd().latestRoundData();
-
-        (
-            uint80 roundId,
-            int256 lpUsdPrice,
-            uint startedAt,
-            uint updatedAt,
-            uint80 answeredInRound
-        ) = feed.latestRoundData();
-
-        assertEq(roundIdFall, roundId);
-        assertEq(startedAtFall, startedAt);
-        assertEq(updatedAtFall, updatedAt);
-        assertEq(answeredInRoundFall, answeredInRound);
-
-        uint256 coin1UsdFallPrice;
-        if (coin1Fallback.targetIndex() == 0) {
-            coin1UsdFallPrice = ((uint256(coin1ClFallbackPrice) * SCALE) /
-                coin1Fallback.curvePool().price_oracle());
-        } else {
-            coin1UsdFallPrice = ((uint256(coin1ClFallbackPrice) *
-                coin1Fallback.curvePool().price_oracle()) / SCALE);
-        }
-        int lpPrice = int(
-            ((feed.curvePool().get_virtual_price() * coin1UsdFallPrice) / SCALE)
-        );
-        assertEq(uint256(lpUsdPrice), uint256(lpPrice));
-        assertEq(uint256(lpUsdPrice), uint(feed.latestAnswer()));
-    }
-
-    function test_coin1_Out_of_bounds_MIN_use_coin1_Fallback_when_coin1_lt_coin2()
-        public
-    {
-        //Set Out of MIN bounds coin1 main price
-        _mockCall_Chainlink(
-            address(coin1Feed.assetToUsd()),
-            0,
-            IAggregator(coin1Feed.assetToUsd().aggregator()).minAnswer(),
-            0,
-            0,
-            0
-        );
-
-        // Use coin1 fallback data (from coin1 fallback chainlink feed)
-        (
-            uint80 roundIdFall,
-            int256 coin1ClFallbackPrice,
-            uint256 startedAtFall,
-            uint256 updatedAtFall,
-            uint80 answeredInRoundFall
-        ) = coin1Fallback.assetToUsd().latestRoundData();
-
-        (
-            uint80 roundId,
-            int256 lpUsdPrice,
-            uint startedAt,
-            uint updatedAt,
-            uint80 answeredInRound
-        ) = feed.latestRoundData();
-
-        assertEq(roundIdFall, roundId);
-        assertEq(startedAtFall, startedAt);
-        assertEq(updatedAtFall, updatedAt);
-        assertEq(answeredInRoundFall, answeredInRound);
-
-        uint256 coin1UsdFallPrice;
-        if (coin1Fallback.targetIndex() == 0) {
-            coin1UsdFallPrice = ((uint256(coin1ClFallbackPrice) * SCALE) /
-                coin1Fallback.curvePool().price_oracle());
-        } else {
-            coin1UsdFallPrice = ((uint256(coin1ClFallbackPrice) *
-                coin1Fallback.curvePool().price_oracle()) / SCALE);
-        }
-        int lpPrice = int(
-            ((feed.curvePool().get_virtual_price() * coin1UsdFallPrice) / SCALE)
-        );
-
-        assertEq(uint256(lpUsdPrice), uint256(lpPrice));
-        assertEq(uint256(lpUsdPrice), uint(feed.latestAnswer()));
-        console.log("coin1UsdFallPrice", coin1UsdFallPrice);
-        console.log("lpUsdPrice: ", uint(lpUsdPrice));
-    }
-
-    function test_STALE_coin1_use_coin1_fallback_when_coin1_lt_coin2() public {
+    function test_STALE_coin1_still_use_coin1_if_coin1_lt_coin2() public {
         (
             uint80 clRoundId,
             int256 coin1UsdPrice,
             uint clStartedAt,
             uint clUpdatedAt,
             uint80 clAnsweredInRound
-        ) = coin1Feed.assetToUsd().latestRoundData();
+        ) = coin1Feed.latestRoundData();
 
         // Set coin1 STALE even if < than coin2
         _mockCall_Chainlink(
-            address(coin1Feed.assetToUsd()),
+            address(coin1Feed),
             clRoundId,
             coin1UsdPrice,
             clStartedAt,
-            clUpdatedAt - 1 - coin1Feed.assetToUsdHeartbeat(),
+            clUpdatedAt - 25 hours,
             clAnsweredInRound
         );
 
@@ -279,37 +180,20 @@ abstract contract DolaCurveLPPessimsticFeedBaseTest is Test {
             uint80 answeredInRound
         ) = feed.latestRoundData();
 
-        (
-            uint80 clRoundId2,
-            int256 coin1ClFallbackPrice,
-            uint clStartedAt2,
-            uint clUpdatedAt2,
-            uint80 clAnsweredInRound2
-        ) = coin1Fallback.assetToUsd().latestRoundData();
+        // When coin1 is fully stale, if coin1 < coin2, use coin1
+        assertEq(clRoundId, roundId);
+        assertEq(clStartedAt, startedAt);
+        assertEq(clUpdatedAt - 25 hours, updatedAt);
+        assertEq(clAnsweredInRound, answeredInRound);
 
-        // When coin1 is stale if coin1 < coin2, use coin1 fallback
-        assertEq(clRoundId2, roundId);
-        assertEq(clStartedAt2, startedAt);
-        assertEq(clUpdatedAt2, updatedAt);
-        assertEq(clAnsweredInRound2, answeredInRound);
-        uint256 coin1UsdFallPrice;
-        if (coin1Fallback.targetIndex() == 0) {
-            coin1UsdFallPrice = ((uint256(coin1ClFallbackPrice) * SCALE) /
-                coin1Fallback.curvePool().price_oracle());
-        } else {
-            coin1UsdFallPrice = ((uint256(coin1ClFallbackPrice) *
-                coin1Fallback.curvePool().price_oracle()) / SCALE);
-        }
-        uint256 calculatedLPUsdPrice = (coin1UsdFallPrice *
-            feed.curvePool().get_virtual_price()) / SCALE;
+        uint256 calculatedLPUsdPrice = (feed.curvePool().get_virtual_price() *
+            uint256(coin1UsdPrice)) / 10 ** coin1Feed.decimals();
 
         assertEq(uint256(lpUsdPrice), calculatedLPUsdPrice);
         assertEq(uint256(lpUsdPrice), uint(feed.latestAnswer()));
-        console.log("coin1UsdFallPrice", coin1UsdFallPrice);
-        console.log("lpUsdPrice: ", uint(lpUsdPrice));
     }
 
-    function test_STALE_coin1_and_STALE_coin1_fallback_then_use_coin2_if_coin2_lt_coin1_but_keep_coin1_data()
+    function test_STALE_coin1_still_use_coin2_if_coin2_lt_coin1_but_keep_coin1_data()
         public
     {
         (
@@ -318,27 +202,18 @@ abstract contract DolaCurveLPPessimsticFeedBaseTest is Test {
             uint clStartedAt,
             uint clUpdatedAt,
             uint80 clAnsweredInRound
-        ) = coin1Feed.assetToUsd().latestRoundData();
+        ) = coin1Feed.latestRoundData();
 
-        // Set coin1 STALE even if < than coin2
+        // Set coin1 STALE and > than coin2
         _mockCall_Chainlink(
-            address(coin1Feed.assetToUsd()),
+            address(coin1Feed),
             clRoundId,
-            coin1UsdPrice,
+            coin1UsdPrice * 2,
             clStartedAt,
-            clUpdatedAt - 1 - coin1Feed.assetToUsdHeartbeat(),
+            clUpdatedAt - 25 hours,
             clAnsweredInRound
         );
-        // Set coin1 fallback STALE even if < than coin2
-        _mockCall_Chainlink(
-            address(coin1Fallback.assetToUsd()),
-            clRoundId,
-            coin1UsdPrice * 1e11,
-            clStartedAt,
-            0,
-            clAnsweredInRound
-        );
-        console.log(uint(coin1UsdPrice), "coin1UsdPrice");
+
         (
             uint80 roundId,
             int256 lpUsdPrice,
@@ -348,14 +223,11 @@ abstract contract DolaCurveLPPessimsticFeedBaseTest is Test {
         ) = feed.latestRoundData();
 
         (, int256 coin2Price, , , ) = dolaFeed.latestRoundData();
-        (, , , uint updatedAtCoin1Fb, ) = coin1Fallback.latestRoundData();
-        console.log(updatedAtCoin1Fb, "updateAt coin1 fallback");
 
-        // When coin1 is fully stale even if coin1 < coin2, use coin2
+        // When coin1 is fully stale if coin2 < coin1, use coin2 but keep coin1 data
         assertEq(clRoundId, roundId);
         assertEq(clStartedAt, startedAt);
-        assertEq(updatedAtCoin1Fb, updatedAt);
-        assertEq(updatedAt, 0);
+        assertEq(clUpdatedAt - 25 hours, updatedAt);
         assertEq(clAnsweredInRound, answeredInRound);
 
         uint256 calculatedLPUsdPrice = (feed.curvePool().get_virtual_price() *
@@ -363,35 +235,6 @@ abstract contract DolaCurveLPPessimsticFeedBaseTest is Test {
 
         assertEq(uint256(lpUsdPrice), calculatedLPUsdPrice);
         assertEq(uint256(lpUsdPrice), uint(feed.latestAnswer()));
-    }
-
-    function test_coin1FallBack_oracle() public {
-        (
-            uint80 roundIdFall,
-            int256 coin1ClFallbackPrice,
-            uint startedAtFall,
-            uint updatedAtFall,
-            uint80 answeredInRoundFall
-        ) = coin1Fallback.assetToUsd().latestRoundData();
-
-        (
-            uint80 roundId,
-            int256 coin1FallPrice,
-            uint256 startedAt,
-            uint256 updateAt,
-            uint80 answeredInRound
-        ) = coin1Fallback.latestRoundData();
-
-        assertEq(
-            uint(coin1FallPrice),
-            (uint(coin1Fallback.curvePool().price_oracle()) *
-                uint(coin1ClFallbackPrice)) / 10 ** 18,
-            "not correct"
-        );
-        assertEq(roundIdFall, roundId);
-        assertEq(startedAtFall, startedAt);
-        assertEq(updatedAtFall, updateAt);
-        assertEq(answeredInRoundFall, answeredInRound);
     }
 
     function _calculateOracleLpPrice()
