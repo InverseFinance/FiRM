@@ -56,7 +56,7 @@ contract CurveLPPessimisticFeed {
         int256 minLpUsdPrice;
 
         // If coin1 price is lower than coin2 price, use coin1 price
-        if (usdPriceCoin1 < usdPriceCoin2 && updatedAt > 0) {
+        if (usdPriceCoin1 < usdPriceCoin2) {
             minLpUsdPrice =
                 (usdPriceCoin1 * int256(curvePool.get_virtual_price())) /
                 int256(10 ** decimals());
@@ -64,12 +64,13 @@ contract CurveLPPessimisticFeed {
             minLpUsdPrice =
                 (usdPriceCoin2 * int(curvePool.get_virtual_price())) /
                 int256(10 ** decimals());
+        }
+        if (updatedAtCoin2 < updatedAt) {
             roundId = roundIdCoin2;
             startedAt = startedAtCoin2;
             updatedAt = updatedAtCoin2;
             answeredInRound = answeredInRoundCoin2;
         }
-
         return (roundId, minLpUsdPrice, startedAt, updatedAt, answeredInRound);
     }
 
