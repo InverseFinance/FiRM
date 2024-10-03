@@ -33,6 +33,10 @@ interface ISimpleERC20Escrow {
     function balance() external view returns (uint256);
 }
 
+interface IYCRV {
+    function mint(uint256 amount) external returns (uint256);
+}
+
 contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
     using stdStorage for StdStorage;
 
@@ -41,37 +45,32 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
     IChainlinkFeed feed;
     BorrowController borrowController;
 
-    //EOAs & Multisigs
-    address user = address(0x69);
-    address user2 = address(0x70);
-    address replenisher = address(0x71);
-    address collatHolder = address(0x577eBC5De943e35cdf9ECb5BbE1f7D7CB6c7C647); // sty CRV
-    address styCRVHolder = address(0x577eBC5De943e35cdf9ECb5BbE1f7D7CB6c7C647);
-    address yCRVHolder = address(0x71E47a4429d35827e0312AA13162197C23287546);
     address yCRV = address(0xFCc5c47bE19d06BF83eB04298b026F81069ff65b);
+    address CRV = address(0xD533a949740bb3306d119CC777fa900bA034cd52);
+
+    // User
     address userPk;
-    address escrow;
+
     //ERC-20s
     IMintable DOLA;
     IERC20 collateral;
 
     //FiRM
+    address escrow;
     Oracle oracle;
-
     DolaBorrowingRights dbr;
 
-    MockExchangeProxy exchangeProxy;
+    // ALE
     ALE ale;
     YVYCRVHelper helper;
-    YCRVFeed feedYCRV;
     IFlashMinter flash;
+
+    // Mocks
+    YCRVFeed feedYCRV;
+    MockExchangeProxy exchangeProxy;
+
     //Variables
     uint collateralFactorBps;
-    uint replenishmentIncentiveBps;
-    uint liquidationBonusBps;
-    uint replenishmentPriceBps;
-
-    uint testAmount = 1 ether;
 
     function setUp() public override {
         super.setUp();
@@ -82,10 +81,6 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
         borrowController = BorrowController(borrowControllerAddr);
         dbr = DolaBorrowingRights(dbrAddr);
 
-        replenishmentIncentiveBps = market.replenishmentIncentiveBps();
-        liquidationBonusBps = market.liquidationIncentiveBps();
-        replenishmentPriceBps = dbr.replenishmentPriceBps();
-
         helper = new YVYCRVHelper(gov, pauseGuardian);
         initBase(address(helper));
         feedYCRV = new YCRVFeed();
@@ -95,14 +90,15 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
             address(DOLA)
         );
 
+        Fed fed = Fed(market.lender());
         vm.startPrank(gov);
         market.pauseBorrows(false);
-        borrowController.setDailyLimit(address(market), 250000 ether);
+        borrowController.setDailyLimit(address(market), 5000000 ether);
+        fed.changeMarketCeiling(IMarket(address(market)), 100000000 ether);
         vm.stopPrank();
 
-        Fed fed = Fed(market.lender());
         vm.prank(chair);
-        fed.expansion(IMarket(address(market)), 500000 ether);
+        fed.expansion(IMarket(address(market)), 5000000 ether);
 
         ale = new ALE(address(exchangeProxy), triDBRAddr);
         ale.setMarket(address(market), yCRV, address(helper), true);
@@ -110,9 +106,6 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
         //FiRM
         oracle = Oracle(address(market.oracle()));
         collateral = IERC20(address(market.collateral()));
-
-        vm.label(user, "user");
-        vm.label(user2, "user2");
 
         vm.startPrank(gov, gov);
 
@@ -123,13 +116,32 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
 
         flash = IFlashMinter(address(ale.flash()));
         DOLA.addMinter(address(flash));
-        flash.setMaxFlashLimit(1000000e18);
+        flash.setMaxFlashLimit(5000000e18); // 5M DOLA
         vm.stopPrank();
 
         collateralFactorBps = market.collateralFactorBps();
         userPk = vm.addr(1);
 
         escrow = address(market.predictEscrow(userPk));
+        // For Recharging proxy
+        deal(CRV, address(this), 15_000_000 ether);
+        IERC20(CRV).approve(address(yCRV), 15_000_000 ether);
+        IYCRV(yCRV).mint(15_000_000 ether);
+
+        // Fill userPk with some yvyCRV
+        deal(CRV, userPk, 30_000_000 ether); // 30M CRV => roughly 7.5M USD
+        vm.startPrank(userPk);
+        IERC20(CRV).approve(address(yCRV), 30_000_000 ether);
+        uint256 yCRVAmount = IYCRV(yCRV).mint(30_000_000 ether);
+        assertEq(yCRVAmount, IERC20(yCRV).balanceOf(userPk));
+        IERC20(yCRV).approve(yvyCRVAddr, yCRVAmount);
+        uint256 yvyCRVAmount = IYearnVaultV2(yvyCRVAddr).deposit(
+            yCRVAmount,
+            userPk
+        ); // 16.94M yvyCRV
+        assertEq(yvyCRVAmount, IERC20(yvyCRVAddr).balanceOf(userPk));
+        assertEq(0, IERC20(yCRV).balanceOf(userPk));
+        vm.stopPrank();
     }
 
     function getBlockNumber() public view override returns (uint256) {
@@ -149,11 +161,9 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
     }
 
     function test_leveragePosition(uint256 styCRVAmount) public {
-        vm.assume(styCRVAmount < IERC20(yvyCRVAddr).balanceOf(styCRVHolder)); // 555342 * 1e18 styCRV
+        vm.assume(styCRVAmount < IERC20(yvyCRVAddr).balanceOf(userPk)); // 16.94M yvyCRV
         vm.assume(styCRVAmount > 0.00000001 ether);
-        // We are going to deposit some CRV, then leverage the position
-        vm.prank(styCRVHolder);
-        IERC20(yvyCRVAddr).transfer(userPk, styCRVAmount);
+        // We are going to deposit some yvyCRV, then leverage the position
 
         gibDBR(userPk, styCRVAmount);
 
@@ -164,11 +174,10 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
             _convertDolaToCollat(maxBorrowAmount)
         );
         // recharge mocked proxy for swap, we need to swap DOLA to unwrapped collateral
-        vm.prank(yCRVHolder);
         IERC20(yCRV).transfer(address(exchangeProxy), yCRVAmount + 2);
 
         vm.startPrank(userPk, userPk);
-        // Initial CRV deposit
+        // Initial yvyCRV deposit
         IERC20(yvyCRVAddr).approve(address(market), styCRVAmount);
         market.deposit(styCRVAmount);
 
@@ -233,12 +242,9 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
     }
 
     function test_depositAndLeveragePosition(uint256 styCRVAmount) public {
-        vm.assume(styCRVAmount < IERC20(yvyCRVAddr).balanceOf(styCRVHolder));
+        vm.assume(styCRVAmount < IERC20(yvyCRVAddr).balanceOf(userPk));
         vm.assume(styCRVAmount > 0.00000001 ether);
         // We are going to deposit some CRV, then leverage the position
-
-        vm.prank(styCRVHolder);
-        IERC20(yvyCRVAddr).transfer(userPk, styCRVAmount);
 
         gibDBR(userPk, styCRVAmount);
 
@@ -249,13 +255,11 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
             _convertDolaToCollat(maxBorrowAmount)
         );
         // recharge mocked proxy for swap, we need to swap DOLA to unwrapped collateral
-        vm.prank(yCRVHolder);
         IERC20(yCRV).transfer(address(exchangeProxy), yCRVAmount + 2);
 
         vm.startPrank(userPk, userPk);
-        // Initial CRV deposit
+        // yvyCRV deposit to be leveraged
         IERC20(yvyCRVAddr).approve(address(ale), styCRVAmount);
-        // market.deposit(styCRVAmount);
 
         // Sign Message for borrow on behalf
         bytes32 hash = keccak256(
@@ -321,11 +325,8 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
 
     function test_leveragePosition_buyDBR(uint256 styCRVAmount) public {
         // We are going to deposit some st-yCRV, then leverage the position
-        vm.assume(styCRVAmount < IERC20(yvyCRVAddr).balanceOf(styCRVHolder));
+        vm.assume(styCRVAmount < IERC20(yvyCRVAddr).balanceOf(userPk));
         vm.assume(styCRVAmount > 0.1 ether);
-
-        vm.prank(styCRVHolder);
-        IERC20(yvyCRVAddr).transfer(userPk, styCRVAmount);
 
         uint maxBorrowAmount = _getMaxBorrowAmount(styCRVAmount);
 
@@ -335,17 +336,16 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
         );
 
         // recharge mocked proxy for swap, we need to swap DOLA to unwrapped collateral
-        vm.prank(yCRVHolder);
         IERC20(yCRV).transfer(address(exchangeProxy), yCRVAmount + 2);
 
         vm.startPrank(userPk, userPk);
-        // Initial st-yCRV deposit
+        // Initial yvyCRV deposit
         IERC20(yvyCRVAddr).approve(address(market), styCRVAmount);
         market.deposit(styCRVAmount);
 
         // Calculate the amount of DOLA needed to borrow to buy the DBR needed to cover for the borrowing period
         (uint256 dolaForDBR, uint256 dbrAmount) = ale
-            .approximateDolaAndDbrNeeded(maxBorrowAmount, 90 days, 8);
+            .approximateDolaAndDbrNeeded(maxBorrowAmount, 10 days, 8);
 
         // Sign Message for borrow on behalf
         bytes32 hash = keccak256(
@@ -409,12 +409,9 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
     }
 
     function test_deleveragePosition_sellDBR(uint256 styCRVAmount) public {
-        vm.assume(styCRVAmount < IERC20(yvyCRVAddr).balanceOf(styCRVHolder));
+        vm.assume(styCRVAmount < IERC20(yvyCRVAddr).balanceOf(userPk)); // 16.94M yvyCRV
         vm.assume(styCRVAmount > 0.00000001 ether);
         // We are going to deposit some st-yCRV, then borrow and then deleverage the position
-
-        vm.prank(styCRVHolder);
-        IERC20(yvyCRVAddr).transfer(userPk, styCRVAmount);
 
         gibDBR(userPk, styCRVAmount);
 
@@ -517,13 +514,10 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
     }
 
     function test_deleveragePosition(uint256 styCRVAmount) public {
-        vm.assume(styCRVAmount < IERC20(yvyCRVAddr).balanceOf(styCRVHolder));
+        vm.assume(styCRVAmount < IERC20(yvyCRVAddr).balanceOf(userPk)); // 16.94M yvyCRV
         vm.assume(styCRVAmount > 0.00000001 ether);
 
-        // We are going to deposit some st-yCRV, then borrow and then deleverage the position
-
-        vm.prank(styCRVHolder);
-        IERC20(yvyCRVAddr).transfer(userPk, styCRVAmount);
+        // We are going to deposit some yvyCRV, then borrow and then deleverage the position
 
         gibDBR(userPk, styCRVAmount);
 
@@ -615,12 +609,19 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
         assertApproxEqAbs(DOLA.balanceOf(userPk), borrowAmount / 2, 2);
     }
 
-    function test_depositAndLeveragePosition_buyDBR(uint256 amount) public {
+    function test_depositAndLeveragePosition_buyDBR_with_yCRV(
+        uint256 amount
+    ) public {
+        // Fill userPk with some yCRV
+        deal(CRV, userPk, 15_000_000 ether);
+        vm.startPrank(userPk);
+        IERC20(CRV).approve(address(yCRV), 15_000_000 ether);
+        IYCRV(yCRV).mint(15_000_000 ether);
+        vm.stopPrank();
+
         // We are going to deposit and convert some yCRV and leverage the position
-        vm.assume(amount < 400000 ether); // Not using all the balance to be able to fill the proxy
+        vm.assume(amount < IERC20(yCRV).balanceOf(userPk));
         vm.assume(amount > 0.00001 ether);
-        vm.prank(yCRVHolder);
-        IERC20(yCRV).transfer(userPk, amount);
 
         uint stYCRVDeposit = YearnVaultV2Helper.assetToCollateral(
             IYearnVaultV2(yvyCRVAddr),
@@ -629,7 +630,6 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
         uint maxBorrowAmount = _getMaxBorrowAmount(stYCRVDeposit);
 
         // recharge mocked proxy for swap, we need to swap DOLA to unwrapped collateral
-        vm.startPrank(yCRVHolder);
         uint collateralToSwap = _convertDolaToCollat(maxBorrowAmount);
 
         uint underlyingAmountToSwap = YearnVaultV2Helper.collateralToAsset(
@@ -641,7 +641,6 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
             address(exchangeProxy),
             underlyingAmountToSwap + 2
         ); // 2 rounding when calculating it
-        vm.stopPrank();
 
         vm.startPrank(userPk, userPk);
         // Approve for initial yCRV deposit
@@ -649,7 +648,7 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
 
         // Calculate the amount of DOLA needed to borrow to buy the DBR needed to cover for the borrowing period
         (uint256 dolaForDBR, uint256 dbrAmount) = ale
-            .approximateDolaAndDbrNeeded(maxBorrowAmount, 365 days, 8);
+            .approximateDolaAndDbrNeeded(maxBorrowAmount, 10 days, 8);
 
         // Sign Message for borrow on behalf
         bytes32 hash = keccak256(
@@ -707,20 +706,24 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
     }
 
     function test_transformToCollateralAndDeposit(uint256 yCRVAmount) public {
+        // Fill userPk with max available deposit yCRV
+        uint256 maxDeposit = IYearnVaultV2(yvyCRVAddr).availableDepositLimit(); // minting is 1:1
+        deal(CRV, userPk, maxDeposit);
+        vm.startPrank(userPk);
+        IERC20(CRV).approve(address(yCRV), maxDeposit);
+        IYCRV(yCRV).mint(maxDeposit);
+        assertEq(IERC20(yCRV).balanceOf(userPk), maxDeposit);
+
         vm.assume(
             yCRVAmount < IYearnVaultV2(yvyCRVAddr).availableDepositLimit()
         );
+        vm.assume(yCRVAmount > 0.00000001 ether);
 
-        uint256 yCRVAmount = 1 ether;
-
-        vm.prank(yCRVHolder);
-        IERC20(yCRV).transfer(userPk, yCRVAmount);
-
-        vm.startPrank(userPk, userPk);
+        uint256 yCRVBalBefore = IERC20(yCRV).balanceOf(userPk);
         IERC20(yCRV).approve(address(helper), yCRVAmount);
         helper.transformToCollateralAndDeposit(yCRVAmount, "");
 
-        assertEq(IERC20(yCRV).balanceOf(userPk), 0);
+        assertEq(yCRVBalBefore - yCRVAmount, IERC20(yCRV).balanceOf(userPk));
 
         assertEq(
             IERC20(yvyCRVAddr).balanceOf(address(market.predictEscrow(userPk))),
@@ -734,18 +737,25 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
     function test_withdrawAndTransformFromCollateral(
         uint256 yCRVAmount
     ) public {
+        // Fill userPk with max available deposit yCRV
+        uint256 maxDeposit = IYearnVaultV2(yvyCRVAddr).availableDepositLimit(); // minting is 1:1
+        deal(CRV, userPk, maxDeposit);
+        vm.startPrank(userPk);
+        IERC20(CRV).approve(address(yCRV), maxDeposit);
+        IYCRV(yCRV).mint(maxDeposit);
+        assertEq(IERC20(yCRV).balanceOf(userPk), maxDeposit);
+
         vm.assume(
             yCRVAmount < IYearnVaultV2(yvyCRVAddr).availableDepositLimit()
         );
+        vm.assume(yCRVAmount > 0.00000001 ether);
 
-        uint256 yCRVAmount = 1 ether;
-
-        vm.prank(yCRVHolder);
-        IERC20(yCRV).transfer(userPk, yCRVAmount);
-
-        vm.startPrank(userPk, userPk);
+        uint256 yCRVBalBefore = IERC20(yCRV).balanceOf(userPk);
         IERC20(yCRV).approve(address(helper), yCRVAmount);
         helper.transformToCollateralAndDeposit(yCRVAmount, "");
+
+        uint256 yCRVBalAfter = IERC20(yCRV).balanceOf(userPk);
+        assertEq(yCRVBalBefore - yCRVAmount, yCRVBalAfter);
 
         uint256 amountToWithdraw = IERC20(yvyCRVAddr).balanceOf(
             address(market.predictEscrow(userPk))
@@ -778,12 +788,10 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
             s
         );
 
-        assertEq(IERC20(yCRV).balanceOf(userPk), 0);
-
         helper.withdrawAndTransformFromCollateral(amountToWithdraw, permit, "");
 
         assertApproxEqAbs(
-            IERC20(yCRV).balanceOf(userPk),
+            IERC20(yCRV).balanceOf(userPk) - yCRVBalAfter,
             YearnVaultV2Helper.collateralToAsset(
                 IYearnVaultV2(yvyCRVAddr),
                 amountToWithdraw
@@ -831,9 +839,6 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
         // We are going to deposit some CRV, then leverage the position
         uint styCRVAmount = 1 ether;
 
-        vm.prank(styCRVHolder);
-        IERC20(yvyCRVAddr).transfer(userPk, styCRVAmount);
-
         gibDBR(userPk, styCRVAmount);
 
         uint maxBorrowAmount = _getMaxBorrowAmount(styCRVAmount);
@@ -843,7 +848,6 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
             _convertDolaToCollat(maxBorrowAmount)
         );
         // recharge mocked proxy for swap, we need to swap DOLA to unwrapped collateral
-        vm.prank(yCRVHolder);
         IERC20(yCRV).transfer(address(exchangeProxy), yCRVAmount + 2);
 
         vm.startPrank(userPk, userPk);
@@ -936,12 +940,6 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
         return
             (_convertCollatToDola(amountCollat) *
                 market.collateralFactorBps()) / 10_000;
-    }
-
-    function gibWeth(address _address, uint _amount) internal {
-        vm.startPrank(collatHolder, collatHolder);
-        collateral.transfer(_address, _amount);
-        vm.stopPrank();
     }
 
     function gibDBR(address _address, uint _amount) internal {
