@@ -64,7 +64,8 @@ contract MarketV2 {
     IERC20 public immutable collateral;
     IOracle public oracle;
     MarketParams marketParameters;
-    uint256 internal immutable decimals;
+    //TODO: Change to decimals factor
+    uint256 public immutable decimals;
     uint256 internal immutable INITIAL_CHAIN_ID;
     bytes32 internal immutable INITIAL_DOMAIN_SEPARATOR;
     mapping (address => IEscrow) public escrows; // user => escrow
@@ -92,7 +93,7 @@ contract MarketV2 {
         defaultDebtManager = _defaultDebtManager;
         dbr = _dbr;
         collateral = _collateral;
-        decimals = IERC20(_collateral).decimals();
+        decimals = 10**uint(IERC20(_collateral).decimals());
         oracle = _oracle;
         marketParameters = _marketParameters;
         INITIAL_CHAIN_ID = block.chainid;
@@ -107,7 +108,7 @@ contract MarketV2 {
         //The threshold for a borrower having the minimum liquidation factor should be higher or equal to the threshold of the maximum liquidation factor
         require(mp.minLiquidationFactorThreshold >= mp.maxLiquidationFactorThreshold, "minLiquidationFactorThreshold must be greater or equal maxLiquidationFactorThreshold");
         //The incentive paid out at the max liquidation incentive threshold must never exceed the liquidators ability to liquidate fully
-        require(mp.maxLiquidationIncentiveThresholdBps + mp.maxLiquidationIncentiveThresholdBps * mp.maxLiquidationIncentiveBps / 10000 < 10000, "Unsafe max liquidation parameter");
+        require(mp.maxLiquidationIncentiveThresholdBps + uint(mp.maxLiquidationIncentiveThresholdBps) * mp.maxLiquidationIncentiveBps / 10000 < 10000, "Unsafe max liquidation parameter");
         //The CF threshold for max liquidations should never be below the safe
         require(mp.maxLiquidationIncentiveThresholdBps >= mp.collateralFactorBps && mp.maxLiquidationIncentiveThresholdBps <= 10000, "Invalid liquidation incentive");
         //Its fine to let fees exceed 10000 as maximum fee is always borrowers remaining collateral, but lets keep things sensical
@@ -418,19 +419,18 @@ contract MarketV2 {
         return calcLiquidationFactor(marketParameters, collateralValue, decimals);
     }
 
-    function calcLiquidationFactor(MarketParams memory _mp, uint collateralValue, uint _decimals) internal pure returns(uint){
-        //Optimization: hardcode collateral decimals as immutable constant in market on construction
-        if(collateralValue < _mp.maxLiquidationFactorThreshold * _decimals){
+    function calcLiquidationFactor(MarketParams memory _mp, uint collateralValue, uint _decimals) public pure returns(uint){
+        uint minLiquidationFactorThreshold = _mp.minLiquidationFactorThreshold * _decimals;
+        uint maxLiquidationFactorThreshold = _mp.maxLiquidationFactorThreshold * _decimals;
+        uint minLiquidationFactorBps = _mp.minLiquidationFactorBps;
+        if(collateralValue <= maxLiquidationFactorThreshold){
             return 10000;
-        } else if(collateralValue > _mp.minLiquidationFactorThreshold) {
-            return _mp.minLiquidationFactorBps;
+        } else if(collateralValue > minLiquidationFactorThreshold) {
+            return minLiquidationFactorBps;
         }
-        //TODO: Clean up below math
-        uint mantissa = 10000;
-        uint denom = _mp.minLiquidationFactorThreshold - collateralValue;
-        uint numer = _mp.minLiquidationFactorThreshold - _mp.maxLiquidationFactorThreshold;
-        uint deltaP = mantissa * denom / numer;
-        uint liquidationFactor = (_mp.collateralFactorBps * deltaP + _mp.minLiquidationFactorBps * (mantissa - deltaP)) / mantissa;
+        uint denom = minLiquidationFactorThreshold - collateralValue;
+        uint numer = minLiquidationFactorThreshold - maxLiquidationFactorThreshold;
+        uint liquidationFactor = (10000 - minLiquidationFactorBps) * denom / numer + minLiquidationFactorBps;
         return liquidationFactor;
     }
 
