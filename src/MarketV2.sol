@@ -41,6 +41,18 @@ interface IDebtManager {
 
 contract MarketV2 {
 
+    struct MarketParams {
+        uint16 collateralFactorBps;
+        uint16 maxLiquidationIncentiveThresholdBps;
+        uint16 maxLiquidationIncentiveBps;
+        uint16 maxLiquidationFeeBps;
+        uint16 zeroLiquidationFeeThresholdBps;
+        uint64 maxLiquidationFactorThreshold;
+        uint64 minLiquidationFactorThreshold;
+        uint16 minLiquidationFactorBps;
+        bool borrowPaused;
+    }
+
     address public gov;
     address public lender;
     address public pauseGuardian;
@@ -51,11 +63,8 @@ contract MarketV2 {
     IERC20 public immutable dola = IERC20(0x865377367054516e17014CcdED1e7d814EDC9ce4);
     IERC20 public immutable collateral;
     IOracle public oracle;
-    uint public collateralFactorBps;
-    uint public liquidationIncentiveBps;
-    uint public liquidationFeeBps;
-    uint public liquidationFactorBps = 5000; // 50% by default
-    bool public borrowPaused;
+    MarketParams marketParameters;
+    uint256 internal immutable decimals;
     uint256 internal immutable INITIAL_CHAIN_ID;
     bytes32 internal immutable INITIAL_DOMAIN_SEPARATOR;
     mapping (address => IEscrow) public escrows; // user => escrow
@@ -73,11 +82,9 @@ contract MarketV2 {
         IDolaBorrowingRights _dbr,
         IERC20 _collateral,
         IOracle _oracle,
-        uint _collateralFactorBps,
-        uint _liquidationIncentiveBps
+        MarketParams memory _marketParameters
     ) {
-        require(_collateralFactorBps < 10000, "Invalid collateral factor");
-        require(_liquidationIncentiveBps > 0 && _liquidationIncentiveBps < 10000, "Invalid liquidation incentive");
+        checkParameters(_marketParameters);
         gov = _gov;
         lender = _lender;
         pauseGuardian = _pauseGuardian;
@@ -85,15 +92,28 @@ contract MarketV2 {
         defaultDebtManager = _defaultDebtManager;
         dbr = _dbr;
         collateral = _collateral;
+        decimals = IERC20(_collateral).decimals();
         oracle = _oracle;
-        collateralFactorBps = _collateralFactorBps;
-        liquidationIncentiveBps = _liquidationIncentiveBps;
+        marketParameters = _marketParameters;
         INITIAL_CHAIN_ID = block.chainid;
         INITIAL_DOMAIN_SEPARATOR = computeDomainSeparator();
-        if(collateralFactorBps > 0){
-            uint unsafeLiquidationIncentive = (10000 - collateralFactorBps) * (liquidationFeeBps + 10000) / collateralFactorBps;
-            require(liquidationIncentiveBps < unsafeLiquidationIncentive,  "Liquidation param allow profitable self liquidation");
-        }
+    }
+
+    function checkParameters(MarketParams memory mp) public pure {
+        //Collateral factor must be below 100%
+        require(mp.collateralFactorBps < 10000, "Invalid collateral factor");
+        //Max liquidation incentive must be between 0 and 100% 
+        require(mp.maxLiquidationIncentiveBps > 0 && mp.maxLiquidationIncentiveBps < 10000, "Invalid liquidation incentive");
+        //The threshold for a borrower having the minimum liquidation factor should be higher or equal to the threshold of the maximum liquidation factor
+        require(mp.minLiquidationFactorThreshold >= mp.maxLiquidationFactorThreshold, "minLiquidationFactorThreshold must be greater or equal maxLiquidationFactorThreshold");
+        //The incentive paid out at the max liquidation incentive threshold must never exceed the liquidators ability to liquidate fully
+        require(mp.maxLiquidationIncentiveThresholdBps + mp.maxLiquidationIncentiveThresholdBps * mp.maxLiquidationIncentiveBps / 10000 < 10000, "Unsafe max liquidation parameter");
+        //The CF threshold for max liquidations should never be below the safe
+        require(mp.maxLiquidationIncentiveThresholdBps >= mp.collateralFactorBps && mp.maxLiquidationIncentiveThresholdBps <= 10000, "Invalid liquidation incentive");
+        //Its fine to let fees exceed 10000 as maximum fee is always borrowers remaining collateral, but lets keep things sensical
+        require(mp.maxLiquidationFeeBps < 10000, "Invalid liquidation fee"); 
+        //Fees should always be 0 at max liquidation incentive
+        require(mp.zeroLiquidationFeeThresholdBps <= mp.maxLiquidationIncentiveThresholdBps, "Invalid liquidation fee threshold");
     }
     
     modifier onlyGov {
@@ -101,12 +121,9 @@ contract MarketV2 {
         _;
     }
 
-    modifier liquidationParamChecker {
+    modifier marketParamChecker {
         _;
-        if(collateralFactorBps > 0){
-            uint unsafeLiquidationIncentive = (10000 - collateralFactorBps) * (liquidationFeeBps + 10000) / collateralFactorBps;
-            require(liquidationIncentiveBps < unsafeLiquidationIncentive,  "New liquidation param allow profitable self liquidation");
-        }
+        checkParameters(marketParameters);
     }
 
     function DOMAIN_SEPARATOR() public view virtual returns (bytes32) {
@@ -161,43 +178,89 @@ contract MarketV2 {
     @dev Collateral factor mus be set below 100%
     @param _collateralFactorBps The new collateral factor as measured in basis points. 
     */
-    function setCollateralFactorBps(uint _collateralFactorBps) public onlyGov liquidationParamChecker {
+    function setCollateralFactorBps(uint16 _collateralFactorBps) public onlyGov marketParamChecker {
         require(_collateralFactorBps < 10000, "Invalid collateral factor");
-        collateralFactorBps = _collateralFactorBps;
+        marketParameters.collateralFactorBps = _collateralFactorBps;
     }
     
     /**
-    @notice sets the Liquidation Factor of the market as denoted in basis points.
+    @notice sets the min Liquidation Factor of the market as denoted in basis points.
      The liquidation Factor denotes the maximum amount of debt that can be liquidated in basis points.
      At 5000, 50% of of a borrower's underwater debt can be liquidated. Only callable by governance.
     @dev Must be set between 1 and 10000.
-    @param _liquidationFactorBps The new liquidation factor in basis points. 1 = 0.01%/
+    @param _minLiquidationFactorBps The new minimum liquidation factor in basis points. 1 = 0.01%/
     */
-    function setLiquidationFactorBps(uint _liquidationFactorBps) public onlyGov {
-        require(_liquidationFactorBps > 0 && _liquidationFactorBps <= 10000, "Invalid liquidation factor");
-        liquidationFactorBps = _liquidationFactorBps;
+    function setMinLiquidationFactorBps(uint16 _minLiquidationFactorBps) public onlyGov {
+        require(_minLiquidationFactorBps > 0 && _minLiquidationFactorBps <= 10000, "Invalid liquidation factor");
+        marketParameters.minLiquidationFactorBps = _minLiquidationFactorBps;
+    }
+
+    /**
+    @notice sets the min Liquidation Factor Threshold of the market as denoted in basis points.
+     The min liquidation Factor Threshold denotes the collateral value at which the liquidation factor will no longer decrease.
+    @dev The value represents *WHOLE* units of token and will be multiplied by the decimal value of the underlying token.
+    @param _minLiquidationFactorThreshold The new threshold for the minimum liquidation factor.
+    A borrowers liquidation factor will not decrease at collateral values above this threshold.
+    */
+    function setMinLiquidationFactorThreshold(uint64 _minLiquidationFactorThreshold) public onlyGov {
+        require(_minLiquidationFactorThreshold >= marketParameters.maxLiquidationFactorThreshold, "minLiquidationFactorThreshold must be greater or equal maxLiquidationFactorThreshold");
+        marketParameters.minLiquidationFactorThreshold = _minLiquidationFactorThreshold;
+    }
+
+    /**
+    @notice sets the max Liquidation Factor Threshold of the market as denoted in basis points.
+     The max liquidation Factor Threshold denotes the collateral value at and below which the liquidation factor will be 100%
+    @dev The value represents *WHOLE* units of token and will be multiplied by the decimal value of the underlying token.
+    @param _maxLiquidationFactorThreshold The new threshold for the maximum liquidation factor.
+    A borrowers liquidation factor will be 100% at or below this collateral value threshold.
+    */
+    function setMaxLiquidationFactorThreshold(uint64 _maxLiquidationFactorThreshold) public onlyGov {
+        require(_maxLiquidationFactorThreshold <= marketParameters.minLiquidationFactorThreshold, "maxLiquidationFactorThreshold must be less or equal minLiquidationFactorThreshold");
+        marketParameters.maxLiquidationFactorThreshold = _maxLiquidationFactorThreshold;
     }
 
     /**
     @notice sets the Liquidation Incentive of the market as denoted in basis points.
      The Liquidation Incentive is the percentage paid out to liquidators of a borrower's debt when successfully liquidated.
     @dev Must be set between 0 and 10000 - liquidation fee.
-    @param _liquidationIncentiveBps The new liqudation incentive set in basis points. 1 = 0.01% 
+    @param _maxLiquidationIncentiveBps The new liqudation incentive set in basis points. 1 = 0.01% 
     */
-    function setLiquidationIncentiveBps(uint _liquidationIncentiveBps) public onlyGov liquidationParamChecker {
-        require(_liquidationIncentiveBps > 0 && _liquidationIncentiveBps + liquidationFeeBps < 10000, "Invalid liquidation incentive");
-        liquidationIncentiveBps = _liquidationIncentiveBps;
+    function setMaxLiquidationIncentiveBps(uint16 _maxLiquidationIncentiveBps) public onlyGov marketParamChecker {
+        require(_maxLiquidationIncentiveBps > 0 && _maxLiquidationIncentiveBps <= 10000, "Invalid liquidation incentive");
+        marketParameters.maxLiquidationIncentiveBps = _maxLiquidationIncentiveBps;
+    }
+
+    /**
+    @notice sets the Liquidation Incentive of the market as denoted in basis points.
+     The Liquidation Incentive is the percentage paid out to liquidators of a borrower's debt when successfully liquidated.
+    @dev Must be set between 0 and 10000 - liquidation fee.
+    @param _maxLiquidationIncentiveThresholdBps The new liqudation incentive set in basis points. 1 = 0.01% 
+    */
+    function setMaxLiquidationIncentiveThresholdBps(uint16 _maxLiquidationIncentiveThresholdBps) public onlyGov marketParamChecker {
+        require(_maxLiquidationIncentiveThresholdBps >= marketParameters.collateralFactorBps && _maxLiquidationIncentiveThresholdBps <= 10000, "Invalid liquidation incentive");
+        marketParameters.maxLiquidationIncentiveThresholdBps = _maxLiquidationIncentiveThresholdBps;
     }
 
     /**
     @notice sets the Liquidation Fee of the market as denoted in basis points.
      The Liquidation Fee is the percentage paid out to governance of a borrower's debt when successfully liquidated.
     @dev Must be set between 0 and 10000 - liquidation factor.
-    @param _liquidationFeeBps The new liquidation fee set in basis points. 1 = 0.01%
+    @param _maxLiquidationFeeBps The new liquidation fee set in basis points. 1 = 0.01%
     */
-    function setLiquidationFeeBps(uint _liquidationFeeBps) public onlyGov liquidationParamChecker {
-        require(_liquidationFeeBps + liquidationIncentiveBps < 10000, "Invalid liquidation fee");
-        liquidationFeeBps = _liquidationFeeBps;
+    function setMaxLiquidationFeeBps(uint16 _maxLiquidationFeeBps) public onlyGov marketParamChecker {
+        require(_maxLiquidationFeeBps < 10000, "Invalid liquidation fee");
+        marketParameters.maxLiquidationFeeBps = _maxLiquidationFeeBps;
+    }
+
+    /**
+    @notice sets the Liquidation Fee of the market as denoted in basis points.
+     The Liquidation Fee is the percentage paid out to governance of a borrower's debt when successfully liquidated.
+    @dev Must be set between 0 and 10000 - liquidation factor.
+    @param _zeroLiquidationFeeThresholdBps The new liquidation fee set in basis points. 1 = 0.01%
+    */
+    function setZeroLiquidationFeeThresholdBps(uint16 _zeroLiquidationFeeThresholdBps) public onlyGov marketParamChecker {
+        require(_zeroLiquidationFeeThresholdBps <= marketParameters.maxLiquidationIncentiveThresholdBps, "Invalid liquidation fee threshold");
+        marketParameters.zeroLiquidationFeeThresholdBps = _zeroLiquidationFeeThresholdBps;
     }
 
     function setEscrowImplementation(address escrow, bool isAllowed) public onlyGov {
@@ -227,7 +290,7 @@ contract MarketV2 {
         } else {
             require(msg.sender == gov, "Only governance can unpause");
         }
-        borrowPaused = _value;
+        marketParameters.borrowPaused = _value;
     }
 
     /**
@@ -341,6 +404,56 @@ contract MarketV2 {
         }
     }
 
+    function getLiquidationFactorBps(address user) public view returns (uint) {
+        IEscrow escrow = escrows[user];
+        uint collateralBalance = escrow.balance();
+        uint collateralValue = collateralBalance * oracle.viewPrice(address(collateral), marketParameters.collateralFactorBps);
+        return calcLiquidationFactor(marketParameters, collateralValue, decimals);
+    }
+
+    function getLiquidationFactorBpsInternal(address user) internal returns(uint) {
+        IEscrow escrow = escrows[user];
+        uint collateralBalance = escrow.balance();
+        uint collateralValue = collateralBalance * oracle.getPrice(address(collateral), marketParameters.collateralFactorBps);
+        return calcLiquidationFactor(marketParameters, collateralValue, decimals);
+    }
+
+    function calcLiquidationFactor(MarketParams memory _mp, uint collateralValue, uint _decimals) internal pure returns(uint){
+        //Optimization: hardcode collateral decimals as immutable constant in market on construction
+        if(collateralValue < _mp.maxLiquidationFactorThreshold * _decimals){
+            return 10000;
+        } else if(collateralValue > _mp.minLiquidationFactorThreshold) {
+            return _mp.minLiquidationFactorBps;
+        }
+        //TODO: Clean up below math
+        uint mantissa = 10000;
+        uint denom = _mp.minLiquidationFactorThreshold - collateralValue;
+        uint numer = _mp.minLiquidationFactorThreshold - _mp.maxLiquidationFactorThreshold;
+        uint deltaP = mantissa * denom / numer;
+        uint liquidationFactor = (_mp.collateralFactorBps * deltaP + _mp.minLiquidationFactorBps * (mantissa - deltaP)) / mantissa;
+        return liquidationFactor;
+    }
+
+    function getLiquidationIncentiveBps(uint collateralFactorBps) public view returns (uint) {
+        uint maxCollateralFactorBps = marketParameters.collateralFactorBps;
+        uint maxLiquidationIncentiveBps = marketParameters.maxLiquidationIncentiveBps;
+        uint maxLiquidationIncentiveThresholdBps = marketParameters.maxLiquidationIncentiveThresholdBps;
+        if(collateralFactorBps <= maxCollateralFactorBps) return 0;
+        if(collateralFactorBps >= maxLiquidationIncentiveThresholdBps) return maxLiquidationIncentiveBps;
+        return maxLiquidationIncentiveBps * (collateralFactorBps - maxCollateralFactorBps) / (maxLiquidationIncentiveThresholdBps - maxCollateralFactorBps);
+    }
+
+    function getLiquidationFeeBps(uint collateralFactorBps) public view returns (uint) {
+        uint maxLiquidationFeeBps = marketParameters.maxLiquidationFeeBps;
+        if(maxLiquidationFeeBps == 0) return 0;
+        uint maxCollateralFactorBps = marketParameters.collateralFactorBps;
+        if(collateralFactorBps < maxCollateralFactorBps) return 0;
+        uint zeroLiquidationFeeThresholdBps = marketParameters.zeroLiquidationFeeThresholdBps;
+        if(collateralFactorBps >= zeroLiquidationFeeThresholdBps) return 0;
+        uint distBps = 10000 * (collateralFactorBps - maxCollateralFactorBps) / (zeroLiquidationFeeThresholdBps - maxCollateralFactorBps);
+        return maxLiquidationFeeBps * (10000 - distBps) / 10000;
+    }
+
     /**
     @notice View function for getting the dollar value of the user's collateral in escrow for the market.
     @param user Address of the user.
@@ -348,7 +461,7 @@ contract MarketV2 {
     function getCollateralValue(address user) public view returns (uint) {
         IEscrow escrow = escrows[user];
         uint collateralBalance = escrow.balance();
-        return collateralBalance * oracle.viewPrice(address(collateral), collateralFactorBps) / 1 ether;
+        return collateralBalance * oracle.viewPrice(address(collateral), marketParameters.collateralFactorBps) / 1 ether;
     }
 
     /**
@@ -359,7 +472,7 @@ contract MarketV2 {
     function getCollateralValueInternal(address user) internal returns (uint) {
         IEscrow escrow = escrows[user];
         uint collateralBalance = escrow.balance();
-        return collateralBalance * oracle.getPrice(address(collateral), collateralFactorBps) / 1 ether;
+        return collateralBalance * oracle.getPrice(address(collateral), marketParameters.collateralFactorBps) / 1 ether;
     }
 
     /**
@@ -369,7 +482,7 @@ contract MarketV2 {
     */
     function getCreditLimit(address user) public view returns (uint) {
         uint collateralValue = getCollateralValue(user);
-        return collateralValue * collateralFactorBps / 10000;
+        return collateralValue * marketParameters.collateralFactorBps / 10000;
     }
 
     /**
@@ -379,7 +492,7 @@ contract MarketV2 {
     */
     function getCreditLimitInternal(address user) internal returns (uint) {
         uint collateralValue = getCollateralValueInternal(user);
-        return collateralValue * collateralFactorBps / 10000;
+        return collateralValue * marketParameters.collateralFactorBps / 10000;
     }
     /**
     @notice Internal function for getting the withdrawal limit of a user.
@@ -390,6 +503,7 @@ contract MarketV2 {
         IEscrow escrow = escrows[user];
         IDebtManager debtManager = debtManagers[user];
         uint collateralBalance = escrow.balance();
+        uint16 collateralFactorBps = marketParameters.collateralFactorBps;
         if(collateralBalance == 0) return 0;
         uint debt = debtManager.debt(user);
         if(debt == 0) return collateralBalance;
@@ -408,6 +522,7 @@ contract MarketV2 {
         IEscrow escrow = escrows[user];
         IDebtManager debtManager = debtManagers[user];
         uint collateralBalance = escrow.balance();
+        uint collateralFactorBps = marketParameters.collateralFactorBps;
         if(collateralBalance == 0) return 0;
         uint debt = debtManager.debt(user);
         if(debt == 0) return collateralBalance;
@@ -426,7 +541,7 @@ contract MarketV2 {
     */
     function borrowInternal(address borrower, address to, uint amount) internal {
         IDebtManager debtManager = debtManagers[borrower];
-        require(!borrowPaused, "Borrowing is paused");
+        require(!marketParameters.borrowPaused, "Borrowing is paused");
         if(borrowController != IBorrowController(address(0))) {
             require(borrowController.borrowAllowed(msg.sender, borrower, amount), "Denied by borrow controller");
         }
@@ -646,20 +761,21 @@ contract MarketV2 {
         IDebtManager debtManager = debtManagers[borrower];
         require(repaidDebt > 0, "Must repay positive debt");
         uint debt = debtManager.debt(borrower);
+        uint borrowerCollateralFactorBps = 10000 * debt / getCollateralValue(borrower);
         require(getCreditLimitInternal(borrower) < debt, "User debt is healthy");
         repaidDebt = debtManager.decreaseDebt(borrower, repaidDebt);
-        require(repaidDebt <= debt * liquidationFactorBps / 10000, "Exceeded liquidation factor");
-        uint price = oracle.getPrice(address(collateral), collateralFactorBps);
+        require(repaidDebt <= debt * getLiquidationFactorBpsInternal(borrower) / 10000, "Exceeded liquidation factor");
+        uint price = oracle.getPrice(address(collateral), marketParameters.collateralFactorBps);
         uint liquidatorReward = repaidDebt * 1 ether / price;
-        liquidatorReward += liquidatorReward * liquidationIncentiveBps / 10000;
+        liquidatorReward += liquidatorReward * getLiquidationIncentiveBps(borrowerCollateralFactorBps) / 10000;
         if(address(borrowController) != address(0)){
             borrowController.onRepay(repaidDebt);
         }
         dola.transferFrom(msg.sender, address(this), repaidDebt);
         IEscrow escrow = escrows[borrower];
         escrow.pay(msg.sender, liquidatorReward);
-        if(liquidationFeeBps > 0) {
-            uint liquidationFee = repaidDebt * 1 ether / price * liquidationFeeBps / 10000;
+        if(getLiquidationFeeBps(borrowerCollateralFactorBps) > 0) {
+            uint liquidationFee = repaidDebt * 1 ether / price * getLiquidationFeeBps(borrowerCollateralFactorBps) / 10000;
             uint balance = escrow.balance();
             if(balance >= liquidationFee) {
                 escrow.pay(gov, liquidationFee);
