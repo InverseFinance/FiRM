@@ -434,24 +434,20 @@ contract MarketV2 {
         return liquidationFactor;
     }
 
-    function getLiquidationIncentiveBps(uint collateralFactorBps) public view returns (uint) {
-        uint maxCollateralFactorBps = marketParameters.collateralFactorBps;
-        uint maxLiquidationIncentiveBps = marketParameters.maxLiquidationIncentiveBps;
-        uint maxLiquidationIncentiveThresholdBps = marketParameters.maxLiquidationIncentiveThresholdBps;
-        if(collateralFactorBps <= maxCollateralFactorBps) return 0;
-        if(collateralFactorBps >= maxLiquidationIncentiveThresholdBps) return maxLiquidationIncentiveBps;
-        return maxLiquidationIncentiveBps * (collateralFactorBps - maxCollateralFactorBps) / (maxLiquidationIncentiveThresholdBps - maxCollateralFactorBps);
+    function getLiquidationIncentiveBps(uint borrowerCollateralFactorBps) public view returns (uint) {
+        MarketParams memory mp = marketParameters; //Cache marketParameters
+        if(borrowerCollateralFactorBps <= mp.collateralFactorBps) return 0;
+        if(borrowerCollateralFactorBps >= mp.maxLiquidationIncentiveThresholdBps) return mp.maxLiquidationIncentiveBps;
+        return mp.maxLiquidationIncentiveBps * (borrowerCollateralFactorBps - mp.collateralFactorBps) / (mp.maxLiquidationIncentiveThresholdBps - mp.collateralFactorBps);
     }
 
-    function getLiquidationFeeBps(uint collateralFactorBps) public view returns (uint) {
-        uint maxLiquidationFeeBps = marketParameters.maxLiquidationFeeBps;
-        if(maxLiquidationFeeBps == 0) return 0;
-        uint maxCollateralFactorBps = marketParameters.collateralFactorBps;
-        if(collateralFactorBps < maxCollateralFactorBps) return 0;
-        uint zeroLiquidationFeeThresholdBps = marketParameters.zeroLiquidationFeeThresholdBps;
-        if(collateralFactorBps >= zeroLiquidationFeeThresholdBps) return 0;
-        uint distBps = 10000 * (collateralFactorBps - maxCollateralFactorBps) / (zeroLiquidationFeeThresholdBps - maxCollateralFactorBps);
-        return maxLiquidationFeeBps * (10000 - distBps) / 10000;
+    function getLiquidationFeeBps(uint borrowerCollateralFactorBps) public view returns (uint) {
+        MarketParams memory mp = marketParameters; //Cache marketParameters
+        if(mp.maxLiquidationFeeBps == 0) return 0;
+        if(borrowerCollateralFactorBps < mp.collateralFactorBps) return 0;
+        if(borrowerCollateralFactorBps >= mp.zeroLiquidationFeeThresholdBps) return 0;
+        uint distBps = 10000 * (borrowerCollateralFactorBps - mp.collateralFactorBps) / (mp.zeroLiquidationFeeThresholdBps - mp.collateralFactorBps);
+        return mp.maxLiquidationFeeBps * (10000 - distBps) / 10000;
     }
 
     /**
