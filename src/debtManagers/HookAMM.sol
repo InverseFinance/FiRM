@@ -31,7 +31,8 @@ contract HookAMM {
     uint public prevK;
     uint public targetK;
     uint public lastKUpdate;
-    uint public maxDbrPrice;
+    uint public maxDolaPrice;
+    uint public minDolaPrice;
     uint public dbrBuyFee;
     uint public feesAccrued;
 
@@ -89,7 +90,7 @@ contract HookAMM {
      * @return The calculated DOLA reserve.
      */
     function getDolaReserve() public view returns (uint) {
-        return dola.balanceOf(address(this));
+        return dola.balanceOf(address(this)) + getVirtualDolaReserves();
     }
 
     /**
@@ -110,6 +111,20 @@ contract HookAMM {
         targetK = _K;
         lastKUpdate = block.timestamp;
         emit SetTargetK(_K);
+    }
+
+    function setMaxDolaPrice(uint _maxDolaPrice) external onlyGov {
+        require(_maxDolaPrice >= minDolaPrice, "Max DOLA price must be higher or equal to min DOLA price");
+        maxDolaPrice = _maxDolaPrice;
+    }
+
+    function setMinDolaPrice(uint _minDolaPrice) external onlyGov {
+        require(maxDolaPrice >= _minDolaPrice, "Max DOLA price must be higher or equal to min DOLA price");
+        minDolaPrice = _minDolaPrice;
+    }
+
+    function getVirtualDolaReserves() internal view returns(uint) {
+        return sqrt(1e18 * getK() / minDolaPrice);
     }
 
     /**
@@ -142,18 +157,27 @@ contract HookAMM {
 
     function buyDola(uint exactDbrIn, uint exactDolaOut, address to) external buyHook {
         require(to != address(0), "Zero address");
-        _invariantCheck(exactDbrIn, exactDolaOut, getDolaReserve());
+        uint k = getK();
+        uint dolaReserve = getDolaReserve();
+        uint dbrReserve = k / dolaReserve;
+        _invariantCheck(dbrReserve - exactDbrIn, dolaReserve - exactDolaOut, getDolaReserve());
         dbr.transferFrom(msg.sender, address(this), exactDolaOut);
         dola.transfer(to, exactDbrIn);
         emit BuyDOLA(msg.sender, to, exactDbrIn, exactDolaOut);
     }
 
-    function _invariantCheck(uint exactIn, uint exactOut, uint outBalance) internal view {
-        //TODO: Add max dbr price check
-        uint k = getK();
-        uint reserveOut = outBalance - exactOut;
-        uint reserveIn = k / outBalance + exactIn;
-        if(reserveOut * reserveIn < k) revert Invariant();
+    function _invariantCheck(uint newDolaReserve, uint newDbrReserve, uint k) internal view {
+        if(newDolaReserve * newDbrReserve < k){
+            if(1e18 * newDbrReserve / newDolaReserve > maxDolaPrice){
+                uint maxDolaReserve = sqrt(1e18 * k / maxDolaPrice);
+                uint maxDbr = k / maxDolaReserve;
+                uint excessDola = newDolaReserve - maxDolaReserve;
+                uint excessDbr = newDbrReserve - maxDbr;
+                if(1e18 * excessDbr / excessDola >= maxDolaPrice) revert Invariant();
+            } else {
+                revert Invariant();
+            }
+        }
     }
 
     /**
@@ -192,6 +216,19 @@ contract HookAMM {
         }
         dbr.transfer(feeRecipient, feesAccrued);
         feesAccrued = 0;
+    }
+
+    function sqrt(uint y) internal pure returns (uint z) {
+        if (y > 3) {
+            z = y;
+            uint x = y / 2 + 1;
+            while (x < z) {
+                z = x;
+                x = (y / x + x) / 2;
+            }
+        } else if (y != 0) {
+            z = 1;
+        }
     }
 
     event BuyDBR(address indexed caller, address indexed to, uint exactDolaIn, uint exactDbrOut);
