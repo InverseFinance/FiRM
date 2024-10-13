@@ -3,6 +3,7 @@ pragma solidity ^0.8.4;
 
 import {ICurvePool} from "src/interfaces/ICurvePool.sol";
 import {IChainlinkBasePriceFeed} from "src/interfaces/IChainlinkFeed.sol";
+import {IERC20} from "src/interfaces/IERC20.sol";
 
 contract CurveLPPessimisticFeed {
     ICurvePool public immutable curvePool;
@@ -12,7 +13,12 @@ contract CurveLPPessimisticFeed {
 
     string public description;
 
-    constructor(address _curvePool, address _coin1Feed, address _coin2Feed) {
+    constructor(
+        address _curvePool,
+        address _coin1Feed,
+        address _coin2Feed,
+        bool _oldCurveImpl
+    ) {
         curvePool = ICurvePool(_curvePool);
         coin1Feed = IChainlinkBasePriceFeed(_coin1Feed);
         coin2Feed = IChainlinkBasePriceFeed(_coin2Feed);
@@ -21,8 +27,17 @@ contract CurveLPPessimisticFeed {
                 coin1Feed.decimals() == 18,
             "CurveLPPessimisticFeed: DECIMALS_MISMATCH"
         );
-
-        description = string(abi.encodePacked(curvePool.symbol(), " / USD"));
+        if (_oldCurveImpl)
+            description = string(
+                abi.encodePacked(
+                    IERC20(curvePool.lp_token()).symbol(),
+                    " / USD"
+                )
+            );
+        else
+            description = string(
+                abi.encodePacked(curvePool.symbol(), " / USD")
+            );
     }
 
     /**
