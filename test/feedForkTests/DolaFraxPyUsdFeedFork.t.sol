@@ -21,7 +21,6 @@ contract DolaFraxPyUsdPriceFeedFork is
     ChainlinkCurveFeed pyUSDFallback;
     ChainlinkCurveFeed fraxFallback;
     CurveLPPessimisticFeed fraxPyUsdFeed;
-    CurveLPPessimisticFeed dolaFraxPyUsdFeed;
 
     ICurvePool public constant dolaPyUSDFrax =
         ICurvePool(0xef484de8C07B6e2d732A92B5F78e81B38f99f95E);
@@ -116,24 +115,10 @@ contract DolaFraxPyUsdPriceFeedFork is
         fraxPyUsdFeed = new CurveLPPessimisticFeed(
             address(pyUSDFrax),
             address(mainFraxFeed),
-            address(mainPyUSDFeed)
+            address(mainPyUSDFeed),
+            false
         );
 
-        //   dolaFeed = new DolaFixedPriceFeed();
-
-        // dolaFraxPyUsdFeed = new CurveLPPessimisticFeed(
-        //     address(dolaPyUSDFrax),
-        //     address(fraxPyUsdFeed),
-        //     address(dolaFeed)
-        // );
-        console.log(
-            "fraxPyUSDFallbck, ",
-            address(fraxPyUsdFeed.coin1Feed().assetToUsdFallback())
-        );
-        init(
-            address(fraxPyUsdFeed.coin1Feed().assetToUsdFallback()),
-            address(fraxPyUsdFeed),
-            address(dolaPyUSDFrax)
-        );
+        init(address(fraxPyUsdFeed), address(dolaPyUSDFrax));
     }
 }

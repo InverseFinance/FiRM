@@ -81,7 +81,8 @@ contract DolaCrvUSDYearnV2FeedFork is CurveLPYearnV2FeedBaseTest, ConfigAddr {
         dolaCrvUSDFeed = new CurveLPPessimisticFeed(
             address(dolaCrvUSD),
             address(mainCrvUSDFeed),
-            address(dolaFeed)
+            address(dolaFeed),
+            false
         );
 
         init(address(dolaCrvUSDFeed), address(dolaCrvUSD), address(_yearn));

@@ -13,22 +13,12 @@ abstract contract DolaCurveLPPessimisticNestedFeedBaseTest is Test {
     CurveLPPessimisticFeed feed;
     ChainlinkBasePriceFeed coin1Feed; // main coin1 feed
     DolaFixedPriceFeed dolaFeed; // main coin2 feed
-    ChainlinkCurveFeed public coin1Fallback; // coin1 fallback if any
 
     ICurvePool public curvePool; // Curve Pool for virtual price
 
-    // For Coin1 Chainlink fallback
-    IChainlinkFeed public coin1ClFallback;
-
-    //address public gov = 0x926dF14a23BE491164dCF93f4c468A50ef659D5B;
     uint256 public constant SCALE = 1e18;
 
-    function init(
-        address _coin1Fallback,
-        address _coin1Feed,
-        address _curvePool
-    ) public {
-        coin1Fallback = ChainlinkCurveFeed(_coin1Fallback);
+    function init(address _coin1Feed, address _curvePool) public {
         coin1Feed = ChainlinkBasePriceFeed(_coin1Feed);
         dolaFeed = new DolaFixedPriceFeed();
         curvePool = ICurvePool(_curvePool);
@@ -36,18 +26,12 @@ abstract contract DolaCurveLPPessimisticNestedFeedBaseTest is Test {
         feed = new CurveLPPessimisticFeed(
             address(curvePool),
             address(coin1Feed),
-            address(dolaFeed)
+            address(dolaFeed),
+            false
         );
-        console.log("coin1Fallback: ", address(coin1Fallback));
-        if (address(coin1ClFallback) != address(0)) {
-            coin1ClFallback = coin1Fallback.assetToUsd();
-        }
     }
 
     function test_description() public {
-        if (address(coin1ClFallback) != address(0)) {
-            console.log("coin1ClFallback: ", coin1ClFallback.description());
-        }
         console.log("coin1Feed: ", coin1Feed.description());
         console.log("dolaFeed: ", dolaFeed.description());
         console.log("feed: ", feed.description());
@@ -88,6 +72,15 @@ abstract contract DolaCurveLPPessimisticNestedFeedBaseTest is Test {
     }
 
     function test_use_coin1_when_coin2_gt_coin1() public {
+        // Set coin1 < than coin2
+        _mockCall_Chainlink(
+            address(dolaFeed),
+            0,
+            1e18 * 2,
+            0,
+            block.timestamp,
+            0
+        );
         (
             uint80 clRoundId,
             int256 coin1UsdPrice,
@@ -96,6 +89,9 @@ abstract contract DolaCurveLPPessimisticNestedFeedBaseTest is Test {
             uint80 clAnsweredInRound
         ) = coin1Feed.latestRoundData();
 
+        console.log("coin1UsdPrice: ", uint(coin1UsdPrice));
+        (, int256 coin2Price, , , ) = dolaFeed.latestRoundData();
+        console.log("coin2Price: ", uint(coin2Price));
         (
             uint80 roundId,
             int256 lpUsdPrice,
@@ -154,6 +150,16 @@ abstract contract DolaCurveLPPessimisticNestedFeedBaseTest is Test {
     }
 
     function test_STALE_coin1_still_use_coin1_if_coin1_lt_coin2() public {
+        // Set coin1 < than coin2
+        _mockCall_Chainlink(
+            address(dolaFeed),
+            0,
+            1e18 * 2,
+            0,
+            block.timestamp,
+            0
+        );
+
         (
             uint80 clRoundId,
             int256 coin1UsdPrice,

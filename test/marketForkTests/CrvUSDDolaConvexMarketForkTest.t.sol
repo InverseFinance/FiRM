@@ -68,7 +68,7 @@ contract CrvUSDDolaConvexMarketForkTest is MarketBaseForkTest {
     function setUp() public virtual {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url, 20612315);
+        vm.createSelectFork(url, 20955256);
 
         _advancedInit(crvUSDDolaConvexAddr, address(crvUSDDolaFeedAddr), true);
 
@@ -123,7 +123,8 @@ contract CrvUSDDolaConvexMarketForkTest is MarketBaseForkTest {
         feed = new CurveLPPessimisticFeed(
             address(dolaCrvUSD),
             address(mainCrvUSDFeed),
-            address(dolaFeed)
+            address(dolaFeed),
+            false
         );
     }
 }

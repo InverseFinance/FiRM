@@ -126,7 +126,8 @@ contract DolaFraxPyUsdYearnV2FeedFork is CurveLPYearnV2FeedBaseTest {
         fraxPyUsdFeed = new CurveLPPessimisticFeed(
             address(pyUSDFrax),
             address(mainFraxFeed),
-            address(mainPyUSDFeed)
+            address(mainPyUSDFeed),
+            false
         );
 
         dolaFeed = new DolaFixedPriceFeed();
@@ -134,23 +135,21 @@ contract DolaFraxPyUsdYearnV2FeedFork is CurveLPYearnV2FeedBaseTest {
         dolaFraxPyUsdFeed = new CurveLPPessimisticFeed(
             address(dolaPyUSDFrax),
             address(fraxPyUsdFeed),
-            address(dolaFeed)
+            address(dolaFeed),
+            false
         );
-        // if (_yearn == address(0)) {
-        //     // Setup YearnVault
+        // Setup YearnVault if needed
+        if (_yearn == address(0)) {
+            // Setup YearnVault
 
-        //     (address yearnVault, , , ) = yearnFactory
-        //         .createNewVaultsAndStrategies(gauge);
-        //     _yearn = yearnVault;
-        //     vm.startPrank(lpHolder, lpHolder);
-        //     IERC20(address(dolaPyUSDFrax)).approve(_yearn, type(uint256).max);
-        //     IYearnVaultV2(_yearn).deposit(1000000, yearnHolder);
-        //     vm.stopPrank();
-        // }
-        // feed = new CurveLPYearnV2Feed(
-        //     address(yearn),
-        //     address(dolaFraxPyUsdFeed)
-        // );
+            (address yearnVault, , , ) = yearnFactory
+                .createNewVaultsAndStrategies(gauge);
+            _yearn = yearnVault;
+            vm.startPrank(lpHolder, lpHolder);
+            IERC20(address(dolaPyUSDFrax)).approve(_yearn, type(uint256).max);
+            IYearnVaultV2(_yearn).deposit(1000000, yearnHolder);
+            vm.stopPrank();
+        }
 
         init(
             address(dolaFraxPyUsdFeed),

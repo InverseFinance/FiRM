@@ -158,7 +158,7 @@ contract ALEDolaFraxPyUSDTest is DolaFraxPyUSDConvexMarketForkTest {
 
         ALE.DBRHelper memory dbrData = ALE.DBRHelper(
             dolaForDBR,
-            (dbrAmount * 98) / 100,
+            (dbrAmount * 97) / 100,
             0
         );
 
@@ -181,7 +181,7 @@ contract ALEDolaFraxPyUSDTest is DolaFraxPyUSDConvexMarketForkTest {
             ConvexEscrowV2(userPkEscrow).balance(),
             lpAmount + lpAmountAdded
         );
-        assertGt(dbr.balanceOf(userPk), (dbrAmount * 98) / 100);
+        assertGt(dbr.balanceOf(userPk), (dbrAmount * 97) / 100);
     }
 
     function test_depositAndLeveragePosition_DOLA() public {

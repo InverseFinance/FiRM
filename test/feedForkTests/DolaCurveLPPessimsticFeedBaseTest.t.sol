@@ -36,7 +36,8 @@ abstract contract DolaCurveLPPessimsticFeedBaseTest is Test {
         feed = new CurveLPPessimisticFeed(
             address(curvePool),
             address(coin1Feed),
-            address(dolaFeed)
+            address(dolaFeed),
+            false
         );
     }
 

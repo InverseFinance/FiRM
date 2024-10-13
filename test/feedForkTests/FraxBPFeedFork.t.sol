@@ -2,18 +2,13 @@
 pragma solidity ^0.8.19;
 
 import "forge-std/Test.sol";
-import "forge-std/console.sol";
-import {ChainlinkCurve2CoinsFeed} from "src/feeds/ChainlinkCurve2CoinsFeed.sol";
-import {ChainlinkCurveFeed} from "src/feeds/ChainlinkCurveFeed.sol";
 import "src/feeds/ChainlinkBasePriceFeed.sol";
+import {ChainlinkCurveFeed} from "src/feeds/ChainlinkCurveFeed.sol";
+import {ChainlinkCurveFeed} from "src/feeds/ChainlinkCurveFeed.sol";
 import "src/feeds/CurveLPPessimisticFeed.sol";
-import {DolaFixedPriceFeed} from "src/feeds/DolaFixedPriceFeed.sol";
-import {CurveLPYearnV2Feed} from "src/feeds/CurveLPYearnV2Feed.sol";
-import {CurveLPYearnV2FeedBaseTest} from "test/feedForkTests/CurveLPYearnV2FeedBaseTest.t.sol";
-import {DolaFixedPriceFeed} from "src/feeds/DolaFixedPriceFeed.sol";
+import {CurveLPPessimisticFeedBaseTest} from "test/feedForkTests/CurveLPPessimisticFeedBaseTest.t.sol";
 
-contract DolaFraxBPYearnV2FeedFork is CurveLPYearnV2FeedBaseTest {
-    address public _yearn = address(0xe5F625e8f4D2A038AE9583Da254945285E5a77a4);
+contract FraxBPFeedFork is CurveLPPessimisticFeedBaseTest {
     ChainlinkBasePriceFeed mainFraxFeed;
     ChainlinkBasePriceFeed mainUSDCFeed;
     ChainlinkBasePriceFeed baseEthToUsd;
@@ -21,11 +16,6 @@ contract DolaFraxBPYearnV2FeedFork is CurveLPYearnV2FeedBaseTest {
     ChainlinkCurveFeed usdcFallback;
     ChainlinkCurveFeed fraxFallback;
     CurveLPPessimisticFeed fraxBPFeed;
-    CurveLPPessimisticFeed dolaFraxBPFeed;
-    DolaFixedPriceFeed dolaFeed;
-
-    ICurvePool public constant dolaFraxBP =
-        ICurvePool(0xE57180685E3348589E9521aa53Af0BCD497E884d);
 
     ICurvePool public constant fraxBP =
         ICurvePool(0xDcEF968d416a41Cdac0ED8702fAC8128A64241A2);
@@ -112,16 +102,15 @@ contract DolaFraxBPYearnV2FeedFork is CurveLPYearnV2FeedBaseTest {
             address(mainUSDCFeed),
             true
         );
-
-        dolaFeed = new DolaFixedPriceFeed();
-
-        dolaFraxBPFeed = new CurveLPPessimisticFeed(
-            address(dolaFraxBP),
-            address(fraxBPFeed),
-            address(dolaFeed),
-            false
+        init(
+            address(baseUsdeToUsd),
+            address(fraxFallback),
+            address(mainFraxFeed),
+            address(baseEthToUsd),
+            address(usdcFallback),
+            address(mainUSDCFeed),
+            address(fraxBP),
+            address(fraxBPFeed)
         );
-
-        init(address(dolaFraxBPFeed), address(dolaFraxBP), address(_yearn));
     }
 }

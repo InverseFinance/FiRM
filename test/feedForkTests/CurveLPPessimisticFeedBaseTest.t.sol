@@ -8,7 +8,7 @@ import {ChainlinkCurveFeed} from "src/feeds/ChainlinkCurveFeed.sol";
 //import {ChainlinkCurveFeed} from "src/feeds/ChainlinkCurveFeed.sol";
 import "src/feeds/CurveLPPessimisticFeed.sol";
 
-abstract contract CurveLPPessimiticFeedBaseTest is Test {
+abstract contract CurveLPPessimisticFeedBaseTest is Test {
     CurveLPPessimisticFeed feed;
     ChainlinkBasePriceFeed coin1Feed; // main coin1 feed
     ChainlinkBasePriceFeed coin2Feed; // main coin2 feed
@@ -35,7 +35,8 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
         address _baseClFallCoin2,
         address _coin2Fallback,
         address _coin2Feed,
-        address _curvePool
+        address _curvePool,
+        address _feed
     ) public {
         baseClFallCoin1 = ChainlinkBasePriceFeed(_baseClFallCoin1);
         coin1Fallback = ChainlinkCurveFeed(_coin1Fallback);
@@ -47,12 +48,8 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
         coin1ClFallback = coin1Fallback.assetToUsd();
         coin2ClFallback = coin2Fallback.assetToUsd();
 
-        feed = new CurveLPPessimisticFeed(
-            address(curvePool),
-            address(coin1Feed),
-            address(coin2Feed)
-        );
-        // console.log("feed :", feed.description());
+        feed = CurveLPPessimisticFeed(_feed);
+        console.log("feed :", feed.description());
     }
 
     function test_decimals() public {
