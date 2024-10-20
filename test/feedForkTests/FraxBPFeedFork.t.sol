@@ -6,16 +6,17 @@ import "src/feeds/ChainlinkBasePriceFeed.sol";
 import {ChainlinkCurveFeed} from "src/feeds/ChainlinkCurveFeed.sol";
 import {ChainlinkCurveFeed} from "src/feeds/ChainlinkCurveFeed.sol";
 import "src/feeds/CurveLPPessimisticFeed.sol";
-import {CurveLPPessimisticFeedBaseTest} from "test/feedForkTests/CurveLPPessimisticFeedBaseTest.t.sol";
+import {PessimisticFeed} from "src/feeds/PessimisticFeed.sol";
+import {PessimisticFeedBaseTest} from "test/feedForkTests/PessimisticFeedBaseTest.t.sol";
 
-contract FraxBPFeedFork is CurveLPPessimisticFeedBaseTest {
+contract FraxBPFeedFork is PessimisticFeedBaseTest {
     ChainlinkBasePriceFeed mainFraxFeed;
     ChainlinkBasePriceFeed mainUSDCFeed;
     ChainlinkBasePriceFeed baseEthToUsd;
     ChainlinkBasePriceFeed baseUsdeToUsd;
     ChainlinkCurveFeed usdcFallback;
     ChainlinkCurveFeed fraxFallback;
-    CurveLPPessimisticFeed fraxBPFeed;
+    PessimisticFeed fraxBPFeed;
 
     ICurvePool public constant fraxBP =
         ICurvePool(0xDcEF968d416a41Cdac0ED8702fAC8128A64241A2);
@@ -96,11 +97,9 @@ contract FraxBPFeedFork is CurveLPPessimisticFeedBaseTest {
             usdcHeartbeat
         );
 
-        fraxBPFeed = new CurveLPPessimisticFeed(
-            address(fraxBP),
+        fraxBPFeed = new PessimisticFeed(
             address(mainFraxFeed),
-            address(mainUSDCFeed),
-            true
+            address(mainUSDCFeed)
         );
         init(
             address(baseUsdeToUsd),
@@ -109,7 +108,6 @@ contract FraxBPFeedFork is CurveLPPessimisticFeedBaseTest {
             address(baseEthToUsd),
             address(usdcFallback),
             address(mainUSDCFeed),
-            address(fraxBP),
             address(fraxBPFeed)
         );
     }

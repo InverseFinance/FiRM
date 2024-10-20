@@ -9,6 +9,7 @@ import "src/feeds/CurveLPPessimisticFeed.sol";
 import {CurveLPPessimisticFeed} from "src/feeds/CurveLPPessimisticFeed.sol";
 import {DolaCurveLPPessimisticNestedFeedBaseTest} from "test/feedForkTests/DolaCurveLPPessimisticNestedFeedBaseTest.t.sol";
 import {DolaFixedPriceFeed} from "src/feeds/DolaFixedPriceFeed.sol";
+import {PessimisticFeed} from "src/feeds/PessimisticFeed.sol";
 
 contract DolaFraxBPPriceFeedFork is DolaCurveLPPessimisticNestedFeedBaseTest {
     ChainlinkBasePriceFeed mainFraxFeed;
@@ -17,7 +18,7 @@ contract DolaFraxBPPriceFeedFork is DolaCurveLPPessimisticNestedFeedBaseTest {
     ChainlinkBasePriceFeed baseUsdeToUsd;
     ChainlinkCurveFeed usdcFallback;
     ChainlinkCurveFeed fraxFallback;
-    CurveLPPessimisticFeed fraxBPFeed;
+    PessimisticFeed fraxBPFeed;
 
     ICurvePool public constant dolaFraxBP =
         ICurvePool(0xE57180685E3348589E9521aa53Af0BCD497E884d);
@@ -101,11 +102,9 @@ contract DolaFraxBPPriceFeedFork is DolaCurveLPPessimisticNestedFeedBaseTest {
             usdcHeartbeat
         );
 
-        fraxBPFeed = new CurveLPPessimisticFeed(
-            address(fraxBP),
+        fraxBPFeed = new PessimisticFeed(
             address(mainFraxFeed),
-            address(mainUSDCFeed),
-            true
+            address(mainUSDCFeed)
         );
 
         init(address(fraxBPFeed), address(dolaFraxBP));

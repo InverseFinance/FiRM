@@ -9,6 +9,7 @@ import "src/feeds/CurveLPPessimisticFeed.sol";
 import {CurveLPPessimisticFeed} from "src/feeds/CurveLPPessimisticFeed.sol";
 import {DolaCurveLPPessimisticNestedFeedBaseTest} from "test/feedForkTests/DolaCurveLPPessimisticNestedFeedBaseTest.t.sol";
 import {DolaFixedPriceFeed} from "src/feeds/DolaFixedPriceFeed.sol";
+import {PessimisticFeed} from "src/feeds/PessimisticFeed.sol";
 
 contract DolaFraxPyUsdPriceFeedFork is
     DolaCurveLPPessimisticNestedFeedBaseTest
@@ -20,7 +21,7 @@ contract DolaFraxPyUsdPriceFeedFork is
     ChainlinkBasePriceFeed baseUsdeToUsd;
     ChainlinkCurveFeed pyUSDFallback;
     ChainlinkCurveFeed fraxFallback;
-    CurveLPPessimisticFeed fraxPyUsdFeed;
+    PessimisticFeed fraxPyUsdFeed;
 
     ICurvePool public constant dolaPyUSDFrax =
         ICurvePool(0xef484de8C07B6e2d732A92B5F78e81B38f99f95E);
@@ -112,11 +113,9 @@ contract DolaFraxPyUsdPriceFeedFork is
             pyUSDHeartbeat
         );
 
-        fraxPyUsdFeed = new CurveLPPessimisticFeed(
-            address(pyUSDFrax),
+        fraxPyUsdFeed = new PessimisticFeed(
             address(mainFraxFeed),
-            address(mainPyUSDFeed),
-            false
+            address(mainPyUSDFeed)
         );
 
         init(address(fraxPyUsdFeed), address(dolaPyUSDFrax));

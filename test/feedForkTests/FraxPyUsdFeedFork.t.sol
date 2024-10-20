@@ -7,8 +7,10 @@ import {ChainlinkCurveFeed} from "src/feeds/ChainlinkCurveFeed.sol";
 import {ChainlinkCurveFeed} from "src/feeds/ChainlinkCurveFeed.sol";
 import "src/feeds/CurveLPPessimisticFeed.sol";
 import {CurveLPPessimisticFeedBaseTest} from "test/feedForkTests/CurveLPPessimisticFeedBaseTest.t.sol";
+import {PessimisticFeed} from "src/feeds/PessimisticFeed.sol";
+import {PessimisticFeedBaseTest} from "test/feedForkTests/PessimisticFeedBaseTest.t.sol";
 
-contract FraxPyUsdPriceFeedFork is CurveLPPessimisticFeedBaseTest {
+contract FraxPyUsdPriceFeedFork is PessimisticFeedBaseTest {
     ChainlinkBasePriceFeed mainFraxFeed;
     ChainlinkBasePriceFeed mainPyUSDFeed;
     ChainlinkBasePriceFeed baseCrvUsdToUsd;
@@ -16,7 +18,7 @@ contract FraxPyUsdPriceFeedFork is CurveLPPessimisticFeedBaseTest {
     ChainlinkBasePriceFeed baseUsdeToUsd;
     ChainlinkCurveFeed pyUSDFallback;
     ChainlinkCurveFeed fraxFallback;
-    CurveLPPessimisticFeed fraxPyUsdFeed;
+    PessimisticFeed fraxPyUsdFeed;
 
     ICurvePool public constant pyUSDFrax =
         ICurvePool(0xA5588F7cdf560811710A2D82D3C9c99769DB1Dcb);
@@ -105,11 +107,9 @@ contract FraxPyUsdPriceFeedFork is CurveLPPessimisticFeedBaseTest {
             pyUSDHeartbeat
         );
 
-        fraxPyUsdFeed = new CurveLPPessimisticFeed(
-            address(pyUSDFrax),
+        fraxPyUsdFeed = new PessimisticFeed(
             address(mainFraxFeed),
-            address(mainPyUSDFeed),
-            false
+            address(mainPyUSDFeed)
         );
         init(
             address(baseUsdeToUsd),
@@ -118,7 +118,6 @@ contract FraxPyUsdPriceFeedFork is CurveLPPessimisticFeedBaseTest {
             address(baseUsdcToUsd),
             address(pyUSDFallback),
             address(mainPyUSDFeed),
-            address(pyUSDFrax),
             address(fraxPyUsdFeed)
         );
     }
