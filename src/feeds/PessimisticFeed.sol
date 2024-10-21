@@ -55,14 +55,10 @@ contract PessimisticFeed {
             uint80 answeredInRoundCoin2
         ) = coin2Feed.latestRoundData();
 
-        // If coin1 price is lower than coin2 price, use coin1 price
-        int256 minUsdPrice;
-        if (usdPriceCoin1 < usdPriceCoin2) {
-            minUsdPrice = usdPriceCoin1;
-        } else {
-            // return coin2 price
-            minUsdPrice = usdPriceCoin2;
-        }
+        // use lower price from usdPriceCoin1 and usdPriceCoin2
+        int256 minUsdPrice = usdPriceCoin1 < usdPriceCoin2
+            ? usdPriceCoin1
+            : usdPriceCoin2;
         // use lowest updatedAt
         if (updatedAtCoin2 < updatedAt) {
             roundId = roundIdCoin2;
