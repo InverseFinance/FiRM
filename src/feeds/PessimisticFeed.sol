@@ -60,9 +60,10 @@ contract PessimisticFeed {
         if (usdPriceCoin1 < usdPriceCoin2) {
             minUsdPrice = usdPriceCoin1;
         } else {
-            // return coin2 price even if stale
+            // return coin2 price
             minUsdPrice = usdPriceCoin2;
         }
+        // use lowest updatedAt
         if (updatedAtCoin2 < updatedAt) {
             roundId = roundIdCoin2;
             startedAt = startedAtCoin2;
