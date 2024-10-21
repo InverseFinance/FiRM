@@ -55,25 +55,21 @@ contract PessimisticFeed {
             uint80 answeredInRoundCoin2
         ) = coin2Feed.latestRoundData();
 
-        // If coin1 price is lower than coin2 price and not stale, use coin1 price
-        if (usdPriceCoin1 < usdPriceCoin2 && updatedAt > 0) {
-            return (
-                roundId,
-                usdPriceCoin1,
-                startedAt,
-                updatedAt,
-                answeredInRound
-            );
+        // If coin1 price is lower than coin2 price, use coin1 price
+        int256 minUsdPrice;
+        if (usdPriceCoin1 < usdPriceCoin2) {
+            minUsdPrice = usdPriceCoin1;
         } else {
             // return coin2 price even if stale
-            return (
-                roundIdCoin2,
-                usdPriceCoin2,
-                startedAtCoin2,
-                updatedAtCoin2,
-                answeredInRoundCoin2
-            );
+            minUsdPrice = usdPriceCoin2;
         }
+        if (updatedAtCoin2 < updatedAt) {
+            roundId = roundIdCoin2;
+            startedAt = startedAtCoin2;
+            updatedAt = updatedAtCoin2;
+            answeredInRound = answeredInRoundCoin2;
+        }
+        return (roundId, minUsdPrice, startedAt, updatedAt, answeredInRound);
     }
 
     /** 
