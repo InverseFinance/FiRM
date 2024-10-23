@@ -103,6 +103,7 @@ contract FeedSwitch {
     }
 
     /// @notice Get the number of decimals of the feed
+    /// @return decimals The number of decimals
     function decimals() external pure returns (uint8) {
         return 18;
     }
