@@ -3,7 +3,11 @@ pragma solidity ^0.8.18;
 
 import "src/interfaces/IChainlinkFeed.sol";
 
-/// @title FeedSwitch
+interface IPendlePT {
+    function expiry() external view returns (uint256);
+}
+
+/// @title FeedSwitch for Pendle PT tokens
 /// @notice A contract to switch between feeds after a timelock period
 /// @dev The switch can only be initiated by the guardian and will be effective after the timelock period has passed, can only be done before maturity.
 /// If the switch is initiated but not yet effective, it can be cancelled by the guardian without timelock period.
@@ -34,7 +38,7 @@ contract FeedSwitch {
         address _beforeMaturityFeed,
         address _afterMaturityFeed,
         uint256 _timelockPeriod,
-        uint256 _maturity,
+        address _pendlePT,
         address _guardian
     ) {
         feed = IChainlinkFeed(_feed);
@@ -47,9 +51,10 @@ contract FeedSwitch {
             feed.decimals() != 18
         ) revert FeedDecimalsMismatch();
 
-        if (_maturity < block.timestamp) revert MaturityInPast();
         timelockPeriod = _timelockPeriod;
-        maturity = _maturity;
+        maturity = IPendlePT(_pendlePT).expiry();
+        if (maturity < block.timestamp) revert MaturityInPast();
+
         guardian = _guardian;
     }
 

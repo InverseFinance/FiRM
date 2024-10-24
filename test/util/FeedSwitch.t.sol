@@ -2,10 +2,16 @@
 pragma solidity ^0.8.18;
 
 import "forge-std/Test.sol";
-import {FeedSwitch} from "src/util/FeedSwitch.sol";
+import {FeedSwitch, IPendlePT} from "src/util/FeedSwitch.sol";
 import "src/interfaces/IChainlinkFeed.sol";
 import {console} from "forge-std/console.sol";
 import {MockFeed} from "test/mocks/MockFeed.sol";
+
+contract MockPendlePT {
+    function expiry() external pure returns (uint256) {
+        return 100;
+    }
+}
 
 contract FeedSwitchTest is Test {
     FeedSwitch feedSwitch;
@@ -13,9 +19,11 @@ contract FeedSwitchTest is Test {
     MockFeed beforeMaturityFeed;
     MockFeed afterMaturityFeed;
     address guardian = address(0x2);
+    address pendlePT = address(0xE00bd3Df25fb187d6ABBB620b3dfd19839947b81);
 
     function setUp() public {
-        vm.warp(2 days);
+        string memory url = vm.rpcUrl("mainnet");
+        vm.createSelectFork(url, 21035587);
         initialFeed = new MockFeed(18, 1e18);
         beforeMaturityFeed = new MockFeed(18, 0.95e18);
         afterMaturityFeed = new MockFeed(18, 0.99e18);
@@ -24,7 +32,7 @@ contract FeedSwitchTest is Test {
             address(beforeMaturityFeed),
             address(afterMaturityFeed),
             18 hours,
-            block.timestamp + 100 days,
+            pendlePT,
             guardian
         );
     }
@@ -40,7 +48,7 @@ contract FeedSwitchTest is Test {
             address(afterMaturityFeed)
         );
         assertEq(feedSwitch.timelockPeriod(), 18 hours);
-        assertEq(feedSwitch.maturity(), block.timestamp + 100 days);
+        assertEq(feedSwitch.maturity(), IPendlePT(pendlePT).expiry());
         assertEq(feedSwitch.guardian(), guardian);
     }
 
@@ -89,7 +97,7 @@ contract FeedSwitchTest is Test {
             uint(feedSwitch.latestAnswer()),
             uint(beforeMaturityFeed.latestAnswer())
         );
-        vm.warp(block.timestamp + 101 days);
+        vm.warp(IPendlePT(pendlePT).expiry() + 1);
         assertEq(
             uint(feedSwitch.latestAnswer()),
             uint(afterMaturityFeed.latestAnswer())
@@ -102,7 +110,7 @@ contract FeedSwitchTest is Test {
             uint(initialFeed.latestAnswer())
         );
 
-        vm.warp(block.timestamp + 101 days);
+        vm.warp(IPendlePT(pendlePT).expiry() + 1);
         assertEq(
             uint(feedSwitch.latestAnswer()),
             uint(afterMaturityFeed.latestAnswer())
@@ -122,7 +130,7 @@ contract FeedSwitchTest is Test {
             uint(feedSwitch.latestAnswer()),
             uint(beforeMaturityFeed.latestAnswer())
         );
-        vm.warp(block.timestamp + 101 days);
+        vm.warp(IPendlePT(pendlePT).expiry() + 1);
         // After Maturity
         assertEq(
             uint(feedSwitch.latestAnswer()),
@@ -304,7 +312,7 @@ contract FeedSwitchTest is Test {
     }
 
     function test_Fail_initiateFeedSwitch_after_maturity() public {
-        vm.warp(block.timestamp + 101 days);
+        vm.warp(IPendlePT(pendlePT).expiry() + 1);
         vm.prank(guardian);
         vm.expectRevert(FeedSwitch.MaturityPassed.selector);
         feedSwitch.initiateFeedSwitch();
@@ -340,7 +348,7 @@ contract FeedSwitchTest is Test {
             address(beforeMaturityFeed),
             address(afterMaturityFeed),
             18 hours,
-            block.timestamp + 100 days,
+            pendlePT,
             guardian
         );
 
@@ -350,7 +358,7 @@ contract FeedSwitchTest is Test {
             address(wrongDecimalsFeed),
             address(afterMaturityFeed),
             18 hours,
-            block.timestamp + 100 days,
+            pendlePT,
             guardian
         );
 
@@ -360,20 +368,20 @@ contract FeedSwitchTest is Test {
             address(beforeMaturityFeed),
             address(wrongDecimalsFeed),
             18 hours,
-            block.timestamp + 100 days,
+            pendlePT,
             guardian
         );
     }
 
     function test_Deploy_maturity_in_past() public {
-        vm.warp(block.timestamp + 1 days);
+        MockPendlePT MockPendlePT = new MockPendlePT();
         vm.expectRevert(FeedSwitch.MaturityInPast.selector);
         FeedSwitch feedSwitch = new FeedSwitch(
             address(initialFeed),
             address(beforeMaturityFeed),
             address(afterMaturityFeed),
             18 hours,
-            block.timestamp - 0.5 days,
+            address(MockPendlePT),
             guardian
         );
     }
