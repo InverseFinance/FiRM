@@ -64,7 +64,7 @@ contract FeedSwitch {
         if (msg.sender != guardian) revert NotGuardian();
         if (block.timestamp > maturity) revert MaturityPassed();
 
-        if (switchCompletedAt == 0 || switchCompletedAt < block.timestamp) {
+        if (switchCompletedAt < block.timestamp) {
             switchCompletedAt = block.timestamp + timelockPeriod;
         } else switchCompletedAt = 0;
 
@@ -98,7 +98,7 @@ contract FeedSwitch {
     {
         if (block.timestamp > maturity) {
             return afterMaturityFeed.latestRoundData();
-        } else if (block.timestamp > switchCompletedAt) {
+        } else if (block.timestamp >= switchCompletedAt) {
             return feed.latestRoundData();
         } else {
             return previousFeed.latestRoundData();
