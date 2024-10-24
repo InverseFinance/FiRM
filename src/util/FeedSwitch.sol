@@ -6,6 +6,7 @@ import "src/interfaces/IChainlinkFeed.sol";
 /// @title FeedSwitch
 /// @notice A contract to switch between feeds after a timelock period
 /// @dev The switch can only be initiated by the guardian and will be effective after the timelock period has passed, can only be done before maturity.
+/// If the switch is initiated but not yet effective, it can be cancelled by the guardian without timelock period.
 /// The feed will default to the afterMaturityFeed if the maturity has passed.
 /// The guardian can initiate the switch again to the previous feed multiple times.
 contract FeedSwitch {
