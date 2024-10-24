@@ -149,9 +149,9 @@ contract FeedSwitchTest is Test {
             uint(initialFeed.latestAnswer()),
             "before feed switch"
         );
-        assertEq(feedSwitch.switchCompletedAt(), 0);
 
         vm.warp(block.timestamp + 1 days);
+        assertEq(feedSwitch.switchCompletedAt(), 0);
         assertEq(
             uint(feedSwitch.latestAnswer()),
             uint(initialFeed.latestAnswer())
@@ -361,6 +361,19 @@ contract FeedSwitchTest is Test {
             address(wrongDecimalsFeed),
             18 hours,
             block.timestamp + 100 days,
+            guardian
+        );
+    }
+
+    function test_Deploy_maturity_in_past() public {
+        vm.warp(block.timestamp + 1 days);
+        vm.expectRevert(FeedSwitch.MaturityInPast.selector);
+        FeedSwitch feedSwitch = new FeedSwitch(
+            address(initialFeed),
+            address(beforeMaturityFeed),
+            address(afterMaturityFeed),
+            18 hours,
+            block.timestamp - 0.5 days,
             guardian
         );
     }

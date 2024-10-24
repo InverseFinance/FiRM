@@ -2,16 +2,13 @@
 pragma solidity ^0.8.18;
 
 import "src/interfaces/IChainlinkFeed.sol";
-import {console} from "forge-std/console.sol";
 
 /// @title FeedSwitch
 /// @notice A contract to switch between feeds after a timelock period
-/// @dev The contract can only be initiated by the guardian and the feed can only be switched after the timelock period has passed.
-/// The backup feed will default to the afterMaturityFeed if the maturity has passed, if not it will default to the beforeMaturityFeed.
-/// If a switch is done before maturity, the guardian can initiate the switch again to update the feed to the afterMaturityFeed if the maturity has passed.
+/// @dev The switch can only be initiated by the guardian and will be effective after the timelock period has passed, can only be done before maturity.
+/// The feed will default to the afterMaturityFeed if the maturity has passed.
+/// The guardian can initiate the switch again to the previous feed multiple times.
 contract FeedSwitch {
-    error SwitchNotInitiated();
-    error CannotSwitchYet();
     error NotGuardian();
     error FeedDecimalsMismatch();
     error MaturityInPast();
@@ -27,11 +24,9 @@ contract FeedSwitch {
     IChainlinkFeed public feed;
     IChainlinkFeed public previousFeed;
 
-    uint256 public switchInitiatedAt;
     uint256 public switchCompletedAt;
 
-    event FeedSwitchInitiated();
-    event FeedSwitched(address indexed newFeed);
+    event FeedSwitchInitiated(address indexed newFeed);
 
     constructor(
         address _feed,
@@ -75,7 +70,7 @@ contract FeedSwitch {
             previousFeed = beforeMaturityFeed;
         }
 
-        emit FeedSwitchInitiated();
+        emit FeedSwitchInitiated(address(feed));
     }
 
     /// @notice Get the current feed data
@@ -97,9 +92,7 @@ contract FeedSwitch {
     {
         if (block.timestamp > maturity) {
             return afterMaturityFeed.latestRoundData();
-        } else if (
-            block.timestamp > switchCompletedAt || switchCompletedAt == 0
-        ) {
+        } else if (block.timestamp > switchCompletedAt) {
             return feed.latestRoundData();
         } else {
             return previousFeed.latestRoundData();
