@@ -9,18 +9,18 @@ import {MockFeed} from "test/mocks/MockFeed.sol";
 
 contract FeedSwitchTest is Test {
     FeedSwitch feedSwitch;
-    MockFeed currentFeed;
+    MockFeed initialFeed;
     MockFeed beforeMaturityFeed;
     MockFeed afterMaturityFeed;
     address guardian = address(0x2);
 
     function setUp() public {
         vm.warp(2 days);
-        currentFeed = new MockFeed(18, 1e18);
+        initialFeed = new MockFeed(18, 1e18);
         beforeMaturityFeed = new MockFeed(18, 0.95e18);
         afterMaturityFeed = new MockFeed(18, 0.99e18);
         feedSwitch = new FeedSwitch(
-            address(currentFeed),
+            address(initialFeed),
             address(beforeMaturityFeed),
             address(afterMaturityFeed),
             18 hours,
@@ -30,7 +30,7 @@ contract FeedSwitchTest is Test {
     }
 
     function test_Deployment() public view {
-        assertEq(address(feedSwitch.feed()), address(currentFeed));
+        assertEq(address(feedSwitch.feed()), address(initialFeed));
         assertEq(
             address(feedSwitch.beforeMaturityFeed()),
             address(beforeMaturityFeed)
@@ -47,7 +47,10 @@ contract FeedSwitchTest is Test {
     function test_InitiateFeedSwitch() public {
         vm.prank(guardian);
         feedSwitch.initiateFeedSwitch();
-        assertEq(feedSwitch.switchInitiatedAt(), block.timestamp);
+        assertEq(
+            feedSwitch.switchCompletedAt(),
+            block.timestamp + feedSwitch.timelockPeriod()
+        );
     }
 
     function test_Fail_InitiateFeedSwitchNotGuardian() public {
@@ -58,82 +61,253 @@ contract FeedSwitchTest is Test {
     function test_SwitchFeed_before_maturity() public {
         vm.prank(guardian);
         feedSwitch.initiateFeedSwitch();
+        assertEq(
+            uint(feedSwitch.latestAnswer()),
+            uint(initialFeed.latestAnswer())
+        );
+        vm.warp(block.timestamp + 0.5 days);
+        int256 price = feedSwitch.latestAnswer();
+        assertEq(uint(price), 1e18, "initial feed");
         vm.warp(block.timestamp + 1 days);
-        feedSwitch.switchFeed();
-        assertEq(address(feedSwitch.feed()), address(beforeMaturityFeed));
+        assertEq(
+            uint(feedSwitch.latestAnswer()),
+            uint(beforeMaturityFeed.latestAnswer())
+        );
+        price = feedSwitch.latestAnswer();
+        assertEq(uint(price), 0.95e18);
+    }
+
+    function test_SwitchFeed_after_maturity_after_switch() public {
+        assertEq(
+            uint(feedSwitch.latestAnswer()),
+            uint(initialFeed.latestAnswer())
+        );
+        vm.prank(guardian);
+        feedSwitch.initiateFeedSwitch();
+        vm.warp(block.timestamp + 1 days);
+        assertEq(
+            uint(feedSwitch.latestAnswer()),
+            uint(beforeMaturityFeed.latestAnswer())
+        );
+        vm.warp(block.timestamp + 101 days);
+        assertEq(
+            uint(feedSwitch.latestAnswer()),
+            uint(afterMaturityFeed.latestAnswer())
+        );
     }
 
     function test_SwitchFeed_after_maturity() public {
-        vm.prank(guardian);
-        feedSwitch.initiateFeedSwitch();
+        assertEq(
+            uint(feedSwitch.latestAnswer()),
+            uint(initialFeed.latestAnswer())
+        );
+
         vm.warp(block.timestamp + 101 days);
-        feedSwitch.switchFeed();
-        assertEq(address(feedSwitch.feed()), address(afterMaturityFeed));
+        assertEq(
+            uint(feedSwitch.latestAnswer()),
+            uint(afterMaturityFeed.latestAnswer())
+        );
     }
 
-    function test_SwitchFeed_before_maturity_and_again_after_maturity() public {
+    function test_SwitchFeed_before_maturity_and_after_maturity() public {
         vm.prank(guardian);
         feedSwitch.initiateFeedSwitch();
+        assertEq(
+            uint(feedSwitch.latestAnswer()),
+            uint(initialFeed.latestAnswer())
+        );
         // Before Maturity
         vm.warp(block.timestamp + 1 days);
-        feedSwitch.switchFeed();
-        assertEq(address(feedSwitch.feed()), address(beforeMaturityFeed));
-
+        assertEq(
+            uint(feedSwitch.latestAnswer()),
+            uint(beforeMaturityFeed.latestAnswer())
+        );
         vm.warp(block.timestamp + 101 days);
         // After Maturity
-        vm.prank(guardian);
-        feedSwitch.initiateFeedSwitch();
-        assertEq(feedSwitch.switchInitiatedAt(), block.timestamp);
-        vm.warp(block.timestamp + 1 days);
-        feedSwitch.switchFeed();
-        assertEq(address(feedSwitch.feed()), address(afterMaturityFeed));
-        assertEq(feedSwitch.switchInitiatedAt(), 0);
+        assertEq(
+            uint(feedSwitch.latestAnswer()),
+            uint(afterMaturityFeed.latestAnswer())
+        );
     }
 
-    function test_SwitchFeed_twice_before_maturity_always_return_before_maturity_feed()
-        public
-    {
+    function test_Cancel_feed_switch() public {
         vm.prank(guardian);
         feedSwitch.initiateFeedSwitch();
-        // Before Maturity
-        vm.warp(block.timestamp + 1 days);
-        feedSwitch.switchFeed();
-        assertEq(address(feedSwitch.feed()), address(beforeMaturityFeed));
+        assertEq(feedSwitch.switchCompletedAt(), block.timestamp + 18 hours);
+        assertEq(
+            uint(feedSwitch.latestAnswer()),
+            uint(initialFeed.latestAnswer())
+        );
+        vm.warp(block.timestamp + 0.5 days);
 
-        // Before Maturity
+        // Cancel the feed switch
         vm.prank(guardian);
         feedSwitch.initiateFeedSwitch();
-        vm.warp(block.timestamp + 50 days);
-        feedSwitch.switchFeed();
-        assertEq(address(feedSwitch.feed()), address(beforeMaturityFeed));
+        assertEq(feedSwitch.switchCompletedAt(), 0);
+        assertEq(
+            uint(feedSwitch.latestAnswer()),
+            uint(initialFeed.latestAnswer()),
+            "before feed switch"
+        );
+        assertEq(feedSwitch.switchCompletedAt(), 0);
+
+        vm.warp(block.timestamp + 1 days);
+        assertEq(
+            uint(feedSwitch.latestAnswer()),
+            uint(initialFeed.latestAnswer())
+        );
     }
 
-    function test_switchFeed_twice_after_maturity_always_return_after_maturity_feed()
-        public
-    {
+    function test_Cancel_feed_switch_and_reswitch() public {
         vm.prank(guardian);
         feedSwitch.initiateFeedSwitch();
+        assertEq(feedSwitch.switchCompletedAt(), block.timestamp + 18 hours);
+        assertEq(
+            uint(feedSwitch.latestAnswer()),
+            uint(initialFeed.latestAnswer())
+        );
+        vm.warp(block.timestamp + 0.5 days);
+
+        // Cancel the feed switch
+        vm.prank(guardian);
+        feedSwitch.initiateFeedSwitch();
+        assertEq(feedSwitch.switchCompletedAt(), 0);
+        assertEq(
+            uint(feedSwitch.latestAnswer()),
+            uint(initialFeed.latestAnswer()),
+            "before feed switch"
+        );
+        assertEq(feedSwitch.switchCompletedAt(), 0);
+        // After the feed is canceled, it keeps using the initialFeed
+        vm.warp(block.timestamp + 1 days);
+        assertEq(
+            uint(feedSwitch.latestAnswer()),
+            uint(initialFeed.latestAnswer())
+        );
+
+        // Initiate a feed switch again
+        vm.prank(guardian);
+        feedSwitch.initiateFeedSwitch();
+        assertEq(feedSwitch.switchCompletedAt(), block.timestamp + 18 hours);
+        assertEq(
+            uint(feedSwitch.latestAnswer()),
+            uint(initialFeed.latestAnswer())
+        );
+
+        vm.warp(block.timestamp + 1 days);
+        assertEq(
+            uint(feedSwitch.latestAnswer()),
+            uint(beforeMaturityFeed.latestAnswer())
+        );
+    }
+
+    function test_Cancel_feed_switch_with_beforeMaturityFeed_and_reswitch()
+        public
+    {
+        // Switch feed to beforeMaturityFeed
+        vm.prank(guardian);
+        feedSwitch.initiateFeedSwitch();
+        assertEq(feedSwitch.switchCompletedAt(), block.timestamp + 18 hours);
+        assertEq(
+            uint(feedSwitch.latestAnswer()),
+            uint(initialFeed.latestAnswer())
+        );
+        vm.warp(block.timestamp + 1 days);
+        assertEq(
+            uint(feedSwitch.latestAnswer()),
+            uint(beforeMaturityFeed.latestAnswer())
+        );
+
+        // Initiate a feed switch again
+        vm.prank(guardian);
+        feedSwitch.initiateFeedSwitch();
+        assertEq(feedSwitch.switchCompletedAt(), block.timestamp + 18 hours);
+        assertEq(
+            uint(feedSwitch.latestAnswer()),
+            uint(beforeMaturityFeed.latestAnswer())
+        );
+
+        // Cancel it when it is in the timelock period and keep using beforeMaturityFeed
+        vm.warp(block.timestamp + 0.5 days);
+        vm.prank(guardian);
+        feedSwitch.initiateFeedSwitch();
+        assertEq(feedSwitch.switchCompletedAt(), 0);
+        assertEq(
+            uint(feedSwitch.latestAnswer()),
+            uint(beforeMaturityFeed.latestAnswer())
+        );
+
+        // Initiate a feed switch again
+        vm.prank(guardian);
+        feedSwitch.initiateFeedSwitch();
+        assertEq(feedSwitch.switchCompletedAt(), block.timestamp + 18 hours);
+        assertEq(
+            uint(feedSwitch.latestAnswer()),
+            uint(beforeMaturityFeed.latestAnswer())
+        );
+
+        vm.warp(block.timestamp + 1 days);
+        assertEq(
+            uint(feedSwitch.latestAnswer()),
+            uint(initialFeed.latestAnswer())
+        );
+    }
+
+    function test_SwitchFeed_twice_before_maturity() public {
+        // Previous Feed is not initialized and current feed is initialFeed
+        assertEq(address(feedSwitch.previousFeed()), address(0));
+        assertEq(address(feedSwitch.feed()), address(initialFeed));
+        assertEq(
+            uint(feedSwitch.latestAnswer()),
+            uint(initialFeed.latestAnswer())
+        );
+        // Initiate a feed switch
+        vm.prank(guardian);
+        feedSwitch.initiateFeedSwitch();
+        // Feed switch initiated
+        assertEq(address(feedSwitch.previousFeed()), address(initialFeed));
+        assertEq(address(feedSwitch.feed()), address(beforeMaturityFeed));
+        // Before timelock period, initialFeed is still the one used
+        assertEq(
+            uint(feedSwitch.latestAnswer()),
+            uint(initialFeed.latestAnswer())
+        );
+        // After timelock period, beforeMaturityFeed is used
+        vm.warp(block.timestamp + 1 days);
+        assertEq(
+            uint(feedSwitch.latestAnswer()),
+            uint(beforeMaturityFeed.latestAnswer())
+        );
+
+        // After the switch is completed, the feed is switched back to initialFeed
+        assertEq(address(feedSwitch.previousFeed()), address(initialFeed));
+        assertEq(address(feedSwitch.feed()), address(beforeMaturityFeed));
+
+        vm.prank(guardian);
+        feedSwitch.initiateFeedSwitch();
+        assertEq(
+            address(feedSwitch.previousFeed()),
+            address(beforeMaturityFeed)
+        );
+        assertEq(address(feedSwitch.feed()), address(initialFeed));
+        // Before timelock period, beforeMaturityFeed is still the one used
+        assertEq(
+            uint(feedSwitch.latestAnswer()),
+            uint(beforeMaturityFeed.latestAnswer())
+        );
+        vm.warp(block.timestamp + 1 days);
+        // After timelock period, initialFeed is used
+        assertEq(
+            uint(feedSwitch.latestAnswer()),
+            uint(initialFeed.latestAnswer())
+        );
+    }
+
+    function test_Fail_initiateFeedSwitch_after_maturity() public {
         vm.warp(block.timestamp + 101 days);
-        feedSwitch.switchFeed();
-        assertEq(address(feedSwitch.feed()), address(afterMaturityFeed));
-
         vm.prank(guardian);
+        vm.expectRevert(FeedSwitch.MaturityPassed.selector);
         feedSwitch.initiateFeedSwitch();
-        vm.warp(block.timestamp + 50 days);
-        feedSwitch.switchFeed();
-        assertEq(address(feedSwitch.feed()), address(afterMaturityFeed));
-    }
-
-    function test_Fail_SwitchFeedNotInitiated() public {
-        vm.expectRevert(FeedSwitch.SwitchNotInitiated.selector);
-        feedSwitch.switchFeed();
-    }
-
-    function test_Fail_switchFeed_before_timelock() public {
-        vm.startPrank(guardian);
-        feedSwitch.initiateFeedSwitch();
-        vm.expectRevert(FeedSwitch.CannotSwitchYet.selector);
-        feedSwitch.switchFeed();
     }
 
     function test_LatestRoundData() public view {
@@ -145,12 +319,12 @@ contract FeedSwitchTest is Test {
             uint80 answeredInRound
         ) = feedSwitch.latestRoundData();
         assertEq(updatedAt, block.timestamp);
-        assertEq(uint(price), currentFeed.latestAnswer());
+        assertEq(uint(price), initialFeed.latestAnswer());
     }
 
     function test_LatestAnswer() public view {
         int256 price = feedSwitch.latestAnswer();
-        assertEq(uint(price), currentFeed.latestAnswer());
+        assertEq(uint(price), initialFeed.latestAnswer());
     }
 
     function test_Decimals() public view {
@@ -172,7 +346,7 @@ contract FeedSwitchTest is Test {
 
         vm.expectRevert(FeedSwitch.FeedDecimalsMismatch.selector);
         feedSwitch = new FeedSwitch(
-            address(currentFeed),
+            address(initialFeed),
             address(wrongDecimalsFeed),
             address(afterMaturityFeed),
             18 hours,
@@ -182,7 +356,7 @@ contract FeedSwitchTest is Test {
 
         vm.expectRevert(FeedSwitch.FeedDecimalsMismatch.selector);
         feedSwitch = new FeedSwitch(
-            address(currentFeed),
+            address(initialFeed),
             address(beforeMaturityFeed),
             address(wrongDecimalsFeed),
             18 hours,

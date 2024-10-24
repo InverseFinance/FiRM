@@ -2,6 +2,7 @@
 pragma solidity ^0.8.18;
 
 import "src/interfaces/IChainlinkFeed.sol";
+import {console} from "forge-std/console.sol";
 
 /// @title FeedSwitch
 /// @notice A contract to switch between feeds after a timelock period
@@ -13,15 +14,21 @@ contract FeedSwitch {
     error CannotSwitchYet();
     error NotGuardian();
     error FeedDecimalsMismatch();
+    error MaturityInPast();
+    error MaturityPassed();
 
     address public immutable guardian;
+    IChainlinkFeed public immutable initialFeed;
     IChainlinkFeed public immutable beforeMaturityFeed;
     IChainlinkFeed public immutable afterMaturityFeed;
     uint256 public immutable maturity;
     uint256 public immutable timelockPeriod;
 
     IChainlinkFeed public feed;
+    IChainlinkFeed public previousFeed;
+
     uint256 public switchInitiatedAt;
+    uint256 public switchCompletedAt;
 
     event FeedSwitchInitiated();
     event FeedSwitched(address indexed newFeed);
@@ -35,44 +42,40 @@ contract FeedSwitch {
         address _guardian
     ) {
         feed = IChainlinkFeed(_feed);
+        initialFeed = IChainlinkFeed(_feed);
         beforeMaturityFeed = IChainlinkFeed(_beforeMaturityFeed);
         afterMaturityFeed = IChainlinkFeed(_afterMaturityFeed);
         if (
-            feed.decimals() != beforeMaturityFeed.decimals() ||
-            feed.decimals() != afterMaturityFeed.decimals() ||
+            beforeMaturityFeed.decimals() != 18 ||
+            afterMaturityFeed.decimals() != 18 ||
             feed.decimals() != 18
         ) revert FeedDecimalsMismatch();
 
+        if (_maturity < block.timestamp) revert MaturityInPast();
         timelockPeriod = _timelockPeriod;
         maturity = _maturity;
         guardian = _guardian;
     }
 
     /// @notice Initiate the feed switch, entering the timelock period
-    /// @dev Can only be called by the guardian
+    /// @dev Can only be called by the guardian and can be done before maturity, after that, the feed will return afterMaturityFeed data
     function initiateFeedSwitch() external {
         if (msg.sender != guardian) revert NotGuardian();
-        switchInitiatedAt = block.timestamp;
-        emit FeedSwitchInitiated();
-    }
+        if (block.timestamp > maturity) revert MaturityPassed();
 
-    /// @notice Switch the feed to the backup feed
-    /// @dev Can be called by anyone but only after the timelock period has passed
-    /// If the maturity has passed, the feed will be switched to the afterMaturityFeed.
-    /// In case of a switch before maturity, the switch can be initiated again by the guardian and be updated to the after maturity feed.
-    function switchFeed() external {
-        if (switchInitiatedAt == 0) revert SwitchNotInitiated();
-        if (block.timestamp < switchInitiatedAt + timelockPeriod)
-            revert CannotSwitchYet();
+        if (switchCompletedAt == 0 || switchCompletedAt < block.timestamp) {
+            switchCompletedAt = block.timestamp + timelockPeriod;
+        } else switchCompletedAt = 0;
 
-        if (block.timestamp < maturity) {
+        if (address(feed) == address(initialFeed)) {
             feed = beforeMaturityFeed;
+            previousFeed = initialFeed;
         } else {
-            feed = afterMaturityFeed;
+            feed = initialFeed;
+            previousFeed = beforeMaturityFeed;
         }
 
-        switchInitiatedAt = 0;
-        emit FeedSwitched(address(feed));
+        emit FeedSwitchInitiated();
     }
 
     /// @notice Get the current feed data
@@ -92,7 +95,15 @@ contract FeedSwitch {
             uint80 answeredInRound
         )
     {
-        return feed.latestRoundData();
+        if (block.timestamp > maturity) {
+            return afterMaturityFeed.latestRoundData();
+        } else if (
+            block.timestamp > switchCompletedAt || switchCompletedAt == 0
+        ) {
+            return feed.latestRoundData();
+        } else {
+            return previousFeed.latestRoundData();
+        }
     }
 
     /// @notice Get the latest price of the asset
