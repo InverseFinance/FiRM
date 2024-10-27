@@ -12,31 +12,45 @@ import "src/util/YearnVaultV2Helper.sol";
 import {console} from "forge-std/console.sol";
 import {SimpleERC20Escrow} from "src/escrows/SimpleERC20Escrow.sol";
 import {CurveLPYearnV2Feed} from "src/feeds/CurveLPYearnV2Feed.sol";
+import {DolaFixedPriceFeed} from "src/feeds/DolaFixedPriceFeed.sol";
 
 contract DolaFraxBPYearnV2MarketForkTest is MarketBaseForkTest {
     SimpleERC20Escrow escrow;
     CurveLPYearnV2Feed feedDolaFraxBPYearnV2;
-    CurveLPPessimisticFeed feedDolaBP;
+    CurveLPPessimisticFeed feedDolaFraxBP;
 
-    ChainlinkCurveFeed usdcFallback;
-    ChainlinkCurve2CoinsFeed fraxFallback;
-    ChainlinkBasePriceFeed mainUsdcFeed;
     ChainlinkBasePriceFeed mainFraxFeed;
-    ChainlinkBasePriceFeed baseCrvUsdToUsd;
+    ChainlinkBasePriceFeed mainUSDCFeed;
     ChainlinkBasePriceFeed baseEthToUsd;
+    ChainlinkBasePriceFeed baseUsdeToUsd;
+    ChainlinkCurveFeed usdcFallback;
+    ChainlinkCurveFeed fraxFallback;
+    CurveLPPessimisticFeed fraxBPFeed;
+    DolaFixedPriceFeed dolaFeed;
 
     ICurvePool public constant dolaFraxBP =
         ICurvePool(0xE57180685E3348589E9521aa53Af0BCD497E884d);
 
+    ICurvePool public constant fraxBP =
+        ICurvePool(0xDcEF968d416a41Cdac0ED8702fAC8128A64241A2);
+
     IChainlinkFeed public constant fraxToUsd =
         IChainlinkFeed(0xB9E1E3A9feFf48998E45Fa90847ed4D467E8BcfD);
-
-    uint256 public fraxHeartbeat = 1 hours;
 
     IChainlinkFeed public constant usdcToUsd =
         IChainlinkFeed(0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6);
 
+    uint256 public fraxHeartbeat = 1 hours;
     uint256 public usdcHeartbeat = 24 hours;
+
+    // For Frax fallback
+    IChainlinkFeed public constant usdeToUsd =
+        IChainlinkFeed(0xa569d910839Ae8865Da8F8e70FfFb0cBA869F961);
+    uint256 public usdeHeartbeat = 24 hours;
+    ICurvePool public constant fraxUSDe =
+        ICurvePool(0x5dc1BF6f1e983C0b21EfB003c105133736fA0743);
+    uint256 fraxIndex = 0;
+    uint256 usdeK = 0;
 
     // For USDC fallabck
     ICurvePool public constant tricryptoETH =
@@ -46,17 +60,6 @@ contract DolaFraxBPYearnV2MarketForkTest is MarketBaseForkTest {
         IChainlinkFeed(0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419);
     uint256 public ethHeartbeat = 1 hours;
     uint256 public constant ethK = 1;
-
-    // For Frax fallback
-    ICurvePool public constant crvUSDFrax =
-        ICurvePool(0x0CD6f267b2086bea681E922E19D40512511BE538);
-
-    IChainlinkFeed public constant crvUSDToUsd =
-        IChainlinkFeed(0xEEf0C605546958c1f899b6fB336C20671f9cD49F);
-
-    uint256 fraxIndex = 0;
-
-    uint256 public crvUSDHeartbeat = 24 hours;
 
     // Escrow implementation
     IERC20 cvx = IERC20(0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B);
@@ -68,10 +71,10 @@ contract DolaFraxBPYearnV2MarketForkTest is MarketBaseForkTest {
     SimpleERC20Escrow userEscrow;
     uint256 pid = 115;
 
-    function setUp() public {
+    function setUp() public virtual {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url, 20020781);
+        vm.createSelectFork(url, 20878462);
 
         escrow = new SimpleERC20Escrow();
 
@@ -83,7 +86,7 @@ contract DolaFraxBPYearnV2MarketForkTest is MarketBaseForkTest {
             pauseGuardian,
             address(escrow),
             IDolaBorrowingRights(address(dbr)),
-            IERC20(address(dolaFraxBP)),
+            IERC20(address(yearn)),
             IOracle(address(oracle)),
             5000,
             5000,
@@ -91,7 +94,7 @@ contract DolaFraxBPYearnV2MarketForkTest is MarketBaseForkTest {
             true
         );
 
-        _advancedInit(address(market), address(feedDolaBP), true);
+        _advancedInit(address(market), address(feedDolaFraxBPYearnV2), true);
 
         userEscrow = SimpleERC20Escrow(address(market.predictEscrow(user)));
     }
@@ -100,34 +103,32 @@ contract DolaFraxBPYearnV2MarketForkTest is MarketBaseForkTest {
         internal
         returns (CurveLPYearnV2Feed feed)
     {
-        // For FRAX fallback
-        baseCrvUsdToUsd = new ChainlinkBasePriceFeed(
+        // FRAX fallback
+        baseUsdeToUsd = new ChainlinkBasePriceFeed(
             gov,
-            address(crvUSDToUsd),
+            address(usdeToUsd),
             address(0),
-            crvUSDHeartbeat,
-            8
+            usdeHeartbeat
         );
-        fraxFallback = new ChainlinkCurve2CoinsFeed(
-            address(baseCrvUsdToUsd),
-            address(crvUSDFrax),
-            8,
+        fraxFallback = new ChainlinkCurveFeed(
+            address(baseUsdeToUsd),
+            address(fraxUSDe),
+            usdeK,
             fraxIndex
         );
 
+        // USDC fallback
         // For USDC fallback
         baseEthToUsd = new ChainlinkBasePriceFeed(
             gov,
             address(ethToUsd),
             address(0),
-            ethHeartbeat,
-            8
+            ethHeartbeat
         );
         usdcFallback = new ChainlinkCurveFeed(
             address(baseEthToUsd),
             address(tricryptoETH),
             ethK,
-            8,
             0
         );
 
@@ -136,23 +137,32 @@ contract DolaFraxBPYearnV2MarketForkTest is MarketBaseForkTest {
             gov,
             address(fraxToUsd),
             address(fraxFallback),
-            fraxHeartbeat,
-            8
+            fraxHeartbeat
         );
 
-        mainUsdcFeed = new ChainlinkBasePriceFeed(
+        mainUSDCFeed = new ChainlinkBasePriceFeed(
             gov,
             address(usdcToUsd),
             address(usdcFallback),
-            usdcHeartbeat,
-            8
-        );
-        feedDolaBP = new CurveLPPessimisticFeed(
-            address(dolaFraxBP),
-            address(mainFraxFeed),
-            address(mainUsdcFeed)
+            usdcHeartbeat
         );
 
-        feed = new CurveLPYearnV2Feed(address(yearn), address(feedDolaBP));
+        fraxBPFeed = new CurveLPPessimisticFeed(
+            address(fraxBP),
+            address(mainFraxFeed),
+            address(mainUSDCFeed),
+            true
+        );
+
+        dolaFeed = new DolaFixedPriceFeed();
+
+        feedDolaFraxBP = new CurveLPPessimisticFeed(
+            address(dolaFraxBP),
+            address(fraxBPFeed),
+            address(dolaFeed),
+            false
+        );
+
+        feed = new CurveLPYearnV2Feed(address(yearn), address(feedDolaFraxBP));
     }
 }

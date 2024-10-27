@@ -9,9 +9,16 @@ contract CurveLPYearnV2Feed {
 
     IChainlinkBasePriceFeed public immutable coinFeed;
 
+    string public description;
+
     constructor(address _yearn, address _coinFeed) {
         yearn = IYearnVaultV2(_yearn);
         coinFeed = IChainlinkBasePriceFeed(_coinFeed);
+        require(
+            coinFeed.decimals() == 18,
+            "CurveLPYearnV2Feed: Invalid decimals"
+        );
+        description = string(abi.encodePacked(yearn.symbol(), " / USD"));
     }
 
     /**
@@ -39,7 +46,7 @@ contract CurveLPYearnV2Feed {
         int256 minLpUsdPrice;
         minLpUsdPrice =
             (usdPriceCoin * int(lpForYToken)) /
-            int(10 ** coinFeed.decimals());
+            int(10 ** decimals());
 
         return (roundId, minLpUsdPrice, startedAt, updatedAt, answeredInRound);
     }

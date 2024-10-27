@@ -37,7 +37,7 @@ contract ALEDolaCrvUSDYearnV2Test is CrvUSDDolaYearnV2MarketForkTest {
         ale.setMarket(address(market), address(DOLA), address(helper), false);
 
         flash = IFlashMinter(address(ale.flash()));
-        flash.setMaxFlashLimit(100000 ether);
+        flash.setMaxFlashLimit(1000000 ether);
         DOLA.addMinter(address(flash));
         borrowController.allow(address(ale));
         vm.stopPrank();
@@ -46,12 +46,12 @@ contract ALEDolaCrvUSDYearnV2Test is CrvUSDDolaYearnV2MarketForkTest {
 
     function test_leveragePosition() public {
         vm.prank(gov);
-        DOLA.mint(userPk, 10000 ether);
+        DOLA.mint(userPk, 1000000 ether);
 
         vm.startPrank(userPk, userPk);
-        DOLA.approve(address(helper), 10000 ether);
+        DOLA.approve(address(helper), 1000000 ether);
         helper.transformToCollateralAndDeposit(
-            10000 ether,
+            1000000 ether,
             userPk,
             abi.encode(address(market), 0)
         );
@@ -330,9 +330,11 @@ contract ALEDolaCrvUSDYearnV2Test is CrvUSDDolaYearnV2MarketForkTest {
         );
     }
 
-    function test_deleveragePosition() public {
+    function test_deleveragePosition(uint sharesAmount) public {
         test_leveragePosition();
-        uint256 sharesAmount = vault.balanceOf(userPkEscrow);
+        uint256 totalSharesAmount = vault.balanceOf(userPkEscrow);
+        vm.assume(sharesAmount > 0.00001 ether);
+        vm.assume(sharesAmount <= totalSharesAmount);
         uint256 amountToWithdraw = sharesAmount / 2;
 
         uint256 dolaRedeemed = dolaCrvUSD.calc_withdraw_one_coin(
@@ -379,7 +381,7 @@ contract ALEDolaCrvUSDYearnV2Test is CrvUSDDolaYearnV2MarketForkTest {
 
         assertEq(
             vault.balanceOf(userPkEscrow),
-            sharesAmount - amountToWithdraw
+            totalSharesAmount - amountToWithdraw
         );
         assertApproxEqAbs(DOLA.balanceOf(userPk), dolaRedeemed / 2, 1);
     }

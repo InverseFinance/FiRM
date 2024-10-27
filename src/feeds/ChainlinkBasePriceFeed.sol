@@ -10,11 +10,13 @@ interface IAggregator {
 }
 
 // Standard feed component for FiRM price feeds
-
+/// @dev Always return the feed price in 18 decimals
 contract ChainlinkBasePriceFeed {
     IChainlinkFeed public immutable assetToUsd;
     IChainlinkFeed public immutable assetToUsdFallback;
-    uint8 public immutable decimals;
+    uint8 public immutable assetToUsdDecimals;
+    uint8 public immutable assetToUsdFallbackDecimals;
+    string public description;
 
     address public owner;
     address public pendingOwner;
@@ -35,20 +37,25 @@ contract ChainlinkBasePriceFeed {
         address _owner,
         address _assetToUsd,
         address _assetToUsdFallback,
-        uint256 _assetToUsdHeartbeat,
-        uint8 _decimals
+        uint256 _assetToUsdHeartbeat
     ) {
         owner = _owner;
         assetToUsd = IChainlinkFeed(_assetToUsd);
         assetToUsdFallback = IChainlinkFeed(_assetToUsdFallback);
         assetToUsdHeartbeat = _assetToUsdHeartbeat;
-        decimals = _decimals;
+        assetToUsdDecimals = IChainlinkFeed(_assetToUsd).decimals();
+        uint8 fallbackDecimals = 0;
+        if (address(assetToUsdFallback) != address(0)) {
+            fallbackDecimals = assetToUsdFallback.decimals();
+        }
+        assetToUsdFallbackDecimals = fallbackDecimals;
+        description = assetToUsd.description();
     }
 
     /**
      * @notice Retrieves the latest round data for the asset token price feed
      * @return roundId The round ID of the Chainlink price feed for the feed with the lowest updatedAt feed
-     * @return usdPrice The latest asset price in USD
+     * @return usdPrice The latest asset price in USD with 18 decimals
      * @return startedAt The timestamp when the latest round of Chainlink price feed started of the lowest last updatedAt feed
      * @return updatedAt The lowest timestamp when either of the latest round of Chainlink price feed was updated
      * @return answeredInRound The round ID in which the answer was computed of the lowest updatedAt feed
@@ -76,19 +83,13 @@ contract ChainlinkBasePriceFeed {
                     updatedAt,
                     answeredInRound
                 ) = assetToUsdFallback.latestRoundData();
-                uint8 fallbackDecimals = assetToUsdFallback.decimals();
-                if (fallbackDecimals > decimals) {
-                    usdPrice =
-                        usdPrice /
-                        int(10 ** (fallbackDecimals - decimals));
-                } else if (fallbackDecimals < decimals) {
-                    usdPrice =
-                        usdPrice *
-                        int(10 ** (decimals - fallbackDecimals));
-                }
+                usdPrice = normalizePrice(usdPrice, assetToUsdFallbackDecimals);
             } else {
+                usdPrice = normalizePrice(usdPrice, assetToUsdDecimals);
                 updatedAt = 0;
             }
+        } else {
+            usdPrice = normalizePrice(usdPrice, assetToUsdDecimals);
         }
     }
 
@@ -141,5 +142,21 @@ contract ChainlinkBasePriceFeed {
     function acceptOwner() public onlyPendingOwner {
         owner = pendingOwner;
         pendingOwner = address(0);
+    }
+
+    function decimals() public pure returns (uint8) {
+        return 18;
+    }
+
+    function normalizePrice(
+        int256 price,
+        uint8 feedDecimals
+    ) public pure returns (int256) {
+        if (feedDecimals > 18) {
+            return price / int(10 ** (feedDecimals - 18));
+        } else if (feedDecimals < 18) {
+            return price * int(10 ** (18 - feedDecimals));
+        }
+        return price;
     }
 }

@@ -5,13 +5,13 @@ import {MarketBaseForkTest, IOracle, IDolaBorrowingRights, IERC20} from "./Marke
 import {Market} from "src/Market.sol";
 
 import {ConvexEscrowV2} from "src/escrows/ConvexEscrowV2.sol";
-import {CurveLPSingleFeed} from "src/feeds/CurveLPSingleFeed.sol";
-import {ChainlinkCurve2CoinsFeed} from "src/feeds/ChainlinkCurve2CoinsFeed.sol";
+import {CurveLPPessimisticFeed} from "src/feeds/CurveLPPessimisticFeed.sol";
+import {ChainlinkCurve2CoinsFeed, ICurvePool} from "src/feeds/ChainlinkCurve2CoinsFeed.sol";
 import {ChainlinkCurveFeed} from "src/feeds/ChainlinkCurveFeed.sol";
 import "src/feeds/ChainlinkBasePriceFeed.sol";
-import "src/feeds/CurveLPSingleFeed.sol";
 import {console} from "forge-std/console.sol";
 import {YearnVaultV2Helper, IYearnVaultV2} from "src/util/YearnVaultV2Helper.sol";
+import {DolaFixedPriceFeed} from "src/feeds/DolaFixedPriceFeed.sol";
 
 interface IYearnVaultFactory {
     function createNewVaultsAndStrategies(
@@ -29,7 +29,8 @@ interface IYearnVaultFactory {
 contract CrvUSDDolaConvexMarketForkTest is MarketBaseForkTest {
     ConvexEscrowV2 escrow;
 
-    CurveLPSingleFeed feedCrvUSDDola;
+    CurveLPPessimisticFeed feedCrvUSDDola;
+    DolaFixedPriceFeed dolaFeed;
 
     ChainlinkBasePriceFeed mainCrvUSDFeed;
     ChainlinkBasePriceFeed baseFraxToUsd;
@@ -67,7 +68,7 @@ contract CrvUSDDolaConvexMarketForkTest is MarketBaseForkTest {
     function setUp() public virtual {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url, 20612315);
+        vm.createSelectFork(url, 20955256);
 
         _advancedInit(crvUSDDolaConvexAddr, address(crvUSDDolaFeedAddr), true);
 
@@ -93,19 +94,20 @@ contract CrvUSDDolaConvexMarketForkTest is MarketBaseForkTest {
         assertEq(address(userEscrow.crv()), address(crv), "CRV not set");
     }
 
-    function _deployCrvUSDDolaFeed() internal returns (CurveLPSingleFeed feed) {
+    function _deployCrvUSDDolaFeed()
+        internal
+        returns (CurveLPPessimisticFeed feed)
+    {
         // CrvUSD fallback
         baseFraxToUsd = new ChainlinkBasePriceFeed(
             gov,
             address(fraxToUsd),
             address(0),
-            fraxHeartbeat,
-            8
+            fraxHeartbeat
         );
         crvUSDFallback = new ChainlinkCurve2CoinsFeed(
             address(baseFraxToUsd),
             address(crvUSDFrax),
-            8,
             crvUSDIndex
         );
 
@@ -114,13 +116,15 @@ contract CrvUSDDolaConvexMarketForkTest is MarketBaseForkTest {
             gov,
             address(crvUSDToUsd),
             address(crvUSDFallback),
-            crvUSDHeartbeat,
-            8
+            crvUSDHeartbeat
         );
 
-        feed = new CurveLPSingleFeed(
+        dolaFeed = new DolaFixedPriceFeed();
+        feed = new CurveLPPessimisticFeed(
             address(dolaCrvUSD),
-            address(mainCrvUSDFeed)
+            address(mainCrvUSDFeed),
+            address(dolaFeed),
+            false
         );
     }
 }

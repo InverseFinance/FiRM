@@ -72,7 +72,8 @@ contract DolaFraxPyUSDYearnV2MarketForkTest is MarketBaseForkTest {
     address gauge = 0x4B092818708A721cB187dFACF41f440ADb79044D;
     IYearnVaultFactory yearnFactory =
         IYearnVaultFactory(0x21b1FC8A52f179757bf555346130bF27c0C2A17A);
-    IYearnVaultV2 public yearn;
+    IYearnVaultV2 public yearn =
+        IYearnVaultV2(0xcC2EFb8bEdB6eD69ADeE0c3762470c38D4730C50);
 
     uint256 public constant pid = 317;
 
@@ -85,19 +86,19 @@ contract DolaFraxPyUSDYearnV2MarketForkTest is MarketBaseForkTest {
 
     SimpleERC20Escrow userEscrow;
 
-    function setUp() public {
+    function setUp() public virtual {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url, 20060490);
+        vm.createSelectFork(url, 20878462);
         // Setup YearnVault
-        (address yearnVault, , , ) = yearnFactory.createNewVaultsAndStrategies(
-            gauge
-        );
-        yearn = IYearnVaultV2(yearnVault);
+        // (address yearnVault, , , ) = yearnFactory.createNewVaultsAndStrategies(
+        //     gauge
+        // );
+        // yearn = IYearnVaultV2(yearnVault);
 
         escrow = new SimpleERC20Escrow();
 
-        feedDolaFraxPyUSDYearnV2 = _deployDolaFraxPyUSDFeed();
+        //feedDolaFraxPyUSDYearnV2 = _deployDolaFraxPyUSDFeed();
 
         Market market = new Market(
             gov,
@@ -105,7 +106,7 @@ contract DolaFraxPyUSDYearnV2MarketForkTest is MarketBaseForkTest {
             pauseGuardian,
             address(escrow),
             IDolaBorrowingRights(address(dbr)),
-            IERC20(address(dolaFraxPyUSD)),
+            IERC20(address(0xcC2EFb8bEdB6eD69ADeE0c3762470c38D4730C50)), // yearn vault
             IOracle(address(oracle)),
             5000,
             5000,
@@ -113,7 +114,11 @@ contract DolaFraxPyUSDYearnV2MarketForkTest is MarketBaseForkTest {
             true
         );
 
-        _advancedInit(address(market), address(feedDolaFraxPyUSD), true);
+        _advancedInit(
+            address(market),
+            address(0xCe11740bD83cA366e76Ee5ff775134288D9f891e),
+            true
+        );
 
         userEscrow = SimpleERC20Escrow(address(market.predictEscrow(user)));
     }
@@ -127,13 +132,11 @@ contract DolaFraxPyUSDYearnV2MarketForkTest is MarketBaseForkTest {
             gov,
             address(crvUSDToUsd),
             address(0),
-            crvUSDHeartbeat,
-            8
+            crvUSDHeartbeat
         );
         fraxFallback = new ChainlinkCurve2CoinsFeed(
             address(baseCrvUsdToUsd),
             address(crvUSDFrax),
-            8,
             fraxIndex
         );
 
@@ -142,15 +145,13 @@ contract DolaFraxPyUSDYearnV2MarketForkTest is MarketBaseForkTest {
             gov,
             address(usdcToUsd),
             address(0),
-            usdcHeartbeat,
-            8
+            usdcHeartbeat
         );
 
         pyUSDFallback = new ChainlinkCurveFeed(
             address(baseUsdcToUsd),
             address(pyUsdUsdc),
             targetKPyUsd,
-            8,
             1
         );
 
@@ -159,22 +160,21 @@ contract DolaFraxPyUSDYearnV2MarketForkTest is MarketBaseForkTest {
             gov,
             address(fraxToUsd),
             address(fraxFallback),
-            fraxHeartbeat,
-            8
+            fraxHeartbeat
         );
 
         mainPyUSDFeed = new ChainlinkBasePriceFeed(
             gov,
             address(pyUsdToUsd),
             address(pyUSDFallback),
-            pyUSDHeartbeat,
-            8
+            pyUSDHeartbeat
         );
 
         feedDolaFraxPyUSD = new CurveLPPessimisticFeed(
             address(dolaFraxPyUSD),
             address(mainFraxFeed),
-            address(mainPyUSDFeed)
+            address(mainPyUSDFeed),
+            false
         );
 
         feed = new CurveLPYearnV2Feed(

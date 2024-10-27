@@ -2,10 +2,11 @@ pragma solidity ^0.8.13;
 
 import {ICurvePool} from "src/interfaces/ICurvePool.sol";
 import {CurveDolaLPHelper} from "src/util/CurveDolaLPHelper.sol";
-import "test/marketForkTests/DolaFraxBPConvexMarketForkTest.t.sol";
+import "test/marketForkTests/DolaFraxBPYearnV2MarketForkTest.t.sol";
 import {console} from "forge-std/console.sol";
 import {IMultiMarketTransformHelper} from "src/interfaces/IMultiMarketTransformHelper.sol";
 import {ALE} from "src/util/ALE.sol";
+import {YearnVaultV2Helper, IYearnVaultV2} from "src/util/YearnVaultV2Helper.sol";
 
 interface IFlashMinter {
     function setMaxFlashLimit(uint256 _maxFlashLimit) external;
@@ -16,23 +17,36 @@ interface IFlashMinter {
     ) external view returns (uint256);
 }
 
-contract ALEDolaFraxBPTest is DolaFraxBPConvexMarketForkTest {
+interface ISimpleERC20Escrow {
+    function balance() external view returns (uint256);
+}
+
+contract ALEDolaFraxBPYearnV2Test is DolaFraxBPYearnV2MarketForkTest {
     ALE ale;
     IFlashMinter flash;
     address userPk = vm.addr(1);
     CurveDolaLPHelper helper;
     address userPkEscrow;
+    IYearnVaultV2 vault = IYearnVaultV2(yearn);
     ICurvePool curvePool;
 
     function setUp() public override {
         super.setUp();
+
         curvePool = dolaFraxBP;
 
         helper = CurveDolaLPHelper(curveDolaLPHelperAddr);
 
         vm.startPrank(gov);
         DOLA.mint(address(this), 100000 ether);
-        helper.setMarket(address(market), address(curvePool), 0, 2, address(0));
+        helper.setMarket(
+            address(market),
+            address(curvePool),
+            0,
+            2,
+            address(yearn)
+        );
+
         ale = new ALE(address(0), triDBRAddr);
         ale.setMarket(address(market), address(DOLA), address(helper), false);
 
@@ -57,10 +71,10 @@ contract ALEDolaFraxBPTest is DolaFraxBPConvexMarketForkTest {
         );
         vm.stopPrank();
 
-        uint256 lpAmount = ConvexEscrowV2(userPkEscrow).balance();
+        uint256 sharesAmount = vault.balanceOf(userPkEscrow);
         gibDBR(userPk, 20000 ether);
 
-        uint maxBorrowAmount = _getMaxBorrowAmount(lpAmount);
+        uint maxBorrowAmount = _getMaxBorrowAmount(sharesAmount);
 
         // Sign Message for borrow on behalf
         bytes32 hash = keccak256(
@@ -91,7 +105,10 @@ contract ALEDolaFraxBPTest is DolaFraxBPConvexMarketForkTest {
 
         uint256[2] memory amounts = [maxBorrowAmount, 0];
         uint256 lpAmountAdded = curvePool.calc_token_amount(amounts, true);
-
+        uint256 sharesAdded = YearnVaultV2Helper.assetToCollateral(
+            vault,
+            lpAmountAdded
+        );
         vm.prank(userPk);
         ale.leveragePosition(
             maxBorrowAmount,
@@ -103,15 +120,21 @@ contract ALEDolaFraxBPTest is DolaFraxBPConvexMarketForkTest {
             dbrData
         );
 
-        assertEq(DOLA.balanceOf(userPk), 0);
         assertApproxEqRel(
-            ConvexEscrowV2(userPkEscrow).balance(),
-            lpAmount + lpAmountAdded,
+            ISimpleERC20Escrow(userPkEscrow).balance(),
+            sharesAmount + sharesAdded,
             1e14 // 0.01% Delta
         );
+        // No leftover
+        assertEq(vault.balanceOf(userPk), 0);
+        assertEq(IERC20(address(curvePool)).balanceOf(address(userPk)), 0);
+        assertEq(vault.balanceOf(address(helper)), 0);
+        assertEq(IERC20(address(curvePool)).balanceOf(address(helper)), 0);
+        assertEq(DOLA.balanceOf(address(helper)), 0);
+        assertEq(DOLA.balanceOf(userPk), 0);
     }
 
-    function test_leveragePosition_buyDBR(uint amount) public {
+    function test_leveragePosition_buyDBR(uint256 amount) public {
         vm.assume(amount < 10000000 ether);
         vm.assume(amount > 0.001 ether);
         vm.prank(gov);
@@ -126,9 +149,9 @@ contract ALEDolaFraxBPTest is DolaFraxBPConvexMarketForkTest {
         );
         vm.stopPrank();
 
-        uint256 lpAmount = ConvexEscrowV2(userPkEscrow).balance();
+        uint256 sharesAmount = vault.balanceOf(userPkEscrow);
 
-        uint maxBorrowAmount = _getMaxBorrowAmount(lpAmount);
+        uint maxBorrowAmount = _getMaxBorrowAmount(sharesAmount);
 
         // Calculate the amount of DOLA needed to borrow to buy the DBR needed to cover for the borrowing period
         (uint256 dolaForDBR, uint256 dbrAmount) = ale
@@ -166,8 +189,11 @@ contract ALEDolaFraxBPTest is DolaFraxBPConvexMarketForkTest {
         );
 
         uint256[2] memory amounts = [maxBorrowAmount, 0];
-        uint256 lpAmountAdded = curvePool.calc_token_amount(amounts, true);
 
+        uint256 sharesAdded = YearnVaultV2Helper.assetToCollateral(
+            vault,
+            curvePool.calc_token_amount(amounts, true)
+        );
         vm.prank(userPk);
         ale.leveragePosition(
             maxBorrowAmount,
@@ -179,21 +205,28 @@ contract ALEDolaFraxBPTest is DolaFraxBPConvexMarketForkTest {
             dbrData
         );
 
-        assertEq(DOLA.balanceOf(userPk), 0);
         assertApproxEqRel(
-            ConvexEscrowV2(userPkEscrow).balance(),
-            lpAmount + lpAmountAdded,
+            ISimpleERC20Escrow(userPkEscrow).balance(),
+            sharesAmount + sharesAdded,
             1e14 // 0.01% Delta
         );
+        // No leftover
+        assertEq(vault.balanceOf(userPk), 0);
+        assertEq(IERC20(address(curvePool)).balanceOf(address(userPk)), 0);
+        assertEq(vault.balanceOf(address(helper)), 0);
+        assertEq(IERC20(address(curvePool)).balanceOf(address(helper)), 0);
+        assertEq(DOLA.balanceOf(address(helper)), 0);
+        assertEq(DOLA.balanceOf(userPk), 0);
+        // DBR was bought
         assertGt(dbr.balanceOf(userPk), (dbrAmount * 95) / 100);
     }
 
-    function test_depositAndLeveragePosition_DOLA(uint amount) public {
+    function test_depositAndLeveragePosition_DOLA(uint256 amount) public {
         vm.assume(amount < 10000000 ether);
         vm.assume(amount > 0.001 ether);
         vm.prank(gov);
-        DOLA.mint(userPk, amount);
         uint256 initialDolaDeposit = amount / 10;
+        DOLA.mint(userPk, amount);
 
         vm.startPrank(userPk, userPk);
         DOLA.approve(address(helper), amount - initialDolaDeposit);
@@ -204,10 +237,10 @@ contract ALEDolaFraxBPTest is DolaFraxBPConvexMarketForkTest {
         );
         vm.stopPrank();
 
-        uint256 lpAmount = ConvexEscrowV2(userPkEscrow).balance();
+        uint256 sharesAmount = vault.balanceOf(userPkEscrow);
         gibDBR(userPk, 20000 ether);
 
-        uint maxBorrowAmount = _getMaxBorrowAmount(lpAmount);
+        uint maxBorrowAmount = _getMaxBorrowAmount(sharesAmount);
 
         // Sign Message for borrow on behalf
         bytes32 hash = keccak256(
@@ -238,7 +271,10 @@ contract ALEDolaFraxBPTest is DolaFraxBPConvexMarketForkTest {
 
         uint256[2] memory amounts = [maxBorrowAmount + initialDolaDeposit, 0];
         uint256 lpAmountAdded = curvePool.calc_token_amount(amounts, true);
-
+        uint256 sharesAdded = YearnVaultV2Helper.assetToCollateral(
+            vault,
+            lpAmountAdded
+        );
         vm.startPrank(userPk);
         DOLA.approve(address(ale), initialDolaDeposit);
         ale.depositAndLeveragePosition(
@@ -253,12 +289,18 @@ contract ALEDolaFraxBPTest is DolaFraxBPConvexMarketForkTest {
             false
         );
 
-        assertEq(DOLA.balanceOf(userPk), 0);
         assertApproxEqRel(
-            ConvexEscrowV2(userPkEscrow).balance(),
-            lpAmount + lpAmountAdded,
+            ISimpleERC20Escrow(userPkEscrow).balance(),
+            sharesAmount + sharesAdded,
             1e14 // 0.01% Delta
         );
+        // No leftover
+        assertEq(vault.balanceOf(userPk), 0);
+        assertEq(IERC20(address(curvePool)).balanceOf(address(userPk)), 0);
+        assertEq(vault.balanceOf(address(helper)), 0);
+        assertEq(IERC20(address(curvePool)).balanceOf(address(helper)), 0);
+        assertEq(DOLA.balanceOf(address(helper)), 0);
+        assertEq(DOLA.balanceOf(userPk), 0);
     }
 
     function test_depositAndLeveragePosition_LP(uint256 amount) public {
@@ -266,25 +308,24 @@ contract ALEDolaFraxBPTest is DolaFraxBPConvexMarketForkTest {
         vm.assume(amount > 0.001 ether);
         vm.prank(gov);
         DOLA.mint(userPk, amount);
-        uint256 initialDolaDeposit = amount / 10;
-
+        uint256 initialDolaAmount = amount / 10;
         vm.startPrank(userPk, userPk);
         DOLA.approve(address(helper), amount);
-        uint256 initialLpAmount = helper.transformToCollateral(
-            initialDolaDeposit,
+        uint256 initialSharesAmount = helper.transformToCollateral(
+            initialDolaAmount,
             abi.encode(address(market), 0)
         );
         helper.transformToCollateralAndDeposit(
-            amount - initialDolaDeposit,
+            amount - initialDolaAmount,
             userPk,
             abi.encode(address(market), 0)
         );
         vm.stopPrank();
 
-        uint256 lpAmount = ConvexEscrowV2(userPkEscrow).balance();
+        uint256 sharesAmount = vault.balanceOf(userPkEscrow);
         gibDBR(userPk, 20000 ether);
 
-        uint maxBorrowAmount = _getMaxBorrowAmount(lpAmount);
+        uint maxBorrowAmount = _getMaxBorrowAmount(sharesAmount);
 
         // Sign Message for borrow on behalf
         bytes32 hash = keccak256(
@@ -315,11 +356,14 @@ contract ALEDolaFraxBPTest is DolaFraxBPConvexMarketForkTest {
 
         uint256[2] memory amounts = [maxBorrowAmount, 0];
         uint256 lpAmountAdded = curvePool.calc_token_amount(amounts, true);
-
+        uint256 sharesAdded = YearnVaultV2Helper.assetToCollateral(
+            vault,
+            lpAmountAdded
+        );
         vm.startPrank(userPk);
-        IERC20(address(curvePool)).approve(address(ale), initialLpAmount);
+        IERC20(address(vault)).approve(address(ale), initialSharesAmount);
         ale.depositAndLeveragePosition(
-            initialLpAmount,
+            initialSharesAmount,
             maxBorrowAmount,
             address(market),
             address(0),
@@ -330,23 +374,29 @@ contract ALEDolaFraxBPTest is DolaFraxBPConvexMarketForkTest {
             true
         );
 
-        assertEq(DOLA.balanceOf(userPk), 0);
         assertApproxEqRel(
-            ConvexEscrowV2(userPkEscrow).balance(),
-            lpAmount + lpAmountAdded + initialLpAmount,
+            ISimpleERC20Escrow(userPkEscrow).balance(),
+            sharesAmount + sharesAdded + initialSharesAmount,
             1e14 // 0.01% Delta
         );
+        // No leftover
+        assertEq(vault.balanceOf(userPk), 0);
+        assertEq(IERC20(address(curvePool)).balanceOf(address(userPk)), 0);
+        assertEq(vault.balanceOf(address(helper)), 0);
+        assertEq(IERC20(address(curvePool)).balanceOf(address(helper)), 0);
+        assertEq(DOLA.balanceOf(address(helper)), 0);
+        assertEq(DOLA.balanceOf(userPk), 0);
     }
 
-    function test_deleveragePosition(uint256 lpAmount) public {
+    function test_deleveragePosition(uint sharesAmount) public {
         test_leveragePosition();
-        uint256 totalLpAmount = ConvexEscrowV2(userPkEscrow).balance();
-        vm.assume(lpAmount > 0.0001 ether);
-        vm.assume(lpAmount <= totalLpAmount);
-        uint256 amountToWithdraw = lpAmount / 2;
+        uint256 totalSharesAmount = vault.balanceOf(userPkEscrow);
+        vm.assume(sharesAmount > 0.0001 ether);
+        vm.assume(sharesAmount <= totalSharesAmount);
+        uint256 amountToWithdraw = sharesAmount / 2;
 
         uint256 dolaRedeemed = curvePool.calc_withdraw_one_coin(
-            amountToWithdraw,
+            YearnVaultV2Helper.collateralToAsset(vault, amountToWithdraw),
             0
         );
 
@@ -388,30 +438,109 @@ contract ALEDolaFraxBPTest is DolaFraxBPConvexMarketForkTest {
         );
 
         assertEq(
-            ConvexEscrowV2(userPkEscrow).balance(),
-            totalLpAmount - amountToWithdraw
+            vault.balanceOf(userPkEscrow),
+            totalSharesAmount - amountToWithdraw,
+            "sharesAmount"
         );
-        assertApproxEqAbs(DOLA.balanceOf(userPk), dolaRedeemed / 2, 1);
+        //assertEq(sharesAmount, amountToWithdraw);
+        assertApproxEqAbs(
+            DOLA.balanceOf(userPk),
+            dolaRedeemed / 2,
+            1,
+            "dolaBalance"
+        );
     }
 
-    function test_deleveragePosition_sellDBR(uint256 lpAmount) public {
+    function test_deleveragePosition_Yearn_Leftover() public {
         test_leveragePosition();
-        uint256 totalLpAmount = ConvexEscrowV2(userPkEscrow).balance();
-        vm.assume(lpAmount > 0.0001 ether);
-        vm.assume(lpAmount <= totalLpAmount);
-        uint256 amountToWithdraw = lpAmount;
+        // No leftover
+        assertEq(vault.balanceOf(address(helper)), 0);
+
+        // Add some Yearn to simulate a leftover on the helper
+        vm.prank(gov);
+        DOLA.mint(userPk, 1000 ether);
+
+        vm.startPrank(userPk, userPk);
+        DOLA.approve(address(helper), 1000 ether);
+        uint256 yearnLeftover = helper.transformToCollateral(
+            1000 ether,
+            address(helper),
+            abi.encode(address(market), 0)
+        );
+        vm.stopPrank();
+
+        // Leftover is in helper
+        assertEq(vault.balanceOf(address(helper)), yearnLeftover);
+        assertEq(vault.balanceOf(userPk), 0);
+
+        uint256 sharesAmount = vault.balanceOf(userPkEscrow);
+        uint256 amountToWithdraw = sharesAmount / 2;
 
         uint256 dolaRedeemed = curvePool.calc_withdraw_one_coin(
+            YearnVaultV2Helper.collateralToAsset(vault, amountToWithdraw),
+            0
+        );
+
+        bytes32 hash = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                market.DOMAIN_SEPARATOR(),
+                keccak256(
+                    abi.encode(
+                        keccak256(
+                            "WithdrawOnBehalf(address caller,address from,uint256 amount,uint256 nonce,uint256 deadline)"
+                        ),
+                        address(ale),
+                        userPk,
+                        amountToWithdraw,
+                        1,
+                        block.timestamp
+                    )
+                )
+            )
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
+
+        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+
+        ALE.DBRHelper memory dbrData;
+        bytes memory swapData;
+
+        vm.prank(userPk);
+        ale.deleveragePosition(
+            dolaRedeemed / 2,
+            address(market),
             amountToWithdraw,
+            address(0),
+            swapData,
+            permit,
+            abi.encode(address(market), uint(0)),
+            dbrData
+        );
+
+        assertEq(
+            vault.balanceOf(userPkEscrow),
+            sharesAmount - amountToWithdraw
+        );
+        assertApproxEqAbs(DOLA.balanceOf(userPk), dolaRedeemed / 2, 1);
+
+        // Leftover is in user balance
+        assertEq(vault.balanceOf(address(helper)), 0);
+        assertEq(vault.balanceOf(userPk), yearnLeftover);
+    }
+
+    function test_deleveragePosition_sellDBR() public {
+        test_leveragePosition();
+        uint256 sharesAmount = vault.balanceOf(userPkEscrow);
+        uint256 amountToWithdraw = sharesAmount / 2;
+
+        uint256 dolaRedeemed = curvePool.calc_withdraw_one_coin(
+            YearnVaultV2Helper.collateralToAsset(vault, amountToWithdraw),
             0
         );
         uint256 debt = market.debts(address(userPk));
-        uint256 amountToRepay;
-        if (debt < dolaRedeemed) {
-            amountToRepay = debt;
-        } else {
-            amountToRepay = dolaRedeemed;
-        }
+
+        assertGt(debt, 0);
 
         bytes32 hash = keccak256(
             abi.encodePacked(
@@ -445,7 +574,7 @@ contract ALEDolaFraxBPTest is DolaFraxBPConvexMarketForkTest {
         vm.startPrank(userPk);
         dbr.approve(address(ale), dbr.balanceOf(userPk));
         ale.deleveragePosition(
-            amountToRepay,
+            debt,
             address(market),
             amountToWithdraw,
             address(0),
@@ -456,18 +585,11 @@ contract ALEDolaFraxBPTest is DolaFraxBPConvexMarketForkTest {
         );
 
         assertEq(
-            ConvexEscrowV2(userPkEscrow).balance(),
-            totalLpAmount - amountToWithdraw
+            vault.balanceOf(userPkEscrow),
+            sharesAmount - amountToWithdraw
         );
         // Dbrs have also been sold
-        if (debt < dolaRedeemed) {
-            // Dola left are more than the debt (plus the DBR sold)
-            assertGt(DOLA.balanceOf(userPk), dolaRedeemed - amountToRepay);
-        } else {
-            // only DBR sold
-            assertGt(DOLA.balanceOf(userPk), 0);
-        }
-
+        assertGt(DOLA.balanceOf(userPk), dolaRedeemed - debt);
         assertEq(dbr.balanceOf(userPk), 0);
     }
 
@@ -476,7 +598,7 @@ contract ALEDolaFraxBPTest is DolaFraxBPConvexMarketForkTest {
     ) internal view returns (uint) {
         return
             (amountCollat *
-                oracle.viewPrice(address(curvePool), 0) *
+                oracle.viewPrice(address(yearn), 0) *
                 market.collateralFactorBps()) /
             10_000 /
             1e18;

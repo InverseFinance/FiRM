@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import {ICurvePool} from "src/interfaces/ICurvePool.sol";
 import {IChainlinkBasePriceFeed} from "src/interfaces/IChainlinkFeed.sol";
+import {IERC20} from "src/interfaces/IERC20.sol";
 
 // Combined Chainlink and Curve price_oracle, allows for additional fallback to be set via ChainlinkBasePriceFeed
 /// @dev Implementation for Curve pools.
@@ -10,30 +11,34 @@ import {IChainlinkBasePriceFeed} from "src/interfaces/IChainlinkFeed.sol";
 /// NOTE: If k is for Asset then targetIndex is Zero as in Curve otherwise the price calculation will be incorrect,
 /// on the other side if k is for the Target then targetIndex has to be set to the index of the Target in the `coins` array (not Zero)
 contract ChainlinkCurveFeed {
-    int256 public constant SCALE = 1e18;
     /// @dev Chainlink base price feed implementation for the Asset to USD
     IChainlinkBasePriceFeed public immutable assetToUsd;
     /// @dev Curve pool
     ICurvePool public immutable curvePool;
     /// @dev k index for retriving Target or Asset value from the Curve pool price_oracle
     uint256 public immutable assetOrTargetK;
-    /// @dev Decimals for this feed
-    uint8 public immutable decimals;
     /// @dev Target index in Curve pool `coins` array
     uint256 public immutable targetIndex;
+    /// @dev Description of the feed
+    string public description;
 
     constructor(
         address _assetToUsd,
         address _curvePool,
         uint256 _k,
-        uint8 _decimals,
         uint256 _targetIndex
     ) {
         assetToUsd = IChainlinkBasePriceFeed(_assetToUsd);
+        require(
+            assetToUsd.decimals() == 18,
+            "ChainlinkCurveFeed: DECIMALS_MISMATCH"
+        );
         curvePool = ICurvePool(_curvePool);
         assetOrTargetK = _k;
-        decimals = _decimals;
         targetIndex = _targetIndex;
+
+        string memory coin = IERC20(curvePool.coins(_targetIndex)).symbol();
+        description = string(abi.encodePacked(coin, " / USD"));
     }
 
     /**
@@ -66,13 +71,13 @@ contract ChainlinkCurveFeed {
 
         if (targetIndex == 0) {
             usdPrice =
-                (assetToUsdPrice * SCALE) /
+                (assetToUsdPrice * int256(10 ** decimals())) /
                 int(curvePool.price_oracle(assetOrTargetK));
         } else {
             usdPrice =
                 (int(curvePool.price_oracle(assetOrTargetK)) *
                     assetToUsdPrice) /
-                SCALE;
+                int256(10 ** decimals());
         }
 
         return (roundId, usdPrice, startedAt, updatedAt, answeredInRound);
@@ -86,5 +91,13 @@ contract ChainlinkCurveFeed {
     function latestAnswer() external view returns (int256) {
         (, int256 latestPrice, , , ) = latestRoundData();
         return latestPrice;
+    }
+
+    /**
+     * @notice Retrieves the number of decimals for this feed
+     * @return decimals The number of decimals
+     */
+    function decimals() public pure returns (uint256) {
+        return 18;
     }
 }

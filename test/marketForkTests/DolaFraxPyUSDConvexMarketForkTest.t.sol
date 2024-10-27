@@ -69,23 +69,23 @@ contract DolaFraxPyUSDConvexMarketForkTest is MarketBaseForkTest {
     function setUp() public virtual {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url, 20590050);
+        vm.createSelectFork(url, 20878462);
 
-        escrow = new ConvexEscrowV2(
-            rewardPool,
-            booster,
-            address(cvx),
-            address(crv),
-            pid
-        );
+        // escrow = new ConvexEscrowV2(
+        //     rewardPool,
+        //     booster,
+        //     address(cvx),
+        //     address(crv),
+        //     pid
+        // );
 
-        feedDolaFraxPyUSD = _deployDolaFraxPyUSDFeed();
+        //feedDolaFraxPyUSD = _deployDolaFraxPyUSDFeed();
 
         Market market = new Market(
             gov,
             lender,
             pauseGuardian,
-            address(escrow),
+            dolaFraxPyUSDConvexEscrowAddr,
             IDolaBorrowingRights(address(dbr)),
             IERC20(address(dolaFraxPyUSD)),
             IOracle(address(oracle)),
@@ -95,7 +95,11 @@ contract DolaFraxPyUSDConvexMarketForkTest is MarketBaseForkTest {
             true
         );
 
-        _advancedInit(address(market), address(feedDolaFraxPyUSD), true);
+        _advancedInit(
+            address(market),
+            address(0x85A390F189C0642D0CbB88E150057e3065F3c698), // dolaFraxPyUSD feed
+            true
+        );
 
         userEscrow = ConvexEscrowV2(address(market.predictEscrow(user)));
     }
@@ -125,13 +129,11 @@ contract DolaFraxPyUSDConvexMarketForkTest is MarketBaseForkTest {
             gov,
             address(crvUSDToUsd),
             address(0),
-            crvUSDHeartbeat,
-            8
+            crvUSDHeartbeat
         );
         fraxFallback = new ChainlinkCurve2CoinsFeed(
             address(baseCrvUsdToUsd),
             address(crvUSDFrax),
-            8,
             fraxIndex
         );
 
@@ -140,15 +142,13 @@ contract DolaFraxPyUSDConvexMarketForkTest is MarketBaseForkTest {
             gov,
             address(usdcToUsd),
             address(0),
-            usdcHeartbeat,
-            8
+            usdcHeartbeat
         );
 
         pyUSDFallback = new ChainlinkCurveFeed(
             address(baseUsdcToUsd),
             address(pyUsdUsdc),
             targetKPyUsd,
-            8,
             1
         );
 
@@ -157,22 +157,21 @@ contract DolaFraxPyUSDConvexMarketForkTest is MarketBaseForkTest {
             gov,
             address(fraxToUsd),
             address(fraxFallback),
-            fraxHeartbeat,
-            8
+            fraxHeartbeat
         );
 
         mainPyUSDFeed = new ChainlinkBasePriceFeed(
             gov,
             address(pyUsdToUsd),
             address(pyUSDFallback),
-            pyUSDHeartbeat,
-            8
+            pyUSDHeartbeat
         );
 
         feed = new CurveLPPessimisticFeed(
             address(dolaFraxPyUSD),
             address(mainFraxFeed),
-            address(mainPyUSDFeed)
+            address(mainPyUSDFeed),
+            false
         );
     }
 }

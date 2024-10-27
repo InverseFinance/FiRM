@@ -24,7 +24,7 @@ abstract contract MarketBaseForkTest is MarketForkTest {
         //This will fail if there's no mainnet variable in foundry.toml
         init(_market, _feed);
         vm.startPrank(chair, chair);
-        fed.expansion(IMarket(address(market)), 100_000e18);
+        fed.expansion(IMarket(address(market)), 10_000_000e18);
         vm.stopPrank();
 
         borrowContract = new BorrowContract(

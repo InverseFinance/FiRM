@@ -10,7 +10,6 @@ contract SFraxMarketForkTest is MarketBaseForkTest {
     SimpleERC20Escrow escrow;
     WstETHPriceFeed feedWstETH;
     IERC20 wstETH = IERC20(0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0);
-    
 
     function setUp() public {
         //This will fail if there's no mainnet variable in foundry.toml

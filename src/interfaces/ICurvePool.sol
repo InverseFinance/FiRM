@@ -56,4 +56,8 @@ interface ICurvePool {
         uint256 _burn_amount,
         int128 i
     ) external view returns (uint256);
+
+    function symbol() external view returns (string memory);
+
+    function lp_token() external view returns (address);
 }
