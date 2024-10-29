@@ -50,6 +50,9 @@ contract FeedSwitchTest is Test {
         assertEq(feedSwitch.timelockPeriod(), 18 hours);
         assertEq(feedSwitch.maturity(), IPendlePT(pendlePT).expiry());
         assertEq(feedSwitch.guardian(), guardian);
+        (bool isQueued, uint256 timeLeft) = feedSwitch.isFeedSwitchQueued();
+        assertEq(isQueued, false);
+        assertEq(timeLeft, 0);
     }
 
     function test_InitiateFeedSwitch() public {
@@ -59,6 +62,9 @@ contract FeedSwitchTest is Test {
             feedSwitch.switchCompletedAt(),
             block.timestamp + feedSwitch.timelockPeriod()
         );
+        (bool isQueued, uint256 timeLeft) = feedSwitch.isFeedSwitchQueued();
+        assertEq(isQueued, true);
+        assertEq(timeLeft, feedSwitch.timelockPeriod());
     }
 
     function test_Fail_InitiateFeedSwitchNotGuardian() public {
@@ -73,9 +79,18 @@ contract FeedSwitchTest is Test {
             uint(feedSwitch.latestAnswer()),
             uint(initialFeed.latestAnswer())
         );
+        (bool isQueued, uint256 timeLeft) = feedSwitch.isFeedSwitchQueued();
+        assertEq(isQueued, true);
+        assertEq(timeLeft, feedSwitch.timelockPeriod());
+
         vm.warp(block.timestamp + 0.5 days);
         int256 price = feedSwitch.latestAnswer();
         assertEq(uint(price), 1e18, "initial feed");
+        // Not yet switched
+        (isQueued, timeLeft) = feedSwitch.isFeedSwitchQueued();
+        assertEq(isQueued, true);
+        assertEq(timeLeft, feedSwitch.timelockPeriod() - 0.5 days);
+
         vm.warp(block.timestamp + 1 days);
         assertEq(
             uint(feedSwitch.latestAnswer()),
@@ -83,6 +98,10 @@ contract FeedSwitchTest is Test {
         );
         price = feedSwitch.latestAnswer();
         assertEq(uint(price), 0.95e18);
+        // After switch, not queued anymore
+        (isQueued, timeLeft) = feedSwitch.isFeedSwitchQueued();
+        assertEq(isQueued, false);
+        assertEq(timeLeft, 0);
     }
 
     function test_SwitchFeed_after_maturity_after_switch() public {
@@ -97,11 +116,17 @@ contract FeedSwitchTest is Test {
             uint(feedSwitch.latestAnswer()),
             uint(beforeMaturityFeed.latestAnswer())
         );
+        (bool isQueued, uint256 timeLeft) = feedSwitch.isFeedSwitchQueued();
+        assertEq(isQueued, false);
+        assertEq(timeLeft, 0);
         vm.warp(IPendlePT(pendlePT).expiry() + 1);
         assertEq(
             uint(feedSwitch.latestAnswer()),
             uint(afterMaturityFeed.latestAnswer())
         );
+        (isQueued, timeLeft) = feedSwitch.isFeedSwitchQueued();
+        assertEq(isQueued, false);
+        assertEq(timeLeft, 0);
     }
 
     function test_SwitchFeed_after_maturity() public {
@@ -109,12 +134,18 @@ contract FeedSwitchTest is Test {
             uint(feedSwitch.latestAnswer()),
             uint(initialFeed.latestAnswer())
         );
+        (bool isQueued, uint256 timeLeft) = feedSwitch.isFeedSwitchQueued();
+        assertEq(isQueued, false);
+        assertEq(timeLeft, 0);
 
         vm.warp(IPendlePT(pendlePT).expiry() + 1);
         assertEq(
             uint(feedSwitch.latestAnswer()),
             uint(afterMaturityFeed.latestAnswer())
         );
+        (isQueued, timeLeft) = feedSwitch.isFeedSwitchQueued();
+        assertEq(isQueued, false);
+        assertEq(timeLeft, 0);
     }
 
     function test_SwitchFeed_before_maturity_and_after_maturity() public {
@@ -124,18 +155,30 @@ contract FeedSwitchTest is Test {
             uint(feedSwitch.latestAnswer()),
             uint(initialFeed.latestAnswer())
         );
+        (bool isQueued, uint256 timeLeft) = feedSwitch.isFeedSwitchQueued();
+        assertEq(isQueued, true);
+        assertEq(timeLeft, feedSwitch.timelockPeriod());
+
         // Before Maturity
         vm.warp(block.timestamp + 1 days);
         assertEq(
             uint(feedSwitch.latestAnswer()),
             uint(beforeMaturityFeed.latestAnswer())
         );
+
+        (isQueued, timeLeft) = feedSwitch.isFeedSwitchQueued();
+        assertEq(isQueued, false);
+        assertEq(timeLeft, 0);
+
         vm.warp(IPendlePT(pendlePT).expiry() + 1);
         // After Maturity
         assertEq(
             uint(feedSwitch.latestAnswer()),
             uint(afterMaturityFeed.latestAnswer())
         );
+        (isQueued, timeLeft) = feedSwitch.isFeedSwitchQueued();
+        assertEq(isQueued, false);
+        assertEq(timeLeft, 0);
     }
 
     function test_Cancel_feed_switch() public {
@@ -148,6 +191,10 @@ contract FeedSwitchTest is Test {
         );
         vm.warp(block.timestamp + 0.5 days);
 
+        (bool isQueued, uint timeLeft) = feedSwitch.isFeedSwitchQueued();
+        assertEq(isQueued, true);
+        assertEq(timeLeft, feedSwitch.timelockPeriod() - 0.5 days);
+
         // Cancel the feed switch
         vm.prank(guardian);
         feedSwitch.initiateFeedSwitch();
@@ -157,6 +204,9 @@ contract FeedSwitchTest is Test {
             uint(initialFeed.latestAnswer()),
             "before feed switch"
         );
+        (isQueued, timeLeft) = feedSwitch.isFeedSwitchQueued();
+        assertEq(isQueued, false);
+        assertEq(timeLeft, 0);
 
         vm.warp(block.timestamp + 1 days);
         assertEq(feedSwitch.switchCompletedAt(), 0);
@@ -164,6 +214,9 @@ contract FeedSwitchTest is Test {
             uint(feedSwitch.latestAnswer()),
             uint(initialFeed.latestAnswer())
         );
+        (isQueued, timeLeft) = feedSwitch.isFeedSwitchQueued();
+        assertEq(isQueued, false);
+        assertEq(timeLeft, 0);
     }
 
     function test_Cancel_feed_switch_and_reswitch() public {
@@ -175,6 +228,9 @@ contract FeedSwitchTest is Test {
             uint(initialFeed.latestAnswer())
         );
         vm.warp(block.timestamp + 0.5 days);
+        (bool isQueued, uint256 timeLeft) = feedSwitch.isFeedSwitchQueued();
+        assertEq(isQueued, true);
+        assertEq(timeLeft, feedSwitch.timelockPeriod() - 0.5 days);
 
         // Cancel the feed switch
         vm.prank(guardian);
@@ -186,13 +242,20 @@ contract FeedSwitchTest is Test {
             "before feed switch"
         );
         assertEq(feedSwitch.switchCompletedAt(), 0);
+        // Not queued anymore
+        (isQueued, timeLeft) = feedSwitch.isFeedSwitchQueued();
+        assertEq(isQueued, false);
+        assertEq(timeLeft, 0);
+
         // After the feed is canceled, it keeps using the initialFeed
         vm.warp(block.timestamp + 1 days);
         assertEq(
             uint(feedSwitch.latestAnswer()),
             uint(initialFeed.latestAnswer())
         );
-
+        (isQueued, timeLeft) = feedSwitch.isFeedSwitchQueued();
+        assertEq(isQueued, false);
+        assertEq(timeLeft, 0);
         // Initiate a feed switch again
         vm.prank(guardian);
         feedSwitch.initiateFeedSwitch();
@@ -202,11 +265,19 @@ contract FeedSwitchTest is Test {
             uint(initialFeed.latestAnswer())
         );
 
+        (isQueued, timeLeft) = feedSwitch.isFeedSwitchQueued();
+        assertEq(isQueued, true);
+        assertEq(timeLeft, feedSwitch.timelockPeriod());
+
         vm.warp(block.timestamp + 1 days);
         assertEq(
             uint(feedSwitch.latestAnswer()),
             uint(beforeMaturityFeed.latestAnswer())
         );
+        // Feed switched so not queued anymore
+        (isQueued, timeLeft) = feedSwitch.isFeedSwitchQueued();
+        assertEq(isQueued, false);
+        assertEq(timeLeft, 0);
     }
 
     function test_Cancel_feed_switch_with_beforeMaturityFeed_and_reswitch()
@@ -220,11 +291,18 @@ contract FeedSwitchTest is Test {
             uint(feedSwitch.latestAnswer()),
             uint(initialFeed.latestAnswer())
         );
+        (bool isQueued, uint256 timeLeft) = feedSwitch.isFeedSwitchQueued();
+        assertEq(isQueued, true);
+        assertEq(timeLeft, feedSwitch.timelockPeriod());
+
         vm.warp(block.timestamp + 1 days);
         assertEq(
             uint(feedSwitch.latestAnswer()),
             uint(beforeMaturityFeed.latestAnswer())
         );
+        (isQueued, timeLeft) = feedSwitch.isFeedSwitchQueued();
+        assertEq(isQueued, false);
+        assertEq(timeLeft, 0);
 
         // Initiate a feed switch again
         vm.prank(guardian);
@@ -237,6 +315,10 @@ contract FeedSwitchTest is Test {
 
         // Cancel it when it is in the timelock period and keep using beforeMaturityFeed
         vm.warp(block.timestamp + 0.5 days);
+        (isQueued, timeLeft) = feedSwitch.isFeedSwitchQueued();
+        assertEq(isQueued, true);
+        assertEq(timeLeft, feedSwitch.timelockPeriod() - 0.5 days);
+
         vm.prank(guardian);
         feedSwitch.initiateFeedSwitch();
         assertEq(feedSwitch.switchCompletedAt(), 0);
@@ -244,7 +326,9 @@ contract FeedSwitchTest is Test {
             uint(feedSwitch.latestAnswer()),
             uint(beforeMaturityFeed.latestAnswer())
         );
-
+        (isQueued, timeLeft) = feedSwitch.isFeedSwitchQueued();
+        assertEq(isQueued, false);
+        assertEq(timeLeft, 0);
         // Initiate a feed switch again
         vm.prank(guardian);
         feedSwitch.initiateFeedSwitch();
@@ -253,12 +337,18 @@ contract FeedSwitchTest is Test {
             uint(feedSwitch.latestAnswer()),
             uint(beforeMaturityFeed.latestAnswer())
         );
+        (isQueued, timeLeft) = feedSwitch.isFeedSwitchQueued();
+        assertEq(isQueued, true);
+        assertEq(timeLeft, feedSwitch.timelockPeriod());
 
         vm.warp(block.timestamp + 1 days);
         assertEq(
             uint(feedSwitch.latestAnswer()),
             uint(initialFeed.latestAnswer())
         );
+        (isQueued, timeLeft) = feedSwitch.isFeedSwitchQueued();
+        assertEq(isQueued, false);
+        assertEq(timeLeft, 0);
     }
 
     function test_SwitchFeed_twice_before_maturity() public {
@@ -280,12 +370,19 @@ contract FeedSwitchTest is Test {
             uint(feedSwitch.latestAnswer()),
             uint(initialFeed.latestAnswer())
         );
+        (bool isQueued, uint timeLeft) = feedSwitch.isFeedSwitchQueued();
+        assertEq(isQueued, true);
+        assertEq(timeLeft, feedSwitch.timelockPeriod());
+
         // After timelock period, beforeMaturityFeed is used
         vm.warp(block.timestamp + 1 days);
         assertEq(
             uint(feedSwitch.latestAnswer()),
             uint(beforeMaturityFeed.latestAnswer())
         );
+        (isQueued, timeLeft) = feedSwitch.isFeedSwitchQueued();
+        assertEq(isQueued, false);
+        assertEq(timeLeft, 0);
 
         // After the switch is completed, the feed is switched back to initialFeed
         assertEq(address(feedSwitch.previousFeed()), address(initialFeed));
@@ -303,12 +400,19 @@ contract FeedSwitchTest is Test {
             uint(feedSwitch.latestAnswer()),
             uint(beforeMaturityFeed.latestAnswer())
         );
+        (isQueued, timeLeft) = feedSwitch.isFeedSwitchQueued();
+        assertEq(isQueued, true);
+        assertEq(timeLeft, feedSwitch.timelockPeriod());
+
         vm.warp(block.timestamp + 1 days);
         // After timelock period, initialFeed is used
         assertEq(
             uint(feedSwitch.latestAnswer()),
             uint(initialFeed.latestAnswer())
         );
+        (isQueued, timeLeft) = feedSwitch.isFeedSwitchQueued();
+        assertEq(isQueued, false);
+        assertEq(timeLeft, 0);
     }
 
     function test_Fail_initiateFeedSwitch_after_maturity() public {
@@ -338,6 +442,12 @@ contract FeedSwitchTest is Test {
     function test_Decimals() public view {
         uint8 decimals = feedSwitch.decimals();
         assertEq(decimals, 18);
+    }
+
+    function test_isFeedSwitchQueued() public view {
+        (bool isQueued, uint256 timeLeft) = feedSwitch.isFeedSwitchQueued();
+        assertEq(isQueued, false);
+        assertEq(timeLeft, 0);
     }
 
     function test_Deploy_Revert_Wrong_Decimals() public {

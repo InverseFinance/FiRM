@@ -117,4 +117,15 @@ contract FeedSwitch {
     function decimals() external pure returns (uint8) {
         return 18;
     }
+
+    /// @notice Check if the feed switch is queued
+    /// @dev If not queued, will return false and 0 as time left
+    /// @return isQueued Whether the feed switch is queued
+    /// @return timeLeft The time left for the switch to be effective
+    function isFeedSwitchQueued() external view returns (bool, uint256) {
+        bool isQueued = switchCompletedAt > 0 &&
+            block.timestamp < switchCompletedAt;
+        if (!isQueued) return (false, 0);
+        else return (isQueued, switchCompletedAt - block.timestamp);
+    }
 }
