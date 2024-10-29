@@ -62,7 +62,7 @@ contract FeedSwitch {
     /// @dev Can only be called by the guardian and can be done before maturity, after that, the feed will return afterMaturityFeed data
     function initiateFeedSwitch() external {
         if (msg.sender != guardian) revert NotGuardian();
-        if (block.timestamp > maturity) revert MaturityPassed();
+        if (block.timestamp >= maturity) revert MaturityPassed();
 
         if (switchCompletedAt < block.timestamp) {
             switchCompletedAt = block.timestamp + timelockPeriod;
