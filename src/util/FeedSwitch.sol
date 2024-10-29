@@ -53,7 +53,7 @@ contract FeedSwitch {
 
         timelockPeriod = _timelockPeriod;
         maturity = IPendlePT(_pendlePT).expiry();
-        if (maturity < block.timestamp) revert MaturityInPast();
+        if (maturity <= block.timestamp) revert MaturityInPast();
 
         guardian = _guardian;
     }
