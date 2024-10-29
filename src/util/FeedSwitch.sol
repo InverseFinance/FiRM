@@ -96,7 +96,7 @@ contract FeedSwitch {
             uint80 answeredInRound
         )
     {
-        if (block.timestamp > maturity) {
+        if (block.timestamp >= maturity) {
             return afterMaturityFeed.latestRoundData();
         } else if (block.timestamp >= switchCompletedAt) {
             return feed.latestRoundData();
