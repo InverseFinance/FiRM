@@ -21,28 +21,15 @@ contract PendlePTUSDeMarketForkTest is MarketBaseForkTest {
     ChainlinkBasePriceFeed afterMaturityFeed;
     DolaFixedPriceFeed initialFeed;
     FeedSwitch feedSwitch;
+    address marketAddr = address(0x0DFE3D04536a74Dd532dd0cEf5005bA14c5f4112);
+    address feedAddr = address(0xddB5653FaC7a215139141863B2FAd021D44d7Ee4);
 
     function setUp() public {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url, 21071698);
+        vm.createSelectFork(url, 21077341);
 
-        address feedAddr = _deployFeed();
-
-        Market market = new Market(
-            gov,
-            lender,
-            pauseGuardian,
-            simpleERC20EscrowAddr,
-            IDolaBorrowingRights(address(dbr)),
-            IERC20(pendlePT),
-            IOracle(address(oracle)),
-            5000,
-            5000,
-            1000,
-            false
-        );
-        _advancedInit(address(market), feedAddr, false);
+        _advancedInit(address(marketAddr), feedAddr, false);
     }
 
     function _deployFeed() internal returns (address feed) {
