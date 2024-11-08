@@ -3,13 +3,13 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 //import "../BorrowController.sol";
-import "../DBR.sol";
-import {IOracle} from "../Market.sol";
-import {ALE} from "../util/ALE.sol";
+import "src/DBR.sol";
+import {IOracle} from "src/Market.sol";
+import {ALE} from "src/util/ALE.sol";
 import {ITransformHelper} from "src/interfaces/ITransformHelper.sol";
 import {console} from "forge-std/console.sol";
 import {IERC4626} from "lib/openzeppelin-contracts/contracts/interfaces/IERC4626.sol";
-import {ConfigAddr} from "src/test/ConfigAddr.sol";
+import {ConfigAddr} from "test/ConfigAddr.sol";
 import {Sweepable} from "src/util/Sweepable.sol";
 import {IERC20} from "lib/openzeppelin-contracts/contracts/interfaces/IERC20.sol";
 import {Governable} from "src/util/Governable.sol";

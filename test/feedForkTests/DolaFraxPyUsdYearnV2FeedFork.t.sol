@@ -6,7 +6,7 @@ import "src/feeds/ChainlinkBasePriceFeed.sol";
 import {ChainlinkCurveFeed} from "src/feeds/ChainlinkCurveFeed.sol";
 import {ChainlinkCurve2CoinsFeed} from "src/feeds/ChainlinkCurve2CoinsFeed.sol";
 import "src/feeds/CurveLPPessimisticFeed.sol";
-import {CurveLPPessimiticYearnV2FeedBaseTest} from "test/feedForkTests/CurveLPPessimsticYearnV2FeedBaseTest.t.sol";
+import {CurveLPPessimiticYearnV2FeedBaseTest} from "test/feedForkTests/base/CurveLPPessimsticYearnV2FeedBaseTest.t.sol";
 import {IERC20} from "src/interfaces/IERC20.sol";
 import {IYearnVaultV2} from "src/interfaces/IYearnVaultV2.sol";
 
@@ -62,7 +62,6 @@ contract DolaFraxPyUsdYearnV2FeedFork is CurveLPPessimiticYearnV2FeedBaseTest {
 
     uint256 public usdcHeartbeat = 24 hours;
 
-    address public gov = 0x926dF14a23BE491164dCF93f4c468A50ef659D5B;
     // For yearn vault creation and initial deposit
     address lpHolder = 0xBFa04e5D6Ac1163b7Da3E873e5B9C969E91A0Ac0;
     address gauge = 0x4B092818708A721cB187dFACF41f440ADb79044D;

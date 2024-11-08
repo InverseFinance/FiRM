@@ -3,15 +3,17 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 import {BorrowController} from "src/BorrowController.sol";
-import "../DBR.sol";
+import "src/DBR.sol";
 import {Market, IBorrowController} from "src/Market.sol";
 import {Oracle, IChainlinkFeed} from "src/Oracle.sol";
-import {Fed, IMarket} from "src/Fed.sol";
-import {ALE} from "../util/ALE.sol";
-import {ERC4626Helper, IERC4626} from "src/util/ERC4626Helper.sol";
+import {Fed} from "src/Fed.sol";
+import {ALE} from "src/util/ALE.sol";
+import {YETHFeed} from "test/mocks/YETHFeed.sol";
+import {ERC4626Helper} from "src/util/ERC4626Helper.sol";
 import {IMultiMarketTransformHelper} from "src/interfaces/IMultiMarketTransformHelper.sol";
 import {console} from "forge-std/console.sol";
-import {BaseHelperForkTest, IERC4626, MockExchangeProxy} from "src/test/BaseHelperForkTest.t.sol";
+import {IERC4626} from "lib/openzeppelin-contracts/contracts/interfaces/IERC4626.sol";
+import {BaseHelperForkTest, MockExchangeProxy} from "test/util/aleTests/BaseHelperForkTest.t.sol";
 import {IERC20} from "lib/openzeppelin-contracts/contracts/interfaces/IERC20.sol";
 
 interface IMintable is IERC20 {
@@ -28,14 +30,9 @@ interface IBC {
 
 interface IFlashMinter {
     function setMaxFlashLimit(uint256 limit) external;
-
-    function flashFee(
-        address token,
-        uint256 amount
-    ) external view returns (uint256);
 }
 
-contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
+contract ALEstYETH4626HelperForkTest is BaseHelperForkTest {
     using stdStorage for StdStorage;
 
     //Market deployment:
@@ -43,8 +40,8 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
     IChainlinkFeed feed;
     BorrowController borrowController;
 
-    address sFraxHolder = 0x440888714A6afeD60ff44e9975A96E6a36f7Fac4;
-    address fraxHolder = 0x5E583B6a1686f7Bc09A6bBa66E852A7C80d36F00;
+    address styETHHolder = 0x42b126099beDdCE8f5CcC06b4b39E8343e8F4260;
+    address yETHHolder = 0x12227DFe5363cbE55919e230653810de0fF317e2; // 2 yEthAddr
 
     //ERC-20s
     IMintable DOLA;
@@ -58,24 +55,30 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
     MockExchangeProxy exchangeProxy;
     ALE ale;
     IFlashMinter flash;
+    //STYETHHelper helper;
+    YETHFeed feedyETH;
+
     ERC4626Helper helper;
     //Variables
     uint collateralFactorBps;
 
     function getBlockNumber() public view override returns (uint256) {
-        return 20590050;
+        return 20590050; // Random block number
     }
 
     function setUp() public override {
         super.setUp();
 
         DOLA = IMintable(dolaAddr);
-        market = Market(sFraxMarketAddr);
-        feed = IChainlinkFeed(sFraxFeedAddr);
+        market = Market(styEthMarketAddr); // st-yEthAddr Market
+        feed = IChainlinkFeed(styEthFeedAddr);
         borrowController = BorrowController(borrowControllerAddr);
         dbr = DolaBorrowingRights(dbrAddr);
+
         helper = new ERC4626Helper(gov, pauseGuardian);
         initBase(address(helper));
+
+        feedyETH = new YETHFeed();
 
         exchangeProxy = new MockExchangeProxy(
             address(market.oracle()),
@@ -83,12 +86,16 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
         );
 
         vm.startPrank(gov);
-        helper.setMarket(address(market), fraxAddr, sFraxAddr);
+        helper.setMarket(
+            address(market),
+            address(yEthAddr),
+            address(styEthAddr)
+        );
         dbr.addMarket(address(market));
-        DOLA.mint(address(market), 1000000e18);
 
         ale = new ALE(address(exchangeProxy), triDBRAddr);
-        ale.setMarket(address(market), fraxAddr, address(helper), true);
+        ale.setMarket(address(market), yEthAddr, address(helper), true);
+
         vm.stopPrank();
         //FiRM
         oracle = Oracle(address(market.oracle()));
@@ -96,25 +103,11 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
         collateral = IERC20(address(market.collateral()));
 
         vm.startPrank(gov, gov);
-        market.setBorrowController(
-            IBorrowController(address(borrowController))
-        );
-        market.setCollateralFactorBps(8000);
-        borrowController.setDailyLimit(address(market), 1_000_000 * 1e18);
-        IBC(address(borrowController)).setStalenessThreshold(
-            address(market),
-            3660
-        );
 
-        market.setLiquidationFactorBps(5000);
-        market.setLiquidationIncentiveBps(500);
         IBC(address(borrowController)).setMinDebt(address(market), 0);
-        fed.changeMarketCeiling(IMarket(address(market)), type(uint).max);
-        fed.changeSupplyCeiling(type(uint).max);
-        oracle.setFeed(address(collateral), feed, 18);
-        oracle.setFeed(fraxAddr, IChainlinkFeed(fraxUsdFeedAddr), 18);
+
+        oracle.setFeed(yEthAddr, IChainlinkFeed(address(feedyETH)), 18);
         borrowController.allow(address(ale));
-        DOLA.addMinter(address(ale));
 
         flash = IFlashMinter(address(ale.flash()));
         DOLA.addMinter(address(flash));
@@ -125,45 +118,41 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
     }
 
     function checkEq(
-        uint sFraxDeposit,
+        uint styETHDeposit,
         uint collateralToSwap,
         address userPk
     ) internal {
         assertApproxEqAbs(
-            IERC20(sFraxAddr).balanceOf(address(market.predictEscrow(userPk))),
-            sFraxDeposit + collateralToSwap,
+            IERC20(styEthAddr).balanceOf(address(market.predictEscrow(userPk))),
+            styETHDeposit + collateralToSwap,
             1
         );
     }
 
     function test_leveragePosition() public {
-        // vm.assume(sFraxAmount < 7900 ether);
-        // vm.assume(sFraxAmount > 0.00000001 ether);
+        // vm.assume(styETHAmount < 7900 ether);
+        // vm.assume(styETHAmount > 0.00000001 ether);
         // We are going to deposit some CRV, then leverage the position
-        uint sFraxAmount = 10000 ether;
+        uint styETHAmount = 1 ether;
         address userPk = vm.addr(1);
-        vm.prank(sFraxHolder);
-        IERC20(sFraxAddr).transfer(userPk, sFraxAmount);
+        vm.prank(styETHHolder);
+        IERC20(styEthAddr).transfer(userPk, styETHAmount);
 
         gibDBR(userPk, 20000 ether);
 
-        uint maxBorrowAmount = _getMaxBorrowAmount(sFraxAmount);
-        console.log(sFraxAmount, "sFraxAmount");
-        console.log(maxBorrowAmount, "maxBorrowAmount");
-        console.log(_convertCollatToDola(sFraxAmount), "maxBorrowAmount");
-        console.log(market.collateralFactorBps(), "collateralFactorBps");
+        uint maxBorrowAmount = _getMaxBorrowAmount(styETHAmount);
 
-        uint256 fraxAmount = IERC4626(sFraxAddr).convertToAssets(
+        uint256 yETHAmount = IERC4626(styEthAddr).convertToAssets(
             _convertDolaToCollat(maxBorrowAmount)
         );
         // recharge mocked proxy for swap, we need to swap DOLA to unwrapped collateral
-        vm.prank(fraxHolder);
-        IERC20(fraxAddr).transfer(address(exchangeProxy), fraxAmount + 2);
+        vm.prank(yETHHolder);
+        IERC20(yEthAddr).transfer(address(exchangeProxy), yETHAmount + 2);
 
         vm.startPrank(userPk, userPk);
         // Initial CRV deposit
-        IERC20(sFraxAddr).approve(address(market), sFraxAmount);
-        market.deposit(sFraxAmount);
+        IERC20(styEthAddr).approve(address(market), styETHAmount);
+        market.deposit(styETHAmount);
 
         // Sign Message for borrow on behalf
         bytes32 hash = keccak256(
@@ -190,7 +179,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
 
         bytes memory swapData = abi.encodeWithSelector(
             MockExchangeProxy.swapDolaIn.selector,
-            fraxAddr,
+            yEthAddr,
             maxBorrowAmount
         );
 
@@ -210,9 +199,9 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
         // market.borrow(10 ether);
         // // Balance in escrow is equal to the collateral deposited + the extra collateral swapped from the leverage
         assertApproxEqAbs(
-            IERC20(sFraxAddr).balanceOf(address(market.predictEscrow(userPk))),
-            sFraxAmount +
-                IERC4626(sFraxAddr).convertToShares(
+            IERC20(styEthAddr).balanceOf(address(market.predictEscrow(userPk))),
+            styETHAmount +
+                IERC4626(styEthAddr).convertToShares(
                     _convertDolaToUnderlying(maxBorrowAmount)
                 ),
             1
@@ -222,26 +211,26 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
     }
 
     function test_leveragePosition_buyDBR() public {
-        // We are going to deposit some st-frax, then leverage the position
-        uint sFraxAmount = 10000 ether;
+        // We are going to deposit some st-yEthAddr, then leverage the position
+        uint styETHAmount = 1 ether;
         address userPk = vm.addr(1);
-        vm.prank(sFraxHolder);
-        IERC20(sFraxAddr).transfer(userPk, sFraxAmount);
+        vm.prank(styETHHolder);
+        IERC20(styEthAddr).transfer(userPk, styETHAmount);
 
-        uint maxBorrowAmount = _getMaxBorrowAmount(sFraxAmount);
+        uint maxBorrowAmount = _getMaxBorrowAmount(styETHAmount);
 
-        uint256 fraxAmount = IERC4626(sFraxAddr).convertToAssets(
+        uint256 yETHAmount = IERC4626(styEthAddr).convertToAssets(
             _convertDolaToCollat(maxBorrowAmount)
         );
 
         // recharge mocked proxy for swap, we need to swap DOLA to unwrapped collateral
-        vm.prank(fraxHolder);
-        IERC20(fraxAddr).transfer(address(exchangeProxy), fraxAmount + 2);
+        vm.prank(yETHHolder);
+        IERC20(yEthAddr).transfer(address(exchangeProxy), yETHAmount + 2);
 
         vm.startPrank(userPk, userPk);
-        // Initial st-frax deposit
-        IERC20(sFraxAddr).approve(address(market), sFraxAmount);
-        market.deposit(sFraxAmount);
+        // Initial st-yEthAddr deposit
+        IERC20(styEthAddr).approve(address(market), styETHAmount);
+        market.deposit(styETHAmount);
 
         // Calculate the amount of DOLA needed to borrow to buy the DBR needed to cover for the borrowing period
         (uint256 dolaForDBR, uint256 dbrAmount) = ale
@@ -272,7 +261,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
 
         bytes memory swapData = abi.encodeWithSelector(
             MockExchangeProxy.swapDolaIn.selector,
-            fraxAddr,
+            yEthAddr,
             maxBorrowAmount
         );
 
@@ -293,46 +282,46 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
         );
 
         // Balance in escrow is equal to the collateral deposited + the extra collateral swapped from the leverage
-        checkEq(sFraxAmount, _convertDolaToCollat(maxBorrowAmount), userPk);
+        checkEq(styETHAmount, _convertDolaToCollat(maxBorrowAmount), userPk);
 
         assertEq(DOLA.balanceOf(userPk), 0);
 
         assertGt(dbr.balanceOf(userPk), (dbrAmount * 98) / 100);
     }
 
-    function test_deleveragePosition_sellDBR(uint256 sFraxAmount) public {
-        vm.assume(sFraxAmount < 15000 ether);
-        vm.assume(sFraxAmount > 0.0001 ether);
-        // We are going to deposit some st-frax, then borrow and then deleverage the position
-        //uint sFraxAmount = 10000 ether;
+    function test_deleveragePosition_sellDBR(uint256 styETHAmount) public {
+        vm.assume(styETHAmount < 1.5 ether);
+        vm.assume(styETHAmount > 0.0001 ether);
+        // We are going to deposit some st-yEthAddr, then borrow and then deleverage the position
+        //uint styETHAmount = 1 ether;
         address userPk = vm.addr(1);
-        vm.prank(sFraxHolder);
-        IERC20(sFraxAddr).transfer(userPk, sFraxAmount);
+        vm.prank(styETHHolder);
+        IERC20(styEthAddr).transfer(userPk, styETHAmount);
 
-        gibDBR(userPk, sFraxAmount);
+        gibDBR(userPk, styETHAmount);
 
-        uint borrowAmount = (_getMaxBorrowAmount(sFraxAmount) * 97) / 100;
+        uint borrowAmount = (_getMaxBorrowAmount(styETHAmount) * 97) / 100;
 
         vm.startPrank(userPk, userPk);
-        // Initial sFrax deposit
-        IERC20(sFraxAddr).approve(address(market), sFraxAmount);
-        market.deposit(sFraxAmount);
+        // Initial styEthAddr deposit
+        IERC20(styEthAddr).approve(address(market), styETHAmount);
+        market.deposit(styETHAmount);
         market.borrow(borrowAmount);
         vm.stopPrank();
 
         assertEq(
-            IERC20(sFraxAddr).balanceOf(address(market.predictEscrow(userPk))),
-            sFraxAmount
+            IERC20(styEthAddr).balanceOf(address(market.predictEscrow(userPk))),
+            styETHAmount
         );
         assertEq(DOLA.balanceOf(userPk), borrowAmount);
 
         // We are going to withdraw only 1/10 of the collateral to deleverage
-        uint256 amountToWithdraw = IERC20(sFraxAddr).balanceOf(
+        uint256 amountToWithdraw = IERC20(styEthAddr).balanceOf(
             address(market.predictEscrow(userPk))
         ) / 10;
 
         uint256 dolaAmountForSwap = _convertUnderlyingToDola(
-            IERC4626(sFraxAddr).convertToAssets(amountToWithdraw)
+            IERC4626(styEthAddr).convertToAssets(amountToWithdraw)
         );
 
         // recharge mocked proxy for swap, we need to swap DOLA to unwrapped collateral
@@ -370,8 +359,8 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
 
         bytes memory swapData = abi.encodeWithSelector(
             MockExchangeProxy.swapDolaOut.selector,
-            fraxAddr,
-            IERC4626(sFraxAddr).convertToAssets(amountToWithdraw)
+            yEthAddr,
+            IERC4626(styEthAddr).convertToAssets(amountToWithdraw)
         );
 
         vm.startPrank(userPk, userPk);
@@ -390,8 +379,8 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
 
         // Some collateral has been withdrawn
         assertEq(
-            IERC20(sFraxAddr).balanceOf(address(market.predictEscrow(userPk))),
-            sFraxAmount - amountToWithdraw
+            IERC20(styEthAddr).balanceOf(address(market.predictEscrow(userPk))),
+            styETHAmount - amountToWithdraw
         );
 
         // User still has dola and actually he has more bc he sold his DBRs
@@ -400,34 +389,35 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
         assertEq(dbr.balanceOf(userPk), 0);
     }
 
-    function test_deleveragePosition(uint256 sFraxAmount) public {
-        vm.assume(sFraxAmount < 10000 ether);
-        vm.assume(sFraxAmount > 0.00000001 ether);
-        // We are going to deposit some st-frax, then borrow and then deleverage the position
-        // uint sFraxAmount = 10000 ether;
+    function test_deleveragePosition(uint256 styETHAmount) public {
+        vm.assume(styETHAmount < 10 ether);
+        vm.assume(styETHAmount > 0.00000001 ether);
+        // We are going to deposit some st-yEthAddr, then borrow and then deleverage the position
+        // uint styETHAmount = 1 ether;
         address userPk = vm.addr(1);
-        vm.prank(sFraxHolder);
-        IERC20(sFraxAddr).transfer(userPk, sFraxAmount);
+        vm.prank(styETHHolder);
+        IERC20(styEthAddr).transfer(userPk, styETHAmount);
 
-        gibDBR(userPk, sFraxAmount);
+        gibDBR(userPk, styETHAmount);
 
-        uint borrowAmount = (_getMaxBorrowAmount(sFraxAmount) * 97) / 100;
+        uint borrowAmount = (_getMaxBorrowAmount(styETHAmount) * 97) / 100;
 
         vm.startPrank(userPk, userPk);
-        // Initial sFrax deposit
-        IERC20(sFraxAddr).approve(address(market), sFraxAmount);
-        market.deposit(sFraxAmount);
+        // Initial styEthAddr deposit
+        IERC20(styEthAddr).approve(address(market), styETHAmount);
+        market.deposit(styETHAmount);
         market.borrow(borrowAmount);
         vm.stopPrank();
 
         address userEscrow = address(market.predictEscrow(userPk));
-        assertEq(IERC20(sFraxAddr).balanceOf(userEscrow), sFraxAmount);
+        assertEq(IERC20(styEthAddr).balanceOf(userEscrow), styETHAmount);
         assertEq(DOLA.balanceOf(userPk), borrowAmount);
 
         // We are going to withdraw only 1/10 of the collateral to deleverage
-        uint256 amountToWithdraw = IERC20(sFraxAddr).balanceOf(userEscrow) / 10;
+        uint256 amountToWithdraw = IERC20(styEthAddr).balanceOf(userEscrow) /
+            10;
         uint256 dolaAmountForSwap = _convertUnderlyingToDola(
-            IERC4626(sFraxAddr).convertToAssets(amountToWithdraw)
+            IERC4626(styEthAddr).convertToAssets(amountToWithdraw)
         );
 
         // recharge mocked proxy for swap, we need to swap DOLA to unwrapped collateral
@@ -461,8 +451,8 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
 
         bytes memory swapData = abi.encodeWithSelector(
             MockExchangeProxy.swapDolaOut.selector,
-            fraxAddr,
-            IERC4626(sFraxAddr).convertToAssets(amountToWithdraw)
+            yEthAddr,
+            IERC4626(styEthAddr).convertToAssets(amountToWithdraw)
         );
 
         vm.startPrank(userPk, userPk);
@@ -481,57 +471,57 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
 
         // Some collateral has been withdrawn
         assertEq(
-            IERC20(sFraxAddr).balanceOf(userEscrow),
-            sFraxAmount - amountToWithdraw
+            IERC20(styEthAddr).balanceOf(userEscrow),
+            styETHAmount - amountToWithdraw
         );
         // User still has dola but has some debt repaid
         assertApproxEqAbs(DOLA.balanceOf(userPk), borrowAmount / 2, 1);
     }
 
-    function test_transformToCollateralAndDeposit(uint256 fraxAmount) public {
-        //vm.assume(fraxAmount < 1 ether);
+    function test_transformToCollateralAndDeposit(uint256 yETHAmount) public {
+        //vm.assume(yETHAmount < 1 ether);
 
-        uint256 fraxAmount = 1 ether;
+        uint256 yETHAmount = 1 ether;
         address userPk = vm.addr(1);
-        vm.prank(fraxHolder);
-        IERC20(fraxAddr).transfer(userPk, fraxAmount);
+        vm.prank(yETHHolder);
+        IERC20(yEthAddr).transfer(userPk, yETHAmount);
 
         vm.startPrank(userPk, userPk);
-        IERC20(fraxAddr).approve(address(helper), fraxAmount);
+        IERC20(yEthAddr).approve(address(helper), yETHAmount);
         helper.transformToCollateralAndDeposit(
-            fraxAmount,
+            yETHAmount,
             userPk,
             abi.encode(address(market))
         );
 
-        assertEq(IERC20(fraxAddr).balanceOf(userPk), 0);
+        assertEq(IERC20(yEthAddr).balanceOf(userPk), 0);
 
         assertEq(
-            IERC20(sFraxAddr).balanceOf(address(market.predictEscrow(userPk))),
-            IERC4626(sFraxAddr).convertToShares(fraxAmount)
+            IERC20(styEthAddr).balanceOf(address(market.predictEscrow(userPk))),
+            IERC4626(styEthAddr).convertToShares(yETHAmount)
         );
     }
 
     function test_withdrawAndTransformFromCollateral(
-        uint256 fraxAmount
+        uint256 yETHAmount
     ) public {
-        // vm.assume(fraxAmount < IsFrax(sFrax).availableDepositLimit());
+        // vm.assume(yETHAmount < IstyETH(styEthAddr).availableDepositLimit());
 
-        uint256 fraxAmount = 1 ether;
+        uint256 yETHAmount = 1 ether;
         address userPk = vm.addr(1);
-        vm.prank(fraxHolder);
-        IERC20(fraxAddr).transfer(userPk, fraxAmount);
+        vm.prank(yETHHolder);
+        IERC20(yEthAddr).transfer(userPk, yETHAmount);
 
         vm.startPrank(userPk, userPk);
-        IERC20(fraxAddr).approve(address(helper), fraxAmount);
+        IERC20(yEthAddr).approve(address(helper), yETHAmount);
         helper.transformToCollateralAndDeposit(
-            fraxAmount,
+            yETHAmount,
             userPk,
             abi.encode(address(market))
         );
 
         //Market market = Market(address(helper.market())); // actual Mainnet market for helper contract
-        uint256 amountToWithdraw = IERC20(sFraxAddr).balanceOf(
+        uint256 amountToWithdraw = IERC20(styEthAddr).balanceOf(
             address(market.predictEscrow(userPk))
         ) / 10;
 
@@ -563,7 +553,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
                 s
             );
 
-        assertEq(IERC20(fraxAddr).balanceOf(userPk), 0);
+        assertEq(IERC20(yEthAddr).balanceOf(userPk), 0);
 
         helper.withdrawAndTransformFromCollateral(
             amountToWithdraw,
@@ -573,8 +563,8 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
         );
 
         assertApproxEqAbs(
-            IERC20(fraxAddr).balanceOf(userPk),
-            IERC4626(sFraxAddr).convertToAssets(amountToWithdraw),
+            IERC20(yEthAddr).balanceOf(userPk),
+            IERC4626(styEthAddr).convertToAssets(amountToWithdraw),
             1
         );
     }
@@ -587,38 +577,6 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
         );
         vm.prank(gov);
         ale.setMarket(fakeMarket, address(0), address(0), true);
-    }
-
-    function test_fail_setMarket_Wrong_BuySellToken_Without_Helper() public {
-        address fakeBuySellToken = address(0x69);
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                ALE.MarketSetupFailed.selector,
-                address(market),
-                fakeBuySellToken,
-                address(collateral),
-                address(0)
-            )
-        );
-        vm.prank(gov);
-        ale.setMarket(address(market), fakeBuySellToken, address(0), true);
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                ALE.MarketSetupFailed.selector,
-                address(market),
-                address(0),
-                address(collateral),
-                address(0)
-            )
-        );
-        vm.prank(gov);
-        ale.setMarket(address(market), address(0), address(0), true);
-
-        vm.expectRevert();
-        vm.prank(gov);
-        ale.setMarket(address(market), fakeBuySellToken, address(0), true);
     }
 
     function test_fail_updateMarketHelper_NoMarket() public {
@@ -634,36 +592,39 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
 
     function test_return_assetAmount_when_TotalSupply_is_Zero() public {
         stdstore
-            .target(sFraxAddr)
-            .sig(IERC4626(sFraxAddr).totalSupply.selector)
+            .target(address(styEthAddr))
+            .sig(IERC4626(styEthAddr).totalSupply.selector)
             .checked_write(uint256(0));
 
         uint256 assetAmount = 1 ether;
-        assertEq(assetAmount, IERC4626(sFraxAddr).convertToShares(assetAmount));
+        assertEq(
+            assetAmount,
+            IERC4626(styEthAddr).convertToShares(assetAmount)
+        );
     }
 
     function test_fail_collateral_is_zero_leveragePosition() public {
         // We are going to deposit some CRV, then leverage the position
-        uint sFraxAmount = 10000 ether;
+        uint styETHAmount = 1 ether;
         address userPk = vm.addr(1);
-        vm.prank(sFraxHolder);
-        IERC20(sFraxAddr).transfer(userPk, sFraxAmount);
+        vm.prank(styETHHolder);
+        IERC20(styEthAddr).transfer(userPk, styETHAmount);
 
-        gibDBR(userPk, sFraxAmount);
+        gibDBR(userPk, styETHAmount);
 
-        uint maxBorrowAmount = _getMaxBorrowAmount(sFraxAmount);
+        uint maxBorrowAmount = _getMaxBorrowAmount(styETHAmount);
 
-        uint256 fraxAmount = IERC4626(sFraxAddr).convertToAssets(
+        uint256 yETHAmount = IERC4626(styEthAddr).convertToAssets(
             _convertDolaToCollat(maxBorrowAmount)
         );
         // recharge mocked proxy for swap, we need to swap DOLA to unwrapped collateral
-        vm.prank(fraxHolder);
-        IERC20(fraxAddr).transfer(address(exchangeProxy), fraxAmount + 2);
+        vm.prank(yETHHolder);
+        IERC20(yEthAddr).transfer(address(exchangeProxy), yETHAmount + 2);
 
         vm.startPrank(userPk, userPk);
         // Initial CRV deposit
-        IERC20(sFraxAddr).approve(address(market), sFraxAmount);
-        market.deposit(sFraxAmount);
+        IERC20(styEthAddr).approve(address(market), styETHAmount);
+        market.deposit(styETHAmount);
 
         // Sign Message for borrow on behalf
         bytes32 hash = keccak256(
@@ -690,7 +651,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
 
         bytes memory swapData = abi.encodeWithSelector(
             MockExchangeProxy.swapDolaIn.selector,
-            fraxAddr,
+            yEthAddr,
             maxBorrowAmount
         );
 
@@ -698,7 +659,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
 
         // Mock call to return 0 buySellToken balance for the ALE
         vm.mockCall(
-            fraxAddr,
+            yEthAddr,
             abi.encodeWithSelector(IERC20.balanceOf.selector, address(ale)),
             abi.encode(uint256(0))
         );
@@ -716,27 +677,27 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
     }
 
     function _convertCollatToDola(uint amount) internal view returns (uint) {
-        uint256 underlying = IERC4626(sFraxAddr).convertToAssets(amount);
+        uint256 underlying = IERC4626(styEthAddr).convertToAssets(amount);
         return _convertUnderlyingToDola(underlying);
     }
 
     function _convertDolaToCollat(uint amount) internal view returns (uint) {
         uint256 underlying = _convertDolaToUnderlying(amount);
         console.log(underlying, "underlying");
-        return IERC4626(sFraxAddr).convertToShares(underlying);
+        return IERC4626(styEthAddr).convertToShares(underlying);
     }
 
     function _convertDolaToUnderlying(
         uint amount
     ) internal view returns (uint) {
         console.log(amount, "amount");
-        return (amount * 1e18) / oracle.viewPrice(fraxAddr, 0);
+        return (amount * 1e18) / oracle.viewPrice(yEthAddr, 0);
     }
 
     function _convertUnderlyingToDola(
         uint amount
     ) internal view returns (uint) {
-        return (amount * oracle.viewPrice(fraxAddr, 0)) / 1e18;
+        return (amount * oracle.viewPrice(yEthAddr, 0)) / 1e18;
     }
 
     function _getMaxBorrowAmount(

@@ -7,7 +7,7 @@ import {ChainlinkCurve2CoinsFeed} from "src/feeds/ChainlinkCurve2CoinsFeed.sol";
 import {ChainlinkCurveFeed} from "src/feeds/ChainlinkCurveFeed.sol";
 import "src/feeds/ChainlinkBasePriceFeed.sol";
 import "src/feeds/CurveLPPessimisticFeed.sol";
-import {CurveLPPessimiticYearnV2FeedBaseTest} from "test/feedForkTests/CurveLPPessimsticYearnV2FeedBaseTest.t.sol";
+import {CurveLPPessimiticYearnV2FeedBaseTest} from "test/feedForkTests/base/CurveLPPessimsticYearnV2FeedBaseTest.t.sol";
 
 contract DolaFraxBPYearnV2FeedFork is CurveLPPessimiticYearnV2FeedBaseTest {
     ChainlinkCurveFeed usdcFallback;
@@ -50,7 +50,6 @@ contract DolaFraxBPYearnV2FeedFork is CurveLPPessimiticYearnV2FeedBaseTest {
 
     uint256 public crvUSDHeartbeat = 24 hours;
 
-    address public gov = 0x926dF14a23BE491164dCF93f4c468A50ef659D5B;
     address public _yearn = address(0xe5F625e8f4D2A038AE9583Da254945285E5a77a4);
 
     function setUp() public {

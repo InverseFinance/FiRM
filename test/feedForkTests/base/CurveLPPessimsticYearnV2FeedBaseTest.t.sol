@@ -7,9 +7,13 @@ import "src/feeds/ChainlinkBasePriceFeed.sol";
 import {ChainlinkCurveFeed} from "src/feeds/ChainlinkCurveFeed.sol";
 import {ChainlinkCurve2CoinsFeed} from "src/feeds/ChainlinkCurve2CoinsFeed.sol";
 import "src/feeds/CurveLPPessimisticFeed.sol";
+import "src/feeds/CurveLPYearnV2Feed.sol";
+import {YearnVaultV2Helper, IYearnVaultV2} from "src/util/YearnVaultV2Helper.sol";
+import {ConfigAddr} from "test/ConfigAddr.sol";
 
-abstract contract CurveLPPessimiticFeedBaseTest is Test {
-    CurveLPPessimisticFeed feed;
+abstract contract CurveLPPessimiticYearnV2FeedBaseTest is Test, ConfigAddr {
+    CurveLPYearnV2Feed feed;
+    CurveLPPessimisticFeed curveFeed;
     ChainlinkBasePriceFeed coin1Feed; // main coin1 feed
     ChainlinkBasePriceFeed coin2Feed; // main coin2 feed
     ChainlinkBasePriceFeed baseClFallCoin1; //cl base price feed for coin1 fallback
@@ -25,7 +29,7 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
     // For coin2 Chainlink fallback
     IChainlinkFeed public coin2ClFallback;
 
-    //address public gov = 0x926dF14a23BE491164dCF93f4c468A50ef659D5B;
+    IYearnVaultV2 public yearn;
 
     function init(
         address _baseClFallCoin1,
@@ -34,7 +38,8 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
         address _baseClFallCoin2,
         address _coin2Fallback,
         address _coin2Feed,
-        address _curvePool
+        address _curvePool,
+        address _yearn
     ) public {
         baseClFallCoin1 = ChainlinkBasePriceFeed(_baseClFallCoin1);
         coin1Fallback = ChainlinkCurve2CoinsFeed(_coin1Fallback);
@@ -42,31 +47,33 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
         baseClFallCoin2 = ChainlinkBasePriceFeed(_baseClFallCoin2);
         coin2Fallback = ChainlinkCurveFeed(_coin2Fallback);
         coin2Feed = ChainlinkBasePriceFeed(_coin2Feed);
-        curvePool = ICurvePool(_curvePool);
+        yearn = IYearnVaultV2(_yearn);
         coin1ClFallback = coin1Fallback.assetToUsd();
         coin2ClFallback = coin2Fallback.assetToUsd();
-
-        feed = new CurveLPPessimisticFeed(
+        curvePool = ICurvePool(_curvePool);
+        curveFeed = new CurveLPPessimisticFeed(
             address(curvePool),
             address(coin1Feed),
             address(coin2Feed)
         );
+
+        feed = new CurveLPYearnV2Feed(_yearn, address(curveFeed));
     }
 
-    function test_decimals() public {
+    function test_decimals() public view {
         assertEq(feed.decimals(), 18);
     }
 
-    function test_latestAnswer() public {
+    function test_latestAnswer() public view {
         (, int256 lpUsdPrice, , , ) = feed.latestRoundData();
 
         assertEq(feed.latestAnswer(), lpUsdPrice);
     }
 
-    function test_latestRoundData() public {
+    function test_latestRoundData() public view {
         (
             uint80 roundId,
-            int256 lpUsdPrice,
+            int256 yearnUsdPrice,
             uint startedAt,
             uint updatedAt,
             uint80 answeredInRound
@@ -80,14 +87,18 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
             uint80 oracleAnsweredInRound
         ) = _calculateOracleLpPrice();
 
+        uint256 estimYearnUsdValue = (uint(oracleLpToUsdPrice) *
+            YearnVaultV2Helper.collateralToAsset(yearn, 1e18)) /
+            10 ** curveFeed.decimals();
+
         assertEq(roundId, oracleRoundId);
-        assertEq(lpUsdPrice, oracleLpToUsdPrice);
+        assertEq(uint(yearnUsdPrice), estimYearnUsdValue);
         assertEq(startedAt, oracleStartedAt);
         assertEq(updatedAt, oracleUpdatedAt);
         assertEq(answeredInRound, oracleAnsweredInRound);
     }
 
-    function test_use_coin1_when_coin2_gt_coin1() public {
+    function test_use_coin1_when_coin2_gt_coin1() public view {
         (
             uint80 clRoundId,
             int256 coin1UsdPrice,
@@ -95,24 +106,26 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
             uint clUpdatedAt,
             uint80 clAnsweredInRound
         ) = coin1Feed.assetToUsd().latestRoundData();
-
         (
             uint80 roundId,
-            int256 lpUsdPrice,
+            int256 yearnUsdPrice,
             uint startedAt,
             uint updatedAt,
             uint80 answeredInRound
         ) = feed.latestRoundData();
 
         uint256 estimLPUsdPrice = uint256(
-            ((feed.curvePool().get_virtual_price() * uint256(coin1UsdPrice)) /
-                10 ** 8)
+            ((curvePool.get_virtual_price() * uint256(coin1UsdPrice)) / 10 ** 8)
         );
+        uint256 estimYearnUsdValue = (estimLPUsdPrice *
+            YearnVaultV2Helper.collateralToAsset(yearn, 1e18)) /
+            10 ** curveFeed.decimals();
+
         assertEq(clRoundId, roundId);
         assertEq(clStartedAt, startedAt);
         assertEq(clUpdatedAt, updatedAt);
         assertEq(clAnsweredInRound, answeredInRound);
-        assertEq(uint256(lpUsdPrice), estimLPUsdPrice);
+        assertEq(uint256(yearnUsdPrice), estimYearnUsdValue);
     }
 
     function test_use_coin2_when_coin2_lt_coin1() public {
@@ -136,21 +149,23 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
 
         (
             uint80 roundId,
-            int256 lpUsdPrice,
+            int256 yearnUsdPrice,
             uint startedAt,
             uint updatedAt,
             uint80 answeredInRound
         ) = feed.latestRoundData();
 
         uint256 estimLPUsdPrice = uint256(
-            ((feed.curvePool().get_virtual_price() * uint256(coin2UsdPrice)) /
-                10 ** 8)
+            ((curvePool.get_virtual_price() * uint256(coin2UsdPrice)) / 10 ** 8)
         );
+        uint256 estimYearnUsdValue = (estimLPUsdPrice *
+            YearnVaultV2Helper.collateralToAsset(yearn, 1e18)) /
+            10 ** curveFeed.decimals();
         assertEq(clRoundId, roundId);
         assertEq(clStartedAt, startedAt);
         assertEq(clUpdatedAt, updatedAt);
         assertEq(clAnsweredInRound, answeredInRound);
-        assertEq(uint256(lpUsdPrice), estimLPUsdPrice);
+        assertEq(uint256(yearnUsdPrice), estimYearnUsdValue);
     }
 
     function test_coin2_Out_of_bounds_MAX_use_coin2_Fallback_when_coin2_lt_coin1()
@@ -187,7 +202,7 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
 
         (
             uint80 roundId,
-            int256 lpUsdPrice,
+            int256 yearnUsdPrice,
             uint startedAt,
             uint updatedAt,
             uint80 answeredInRound
@@ -211,11 +226,13 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
                 )) / 10 ** 18);
         }
         int lpPrice = int(
-            ((feed.curvePool().get_virtual_price() * coin2UsdFallPrice) /
-                10 ** 8)
+            ((curvePool.get_virtual_price() * coin2UsdFallPrice) / 10 ** 8)
         );
-        assertEq(uint256(lpUsdPrice), uint256(lpPrice));
-        assertEq(uint256(lpUsdPrice), uint(feed.latestAnswer()));
+        uint256 estimYearnUsdValue = (uint(lpPrice) *
+            YearnVaultV2Helper.collateralToAsset(yearn, 1e18)) /
+            10 ** curveFeed.decimals();
+        assertEq(uint256(yearnUsdPrice), estimYearnUsdValue);
+        assertEq(uint256(yearnUsdPrice), uint(feed.latestAnswer()));
     }
 
     function test_coin2_Out_of_bounds_MIN_use_coin2_Fallback_when_coin2_lt_coin1()
@@ -252,7 +269,7 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
 
         (
             uint80 roundId,
-            int256 lpUsdPrice,
+            int256 yearnUsdPrice,
             uint startedAt,
             uint updatedAt,
             uint80 answeredInRound
@@ -277,11 +294,13 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
         }
 
         int lpPrice = int(
-            ((feed.curvePool().get_virtual_price() * coin2UsdFallPrice) /
-                10 ** 8)
+            ((curvePool.get_virtual_price() * coin2UsdFallPrice) / 10 ** 8)
         );
-        assertEq(uint256(lpUsdPrice), uint256(lpPrice));
-        assertEq(uint256(lpUsdPrice), uint(feed.latestAnswer()));
+        uint256 estimYearnUsdValue = (uint(lpPrice) *
+            YearnVaultV2Helper.collateralToAsset(yearn, 1e18)) /
+            10 ** curveFeed.decimals();
+        assertEq(uint256(yearnUsdPrice), estimYearnUsdValue);
+        assertEq(uint256(yearnUsdPrice), uint(feed.latestAnswer()));
     }
 
     function test_coin1_Out_of_bounds_MAX_use_coin1_Fallback_when_coin1_lt_coin2()
@@ -308,7 +327,7 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
 
         (
             uint80 roundId,
-            int256 lpUsdPrice,
+            int256 yearnUsdPrice,
             uint startedAt,
             uint updatedAt,
             uint80 answeredInRound
@@ -322,10 +341,13 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
         uint256 coin1FallPrice = (uint256(coin1ClFallbackPrice) * 10 ** 18) /
             coin1Fallback.curvePool().price_oracle();
         int lpPrice = int(
-            ((feed.curvePool().get_virtual_price() * coin1FallPrice) / 10 ** 8)
+            ((curvePool.get_virtual_price() * coin1FallPrice) / 10 ** 8)
         );
-        assertEq(uint256(lpUsdPrice), uint256(lpPrice));
-        assertEq(uint256(lpUsdPrice), uint(feed.latestAnswer()));
+        uint256 estimYearnUsdValue = (uint(lpPrice) *
+            YearnVaultV2Helper.collateralToAsset(yearn, 1e18)) /
+            10 ** curveFeed.decimals();
+        assertEq(uint256(yearnUsdPrice), estimYearnUsdValue);
+        assertEq(uint256(yearnUsdPrice), uint(feed.latestAnswer()));
     }
 
     function test_coin1_Out_of_bounds_MIN_use_coin1_Fallback_when_coin1_lt_coin2()
@@ -352,7 +374,7 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
 
         (
             uint80 roundId,
-            int256 lpUsdPrice,
+            int256 yearnUsdPrice,
             uint startedAt,
             uint updatedAt,
             uint80 answeredInRound
@@ -366,10 +388,13 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
         uint256 coin1FallPrice = (uint256(coin1ClFallbackPrice) * 10 ** 18) /
             coin1Fallback.curvePool().price_oracle();
         int lpPrice = int(
-            ((feed.curvePool().get_virtual_price() * coin1FallPrice) / 10 ** 8)
+            ((curvePool.get_virtual_price() * coin1FallPrice) / 10 ** 8)
         );
-        assertEq(uint256(lpUsdPrice), uint256(lpPrice));
-        assertEq(uint256(lpUsdPrice), uint(feed.latestAnswer()));
+        uint256 estimYearnUsdValue = (uint(lpPrice) *
+            YearnVaultV2Helper.collateralToAsset(yearn, 1e18)) /
+            10 ** curveFeed.decimals();
+        assertEq(uint256(yearnUsdPrice), estimYearnUsdValue);
+        assertEq(uint256(yearnUsdPrice), uint(feed.latestAnswer()));
     }
 
     function test_coin2_Out_of_bounds_MAX_use_coin2_fallback_when_coin2_lt_coin1()
@@ -412,7 +437,7 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
 
         (
             uint80 roundId,
-            int256 lpUsdPrice,
+            int256 yearnUsdPrice,
             uint startedAt,
             uint updatedAt,
             uint80 answeredInRound
@@ -439,11 +464,13 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
 
         assertEq(uint256(coin2FallPrice), estimatedCoin2Price);
         int lpPrice = int(
-            ((feed.curvePool().get_virtual_price() * uint(coin2FallPrice)) /
-                10 ** 8)
+            ((curvePool.get_virtual_price() * uint(coin2FallPrice)) / 10 ** 8)
         );
-        assertEq(uint256(lpUsdPrice), uint256(lpPrice));
-        assertEq(uint256(lpUsdPrice), uint(feed.latestAnswer()));
+        uint256 estimYearnUsdValue = (uint(lpPrice) *
+            YearnVaultV2Helper.collateralToAsset(yearn, 1e18)) /
+            10 ** curveFeed.decimals();
+        assertEq(uint256(yearnUsdPrice), estimYearnUsdValue);
+        assertEq(uint256(yearnUsdPrice), uint(feed.latestAnswer()));
     }
 
     function test_STALE_ClFeed_for_coin2_fallback_When_Out_Of_MIN_Bound_coin2_and_coin1_gt_coin2()
@@ -496,7 +523,7 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
 
         (
             uint80 roundId,
-            int256 lpUsdPrice,
+            int256 yearnUsdPrice,
             uint startedAt,
             uint updatedAt,
             uint80 answeredInRound
@@ -523,11 +550,13 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
         }
         assertEq(uint256(coin2FallPrice), estimatedCoin2Fallback);
         int lpPrice = int(
-            ((feed.curvePool().get_virtual_price() * uint(coin2FallPrice)) /
-                10 ** 8)
+            ((curvePool.get_virtual_price() * uint(coin2FallPrice)) / 10 ** 8)
         );
-        assertEq(uint256(lpUsdPrice), uint256(lpPrice));
-        assertEq(uint256(lpUsdPrice), uint(feed.latestAnswer()));
+        uint256 estimYearnUsdValue = (uint(lpPrice) *
+            YearnVaultV2Helper.collateralToAsset(yearn, 1e18)) /
+            10 ** curveFeed.decimals();
+        assertEq(uint256(yearnUsdPrice), estimYearnUsdValue);
+        assertEq(uint256(yearnUsdPrice), uint(feed.latestAnswer()));
     }
 
     function test_STALE_ClFeed_for_coin2_fallback_When_Out_Of_MAX_Bound_coin2_and_coin1_gt_coin2()
@@ -580,7 +609,7 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
 
         (
             uint80 roundId,
-            int256 lpUsdPrice,
+            int256 yearnUsdPrice,
             uint startedAt,
             uint updatedAt,
             uint80 answeredInRound
@@ -608,11 +637,13 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
 
         assertEq(uint256(coin2FallPrice), estimatedCoin2Fallback);
         int lpPrice = int(
-            ((feed.curvePool().get_virtual_price() * uint(coin2FallPrice)) /
-                10 ** 8)
+            ((curvePool.get_virtual_price() * uint(coin2FallPrice)) / 10 ** 8)
         );
-        assertEq(uint256(lpUsdPrice), uint256(lpPrice));
-        assertEq(uint256(lpUsdPrice), uint(feed.latestAnswer()));
+        uint256 estimYearnUsdValue = (uint(lpPrice) *
+            YearnVaultV2Helper.collateralToAsset(yearn, 1e18)) /
+            10 ** curveFeed.decimals();
+        assertEq(uint256(yearnUsdPrice), estimYearnUsdValue);
+        assertEq(uint256(yearnUsdPrice), uint(feed.latestAnswer()));
     }
 
     function test_STALE_coin1_use_coin1_fallback_when_coin1_lt_coin2() public {
@@ -636,7 +667,7 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
 
         (
             uint80 roundId,
-            int256 lpUsdPrice,
+            int256 yearnUsdPrice,
             uint startedAt,
             uint updatedAt,
             uint80 answeredInRound
@@ -658,10 +689,13 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
 
         uint256 calculatedLPUsdPrice = (((uint256(coin1ClFallbackPrice) *
             10 ** 18) / coin1Fallback.curvePool().price_oracle()) *
-            feed.curvePool().get_virtual_price()) / 10 ** 8;
+            curvePool.get_virtual_price()) / 10 ** 8;
 
-        assertEq(uint256(lpUsdPrice), calculatedLPUsdPrice);
-        assertEq(uint256(lpUsdPrice), uint(feed.latestAnswer()));
+        uint256 estimYearnUsdValue = (uint(calculatedLPUsdPrice) *
+            YearnVaultV2Helper.collateralToAsset(yearn, 1e18)) /
+            10 ** curveFeed.decimals();
+        assertEq(uint256(yearnUsdPrice), estimYearnUsdValue);
+        assertEq(uint256(yearnUsdPrice), uint(feed.latestAnswer()));
     }
 
     function test_STALE_coin1_and_STALE_coin1_fallback_then_use_coin2_even_if_coin1_lt_coin2()
@@ -696,7 +730,7 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
 
         (
             uint80 roundId,
-            int256 lpUsdPrice,
+            int256 yearnUsdPrice,
             uint startedAt,
             uint updatedAt,
             uint80 answeredInRound
@@ -716,11 +750,15 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
         assertEq(clUpdatedAt2, updatedAt);
         assertEq(clAnsweredInRound2, answeredInRound);
 
-        uint256 calculatedLPUsdPrice = (feed.curvePool().get_virtual_price() *
-            uint256(coin2ClFallbackPrice)) / 10 ** 8;
+        uint256 calculatedLPUsdPrice = (curveFeed
+            .curvePool()
+            .get_virtual_price() * uint256(coin2ClFallbackPrice)) / 10 ** 8;
 
-        assertEq(uint256(lpUsdPrice), calculatedLPUsdPrice);
-        assertEq(uint256(lpUsdPrice), uint(feed.latestAnswer()));
+        uint256 estimYearnUsdValue = (uint(calculatedLPUsdPrice) *
+            YearnVaultV2Helper.collateralToAsset(yearn, 1e18)) /
+            10 ** curveFeed.decimals();
+        assertEq(uint256(yearnUsdPrice), estimYearnUsdValue);
+        assertEq(uint256(yearnUsdPrice), uint(feed.latestAnswer()));
     }
 
     function test_STALE_coin1_and_STALE_coin1_fallabck_and_coin2_out_of_Bounds_use_coin2_fallback_even_if_coin1_lt_coin2()
@@ -766,7 +804,7 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
 
         (
             uint80 roundId,
-            int256 lpUsdPrice,
+            int256 yearnUsdPrice,
             uint startedAt,
             uint updatedAt,
             uint80 answeredInRound
@@ -799,14 +837,17 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
                     coin2Fallback.assetOrTargetK()
                 )) / 10 ** 18);
         }
-        uint256 calculatedLPUsdPrice = (feed.curvePool().get_virtual_price() *
+        uint256 calculatedLPUsdPrice = (curvePool.get_virtual_price() *
             uint256(estimatedCoin2Fallback)) / 10 ** 8;
 
-        assertEq(uint256(lpUsdPrice), calculatedLPUsdPrice);
-        assertEq(uint256(lpUsdPrice), uint(feed.latestAnswer()));
+        uint256 estimYearnUsdValue = (uint(calculatedLPUsdPrice) *
+            YearnVaultV2Helper.collateralToAsset(yearn, 1e18)) /
+            10 ** curveFeed.decimals();
+        assertEq(uint256(yearnUsdPrice), estimYearnUsdValue);
+        assertEq(uint256(yearnUsdPrice), uint(feed.latestAnswer()));
     }
 
-    function test_coin1FallBack_oracle() public {
+    function test_coin1FallBack_oracle() public view {
         (
             uint80 roundIdFall,
             int256 coin1ClFallbackPrice,
@@ -834,7 +875,7 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
         assertEq(answeredInRoundFall, answeredInRound);
     }
 
-    function test_coin2FallBack_oracle() public {
+    function test_coin2FallBack_oracle() public view {
         (
             uint80 clRoundId2,
             int256 coin2ClFallbackPrice,
@@ -904,8 +945,7 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
             coin2UsdPrice == 0
         ) {
             oracleLpToUsdPrice =
-                (oracleMinToUsdPrice *
-                    int(feed.curvePool().get_virtual_price())) /
+                (oracleMinToUsdPrice * int(curvePool.get_virtual_price())) /
                 int(10 ** coin1Feed.decimals());
         } else {
             oracleRoundId = coin2RoundId;
@@ -915,8 +955,7 @@ abstract contract CurveLPPessimiticFeedBaseTest is Test {
             oracleAnsweredInRound = coin2AnsweredInRound;
 
             oracleLpToUsdPrice =
-                (oracleMinToUsdPrice *
-                    (int(feed.curvePool().get_virtual_price()))) /
+                (oracleMinToUsdPrice * (int(curvePool.get_virtual_price()))) /
                 int(10 ** coin2Feed.decimals());
         }
     }

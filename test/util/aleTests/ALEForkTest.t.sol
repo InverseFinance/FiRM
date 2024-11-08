@@ -3,10 +3,10 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 import "test/marketForkTests/MarketForkTest.sol";
-import "../DBR.sol";
+import "src/DBR.sol";
 import "test/mocks/ERC20.sol";
-import {ALE} from "../util/ALE.sol";
-import {ConfigAddr} from "src/test/ConfigAddr.sol";
+import {ALE} from "src/util/ALE.sol";
+import {ConfigAddr} from "test/ConfigAddr.sol";
 
 contract MockExchangeProxy {
     IOracle oracle;

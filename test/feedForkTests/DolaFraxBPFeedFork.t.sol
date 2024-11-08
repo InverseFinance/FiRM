@@ -7,7 +7,7 @@ import {ChainlinkCurve2CoinsFeed} from "src/feeds/ChainlinkCurve2CoinsFeed.sol";
 import {ChainlinkCurveFeed} from "src/feeds/ChainlinkCurveFeed.sol";
 import "src/feeds/ChainlinkBasePriceFeed.sol";
 import "src/feeds/CurveLPPessimisticFeed.sol";
-import {CurveLPPessimiticFeedBaseTest} from "test/feedForkTests/CurveLPPessimsticFeedBaseTest.t.sol";
+import {CurveLPPessimiticFeedBaseTest} from "test/feedForkTests/base/CurveLPPessimsticFeedBaseTest.t.sol";
 
 contract DolaFraxBPPriceFeedFork is CurveLPPessimiticFeedBaseTest {
     ChainlinkCurveFeed usdcFallback;
@@ -49,8 +49,6 @@ contract DolaFraxBPPriceFeedFork is CurveLPPessimiticFeedBaseTest {
     uint256 fraxIndex = 0;
 
     uint256 public crvUSDHeartbeat = 24 hours;
-
-    address public gov = 0x926dF14a23BE491164dCF93f4c468A50ef659D5B;
 
     function setUp() public {
         string memory url = vm.rpcUrl("mainnet");

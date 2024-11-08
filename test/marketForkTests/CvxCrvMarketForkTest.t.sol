@@ -26,7 +26,7 @@ contract CvxCrvMarketForkTest is MarketForkTest {
     function setUp() public {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url);
+        vm.createSelectFork(url, 18000000);
         ConvexCurvePriceFeed cvxCrvFeed = ConvexCurvePriceFeed(
             0x0266445Ea652F8467cbaA344Fcf531FF8f3d6462
         );

@@ -6,11 +6,10 @@ import "src/feeds/ChainlinkBasePriceFeed.sol";
 import {ChainlinkCurveFeed} from "src/feeds/ChainlinkCurveFeed.sol";
 import {ChainlinkCurve2CoinsFeed} from "src/feeds/ChainlinkCurve2CoinsFeed.sol";
 import "src/feeds/CurveLPPessimisticFeed.sol";
-import {CurveLPYearnV2FeedBaseTest} from "test/feedForkTests/CurveLPYearnV2FeedBaseTest.t.sol";
+import {CurveLPYearnV2FeedBaseTest} from "test/feedForkTests/base/CurveLPYearnV2FeedBaseTest.t.sol";
 import {IYearnVaultV2} from "src/util/YearnVaultV2Helper.sol";
-import {ConfigAddr} from "src/test/ConfigAddr.sol";
 
-contract DolaCrvUSDYearnV2FeedFork is CurveLPYearnV2FeedBaseTest, ConfigAddr {
+contract DolaCrvUSDYearnV2FeedFork is CurveLPYearnV2FeedBaseTest {
     ChainlinkBasePriceFeed mainCrvUSDFeed;
     ChainlinkBasePriceFeed mainPyUSDFeed;
     ChainlinkBasePriceFeed baseFraxToUsd;
@@ -44,8 +43,6 @@ contract DolaCrvUSDYearnV2FeedFork is CurveLPYearnV2FeedBaseTest, ConfigAddr {
     uint256 public usdcHeartbeat = 24 hours;
 
     uint256 usdcIndex = 0;
-
-    //   address public gov = 0x926dF14a23BE491164dCF93f4c468A50ef659D5B;
 
     IYearnVaultV2 _yearn =
         IYearnVaultV2(0xfb5137Aa9e079DB4b7C2929229caf503d0f6DA96);
