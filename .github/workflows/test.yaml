@@ -1,0 +1,25 @@
+# Controls when the workflow will run
+on:
+  # Triggers the workflow on push or pull request events but only for the main and dev branch
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+name: test
+
+jobs:
+  check:
+    name: Foundry project
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Run tests
+        env:
+          RPC_MAINNET: ${{ secrets.RPC_MAINNET }}
+        run: forge test -vvv
