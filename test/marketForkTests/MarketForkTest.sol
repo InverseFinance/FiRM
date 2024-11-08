@@ -114,7 +114,7 @@ contract MarketForkTest is Test, ConfigAddr {
     }
 
     function gibCollateral(address _address, uint _amount) internal virtual {
-        deal(address(collateral), _address, _amount, true);
+        deal(address(collateral), _address, _amount, false);
     }
 
     function gibDBR(address _address, uint _amount) internal {
