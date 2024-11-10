@@ -90,13 +90,12 @@ contract BorrowController {
      * @return A boolean that is true if borrowing is allowed and false if not.
      */
     function borrowAllowed(address msgSender, address borrower, uint amount) public returns (bool) {
-        updateDailyBorrowLimit(msg.sender);
-        //Check if market exceeds daily limit
-        if(remainingDailyBorrowLimit[msg.sender] < amount){
-            return false;
-        }
+        uint availableBorrow = availableBorrowLimit(msg.sender);
+        if(availableBorrow < amount) return false;
+
         unchecked{
-            remainingDailyBorrowLimit[msg.sender] -= amount;
+            remainingDailyBorrowLimit[msg.sender] = availableBorrow - amount;
+            lastDailyBorrowLimitUpdate[msg.sender] = block.timestamp;
         }
         uint lastUpdated = DBR.lastUpdated(borrower);
         uint debts = DBR.debts(borrower);
@@ -125,28 +124,12 @@ contract BorrowController {
      * @param amount Amount repaid in the market
      */
     function onRepay(uint amount) public {
-        updateDailyBorrowLimit(msg.sender);
         unchecked{
-            uint newLimit = remainingDailyBorrowLimit[msg.sender] + amount;
+            uint newLimit = availableBorrowLimit(msg.sender) + amount;
             uint dailyLimit = dailyBorrowLimit[msg.sender];
             remainingDailyBorrowLimit[msg.sender] = newLimit < dailyLimit ? newLimit : dailyLimit;
+            lastDailyBorrowLimitUpdate[msg.sender] = block.timestamp;
         }
-    }
-
-    /**
-     * @notice Updates the daily borrow limit for the market
-     * @param market The address of the market which limit will be updated
-     */
-    function updateDailyBorrowLimit(address market) internal {
-        uint timeElapsed = block.timestamp - lastDailyBorrowLimitUpdate[market];
-        if(timeElapsed == 0) return;
-        // add daily limit capacity linearly based on time elapsed
-        uint dailyLimit = dailyBorrowLimit[market];
-        uint addedCapacity = timeElapsed * dailyLimit / 1 days;
-        uint newLimit = remainingDailyBorrowLimit[market] + addedCapacity;
-        // cap the limit to the maximum daily limit
-        remainingDailyBorrowLimit[market]= newLimit < dailyLimit ? newLimit : dailyLimit;
-        lastDailyBorrowLimitUpdate[msg.sender] = block.timestamp;
     }
 
     /**
