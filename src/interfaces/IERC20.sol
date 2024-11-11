@@ -6,6 +6,7 @@ interface IERC20 {
     function transferFrom(address,address,uint) external returns (bool);
     function balanceOf(address) external view returns (uint);
     function allowance(address from, address to) external view returns (uint);
+    function decimals() external view returns (uint8);
 }
 
 interface IMintable is IERC20 {
