@@ -32,4 +32,8 @@ interface IYearnVaultV2 {
     function lockedProfit() external view returns (uint256);
 
     function balanceOf(address account) external view returns (uint256);
+
+    function availableDepositLimit() external view returns (uint256);
+
+    function maxAvailableShares() external view returns (uint256);
 }
