@@ -318,7 +318,7 @@ contract BorrowControllerTest is FiRMBaseTest {
 
         vm.prank(borrowController.operator());
         borrowController.setDailyLimit(address(0), 1);
-        assertEq(borrowController.dailyBorrowLimit(address(0)), 1);
+        assertEq(borrowController.dailyLimits(address(0)), 1);
     }
 
     //Access Control
