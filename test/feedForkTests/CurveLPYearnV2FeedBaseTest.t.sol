@@ -9,8 +9,9 @@ import {ChainlinkCurve2CoinsFeed, ICurvePool} from "src/feeds/ChainlinkCurve2Coi
 import "src/feeds/CurveLPYearnV2Feed.sol";
 import {YearnVaultV2Helper, IYearnVaultV2} from "src/util/YearnVaultV2Helper.sol";
 import {CurveLPPessimisticFeed} from "src/feeds/CurveLPPessimisticFeed.sol";
+import {ConfigAddr} from "test/ConfigAddr.sol";
 
-abstract contract CurveLPYearnV2FeedBaseTest is Test {
+abstract contract CurveLPYearnV2FeedBaseTest is Test, ConfigAddr {
     CurveLPYearnV2Feed feed;
     CurveLPPessimisticFeed lpFeed; // main coin1 feed
 
@@ -28,17 +29,17 @@ abstract contract CurveLPYearnV2FeedBaseTest is Test {
         feed = new CurveLPYearnV2Feed(address(yearn), address(lpFeed));
     }
 
-    function test_decimals() public {
+    function test_decimals() public view {
         assertEq(feed.decimals(), 18);
     }
 
-    function test_latestAnswer() public {
+    function test_latestAnswer() public view {
         (, int256 lpUsdPrice, , , ) = feed.latestRoundData();
 
         assertEq(feed.latestAnswer(), lpUsdPrice);
     }
 
-    function test_latestRoundData() public {
+    function test_latestRoundData() public view {
         (
             uint80 roundId,
             int256 lpUsdPrice,

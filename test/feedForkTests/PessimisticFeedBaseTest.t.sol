@@ -256,6 +256,15 @@ abstract contract PessimisticFeedBaseTest is Test {
             0
         );
 
+        // Set coin2 greater than coin1
+        _mockCall_Chainlink(
+            address(coin2Feed.assetToUsd()),
+            0,
+            1.1 ether,
+            0,
+            0,
+            0
+        );
         // Use coin1 fallback price (from coin1 fallback chainlink feed)
         (
             uint80 roundIdFb,
@@ -303,6 +312,16 @@ abstract contract PessimisticFeedBaseTest is Test {
             address(coin1Feed.assetToUsd()),
             0,
             IAggregator(coin1Feed.assetToUsd().aggregator()).minAnswer(),
+            0,
+            0,
+            0
+        );
+
+        // Set coin2 greater than coin1
+        _mockCall_Chainlink(
+            address(coin2Feed.assetToUsd()),
+            0,
+            1.1 ether,
             0,
             0,
             0
@@ -599,6 +618,16 @@ abstract contract PessimisticFeedBaseTest is Test {
             uint80 clAnsweredInRound
         ) = coin1Feed.assetToUsd().latestRoundData();
 
+        // Set coin2 greater than coin1
+        _mockCall_Chainlink(
+            address(coin2Feed.assetToUsd()),
+            0,
+            1.1 ether,
+            0,
+            0,
+            0
+        );
+
         // Set coin1 STALE even if < than coin2
         _mockCall_Chainlink(
             address(coin1Feed.assetToUsd()),
@@ -649,7 +678,9 @@ abstract contract PessimisticFeedBaseTest is Test {
         assertEq(uint256(feedUsdPrice), uint(feed.latestAnswer()));
     }
 
-    function test_STALE_coin1_and_STALE_coin1_fallback_then_use_coin2() public {
+    function test_STALE_coin1_and_STALE_coin1_fallback_then_use_coin2_when_lt_coin1_but_coin1_data()
+        public
+    {
         (
             uint80 clRoundId,
             int256 coin1UsdPrice,
@@ -688,25 +719,25 @@ abstract contract PessimisticFeedBaseTest is Test {
             uint80 answeredInRound
         ) = feed.latestRoundData();
 
-        (
-            uint80 roundId2,
-            int256 coin2UsdPrice,
-            uint startedAt2,
-            uint updatedAt2,
-            uint80 answeredInRound2
-        ) = coin2Feed.latestRoundData();
+        (, int256 coin2UsdPrice, , , ) = coin2Feed.latestRoundData();
 
-        // When coin1 is fully stale even if coin1 < coin2, use coin2
-        assertEq(roundId2, roundId);
-        assertEq(startedAt2, startedAt);
-        assertEq(updatedAt, updatedAt2); // update At is from coin1 fallback
-        assertEq(answeredInRound2, answeredInRound);
+        // When coin1 is fully stale even if coin2 < coin1, use coin1 data
+        assertEq(clRoundId, roundId);
+        assertEq(clStartedAt, startedAt);
+        assertEq(
+            updatedAt,
+            clUpdatedAt -
+                10 -
+                IChainlinkBasePriceFeed(address(coin1Fallback.assetToUsd()))
+                    .assetToUsdHeartbeat()
+        ); // update At is from coin1 fallback
+        assertEq(clAnsweredInRound, answeredInRound);
 
         assertEq(uint256(feedUsdPrice), uint(coin2UsdPrice), "lp Price");
         assertEq(uint256(feedUsdPrice), uint(feed.latestAnswer()));
     }
 
-    function test_STALE_coin1_and_STALE_coin1_fallback_and_coin2_out_of_Bounds_use_coin2_fallback_when_coin1_lt_coin2()
+    function test_STALE_coin1_and_STALE_coin1_fallback_and_coin2_out_of_Bounds_use_coin2_fallback_when_coin2_lt_coin1_but_coin1_fallback_data()
         public
     {
         (
@@ -721,17 +752,17 @@ abstract contract PessimisticFeedBaseTest is Test {
         _mockCall_Chainlink(
             address(coin1Feed.assetToUsd()),
             clRoundId,
-            coin1UsdPrice,
+            coin1UsdPrice * 10 ** 10,
             clStartedAt,
             clUpdatedAt - 1 - coin1Feed.assetToUsdHeartbeat(),
             clAnsweredInRound
         );
 
-        // Set coin1 fallback STALE even if < than coin2
+        // Set coin1 fallback STALE even if > than coin2
         _mockCall_Chainlink(
             address(coin1Fallback.assetToUsd()),
             clRoundId,
-            coin1UsdPrice,
+            1.1 ether,
             clStartedAt,
             0,
             clAnsweredInRound
@@ -743,7 +774,7 @@ abstract contract PessimisticFeedBaseTest is Test {
             0,
             IAggregator(coin2Feed.assetToUsd().aggregator()).maxAnswer(),
             0,
-            0,
+            3600,
             0
         );
 
@@ -755,19 +786,15 @@ abstract contract PessimisticFeedBaseTest is Test {
             uint80 answeredInRound
         ) = feed.latestRoundData();
 
-        (
-            uint80 clRoundId2Fallback,
-            int256 coin2ClFallbackPrice,
-            uint clStartedAt2Fallback,
-            uint clUpdatedAt2Fallback,
-            uint80 clAnsweredInRoundFallback
-        ) = coin2Fallback.assetToUsd().latestRoundData();
+        (, int256 coin2ClFallbackPrice, , , ) = coin2Fallback
+            .assetToUsd()
+            .latestRoundData();
 
         // When coin1 is fully stale even if coin1 < coin2 and coin2 is out of bounds, use coin2 fallback
-        assertEq(clRoundId2Fallback, roundId);
-        assertEq(clStartedAt2Fallback, startedAt);
-        assertEq(clUpdatedAt2Fallback, updatedAt);
-        assertEq(clAnsweredInRoundFallback, answeredInRound);
+        assertEq(clRoundId, roundId);
+        assertEq(clStartedAt, startedAt);
+        assertEq(0, updatedAt);
+        assertEq(clAnsweredInRound, answeredInRound);
 
         uint256 estimatedCoin2Fallback;
         if (coin2Fallback.targetIndex() == 0) {
@@ -860,14 +887,12 @@ abstract contract PessimisticFeedBaseTest is Test {
         view
         returns (
             uint80 oracleRoundId,
-            int256 oracleLpToUsdPrice,
+            int256 oracleMinToUsdPrice,
             uint oracleStartedAt,
             uint oracleUpdatedAt,
             uint80 oracleAnsweredInRound
         )
     {
-        int oracleMinToUsdPrice;
-
         (
             oracleRoundId,
             oracleMinToUsdPrice,
@@ -884,22 +909,14 @@ abstract contract PessimisticFeedBaseTest is Test {
             uint80 coin2AnsweredInRound
         ) = coin2Feed.latestRoundData();
 
-        if ((oracleMinToUsdPrice < coin2UsdPrice) && oracleUpdatedAt > 0) {
-            return (
-                oracleRoundId,
-                oracleMinToUsdPrice,
-                oracleStartedAt,
-                oracleUpdatedAt,
-                oracleAnsweredInRound
-            );
-        } else {
-            return (
-                coin2RoundId,
-                coin2UsdPrice,
-                coin2StartedAt,
-                coin2UpdatedAt,
-                coin2AnsweredInRound
-            );
+        if (coin2StartedAt < oracleStartedAt) {
+            oracleRoundId = coin2RoundId;
+            oracleStartedAt = coin2StartedAt;
+            oracleUpdatedAt = coin2UpdatedAt;
+            oracleAnsweredInRound = coin2AnsweredInRound;
+        }
+        if (coin2UsdPrice < oracleMinToUsdPrice) {
+            oracleMinToUsdPrice = coin2UsdPrice;
         }
     }
 

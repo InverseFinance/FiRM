@@ -57,8 +57,6 @@ contract DolaFraxBPYearnV2FeedFork is CurveLPYearnV2FeedBaseTest {
     uint256 public ethHeartbeat = 1 hours;
     uint256 public constant ethK = 1;
 
-    address public gov = 0x926dF14a23BE491164dCF93f4c468A50ef659D5B;
-
     function setUp() public {
         string memory url = vm.rpcUrl("mainnet");
         vm.createSelectFork(url, 20906980); // FRAX < pyUSD at this block  coin1 < coin2 at this block

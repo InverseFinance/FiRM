@@ -10,7 +10,7 @@ import {IERC20, IMintable} from "src/interfaces/IERC20.sol";
 import {IMarket} from "src/interfaces/IMarket.sol";
 import {IEscrow, IBorrowController, IOracle, IDolaBorrowingRights} from "src/Market.sol";
 import "src/Oracle.sol";
-import {ConfigAddr} from "src/test/ConfigAddr.sol";
+import {ConfigAddr} from "test/ConfigAddr.sol";
 
 contract MarketForkTest is Test, ConfigAddr {
     //Market deployment:
@@ -114,7 +114,7 @@ contract MarketForkTest is Test, ConfigAddr {
     }
 
     function gibCollateral(address _address, uint _amount) internal virtual {
-        deal(address(collateral), _address, _amount, true);
+        deal(address(collateral), _address, _amount, false);
     }
 
     function gibDBR(address _address, uint _amount) internal {

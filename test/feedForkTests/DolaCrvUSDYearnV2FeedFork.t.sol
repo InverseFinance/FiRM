@@ -8,10 +8,10 @@ import {ChainlinkCurve2CoinsFeed} from "src/feeds/ChainlinkCurve2CoinsFeed.sol";
 import "src/feeds/CurveLPPessimisticFeed.sol";
 import {CurveLPYearnV2FeedBaseTest} from "test/feedForkTests/CurveLPYearnV2FeedBaseTest.t.sol";
 import {IYearnVaultV2} from "src/util/YearnVaultV2Helper.sol";
-import {ConfigAddr} from "src/test/ConfigAddr.sol";
+import {ConfigAddr} from "test/ConfigAddr.sol";
 import {DolaFixedPriceFeed} from "src/feeds/DolaFixedPriceFeed.sol";
 
-contract DolaCrvUSDYearnV2FeedFork is CurveLPYearnV2FeedBaseTest, ConfigAddr {
+contract DolaCrvUSDYearnV2FeedFork is CurveLPYearnV2FeedBaseTest {
     ChainlinkBasePriceFeed mainCrvUSDFeed;
     ChainlinkBasePriceFeed mainPyUSDFeed;
     ChainlinkBasePriceFeed baseFraxToUsd;

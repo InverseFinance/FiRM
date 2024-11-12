@@ -24,12 +24,14 @@ contract ConfigAddr {
     address styEthFeedAddr =
         address(0xbBE5FaBbB55c2c79ae1efE6b5bd52048A199e166);
     address sFraxFeedAddr = address(0x90787a14B3D30E4865C9cF7b61B6FC04533A5F48);
-
+    address yvyCRVFeedAddr =
+        address(0xfc63C9c8Ba44AE89C01265453Ed4F427C80cBd4E);
     // Assets
     address sFraxAddr = address(0xA663B02CF0a4b149d2aD41910CB81e23e1c41c32);
     address fraxAddr = address(0x853d955aCEf822Db058eb8505911ED77F175b99e);
     address styEthAddr = address(0x583019fF0f430721aDa9cfb4fac8F06cA104d0B4);
     address yEthAddr = address(0x1BED97CBC3c24A4fb5C069C6E311a967386131f7);
+    address yvyCRVAddr = address(0x27B5739e22ad9033bcBf192059122d163b60349D);
 
     // FiRM Markets
     address crvMarketAddr = address(0x63fAd99705a255fE2D500e498dbb3A9aE5AA1Ee8);
@@ -41,6 +43,9 @@ contract ConfigAddr {
         address(0x6A522f3BD3fDA15e74180953f203cf55aA6C631E);
     address crvUSDDolaYearnAddr =
         address(0xe85943e280776254ee6C9801553B93F10Ef4C99C);
+    address yvyCRVMarketAddr =
+        address(0x27b6c301Fd441f3345d61B7a4245E1F823c3F9c4);
+
     // Chainlink
     address crvUsdFeedAddr =
         address(0xCd627aA160A6fA45Eb793D19Ef54f5062F20f33f);

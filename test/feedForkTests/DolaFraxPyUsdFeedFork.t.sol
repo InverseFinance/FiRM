@@ -10,9 +10,11 @@ import {CurveLPPessimisticFeed} from "src/feeds/CurveLPPessimisticFeed.sol";
 import {DolaCurveLPPessimisticNestedFeedBaseTest} from "test/feedForkTests/DolaCurveLPPessimisticNestedFeedBaseTest.t.sol";
 import {DolaFixedPriceFeed} from "src/feeds/DolaFixedPriceFeed.sol";
 import {PessimisticFeed} from "src/feeds/PessimisticFeed.sol";
+import {ConfigAddr} from "test/ConfigAddr.sol";
 
 contract DolaFraxPyUsdPriceFeedFork is
-    DolaCurveLPPessimisticNestedFeedBaseTest
+    DolaCurveLPPessimisticNestedFeedBaseTest,
+    ConfigAddr
 {
     ChainlinkBasePriceFeed mainFraxFeed;
     ChainlinkBasePriceFeed mainPyUSDFeed;
@@ -56,8 +58,6 @@ contract DolaFraxPyUsdPriceFeedFork is
         IChainlinkFeed(0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6);
 
     uint256 public usdcHeartbeat = 24 hours;
-
-    address public gov = 0x926dF14a23BE491164dCF93f4c468A50ef659D5B;
 
     // UPDATE TO USE USDe feed for Frax fallback
     IChainlinkFeed public constant usdeToUsd =

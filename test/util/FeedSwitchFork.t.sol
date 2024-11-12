@@ -3,7 +3,7 @@ pragma solidity ^0.8.18;
 
 import "forge-std/Test.sol";
 import {FeedSwitch, IPendlePT, IChainlinkFeed} from "src/util/FeedSwitch.sol";
-import {ConfigAddr} from "src/test/ConfigAddr.sol";
+import {ConfigAddr} from "test/ConfigAddr.sol";
 import {console} from "forge-std/console.sol";
 import {MockFeed} from "test/mocks/MockFeed.sol";
 

@@ -7,7 +7,7 @@ import {ChainlinkCurveFeed} from "src/feeds/ChainlinkCurveFeed.sol";
 import {ChainlinkCurve2CoinsFeed} from "src/feeds/ChainlinkCurve2CoinsFeed.sol";
 import "src/feeds/CurveLPPessimisticFeed.sol";
 import {DolaCurveLPPessimsticFeedBaseTest} from "test/feedForkTests/DolaCurveLPPessimsticFeedBaseTest.t.sol";
-import {ConfigAddr} from "src/test/ConfigAddr.sol";
+import {ConfigAddr} from "test/ConfigAddr.sol";
 
 contract DolaCrvUSDPriceFeedFork is
     DolaCurveLPPessimsticFeedBaseTest,
