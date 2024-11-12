@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
-import "src/DBR.sol";
+import {DolaBorrowingRights} from "src/DBR.sol";
 
 interface IChainlinkFeed {
     function decimals() external view returns (uint8);
@@ -27,7 +27,7 @@ contract BorrowController {
     DolaBorrowingRights public immutable DBR;
     mapping(address => uint) public minDebts;
     mapping(address => bool) public contractAllowlist;
-    mapping(address => uint) public dailyBorrowLimit;
+    mapping(address => uint) public dailyLimits;
     mapping(address => uint) public stalenessThreshold;
     mapping(address => uint) public remainingDailyBorrowLimit;
     mapping(address => uint) public lastDailyBorrowLimitUpdate;
@@ -65,7 +65,7 @@ contract BorrowController {
      * @param market The address of the market contract
      * @param limit The daily borrow limit amount
      */
-    function setDailyLimit(address market, uint limit) public onlyOperator { dailyBorrowLimit[market] = limit; }
+    function setDailyLimit(address market, uint limit) public onlyOperator { dailyLimits[market] = limit; }
     
     /**
      * @notice Sets the staleness threshold for Chainlink feeds
@@ -126,7 +126,7 @@ contract BorrowController {
     function onRepay(uint amount) public {
         unchecked{
             uint newLimit = availableBorrowLimit(msg.sender) + amount;
-            uint dailyLimit = dailyBorrowLimit[msg.sender];
+            uint dailyLimit = dailyLimits[msg.sender];
             remainingDailyBorrowLimit[msg.sender] = newLimit < dailyLimit ? newLimit : dailyLimit;
             lastDailyBorrowLimitUpdate[msg.sender] = block.timestamp;
         }
@@ -138,9 +138,18 @@ contract BorrowController {
      */
     function availableBorrowLimit(address market) public view returns(uint) {
         uint timeElapsed = block.timestamp - lastDailyBorrowLimitUpdate[market];
-        uint dailyLimit = dailyBorrowLimit[market];
+        uint dailyLimit = dailyLimits[market];
         uint newLimit = remainingDailyBorrowLimit[market] + timeElapsed * dailyLimit / 1 days;
         return newLimit < dailyLimit ? newLimit : dailyLimit;
+    }
+
+    /**
+     * @notice Returns the daily borrows.
+     * @dev Ensures backwards compability with interface of previous borrow controller
+     * @param market The market to get the dailyBorrows for.
+     */
+    function dailyBorrows(address market, uint) external view returns(uint) {
+        return dailyLimits[market] - availableBorrowLimit(market);
     }
 
     /**
