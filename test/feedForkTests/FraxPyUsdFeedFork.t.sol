@@ -6,16 +6,11 @@ import "src/feeds/ChainlinkBasePriceFeed.sol";
 import {ChainlinkCurveFeed} from "src/feeds/ChainlinkCurveFeed.sol";
 import {ChainlinkCurveFeed} from "src/feeds/ChainlinkCurveFeed.sol";
 import "src/feeds/CurveLPPessimisticFeed.sol";
-import {CurveLPPessimisticFeed} from "src/feeds/CurveLPPessimisticFeed.sol";
-import {DolaCurveLPPessimisticNestedFeedBaseTest} from "test/feedForkTests/DolaCurveLPPessimisticNestedFeedBaseTest.t.sol";
-import {DolaFixedPriceFeed} from "src/feeds/DolaFixedPriceFeed.sol";
+import {CurveLPPessimisticFeedBaseTest} from "test/feedForkTests/CurveLPPessimisticFeedBaseTest.t.sol";
 import {PessimisticFeed} from "src/feeds/PessimisticFeed.sol";
-import {ConfigAddr} from "test/ConfigAddr.sol";
+import {PessimisticFeedBaseTest} from "test/feedForkTests/PessimisticFeedBaseTest.t.sol";
 
-contract DolaFraxPyUsdPriceFeedFork is
-    DolaCurveLPPessimisticNestedFeedBaseTest,
-    ConfigAddr
-{
+contract FraxPyUsdPriceFeedFork is PessimisticFeedBaseTest {
     ChainlinkBasePriceFeed mainFraxFeed;
     ChainlinkBasePriceFeed mainPyUSDFeed;
     ChainlinkBasePriceFeed baseCrvUsdToUsd;
@@ -24,9 +19,6 @@ contract DolaFraxPyUsdPriceFeedFork is
     ChainlinkCurveFeed pyUSDFallback;
     ChainlinkCurveFeed fraxFallback;
     PessimisticFeed fraxPyUsdFeed;
-
-    ICurvePool public constant dolaPyUSDFrax =
-        ICurvePool(0xef484de8C07B6e2d732A92B5F78e81B38f99f95E);
 
     ICurvePool public constant pyUSDFrax =
         ICurvePool(0xA5588F7cdf560811710A2D82D3C9c99769DB1Dcb);
@@ -58,6 +50,8 @@ contract DolaFraxPyUsdPriceFeedFork is
         IChainlinkFeed(0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6);
 
     uint256 public usdcHeartbeat = 24 hours;
+
+    address public gov = 0x926dF14a23BE491164dCF93f4c468A50ef659D5B;
 
     // UPDATE TO USE USDe feed for Frax fallback
     IChainlinkFeed public constant usdeToUsd =
@@ -117,7 +111,14 @@ contract DolaFraxPyUsdPriceFeedFork is
             address(mainFraxFeed),
             address(mainPyUSDFeed)
         );
-
-        init(address(fraxPyUsdFeed), address(dolaPyUSDFrax));
+        init(
+            address(baseUsdeToUsd),
+            address(fraxFallback),
+            address(mainFraxFeed),
+            address(baseUsdcToUsd),
+            address(pyUSDFallback),
+            address(mainPyUSDFeed),
+            address(fraxPyUsdFeed)
+        );
     }
 }

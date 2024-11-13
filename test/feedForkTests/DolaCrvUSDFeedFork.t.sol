@@ -6,9 +6,13 @@ import "src/feeds/ChainlinkBasePriceFeed.sol";
 import {ChainlinkCurveFeed} from "src/feeds/ChainlinkCurveFeed.sol";
 import {ChainlinkCurve2CoinsFeed} from "src/feeds/ChainlinkCurve2CoinsFeed.sol";
 import "src/feeds/CurveLPPessimisticFeed.sol";
-import {CurveLPSingleFeedBaseTest} from "test/feedForkTests/base/CurveLPSingleFeedBaseTest.t.sol";
+import {DolaCurveLPPessimsticFeedBaseTest} from "test/feedForkTests/DolaCurveLPPessimsticFeedBaseTest.t.sol";
+import {ConfigAddr} from "test/ConfigAddr.sol";
 
-contract DolaCrvUSDPriceFeedFork is CurveLPSingleFeedBaseTest {
+contract DolaCrvUSDPriceFeedFork is
+    DolaCurveLPPessimsticFeedBaseTest,
+    ConfigAddr
+{
     ChainlinkBasePriceFeed mainCrvUSDFeed;
     ChainlinkBasePriceFeed mainPyUSDFeed;
     ChainlinkBasePriceFeed baseFraxToUsd;
@@ -48,41 +52,37 @@ contract DolaCrvUSDPriceFeedFork is CurveLPSingleFeedBaseTest {
     function setUp() public {
         string memory url = vm.rpcUrl("mainnet");
         vm.createSelectFork(url, 20591674);
-        // CrvUSD fallback
+        //CrvUSD fallback
         // baseFraxToUsd = new ChainlinkBasePriceFeed(
         //     gov,
         //     address(fraxToUsd),
         //     address(0),
-        //     fraxHeartbeat,
-        //     8
+        //     fraxHeartbeat
         // );
-        // baseUsdcToUsd = new ChainlinkBasePriceFeed(
-        //     gov,
-        //     address(usdcToUsd),
-        //     address(0),
-        //     usdcHeartbeat,
-        //     8
-        // );
-        // crvUSDFallback = new ChainlinkCurve2CoinsFeed(
-        //     address(baseUsdcToUsdAddr),
-        //     address(crvUSDUSDC),
-        //     8,
-        //     usdcIndex
-        // );
-
-        // // Main feed
-        // mainCrvUSDFeed = new ChainlinkBasePriceFeed(
-        //     gov,
-        //     address(crvUSDToUsd),
-        //     address(crvUSDFallback),
-        //     crvUSDHeartbeat,
-        //     8
-        // );
+        baseUsdcToUsd = new ChainlinkBasePriceFeed(
+            gov,
+            address(usdcToUsd),
+            address(0),
+            usdcHeartbeat
+        );
+        crvUSDFallback = new ChainlinkCurve2CoinsFeed(
+            address(baseUsdcToUsd),
+            address(crvUSDUSDC),
+            crvUSDIndex
+        );
+        //  console.log("crvUSDFallback: ", crvUSDFallback.description());
+        // Main feed
+        mainCrvUSDFeed = new ChainlinkBasePriceFeed(
+            gov,
+            address(crvUSDToUsd),
+            address(crvUSDFallback),
+            crvUSDHeartbeat
+        );
+        // console.log("mainCrvUSDFeed: ", mainCrvUSDFeed.description());
 
         init(
-            address(baseUsdcToUsdAddr),
-            address(crvUSDFallbackAddr),
-            address(mainCrvUSDFeedAddr),
+            address(crvUSDFallback),
+            address(mainCrvUSDFeed),
             address(dolaCrvUSD)
         );
     }

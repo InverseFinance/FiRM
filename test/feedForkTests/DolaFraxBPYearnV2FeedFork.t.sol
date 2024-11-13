@@ -7,28 +7,46 @@ import {ChainlinkCurve2CoinsFeed} from "src/feeds/ChainlinkCurve2CoinsFeed.sol";
 import {ChainlinkCurveFeed} from "src/feeds/ChainlinkCurveFeed.sol";
 import "src/feeds/ChainlinkBasePriceFeed.sol";
 import "src/feeds/CurveLPPessimisticFeed.sol";
-import {CurveLPPessimiticYearnV2FeedBaseTest} from "test/feedForkTests/base/CurveLPPessimsticYearnV2FeedBaseTest.t.sol";
+import {DolaFixedPriceFeed} from "src/feeds/DolaFixedPriceFeed.sol";
+import {CurveLPYearnV2Feed} from "src/feeds/CurveLPYearnV2Feed.sol";
+import {CurveLPYearnV2FeedBaseTest} from "test/feedForkTests/CurveLPYearnV2FeedBaseTest.t.sol";
+import {DolaFixedPriceFeed} from "src/feeds/DolaFixedPriceFeed.sol";
 
-contract DolaFraxBPYearnV2FeedFork is CurveLPPessimiticYearnV2FeedBaseTest {
-    ChainlinkCurveFeed usdcFallback;
-    ChainlinkCurve2CoinsFeed fraxFallback;
-    ChainlinkBasePriceFeed mainUsdcFeed;
+contract DolaFraxBPYearnV2FeedFork is CurveLPYearnV2FeedBaseTest {
+    address public _yearn = address(0xe5F625e8f4D2A038AE9583Da254945285E5a77a4);
     ChainlinkBasePriceFeed mainFraxFeed;
-    ChainlinkBasePriceFeed baseCrvUsdToUsd;
+    ChainlinkBasePriceFeed mainUSDCFeed;
     ChainlinkBasePriceFeed baseEthToUsd;
+    ChainlinkBasePriceFeed baseUsdeToUsd;
+    ChainlinkCurveFeed usdcFallback;
+    ChainlinkCurveFeed fraxFallback;
+    CurveLPPessimisticFeed fraxBPFeed;
+    CurveLPPessimisticFeed dolaFraxBPFeed;
+    DolaFixedPriceFeed dolaFeed;
 
     ICurvePool public constant dolaFraxBP =
         ICurvePool(0xE57180685E3348589E9521aa53Af0BCD497E884d);
 
+    ICurvePool public constant fraxBP =
+        ICurvePool(0xDcEF968d416a41Cdac0ED8702fAC8128A64241A2);
+
     IChainlinkFeed public constant fraxToUsd =
         IChainlinkFeed(0xB9E1E3A9feFf48998E45Fa90847ed4D467E8BcfD);
-
-    uint256 public fraxHeartbeat = 1 hours;
 
     IChainlinkFeed public constant usdcToUsd =
         IChainlinkFeed(0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6);
 
+    uint256 public fraxHeartbeat = 1 hours;
     uint256 public usdcHeartbeat = 24 hours;
+
+    // For Frax fallback
+    IChainlinkFeed public constant usdeToUsd =
+        IChainlinkFeed(0xa569d910839Ae8865Da8F8e70FfFb0cBA869F961);
+    uint256 public usdeHeartbeat = 24 hours;
+    ICurvePool public constant fraxUSDe =
+        ICurvePool(0x5dc1BF6f1e983C0b21EfB003c105133736fA0743);
+    uint256 fraxIndex = 0;
+    uint256 usdeK = 0;
 
     // For USDC fallabck
     ICurvePool public constant tricryptoETH =
@@ -39,51 +57,35 @@ contract DolaFraxBPYearnV2FeedFork is CurveLPPessimiticYearnV2FeedBaseTest {
     uint256 public ethHeartbeat = 1 hours;
     uint256 public constant ethK = 1;
 
-    // For Frax fallback
-    ICurvePool public constant crvUSDFrax =
-        ICurvePool(0x0CD6f267b2086bea681E922E19D40512511BE538);
-
-    IChainlinkFeed public constant crvUSDToUsd =
-        IChainlinkFeed(0xEEf0C605546958c1f899b6fB336C20671f9cD49F);
-
-    uint256 fraxIndex = 0;
-
-    uint256 public crvUSDHeartbeat = 24 hours;
-
-    address public _yearn = address(0xe5F625e8f4D2A038AE9583Da254945285E5a77a4);
-
     function setUp() public {
         string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url, 18272690); // FRAX < USDC at this block     coin1 < coin2 at this block
-
-        // For FRAX fallback
-        baseCrvUsdToUsd = new ChainlinkBasePriceFeed(
+        vm.createSelectFork(url, 20906980); // FRAX < pyUSD at this block  coin1 < coin2 at this block
+        // FRAX fallback
+        baseUsdeToUsd = new ChainlinkBasePriceFeed(
             gov,
-            address(crvUSDToUsd),
+            address(usdeToUsd),
             address(0),
-            crvUSDHeartbeat,
-            8
+            usdeHeartbeat
         );
-        fraxFallback = new ChainlinkCurve2CoinsFeed(
-            address(baseCrvUsdToUsd),
-            address(crvUSDFrax),
-            8,
+        fraxFallback = new ChainlinkCurveFeed(
+            address(baseUsdeToUsd),
+            address(fraxUSDe),
+            usdeK,
             fraxIndex
         );
 
+        // USDC fallback
         // For USDC fallback
         baseEthToUsd = new ChainlinkBasePriceFeed(
             gov,
             address(ethToUsd),
             address(0),
-            ethHeartbeat,
-            8
+            ethHeartbeat
         );
         usdcFallback = new ChainlinkCurveFeed(
             address(baseEthToUsd),
             address(tricryptoETH),
             ethK,
-            8,
             0
         );
 
@@ -92,27 +94,32 @@ contract DolaFraxBPYearnV2FeedFork is CurveLPPessimiticYearnV2FeedBaseTest {
             gov,
             address(fraxToUsd),
             address(fraxFallback),
-            fraxHeartbeat,
-            8
+            fraxHeartbeat
         );
 
-        mainUsdcFeed = new ChainlinkBasePriceFeed(
+        mainUSDCFeed = new ChainlinkBasePriceFeed(
             gov,
             address(usdcToUsd),
             address(usdcFallback),
-            usdcHeartbeat,
-            8
+            usdcHeartbeat
         );
 
-        init(
-            address(baseCrvUsdToUsd),
-            address(fraxFallback),
+        fraxBPFeed = new CurveLPPessimisticFeed(
+            address(fraxBP),
             address(mainFraxFeed),
-            address(baseEthToUsd),
-            address(usdcFallback),
-            address(mainUsdcFeed),
-            address(dolaFraxBP),
-            address(_yearn)
+            address(mainUSDCFeed),
+            true
         );
+
+        dolaFeed = new DolaFixedPriceFeed();
+
+        dolaFraxBPFeed = new CurveLPPessimisticFeed(
+            address(dolaFraxBP),
+            address(fraxBPFeed),
+            address(dolaFeed),
+            false
+        );
+
+        init(address(dolaFraxBPFeed), address(dolaFraxBP), address(_yearn));
     }
 }

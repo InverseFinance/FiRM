@@ -6,8 +6,10 @@ import "src/feeds/ChainlinkBasePriceFeed.sol";
 import {ChainlinkCurveFeed} from "src/feeds/ChainlinkCurveFeed.sol";
 import {ChainlinkCurve2CoinsFeed} from "src/feeds/ChainlinkCurve2CoinsFeed.sol";
 import "src/feeds/CurveLPPessimisticFeed.sol";
-import {CurveLPYearnV2FeedBaseTest} from "test/feedForkTests/base/CurveLPYearnV2FeedBaseTest.t.sol";
+import {CurveLPYearnV2FeedBaseTest} from "test/feedForkTests/CurveLPYearnV2FeedBaseTest.t.sol";
 import {IYearnVaultV2} from "src/util/YearnVaultV2Helper.sol";
+import {ConfigAddr} from "test/ConfigAddr.sol";
+import {DolaFixedPriceFeed} from "src/feeds/DolaFixedPriceFeed.sol";
 
 contract DolaCrvUSDYearnV2FeedFork is CurveLPYearnV2FeedBaseTest {
     ChainlinkBasePriceFeed mainCrvUSDFeed;
@@ -15,6 +17,8 @@ contract DolaCrvUSDYearnV2FeedFork is CurveLPYearnV2FeedBaseTest {
     ChainlinkBasePriceFeed baseFraxToUsd;
     ChainlinkBasePriceFeed baseUsdcToUsd;
     ChainlinkCurve2CoinsFeed crvUSDFallback;
+    DolaFixedPriceFeed dolaFeed;
+    CurveLPPessimisticFeed dolaCrvUSDFeed;
 
     ICurvePool public constant dolaCrvUSD =
         ICurvePool(0x8272E1A3dBef607C04AA6e5BD3a1A134c8ac063B);
@@ -55,13 +59,11 @@ contract DolaCrvUSDYearnV2FeedFork is CurveLPYearnV2FeedBaseTest {
             gov,
             address(usdcToUsd),
             address(0),
-            usdcHeartbeat,
-            8
+            usdcHeartbeat
         );
         crvUSDFallback = new ChainlinkCurve2CoinsFeed(
             address(baseUsdcToUsd),
             address(crvUSDUSDC),
-            8,
             usdcIndex
         );
 
@@ -70,16 +72,19 @@ contract DolaCrvUSDYearnV2FeedFork is CurveLPYearnV2FeedBaseTest {
             gov,
             address(crvUSDToUsd),
             address(crvUSDFallback),
-            crvUSDHeartbeat,
-            8
+            crvUSDHeartbeat
         );
 
-        init(
-            address(baseUsdcToUsdAddr),
-            address(crvUSDFallbackAddr),
-            address(mainCrvUSDFeedAddr),
+        dolaFeed = new DolaFixedPriceFeed();
+
+        // LP feed for DolaCrvUSD
+        dolaCrvUSDFeed = new CurveLPPessimisticFeed(
             address(dolaCrvUSD),
-            address(_yearn)
+            address(mainCrvUSDFeed),
+            address(dolaFeed),
+            false
         );
+
+        init(address(dolaCrvUSDFeed), address(dolaCrvUSD), address(_yearn));
     }
 }
