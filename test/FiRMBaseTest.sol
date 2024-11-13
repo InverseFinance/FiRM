@@ -113,6 +113,7 @@ contract FiRMBaseTest is Test {
             callOnDepositCallback_
         );
         borrowController.setStalenessThreshold(address(market), 3600 * 24);
+        borrowController.setDailyLimit(address(market), type(uint).max/10**18);
         fed.changeMarketCeiling(IMarket(address(market)), type(uint).max);
         market.setBorrowController(
             IBorrowController(address(borrowController))
