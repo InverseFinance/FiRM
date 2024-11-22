@@ -26,6 +26,8 @@ contract ConfigAddr {
     address sFraxFeedAddr = address(0x90787a14B3D30E4865C9cF7b61B6FC04533A5F48);
     address yvyCRVFeedAddr =
         address(0xfc63C9c8Ba44AE89C01265453Ed4F427C80cBd4E);
+    address dolaFixedFeedAddr =
+        address(0x5CB542EB054f81b8Fa1760c077f44AA80271c75D);
     // Assets
     address sFraxAddr = address(0xA663B02CF0a4b149d2aD41910CB81e23e1c41c32);
     address fraxAddr = address(0x853d955aCEf822Db058eb8505911ED77F175b99e);
