@@ -9,7 +9,7 @@ import {IYearnVaultV2} from "src/interfaces/IYearnVaultV2.sol";
 
 /**
  * @title CurveLP Helper for ALE and Market for Curve pools using dynamic array when adding liquidity
- * @notice This contract is a generalized ALE helper contract for a curve pool with 2 and 3 coins with DOLA. Also support YearnV2 vaults for this LP.
+ * @notice This contract is a generalized ALE helper contract for a curve pools with DOLA. Also support YearnV2 vaults for this LP.
  * @dev This contract is used by the ALE to interact with Dola Curve pools or YearnV2 Curve vaults and market.
  * Can also be used by anyone to perform add/remove liquidity from and to DOLA and deposit/withdraw operations.
  **/
@@ -20,7 +20,6 @@ contract CurveDolaLPHelperDynamic is Sweepable, IMultiMarketTransformHelper {
     error InsufficientLP();
     error InsufficientShares();
     error MarketNotSet(address market);
-    error NotImplemented();
 
     struct Pool {
         ICurvePool pool;
@@ -263,16 +262,9 @@ contract CurveDolaLPHelperDynamic is Sweepable, IMultiMarketTransformHelper {
         ICurvePool pool = markets[market].pool;
         DOLA.approve(address(pool), amount);
 
-        // Support for 2 and 3 coins pools
-        if (markets[market].length == 2) {
-            uint256[] memory amounts = new uint256[](2);
-            amounts[dolaIndex] = amount;
-            return pool.add_liquidity(amounts, minMint, recipient);
-        } else if (markets[market].length == 3) {
-            uint256[] memory amounts = new uint256[](3);
-            amounts[dolaIndex] = amount;
-            return pool.add_liquidity(amounts, minMint, recipient);
-        } else revert NotImplemented();
+        uint256[] memory amounts = new uint256[](markets[market].length);
+        amounts[dolaIndex] = amount;
+        return pool.add_liquidity(amounts, minMint, recipient);
     }
 
     function _removeLiquidity(
