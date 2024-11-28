@@ -117,7 +117,7 @@ contract CvxCrvMarketForkTest is MarketForkTest {
 
         uint borrowAmount = getMaxBorrowAmount(testAmount);
         uint timestamp = block.timestamp;
-        vm.warp(timestamp + 1_000_000);
+        vm.warp(timestamp + 1 hours);
         uint dbrBal = dbr.balanceOf(user);
         market.borrow(borrowAmount);
         assertEq(
@@ -125,7 +125,7 @@ contract CvxCrvMarketForkTest is MarketForkTest {
             testAmount,
             "DBR balance burned immediately after borrow"
         );
-        vm.warp(timestamp + 1_000_001);
+        vm.warp(timestamp + 1 hours + 1);
         dbr.accrueDueTokens(user);
         assertEq(
             dbr.balanceOf(user),

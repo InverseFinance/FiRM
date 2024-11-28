@@ -79,7 +79,7 @@ contract ConfigAddr {
     address mainCrvUSDFeedAddr =
         address(0xD78527F9853da96FEbc4aF423527309810b83Ec1); // ChainlinkBasePriceFeed for main CrvUSD (has CrvUSD fallback)
     address crvUSDDolaFeedAddr =
-        address(0x948E3435Ad0e269fDAf6259D4fb6380116Cfd366); // CurveLPSingleFeed for CrvUSD/Dola (uses mainCrvUSDFeed)
+        address(0x4eF6Ba5Ef7DDB259aD98CD86E1a282884cBE0c0f); // CurveLPSingleFeed for CrvUSD/Dola (uses mainCrvUSDFeed)
 
     // CurveLPPessimisticFeed for DolaFraxBP
     address baseCrvUsdToUsdAddr =
