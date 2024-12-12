@@ -6,11 +6,11 @@ import {Sweepable, SafeERC20, IERC20} from "src/util/Sweepable.sol";
 import {IMultiMarketTransformHelper} from "src/interfaces/IMultiMarketTransformHelper.sol";
 import {ICurvePool} from "src/interfaces/ICurvePool.sol";
 import {IYearnVaultV2} from "src/interfaces/IYearnVaultV2.sol";
-import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
+import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 /**
  * @title CurveLP Helper for ALE and Market for sDOLA Curve pools using dynamic array when adding liquidity
  * @notice This contract is a generalized ALE helper contract for a curve pools with sDOLA. Also support YearnV2 vaults for this LP.
- * @dev This contract is used by the ALE to interact with sDola Curve pools or YearnV2 Curve vaults and market.
+ * @dev This contract is used by the ALE to interact with sDOLA Curve pools or YearnV2 Curve vaults and market.
  * Can also be used by anyone to perform add/remove liquidity from and to DOLA and deposit/withdraw operations.
  **/
 
@@ -37,7 +37,7 @@ contract CurveSDolaLPHelperDynamic is Sweepable, IMultiMarketTransformHelper {
     event MarketRemoved(address indexed market);
 
     IERC20 public immutable DOLA;
-    ERC4626 public immutable sDOLA;
+    IERC4626 public immutable sDOLA;
     /// @notice Mapping of market addresses to their associated Curve Pools.
     mapping(address => Pool) public markets;
 
@@ -52,7 +52,7 @@ contract CurveSDolaLPHelperDynamic is Sweepable, IMultiMarketTransformHelper {
         address _sDola
     ) Sweepable(_gov, _guardian) {
         DOLA = IERC20(_dola);
-        sDOLA = ERC4626(_sDola);
+        sDOLA = IERC4626(_sDola);
     }
 
     /**
