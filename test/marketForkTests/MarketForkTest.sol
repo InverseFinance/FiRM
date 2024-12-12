@@ -55,9 +55,7 @@ contract MarketForkTest is Test, ConfigAddr {
         DOLA = IMintable(0x865377367054516e17014CcdED1e7d814EDC9ce4);
         market = Market(_market);
         feed = IChainlinkFeed(_feed);
-        borrowController = BorrowController(
-            0x20C7349f6D6A746a25e66f7c235E96DAC880bc0D
-        );
+        borrowController = BorrowController(borrowControllerAddr);
         liquidationBonusBps = market.liquidationIncentiveBps();
         replenishmentPriceBps = dbr.replenishmentPriceBps();
 
@@ -74,6 +72,7 @@ contract MarketForkTest is Test, ConfigAddr {
             IBorrowController(address(borrowController))
         );
         borrowController.setDailyLimit(address(market), 10_000_000 * 1e18);
+        borrowController.setMinDebt(address(market), 1);
         dbr.addMarket(address(market));
         fed.changeMarketCeiling(IMarket(address(market)), type(uint).max);
         fed.changeSupplyCeiling(type(uint).max);

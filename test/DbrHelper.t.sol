@@ -69,14 +69,11 @@ contract DbrHelperForkTest is MarketBaseForkTest {
 
         helper = new DbrHelper();
         INV = helper.INV();
-        
+
         vm.expectEmit(true, false, false, true);
         emit MarketApproved(marketAddr);
 
-        assertEq(
-            DOLA.allowance(address(helper), marketAddr),
-            0
-        );
+        assertEq(DOLA.allowance(address(helper), marketAddr), 0);
 
         helper.approveMarket(marketAddr);
 
@@ -209,10 +206,7 @@ contract DbrHelperForkTest is MarketBaseForkTest {
     }
 
     function test_approveMarket() public {
-        assertEq(
-            DOLA.allowance(address(helper), wethMarket),
-            0
-        );
+        assertEq(DOLA.allowance(address(helper), wethMarket), 0);
         vm.prank(user, user);
 
         vm.expectEmit(true, false, false, false);
@@ -225,7 +219,6 @@ contract DbrHelperForkTest is MarketBaseForkTest {
             type(uint256).max
         );
 
-        
         vm.expectRevert(
             abi.encodeWithSelector(
                 DbrHelper.MarketNotFound.selector,
@@ -234,10 +227,7 @@ contract DbrHelperForkTest is MarketBaseForkTest {
         );
         helper.approveMarket(address(0x10));
         assertEq(IDBR(address(helper.DBR())).markets(address(0x10)), false);
-        assertEq(
-            DOLA.allowance(address(helper), address(0x10)),
-            0
-        );
+        assertEq(DOLA.allowance(address(helper), address(0x10)), 0);
     }
 
     function test_Can_claim_and_sell_ALL_for_DOLA() public {
@@ -261,7 +251,7 @@ contract DbrHelperForkTest is MarketBaseForkTest {
 
         vm.expectEmit(true, true, false, false);
         emit Sell(user, 0, 0, 0, user);
-        
+
         helper.claimAndSell(sell, repay);
 
         assertEq(dbr.balanceOf(user), 0);
@@ -325,7 +315,7 @@ contract DbrHelperForkTest is MarketBaseForkTest {
             address(0),
             0
         );
-        
+
         vm.expectEmit(true, true, false, false);
         emit Sell(user, 0, 0, 0, user2);
 
@@ -444,7 +434,7 @@ contract DbrHelperForkTest is MarketBaseForkTest {
 
         vm.expectEmit(true, true, false, false);
 
-        emit DepositInv(user,user,0);
+        emit DepositInv(user, user, 0);
 
         (, uint256 invAmount, , uint256 dbrAmount) = helper.claimAndSell(
             sell,
@@ -1026,7 +1016,10 @@ contract DbrHelperForkTest is MarketBaseForkTest {
         );
 
         vm.expectRevert(
-            abi.encodeWithSelector(DbrHelper.ReceiverAddressZero.selector, address(dbr))
+            abi.encodeWithSelector(
+                DbrHelper.ReceiverAddressZero.selector,
+                address(dbr)
+            )
         );
         helper.claimAndSell(sell, repay);
 
@@ -1061,7 +1054,10 @@ contract DbrHelperForkTest is MarketBaseForkTest {
         );
 
         vm.expectRevert(
-            abi.encodeWithSelector(DbrHelper.ReceiverAddressZero.selector, address(INV))
+            abi.encodeWithSelector(
+                DbrHelper.ReceiverAddressZero.selector,
+                address(INV)
+            )
         );
         helper.claimAndSell(sell, repay);
 

@@ -2,19 +2,19 @@ pragma solidity ^0.8.13;
 
 import {ICurvePool} from "src/interfaces/ICurvePool.sol";
 import {CurveDolaLPHelperDynamic} from "src/util/CurveDolaLPHelperDynamic.sol";
-import "test/marketForkTests/DolasUSDeConvexMarketForkTest.t.sol";
+import "test/marketForkTests/DolasUSDsConvexMarketForkTest.t.sol";
 import {console} from "forge-std/console.sol";
 import {IMultiMarketTransformHelper} from "src/interfaces/IMultiMarketTransformHelper.sol";
 import {ALE} from "src/util/ALE.sol";
 import {ALEBaseDolaLPDynTest, IFlashMinter} from "test/util/aleTests/ALEBaseDolaLPDyn.sol";
 
-contract ALEDolasUSDeTest is
+contract ALEDolasUSDsTest is
     ALEBaseDolaLPDynTest,
-    DolasUSDeConvexMarketForkTest
+    DolasUSDsConvexMarketForkTest
 {
     function setUp() public override {
         super.setUp();
-        curvePool = dolasUSDe;
+        curvePool = dolasUSDs;
 
         helper = new CurveDolaLPHelperDynamic(
             gov,

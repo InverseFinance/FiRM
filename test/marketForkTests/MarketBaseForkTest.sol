@@ -136,7 +136,7 @@ abstract contract MarketBaseForkTest is MarketForkTest {
 
         uint borrowAmount = market.getCreditLimit(user) / 2;
         uint timestamp = block.timestamp;
-        vm.warp(timestamp + 1_000_000);
+        vm.warp(timestamp + 0.5 hours);
         uint dbrBal = dbr.balanceOf(user);
         market.borrow(borrowAmount);
         assertEq(
@@ -144,7 +144,7 @@ abstract contract MarketBaseForkTest is MarketForkTest {
             testAmount,
             "DBR balance burned immediately after borrow"
         );
-        vm.warp(timestamp + 1_000_001);
+        vm.warp(timestamp + 0.5 hours + 1);
         dbr.accrueDueTokens(user);
         assertEq(
             dbr.balanceOf(user),

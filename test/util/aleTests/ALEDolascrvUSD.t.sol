@@ -2,37 +2,29 @@ pragma solidity ^0.8.13;
 
 import {ICurvePool} from "src/interfaces/ICurvePool.sol";
 import {CurveDolaLPHelperDynamic} from "src/util/CurveDolaLPHelperDynamic.sol";
-import "test/marketForkTests/DolasUSDeConvexMarketForkTest.t.sol";
+import "test/marketForkTests/DolascrvUSDConvexMarketForkTest.t.sol";
 import {console} from "forge-std/console.sol";
 import {IMultiMarketTransformHelper} from "src/interfaces/IMultiMarketTransformHelper.sol";
 import {ALE} from "src/util/ALE.sol";
 import {ALEBaseDolaLPDynTest, IFlashMinter} from "test/util/aleTests/ALEBaseDolaLPDyn.sol";
 
-contract ALEDolasUSDeTest is
+contract ALEDolascrvUSDTest is
     ALEBaseDolaLPDynTest,
-    DolasUSDeConvexMarketForkTest
+    DolascrvUSDConvexMarketForkTest
 {
     function setUp() public override {
         super.setUp();
-        curvePool = dolasUSDe;
+        curvePool = ICurvePool(dolascrvUSD);
 
-        helper = new CurveDolaLPHelperDynamic(
-            gov,
-            pauseGuardian,
-            address(DOLA)
-        );
+        helper = CurveDolaLPHelperDynamic(curveDolaLPHelperDynamicAddr);
 
         vm.startPrank(gov);
         DOLA.mint(address(this), 100000 ether);
         helper.setMarket(address(market), address(curvePool), 0, 2, address(0));
-        ale = new ALE(address(0), triDBRAddr);
+        ale = ALE(payable(aleAddr));
         ale.setMarket(address(market), address(DOLA), address(helper), false);
-
-        flash = IFlashMinter(address(ale.flash()));
-        flash.setMaxFlashLimit(100000 ether);
-        DOLA.addMinter(address(flash));
-        borrowController.allow(address(ale));
         vm.stopPrank();
+
         userPkEscrow = address(market.predictEscrow(userPk));
     }
 }
