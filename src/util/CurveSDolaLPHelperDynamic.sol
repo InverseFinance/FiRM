@@ -44,6 +44,8 @@ contract CurveSDolaLPHelperDynamic is Sweepable, IMultiMarketTransformHelper {
     /** @dev Constructor
     @param _gov The address of Inverse Finance governance
     @param _guardian The address of the guardian
+    @param _dola The address of DOLA
+    @param _sDola The address of sDOLA 
     **/
     constructor(
         address _gov,
@@ -58,7 +60,7 @@ contract CurveSDolaLPHelperDynamic is Sweepable, IMultiMarketTransformHelper {
     /**
      * @notice Deposits DOLA into the Curve Pool and returns the received LP token.
      * @dev Used by the ALE but can be called by anyone.
-     * @param amount The amount of underlying token to be deposited.
+     * @param amount The amount of DOLA to be deposited.
      * @param data The encoded address of the market.
      * @return collateralAmount The amount of LP token received.
      */
@@ -303,11 +305,11 @@ contract CurveSDolaLPHelperDynamic is Sweepable, IMultiMarketTransformHelper {
     }
 
     /**
-     * @notice Set the market address and its associated Curve Pool and dola Index.
+     * @notice Set the market address and its associated Curve Pool and sDola Index.
      * @dev Only callable by the governance.
      * @param marketAddress The address of the market.
-     * @param sDolaIndex Dola index in the coins array for Curve Pools.
-     * @param poolAddress The address of the curve pool with DOLA.
+     * @param sDolaIndex sDola index in the coins array for Curve Pools.
+     * @param poolAddress The address of the curve pool with sDOLA.
      */
     function setMarket(
         address marketAddress,
