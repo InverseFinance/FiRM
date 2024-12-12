@@ -26,6 +26,8 @@ contract ConfigAddr {
     address sFraxFeedAddr = address(0x90787a14B3D30E4865C9cF7b61B6FC04533A5F48);
     address yvyCRVFeedAddr =
         address(0xfc63C9c8Ba44AE89C01265453Ed4F427C80cBd4E);
+    address dolaFixedFeedAddr =
+        address(0x5CB542EB054f81b8Fa1760c077f44AA80271c75D);
     // Assets
     address sFraxAddr = address(0xA663B02CF0a4b149d2aD41910CB81e23e1c41c32);
     address fraxAddr = address(0x853d955aCEf822Db058eb8505911ED77F175b99e);
@@ -77,7 +79,7 @@ contract ConfigAddr {
     address mainCrvUSDFeedAddr =
         address(0xD78527F9853da96FEbc4aF423527309810b83Ec1); // ChainlinkBasePriceFeed for main CrvUSD (has CrvUSD fallback)
     address crvUSDDolaFeedAddr =
-        address(0x948E3435Ad0e269fDAf6259D4fb6380116Cfd366); // CurveLPSingleFeed for CrvUSD/Dola (uses mainCrvUSDFeed)
+        address(0x4eF6Ba5Ef7DDB259aD98CD86E1a282884cBE0c0f); // CurveLPSingleFeed for CrvUSD/Dola (uses mainCrvUSDFeed)
 
     // CurveLPPessimisticFeed for DolaFraxBP
     address baseCrvUsdToUsdAddr =
@@ -113,7 +115,10 @@ contract ConfigAddr {
     address yearnDolaFraxBPFeedAddr =
         address(0x85f86F9e2dCc370c90d3a7bFC2B8E9a970D84850); // CurveLPYearnV2Feed for DolaFraxBP (use DolaFraxBP LP feed)
 
-    // CurveDolaLPHelper
+    // CurveDolaLPHelper Static Array
     address curveDolaLPHelperAddr =
-        address(0x6c592Fe4deA245B296476fd72863E8b2B739f911); // Helper for entering and exiting curve pools with Dola. Also support YearnV2 vaults for this LP.
+        address(0x6c592Fe4deA245B296476fd72863E8b2B739f911); // Helper for entering and exiting curve pools with Dola. Also support YearnV2 vaults for these LP.
+    // CurveDolaLPHelper Dynamic Array
+    address curveDolaLPHelperDynamicAddr =
+        address(0x0ABe42a1ad400500ac49bDAd38AE6b367982FC9B); // Helper for entering and exiting curve pools (dynamic array input) with Dola. Also support YearnV2 vaults for these LP.
 }

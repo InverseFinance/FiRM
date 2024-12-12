@@ -33,7 +33,7 @@ contract Governable {
     }
 
     modifier onlyGuardianOrGov() {
-        if (msg.sender != guardian || msg.sender != gov)
+        if (msg.sender != guardian && msg.sender != gov)
             revert NotGuardianOrGov();
         _;
     }

@@ -85,6 +85,14 @@ abstract contract DolaCurveLPPessimsticFeedBaseTest is Test {
     }
 
     function test_use_coin1_when_coin2_gt_coin1() public {
+        _mockCall_Chainlink(
+            address(dolaFeed),
+            1,
+            1.1e18,
+            1000,
+            block.timestamp,
+            1
+        );
         (
             uint80 clRoundId,
             int256 coin1UsdPrice,
@@ -153,6 +161,9 @@ abstract contract DolaCurveLPPessimsticFeedBaseTest is Test {
     function test_coin1_Out_of_bounds_MAX_use_coin1_Fallback_when_coin1_lt_coin2()
         public
     {
+        if (address(coin1Fallback) == address(0)) {
+            return;
+        }
         //Set Out of MAX bounds coin1 main price
         _mockCall_Chainlink(
             address(coin1Feed.assetToUsd()),
@@ -203,6 +214,9 @@ abstract contract DolaCurveLPPessimsticFeedBaseTest is Test {
     function test_coin1_Out_of_bounds_MIN_use_coin1_Fallback_when_coin1_lt_coin2()
         public
     {
+        if (address(coin1Fallback) == address(0)) {
+            return;
+        }
         //Set Out of MIN bounds coin1 main price
         _mockCall_Chainlink(
             address(coin1Feed.assetToUsd()),
@@ -254,6 +268,9 @@ abstract contract DolaCurveLPPessimsticFeedBaseTest is Test {
     }
 
     function test_STALE_coin1_use_coin1_fallback_when_coin1_lt_coin2() public {
+        if (address(coin1Fallback) == address(0)) {
+            return;
+        }
         (
             uint80 clRoundId,
             int256 coin1UsdPrice,
@@ -313,6 +330,9 @@ abstract contract DolaCurveLPPessimsticFeedBaseTest is Test {
     function test_STALE_coin1_and_STALE_coin1_fallback_then_use_coin2_if_coin2_lt_coin1_but_keep_coin1_data()
         public
     {
+        if (address(coin1Fallback) == address(0)) {
+            return;
+        }
         (
             uint80 clRoundId,
             int256 coin1UsdPrice,
@@ -367,6 +387,9 @@ abstract contract DolaCurveLPPessimsticFeedBaseTest is Test {
     }
 
     function test_coin1FallBack_oracle() public {
+        if (address(coin1Fallback) == address(0)) {
+            return;
+        }
         (
             uint80 roundIdFall,
             int256 coin1ClFallbackPrice,
