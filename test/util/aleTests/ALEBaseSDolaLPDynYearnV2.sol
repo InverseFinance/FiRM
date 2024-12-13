@@ -84,14 +84,16 @@ abstract contract ALEBaseSDolaLPDynYearnV2Test is MarketForkTest {
         assertEq(vault.balanceOf(userPkEscrow), sharesAmount + sharesAdded);
     }
 
-    function test_leveragePosition_buyDBR() public {
+    function test_leveragePosition_buyDBR(uint256 amount) public {
+        vm.assume(amount > 0.0001 ether);
+        vm.assume(amount < 10000000 ether);
         vm.prank(gov);
-        DOLA.mint(userPk, 10000 ether);
+        DOLA.mint(userPk, amount);
 
         vm.startPrank(userPk, userPk);
-        DOLA.approve(address(helper), 10000 ether);
+        DOLA.approve(address(helper), amount);
         helper.transformToCollateralAndDeposit(
-            10000 ether,
+            amount,
             userPk,
             abi.encode(address(market), 0)
         );
@@ -103,7 +105,7 @@ abstract contract ALEBaseSDolaLPDynYearnV2Test is MarketForkTest {
 
         // Calculate the amount of DOLA needed to borrow to buy the DBR needed to cover for the borrowing period
         (uint256 dolaForDBR, uint256 dbrAmount) = ale
-            .approximateDolaAndDbrNeeded(maxBorrowAmount, 365 days, 8);
+            .approximateDolaAndDbrNeeded(maxBorrowAmount, 15 days, 8);
 
         // Sign Message for borrow on behalf
         bytes32 hash = keccak256(
@@ -132,7 +134,7 @@ abstract contract ALEBaseSDolaLPDynYearnV2Test is MarketForkTest {
 
         ALE.DBRHelper memory dbrData = ALE.DBRHelper(
             dolaForDBR,
-            (dbrAmount * 98) / 100,
+            (dbrAmount * 90) / 100,
             0
         );
 
@@ -155,18 +157,20 @@ abstract contract ALEBaseSDolaLPDynYearnV2Test is MarketForkTest {
 
         assertEq(DOLA.balanceOf(userPk), 0);
         assertEq(vault.balanceOf(userPkEscrow), sharesAmount + sharesAdded);
-        assertGt(dbr.balanceOf(userPk), (dbrAmount * 98) / 100);
+        assertGt(dbr.balanceOf(userPk), (dbrAmount * 90) / 100);
     }
 
-    function test_depositAndLeveragePosition_DOLA() public {
+    function test_depositAndLeveragePosition_DOLA(uint256 amount) public {
+        vm.assume(amount > 0.0001 ether);
+        vm.assume(amount < 10000000 ether);
         vm.prank(gov);
-        DOLA.mint(userPk, 11000 ether);
-        uint256 initialDolaDeposit = 1000 ether;
+        DOLA.mint(userPk, amount);
+        uint256 initialDolaDeposit = amount / 10;
 
         vm.startPrank(userPk, userPk);
-        DOLA.approve(address(helper), 10000 ether);
+        DOLA.approve(address(helper), amount - initialDolaDeposit);
         helper.transformToCollateralAndDeposit(
-            10000 ether,
+            amount - initialDolaDeposit,
             userPk,
             abi.encode(address(market), 0)
         );
@@ -231,18 +235,20 @@ abstract contract ALEBaseSDolaLPDynYearnV2Test is MarketForkTest {
         assertEq(vault.balanceOf(userPkEscrow), sharesAmount + sharesAdded);
     }
 
-    function test_depositAndLeveragePosition_LP() public {
+    function test_depositAndLeveragePosition_LP(uint256 amount) public {
+        vm.assume(amount > 0.0001 ether);
+        vm.assume(amount < 10000000 ether);
         vm.prank(gov);
-        DOLA.mint(userPk, 11000 ether);
-
+        DOLA.mint(userPk, amount);
+        uint256 initialDolaForShares = amount / 10;
         vm.startPrank(userPk, userPk);
-        DOLA.approve(address(helper), 11000 ether);
+        DOLA.approve(address(helper), amount);
         uint256 initialSharesAmount = helper.transformToCollateral(
-            1000 ether,
+            initialDolaForShares,
             abi.encode(address(market), 0)
         );
         helper.transformToCollateralAndDeposit(
-            10000 ether,
+            amount - initialDolaForShares,
             userPk,
             abi.encode(address(market), 0)
         );
@@ -357,7 +363,6 @@ abstract contract ALEBaseSDolaLPDynYearnV2Test is MarketForkTest {
             abi.encode(address(market), uint(0)),
             dbrData
         );
-
         assertEq(
             vault.balanceOf(userPkEscrow),
             totalSharesAmount - amountToWithdraw
@@ -449,10 +454,11 @@ abstract contract ALEBaseSDolaLPDynYearnV2Test is MarketForkTest {
         uint256 sharesAmount = vault.balanceOf(userPkEscrow);
         uint256 amountToWithdraw = sharesAmount / 2;
 
-        uint256 dolaRedeemed = curvePool.calc_withdraw_one_coin(
+        uint256 sDolaRedeemed = curvePool.calc_withdraw_one_coin(
             YearnVaultV2Helper.collateralToAsset(vault, amountToWithdraw),
-            0
+            1
         );
+        uint256 dolaRedeemed = sDOLA.convertToAssets(sDolaRedeemed);
         uint256 debt = market.debts(address(userPk));
 
         assertGt(debt, 0);

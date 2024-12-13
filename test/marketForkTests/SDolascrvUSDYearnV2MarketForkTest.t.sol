@@ -35,7 +35,7 @@ contract SDolascrvUSDYearnV2MarketForkTest is MarketBaseForkTest {
     address public constant sDolascrvUSD =
         address(0x76A962BA6770068bCF454D34dDE17175611e6637);
 
-    address yearn;
+    address yearn = address(0x08c0833AF1331831759b8e0BFeF1BC5738436325);
     IYearnVaultFactory yearnFactory =
         IYearnVaultFactory(0x21b1FC8A52f179757bf555346130bF27c0C2A17A);
     address lpHolder = address(0x9D5Df30F475CEA915b1ed4C0CCa59255C897b61B);
@@ -43,7 +43,7 @@ contract SDolascrvUSDYearnV2MarketForkTest is MarketBaseForkTest {
     function setUp() public virtual {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url, 21386890);
+        vm.createSelectFork(url, 21391176);
 
         // Setup YearnVault if needed
         if (yearn == address(0)) {
