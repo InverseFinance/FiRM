@@ -4,7 +4,6 @@ pragma solidity ^0.8.13;
 import {IMarket} from "src/interfaces/IMarket.sol";
 import {Sweepable, SafeERC20, IERC20} from "src/util/Sweepable.sol";
 import {IMultiMarketTransformHelper} from "src/interfaces/IMultiMarketTransformHelper.sol";
-import {ICurvePool} from "src/interfaces/ICurvePool.sol";
 import {IYearnVaultV2} from "src/interfaces/IYearnVaultV2.sol";
 
 /**
