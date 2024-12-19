@@ -244,11 +244,11 @@ contract PendlePTHelper is Sweepable, IMultiMarketTransformHelper {
     }
 
     /**
-     * @notice Set the market address and its associated Curve Pool and dola Index.
+     * @notice Set the market address and its associated Pendle PT and YT addresses.
      * @dev Only callable by the governance.
      * @param marketAddress The address of the market.
-     * @param ptAddress Dola index in the coins array for Curve Pools.
-     * @param ytAddress The address of the curve pool with DOLA.
+     * @param ptAddress Pendle PT address
+     * @param ytAddress Pendle YT address
      */
     function setMarket(
         address marketAddress,
