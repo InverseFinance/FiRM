@@ -95,20 +95,24 @@ contract PendlePTHelper is Sweepable, IMultiMarketTransformHelper {
         _revertIfMarketNotSet(market);
 
         IERC20 pt = IERC20(markets[market].pt);
+        IERC20 yt = IERC20(markets[market].yt);
         DOLA.safeTransferFrom(msg.sender, address(this), amount);
         DOLA.approve(router, amount);
+        // Avoid accounting for possibly stucked token for previous bad input and allow recovery
+        uint256 ptBalBefore = pt.balanceOf(address(this));
+        uint256 ytBalBefore = yt.balanceOf(address(this));
         (bool success, ) = router.call(callData);
         if (!success) revert PendleSwapFailed();
 
-        uint256 ptBal = pt.balanceOf(address(this));
+        uint256 ptBal = pt.balanceOf(address(this)) - ptBalBefore;
+
         if (ptBal < minMint) revert InsufficientPT();
         if (recipient != address(this)) pt.safeTransfer(recipient, ptBal);
         // Send YT to user if specified
         if (ytRecipient != address(0)) {
-            IERC20 yt = IERC20(markets[market].yt);
-            uint256 ytBal = yt.balanceOf(address(this));
-            if (ytBal < minMint) revert InsufficientYT();
-            yt.safeTransfer(ytRecipient, ytBal);
+            uint256 ytBalMinted = yt.balanceOf(address(this)) - ytBalBefore;
+            if (ytBalMinted < minMint) revert InsufficientYT();
+            yt.safeTransfer(ytRecipient, ytBalMinted);
         }
 
         return ptBal;
