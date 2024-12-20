@@ -62,7 +62,7 @@ contract PendlePTHelper is Sweepable, IMultiMarketTransformHelper {
      * @dev Used by the ALE but can be called by anyone. Carefully review input data for Pendle API.
      * The receiver in Pendle API has to be set to this contract address. If a MINT is performed, provide a ytRecipient or YT will be kept in this contract.
      * @param amount The amount of underlying token to be deposited.
-     * @param data The encoded address of the market.
+     * @param data Encoded address of the market, minimum amount of PT to receive (and possibly YT), ytRecipient if minting, and Pendle callData.
      * @return collateralAmount The amount of PT token received.
      */
     function transformToCollateral(
@@ -77,7 +77,7 @@ contract PendlePTHelper is Sweepable, IMultiMarketTransformHelper {
      * @dev The receiver in Pendle API has to be set to this contract address. If a MINT is performed, provide a ytRecipient or YT will be kept in this contract.
      * @param amount The amount of DOLA to be deposited.
      * @param recipient The recipient address of PT token.
-     * @param data The encoded address of the market.
+     * @param data Encoded address of the market, minimum amount of PT to receive (and possibly YT), ytRecipient if minting, and Pendle callData.
      * @return collateralAmount The amount of PT (and possibly YT) token received.
      */
     function transformToCollateral(
@@ -117,8 +117,9 @@ contract PendlePTHelper is Sweepable, IMultiMarketTransformHelper {
     /**
      * @notice Redeems PT token for DOLA.
      * @dev Used by the ALE but can be called by anyone. Carefully review input data for Pendle API.
+     * The receiver in Pendle API has to be set same as the recipient. If a REDEEM is performed, include a ytProvider with enough allowance.
      * @param amount The amount of PT token to be redeemed (and YT if specified).
-     * @param data The encoded address of the market.
+     * @param data Encoded address of the market, minimum amount of DOLA to receive, ytProvider, and Pendle callData.
      * @return dolaAmount The amount of DOLA redeemed.
      */
     function transformFromCollateral(
@@ -133,7 +134,7 @@ contract PendlePTHelper is Sweepable, IMultiMarketTransformHelper {
      * @dev The receiver in Pendle API has to be set same as the recipient. If a REDEEM is performed, include a ytProvider with enough allowance.
      * @param amount The amount of PT Token to be redeemed (and YT if specified).
      * @param recipient The address to which the underlying token is transferred.
-     * @param data The encoded address of the market.
+     * @param data Encoded address of the market, minimum amount of DOLA to receive for the recipient, ytProvider, and Pendle callData.
      * @return dolaAmount The amount of DOLA redeemed.
      */
     function transformFromCollateral(
