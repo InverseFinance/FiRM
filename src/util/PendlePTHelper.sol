@@ -7,11 +7,11 @@ import {IMultiMarketTransformHelper} from "src/interfaces/IMultiMarketTransformH
 
 /**
  * @title Pendle PT ALE and market helper
- * @notice This contract is a generalized ALE and market helper contract for Pendle PT tokens.
+ * @notice This contract is a generalized ALE and market helper contract for Pendle PT tokens from and to DOLA.
  * @dev Carefully prepare the router calldata from Pendle API when using it from the ALE:
  * When converting TO collateral, the receiver in Pendle API has to be set to this contract address
  * When converting FROM collateral, the receiver in Pendle API has to be set to the ALE address.
- * The Pendle Router can be either SWAP DOLA for PT or MINT PT and YT as well SWAP PT for DOLA or REDEEM PT (using YT before maturity) for DOLA.
+ * The Pendle Router can either SWAP DOLA for PT or MINT PT and YT as well SWAP PT for DOLA or REDEEM PT (using YT before maturity) for DOLA.
  * Do not use this contract for other routes otherwise won't work properly.
  **/
 
@@ -63,7 +63,7 @@ contract PendlePTHelper is Sweepable, IMultiMarketTransformHelper {
      * The receiver in Pendle API has to be set to this contract address. If a MINT is performed, provide a ytRecipient or YT will be kept in this contract.
      * @param amount The amount of underlying token to be deposited.
      * @param data Encoded address of the market, minimum amount of PT to receive (and possibly YT), ytRecipient if minting, and Pendle callData.
-     * @return collateralAmount The amount of PT token received.
+     * @return collateralAmount The amount of PT (and possibly YT) token received.
      */
     function transformToCollateral(
         uint256 amount,
@@ -87,7 +87,7 @@ contract PendlePTHelper is Sweepable, IMultiMarketTransformHelper {
     ) public override returns (uint256 collateralAmount) {
         (
             address market,
-            uint256 minMint, // Minimum amount of PT to receive (and possibliy YT)
+            uint256 minMint, // Minimum amount of PT to receive (and possibly YT)
             address ytRecipient,
             bytes memory callData
         ) = abi.decode(data, (address, uint256, address, bytes));
@@ -169,7 +169,7 @@ contract PendlePTHelper is Sweepable, IMultiMarketTransformHelper {
     }
 
     /**
-     * @notice Convert DOLA to PT or PT and YT and deposit the rPT amount for recipient, sending YT to ytRecipient
+     * @notice Convert DOLA to PT or PT and YT and deposit PT amount on behalf of recipient, sending YT to ytRecipient
      * @param assets The receiver in Pendle API has to be set to this contract address. If a MINT is performed, provide a ytRecipient or YT will be kept in this contract.
      * @param recipient The address on behalf of which the PT tokens are deposited.
      * @param data The encoded address of the market.
