@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.20;
 
 import {IMarket} from "src/interfaces/IMarket.sol";
 import {Sweepable, SafeERC20, IERC20} from "src/util/Sweepable.sol";
 import {IMultiMarketTransformHelper} from "src/interfaces/IMultiMarketTransformHelper.sol";
-import {IYearnVaultV2} from "src/interfaces/IYearnVaultV2.sol";
 
 /**
  * @title Pendle PT ALE and market helper
  * @notice This contract is a generalized ALE and market helper contract for Pendle PT tokens.
  * @dev Carefully prepare the router calldata from Pendle API when using it from the ALE:
  * When converting TO collateral, the receiver in Pendle API has to be set to this contract address
- * When converting FROM collateral, the receiver in Pendle API has to be set to the ALE address
+ * When converting FROM collateral, the receiver in Pendle API has to be set to the ALE address.
+ * The Pendle Router can be either SWAP DOLA for PT or MINT PT and YT as well SWAP PT for DOLA or REDEEM PT (using YT before maturity) for DOLA.
+ * Do not use this contract for other routes otherwise won't work properly.
  **/
 
 contract PendlePTHelper is Sweepable, IMultiMarketTransformHelper {
@@ -19,6 +20,7 @@ contract PendlePTHelper is Sweepable, IMultiMarketTransformHelper {
 
     error InsufficientDOLA();
     error InsufficientPT();
+    error InsufficientYT();
     error MarketNotSet(address market);
     error PendleSwapFailed();
 
@@ -37,7 +39,7 @@ contract PendlePTHelper is Sweepable, IMultiMarketTransformHelper {
     IERC20 public immutable DOLA;
     address public immutable router;
 
-    /// @notice Mapping of market addresses to their associated Curve Pools.
+    /// @notice Mapping of market addresses to their associated PT and YT tokens.
     mapping(address => PT) public markets;
 
     /** @dev Constructor
@@ -56,11 +58,12 @@ contract PendlePTHelper is Sweepable, IMultiMarketTransformHelper {
     }
 
     /**
-     * @notice Deposits DOLA into the Curve Pool and returns the received LP token.
-     * @dev Used by the ALE but can be called by anyone.
+     * @notice Convert DOLA to PT or PT and YT
+     * @dev Used by the ALE but can be called by anyone. Carefully review input data for Pendle API.
+     * The receiver in Pendle API has to be set to this contract address. If a MINT is performed, provide a ytRecipient or YT will be kept in this contract.
      * @param amount The amount of underlying token to be deposited.
      * @param data The encoded address of the market.
-     * @return collateralAmount The amount of LP token received.
+     * @return collateralAmount The amount of PT token received.
      */
     function transformToCollateral(
         uint256 amount,
@@ -70,12 +73,12 @@ contract PendlePTHelper is Sweepable, IMultiMarketTransformHelper {
     }
 
     /**
-     * @notice Deposits DOLA into the Curve Pool and returns the received LP token or Yearn token.
-     * @dev Use custom recipient address.
+     * @notice Convert DOLA to PT or PT and YT
+     * @dev The receiver in Pendle API has to be set to this contract address. If a MINT is performed, provide a ytRecipient or YT will be kept in this contract.
      * @param amount The amount of DOLA to be deposited.
-     * @param recipient The recipient address of the LP or Yearn token.
+     * @param recipient The recipient address of PT token.
      * @param data The encoded address of the market.
-     * @return collateralAmount The amount of LP or Yearn token received.
+     * @return collateralAmount The amount of PT (and possibly YT) token received.
      */
     function transformToCollateral(
         uint256 amount,
@@ -84,7 +87,7 @@ contract PendlePTHelper is Sweepable, IMultiMarketTransformHelper {
     ) public override returns (uint256 collateralAmount) {
         (
             address market,
-            uint256 minMint,
+            uint256 minMint, // Minimum amount of PT to receive (and possibliy YT)
             address ytRecipient,
             bytes memory callData
         ) = abi.decode(data, (address, uint256, address, bytes));
@@ -93,27 +96,28 @@ contract PendlePTHelper is Sweepable, IMultiMarketTransformHelper {
 
         IERC20 pt = IERC20(markets[market].pt);
         DOLA.safeTransferFrom(msg.sender, address(this), amount);
-
         DOLA.approve(router, amount);
         (bool success, ) = router.call(callData);
         if (!success) revert PendleSwapFailed();
 
         uint256 ptBal = pt.balanceOf(address(this));
-        if (ptBal < minMint || ptBal == 0) revert InsufficientPT();
+        if (ptBal < minMint) revert InsufficientPT();
         if (recipient != address(this)) pt.safeTransfer(recipient, ptBal);
-
+        // Send YT to user if specified
         if (ytRecipient != address(0)) {
             IERC20 yt = IERC20(markets[market].yt);
-            yt.safeTransfer(ytRecipient, yt.balanceOf(address(this)));
+            uint256 ytBal = yt.balanceOf(address(this));
+            if (ytBal < minMint) revert InsufficientYT();
+            yt.safeTransfer(ytRecipient, ytBal);
         }
 
         return ptBal;
     }
 
     /**
-     * @notice Redeems the PT token for DOLA.
-     * @dev Used by the ALE but can be called by anyone.
-     * @param amount The amount of PT token to be redeemed.
+     * @notice Redeems PT token for DOLA.
+     * @dev Used by the ALE but can be called by anyone. Carefully review input data for Pendle API.
+     * @param amount The amount of PT token to be redeemed (and YT if specified).
      * @param data The encoded address of the market.
      * @return dolaAmount The amount of DOLA redeemed.
      */
@@ -126,8 +130,8 @@ contract PendlePTHelper is Sweepable, IMultiMarketTransformHelper {
 
     /**
      * @notice Redeems Collateral for DOLA.
-     * @dev Use custom recipient address.
-     * @param amount The amount of LP or Yearn Token to be redeemed.
+     * @dev The receiver in Pendle API has to be set same as the recipient. If a REDEEM is performed, include a ytProvider with enough allowance.
+     * @param amount The amount of PT Token to be redeemed (and YT if specified).
      * @param recipient The address to which the underlying token is transferred.
      * @param data The encoded address of the market.
      * @return dolaAmount The amount of DOLA redeemed.
@@ -139,7 +143,7 @@ contract PendlePTHelper is Sweepable, IMultiMarketTransformHelper {
     ) public override returns (uint256 dolaAmount) {
         (
             address market,
-            uint256 minOut,
+            uint256 minOut, // Minimum amount of DOLA to receive
             address ytProvider,
             bytes memory callData
         ) = abi.decode(data, (address, uint256, address, bytes));
@@ -164,9 +168,9 @@ contract PendlePTHelper is Sweepable, IMultiMarketTransformHelper {
     }
 
     /**
-     * @notice Convert DOLA into LP or Yearn token and deposit the received amount for recipient.
-     * @param assets The amount of DOLA to be converted.
-     * @param recipient The address on behalf of which the LP or Yearn are deposited.
+     * @notice Convert DOLA to PT or PT and YT and deposit the rPT amount for recipient, sending YT to ytRecipient
+     * @param assets The receiver in Pendle API has to be set to this contract address. If a MINT is performed, provide a ytRecipient or YT will be kept in this contract.
+     * @param recipient The address on behalf of which the PT tokens are deposited.
      * @param data The encoded address of the market.
      * @return collateralAmount The amount of collateral deposited into the market.
      */
@@ -192,7 +196,8 @@ contract PendlePTHelper is Sweepable, IMultiMarketTransformHelper {
 
     /**
      * @notice Withdraw the collateral from the market then convert to DOLA.
-     * @param amount The amount of LP or Yearn token to be withdrawn from the market.
+     * @dev The receiver in Pendle API has to be set same as the recipient. If a REDEEM is performed, include a ytProvider with enough allowance.
+     * @param amount The amount of PT token to be withdrawn from the market.
      * @param recipient The address to which DOLA is transferred.
      * @param permit The permit data for the Market.
      * @param data The encoded address of the market.
