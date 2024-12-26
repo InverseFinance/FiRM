@@ -1,19 +1,11 @@
 pragma solidity ^0.8.13;
 
-import {ICurvePool} from "src/interfaces/ICurvePool.sol";
 import {PendlePTHelper} from "src/util/PendlePTHelper.sol";
 import "test/marketForkTests/PendlePTUSDeMarketForkTest.t.sol";
-import {console} from "forge-std/console.sol";
-import {IMultiMarketTransformHelper} from "src/interfaces/IMultiMarketTransformHelper.sol";
 import {ALE} from "src/util/ALE.sol";
 import {SimpleERC20Escrow} from "src/escrows/SimpleERC20Escrow.sol";
 interface IFlashMinter {
     function setMaxFlashLimit(uint256 _maxFlashLimit) external;
-
-    function flashFee(
-        address _token,
-        uint256 _value
-    ) external view returns (uint256);
 }
 
 contract MockPendleRouter {
@@ -67,7 +59,7 @@ contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
 
     function setUp() public override {
         super.setUp();
-        //  curvePool = dolaFraxBP;
+
         mockRouter = new MockPendleRouter(
             address(DOLA),
             address(pendlePT),
