@@ -2,7 +2,7 @@ pragma solidity ^0.8.13;
 
 import {PendlePTHelper} from "src/util/PendlePTHelper.sol";
 import "test/marketForkTests/PendlePTUSDeMarketForkTest.t.sol";
-import {ALE} from "src/util/ALE.sol";
+import {ALEPendle} from "src/util/ALEPendle.sol";
 import {SimpleERC20Escrow} from "src/escrows/SimpleERC20Escrow.sol";
 interface IFlashMinter {
     function setMaxFlashLimit(uint256 _maxFlashLimit) external;
@@ -42,7 +42,7 @@ contract MockPendleRouter {
 }
 
 contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
-    ALE ale;
+    ALEPendle ale;
     IFlashMinter flash;
     address userPk = vm.addr(1);
     PendlePTHelper helper;
@@ -65,18 +65,21 @@ contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
             address(pendlePT),
             address(pendleYT)
         );
+
+        vm.startPrank(gov);
+        DOLA.mint(address(this), 100000 ether);
+
+        ale = new ALEPendle(address(0), triDBRAddr);
+
         helper = new PendlePTHelper(
             gov,
             pauseGuardian,
             address(DOLA),
-            address(mockRouter)
+            address(mockRouter),
+            address(ale)
         );
-
-        vm.startPrank(gov);
-        DOLA.mint(address(this), 100000 ether);
-        helper.setMarket(address(market), address(pendlePT), pendleYT);
-        ale = new ALE(address(0), triDBRAddr);
         ale.setMarket(address(market), address(DOLA), address(helper), false);
+        helper.setMarket(address(market), address(pendlePT), pendleYT);
 
         flash = IFlashMinter(address(ale.flash()));
         flash.setMaxFlashLimit(10000000 ether);
@@ -109,7 +112,7 @@ contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
 
         bytes memory swapData;
 
-        ALE.DBRHelper memory dbrData;
+        ALEPendle.DBRHelper memory dbrData;
 
         vm.startPrank(userPk);
         ale.leveragePosition(
@@ -145,7 +148,7 @@ contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
 
         bytes memory swapData;
 
-        ALE.DBRHelper memory dbrData;
+        ALEPendle.DBRHelper memory dbrData;
 
         vm.startPrank(userPk);
         ale.leveragePosition(
@@ -174,13 +177,12 @@ contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
 
         vm.startPrank(userPk, userPk);
         DOLA.approve(address(helper), amount);
-        helper.transformToCollateralAndDeposit(
+        helper.convertToCollateralAndDeposit(
             amount,
             userPk,
             abi.encode(
                 address(market),
                 0,
-                address(0),
                 abi.encodeWithSelector(
                     MockPendleRouter.swapForPt.selector,
                     amount,
@@ -200,7 +202,7 @@ contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
 
         bytes memory swapData;
 
-        ALE.DBRHelper memory dbrData = ALE.DBRHelper(
+        ALEPendle.DBRHelper memory dbrData = ALEPendle.DBRHelper(
             dolaForDBR,
             (dbrAmount * 90) / 100,
             0
@@ -241,7 +243,7 @@ contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
 
         bytes memory swapData;
 
-        ALE.DBRHelper memory dbrData;
+        ALEPendle.DBRHelper memory dbrData;
 
         vm.startPrank(userPk);
         DOLA.approve(address(ale), initialDolaDeposit);
@@ -264,7 +266,7 @@ contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
         );
     }
 
-    function test_depositAndLeveragePosition_LP(uint256 amount) public {
+    function test_depositAndLeveragePosition_PT(uint256 amount) public {
         vm.assume(amount < 5000000 ether);
         vm.assume(amount > 0.001 ether);
         vm.prank(gov);
@@ -273,12 +275,12 @@ contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
 
         vm.startPrank(userPk, userPk);
         DOLA.approve(address(helper), amount);
-        uint256 initialLpAmount = helper.transformToCollateral(
+        uint256 initialLpAmount = helper.convertToCollateral(
             initialDolaDeposit,
+            userPk,
             abi.encode(
                 address(market),
                 0,
-                address(0),
                 abi.encodeWithSelector(
                     MockPendleRouter.swapForPt.selector,
                     initialDolaDeposit,
@@ -286,13 +288,12 @@ contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
                 )
             )
         );
-        helper.transformToCollateralAndDeposit(
+        helper.convertToCollateralAndDeposit(
             amount - initialDolaDeposit,
             userPk,
             abi.encode(
                 address(market),
                 0,
-                address(0),
                 abi.encodeWithSelector(
                     MockPendleRouter.swapForPt.selector,
                     amount - initialDolaDeposit,
@@ -309,7 +310,7 @@ contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
 
         bytes memory swapData;
 
-        ALE.DBRHelper memory dbrData;
+        ALEPendle.DBRHelper memory dbrData;
 
         vm.startPrank(userPk);
         IERC20(address(pendlePT)).approve(address(ale), initialLpAmount);
@@ -323,7 +324,6 @@ contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
             abi.encode(
                 address(market),
                 0,
-                address(0),
                 abi.encodeWithSelector(
                     MockPendleRouter.swapForPt.selector,
                     maxBorrowAmount,
@@ -351,7 +351,7 @@ contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
         vm.assume(lpAmount <= totalLpAmount);
         uint256 amountToWithdraw = lpAmount / 2;
 
-        ALE.DBRHelper memory dbrData;
+        ALEPendle.DBRHelper memory dbrData;
         bytes memory swapData;
 
         uint256 ytBalBefore = IERC20(pendleYT).balanceOf(userPk);
@@ -394,7 +394,7 @@ contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
         vm.assume(lpAmount <= totalLpAmount);
         uint256 amountToWithdraw = lpAmount / 2;
 
-        ALE.DBRHelper memory dbrData;
+        ALEPendle.DBRHelper memory dbrData;
         bytes memory swapData;
 
         vm.startPrank(userPk);
@@ -433,7 +433,7 @@ contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
             amountToRepay = dolaRedeemed;
         }
 
-        ALE.DBRHelper memory dbrData = ALE.DBRHelper(
+        ALEPendle.DBRHelper memory dbrData = ALEPendle.DBRHelper(
             dbr.balanceOf(userPk),
             0,
             0
@@ -472,13 +472,12 @@ contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
     function _transformAndDeposit(uint amount) internal {
         vm.startPrank(userPk, userPk);
         DOLA.approve(address(helper), amount);
-        helper.transformToCollateralAndDeposit(
+        helper.convertToCollateralAndDeposit(
             amount,
             userPk,
             abi.encode(
                 address(market),
                 0,
-                address(0),
                 abi.encodeWithSelector(
                     MockPendleRouter.swapForPt.selector,
                     amount,
@@ -491,7 +490,7 @@ contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
 
     function _getPermitForBorrow(
         uint amount
-    ) internal view returns (ALE.Permit memory permit) {
+    ) internal view returns (ALEPendle.Permit memory permit) {
         // Sign Message for borrow on behalf
         bytes32 hash = keccak256(
             abi.encodePacked(
@@ -513,12 +512,12 @@ contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
-        permit = ALE.Permit(block.timestamp, v, r, s);
+        permit = ALEPendle.Permit(block.timestamp, v, r, s);
     }
 
     function _getPermitWithdraw(
         uint256 amountToWithdraw
-    ) internal view returns (ALE.Permit memory permit) {
+    ) internal view returns (ALEPendle.Permit memory permit) {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(
             1,
             keccak256(
@@ -540,7 +539,7 @@ contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
                 )
             )
         );
-        return ALE.Permit(block.timestamp, v, r, s);
+        return ALEPendle.Permit(block.timestamp, v, r, s);
     }
 
     function _encodeSwapForPT(
@@ -550,7 +549,6 @@ contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
             abi.encode(
                 address(market),
                 0,
-                address(0),
                 abi.encodeWithSelector(
                     MockPendleRouter.swapForPt.selector,
                     amount,
@@ -566,7 +564,7 @@ contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
             abi.encode(
                 address(market),
                 uint(0),
-                address(0),
+                false,
                 abi.encodeWithSelector(
                     MockPendleRouter.swapForDola.selector,
                     amount,
@@ -580,7 +578,6 @@ contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
             abi.encode(
                 address(market),
                 0,
-                address(userPk),
                 abi.encodeWithSelector(
                     MockPendleRouter.mintPt.selector,
                     amount,
@@ -596,7 +593,7 @@ contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
             abi.encode(
                 address(market),
                 uint(0),
-                userPk,
+                true,
                 abi.encodeWithSelector(
                     MockPendleRouter.redeemPt.selector,
                     amount,

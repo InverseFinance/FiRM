@@ -3,8 +3,11 @@ pragma solidity ^0.8.20;
 
 import {IMarket} from "src/interfaces/IMarket.sol";
 import {Sweepable, SafeERC20, IERC20} from "src/util/Sweepable.sol";
-import {IMultiMarketTransformHelper} from "src/interfaces/IMultiMarketTransformHelper.sol";
+import {IPendleHelper} from "src/interfaces/IPendleHelper.sol";
 
+interface IPendlePT {
+    function expiry() external view returns (uint256);
+}
 /**
  * @title Pendle PT ALE and market helper
  * @notice This contract is a generalized ALE and market helper contract for Pendle PT tokens from and to DOLA.
@@ -15,7 +18,7 @@ import {IMultiMarketTransformHelper} from "src/interfaces/IMultiMarketTransformH
  * Do not use this contract for other routes otherwise won't work properly.
  **/
 
-contract PendlePTHelper is Sweepable, IMultiMarketTransformHelper {
+contract PendlePTHelper is Sweepable, IPendleHelper {
     using SafeERC20 for IERC20;
 
     error InsufficientDOLA();
@@ -23,7 +26,8 @@ contract PendlePTHelper is Sweepable, IMultiMarketTransformHelper {
     error InsufficientYT();
     error MarketNotSet(address market);
     error PendleSwapFailed();
-
+    error NotALE();
+    error InvalidRecipient();
     struct PT {
         address pt;
         address yt;
@@ -38,6 +42,7 @@ contract PendlePTHelper is Sweepable, IMultiMarketTransformHelper {
 
     IERC20 public immutable DOLA;
     address public immutable router;
+    address public immutable ale;
 
     /// @notice Mapping of market addresses to their associated PT and YT tokens.
     mapping(address => PT) public markets;
@@ -51,25 +56,32 @@ contract PendlePTHelper is Sweepable, IMultiMarketTransformHelper {
         address _gov,
         address _guardian,
         address _dola,
-        address _pendleRouter
+        address _pendleRouter,
+        address _ale
     ) Sweepable(_gov, _guardian) {
         DOLA = IERC20(_dola);
         router = _pendleRouter;
+        ale = _ale;
     }
 
+    modifier onlyALE() {
+        if (msg.sender != ale) revert NotALE();
+        _;
+    }
     /**
      * @notice Convert DOLA to PT or PT and YT
-     * @dev Used by the ALE but can be called by anyone. Carefully review input data for Pendle API.
+     * @dev Can only be used by the ALE. Carefully review input data for Pendle API.
      * The receiver in Pendle API has to be set to this contract address. If a MINT is performed, provide a ytRecipient or YT will be kept in this contract.
      * @param amount The amount of underlying token to be deposited.
      * @param data Encoded address of the market, minimum amount of PT to receive (and possibly YT), ytRecipient if minting, and Pendle callData.
      * @return collateralAmount The amount of PT (and possibly YT) token received.
      */
-    function transformToCollateral(
+    function convertToCollateral(
+        address user,
         uint256 amount,
         bytes calldata data
-    ) external override returns (uint256 collateralAmount) {
-        collateralAmount = transformToCollateral(amount, msg.sender, data);
+    ) external override onlyALE returns (uint256 collateralAmount) {
+        return _convertToCollateral(user, amount, msg.sender, data);
     }
 
     /**
@@ -80,17 +92,26 @@ contract PendlePTHelper is Sweepable, IMultiMarketTransformHelper {
      * @param data Encoded address of the market, minimum amount of PT to receive (and possibly YT), ytRecipient if minting, and Pendle callData.
      * @return collateralAmount The amount of PT (and possibly YT) token received.
      */
-    function transformToCollateral(
+    function convertToCollateral(
         uint256 amount,
         address recipient,
         bytes calldata data
     ) public override returns (uint256 collateralAmount) {
+        if (recipient == address(this)) revert InvalidRecipient();
+        return _convertToCollateral(msg.sender, amount, recipient, data);
+    }
+
+    function _convertToCollateral(
+        address user,
+        uint256 amount,
+        address recipient,
+        bytes calldata data
+    ) internal returns (uint256 collateralAmount) {
         (
             address market,
             uint256 minMint, // Minimum amount of PT to receive (and possibly YT)
-            address ytRecipient,
             bytes memory callData
-        ) = abi.decode(data, (address, uint256, address, bytes));
+        ) = abi.decode(data, (address, uint256, bytes));
 
         _revertIfMarketNotSet(market);
 
@@ -98,26 +119,23 @@ contract PendlePTHelper is Sweepable, IMultiMarketTransformHelper {
         IERC20 yt = IERC20(markets[market].yt);
         DOLA.safeTransferFrom(msg.sender, address(this), amount);
         DOLA.approve(router, amount);
-        // Avoid accounting for possibly stucked token for previous bad input and allow recovery
-        uint256 ptBalBefore = pt.balanceOf(address(this));
+
         uint256 ytBalBefore = yt.balanceOf(address(this));
         (bool success, ) = router.call(callData);
         if (!success) revert PendleSwapFailed();
 
-        uint256 ptBal = pt.balanceOf(address(this)) - ptBalBefore;
+        uint256 ptBal = pt.balanceOf(address(this));
 
         if (ptBal < minMint) revert InsufficientPT();
         if (recipient != address(this)) pt.safeTransfer(recipient, ptBal);
-        // Send YT to user if specified
-        if (ytRecipient != address(0)) {
-            uint256 ytBalMinted = yt.balanceOf(address(this)) - ytBalBefore;
-            if (ytBalMinted < minMint) revert InsufficientYT();
-            yt.safeTransfer(ytRecipient, ytBalMinted);
-        }
+
+        // Send YT to user if minted
+        uint256 ytBalMinted = yt.balanceOf(address(this)) - ytBalBefore;
+        if (ytBalMinted != 0 && ytBalMinted < minMint) revert InsufficientYT();
+        if (ytBalMinted > 0) yt.safeTransfer(user, ytBalMinted);
 
         return ptBal;
     }
-
     /**
      * @notice Redeems PT token for DOLA.
      * @dev Used by the ALE but can be called by anyone. Carefully review input data for Pendle API.
@@ -126,11 +144,12 @@ contract PendlePTHelper is Sweepable, IMultiMarketTransformHelper {
      * @param data Encoded address of the market, minimum amount of DOLA to receive, ytProvider, and Pendle callData.
      * @return dolaAmount The amount of DOLA redeemed.
      */
-    function transformFromCollateral(
+    function convertFromCollateral(
+        address user,
         uint256 amount,
         bytes calldata data
-    ) external override returns (uint256 dolaAmount) {
-        dolaAmount = transformFromCollateral(amount, msg.sender, data);
+    ) external override onlyALE returns (uint256 dolaAmount) {
+        return _convertFromCollateral(user, amount, msg.sender, data);
     }
 
     /**
@@ -141,26 +160,38 @@ contract PendlePTHelper is Sweepable, IMultiMarketTransformHelper {
      * @param data Encoded address of the market, minimum amount of DOLA to receive for the recipient, ytProvider, and Pendle callData.
      * @return dolaAmount The amount of DOLA redeemed.
      */
-    function transformFromCollateral(
+    function convertFromCollateral(
         uint256 amount,
         address recipient,
         bytes calldata data
     ) public override returns (uint256 dolaAmount) {
+        return _convertFromCollateral(msg.sender, amount, recipient, data);
+    }
+
+    function _convertFromCollateral(
+        address user,
+        uint256 amount,
+        address recipient,
+        bytes calldata data
+    ) internal returns (uint256 dolaAmount) {
         (
             address market,
             uint256 minOut, // Minimum amount of DOLA to receive
-            address ytProvider,
+            bool isRedeem,
             bytes memory callData
-        ) = abi.decode(data, (address, uint256, address, bytes));
+        ) = abi.decode(data, (address, uint256, bool, bytes));
         _revertIfMarketNotSet(market);
 
-        if (ytProvider != address(0)) {
+        IERC20 pt = IERC20(markets[market].pt);
+
+        if (
+            isRedeem && block.timestamp < IPendlePT(markets[market].pt).expiry()
+        ) {
             IERC20 yt = IERC20(markets[market].yt);
-            yt.safeTransferFrom(ytProvider, address(this), amount);
+            yt.safeTransferFrom(user, address(this), amount);
             yt.approve(router, amount);
         }
 
-        IERC20 pt = IERC20(markets[market].pt);
         pt.safeTransferFrom(msg.sender, address(this), amount);
         pt.approve(router, amount);
 
@@ -171,7 +202,6 @@ contract PendlePTHelper is Sweepable, IMultiMarketTransformHelper {
         dolaAmount = DOLA.balanceOf(recipient) - dolaBal;
         if (dolaAmount < minOut) revert InsufficientDOLA();
     }
-
     /**
      * @notice Convert DOLA to PT or PT and YT and deposit PT amount on behalf of recipient, sending YT to ytRecipient
      * @param assets The receiver in Pendle API has to be set to this contract address. If a MINT is performed, provide a ytRecipient or YT will be kept in this contract.
@@ -179,18 +209,20 @@ contract PendlePTHelper is Sweepable, IMultiMarketTransformHelper {
      * @param data The encoded address of the market.
      * @return collateralAmount The amount of collateral deposited into the market.
      */
-    function transformToCollateralAndDeposit(
+    function convertToCollateralAndDeposit(
         uint256 assets,
         address recipient,
         bytes calldata data
     ) external override returns (uint256) {
-        (address market, , , ) = abi.decode(
-            data,
-            (address, uint256, address, bytes)
-        );
+        (address market, , ) = abi.decode(data, (address, uint256, bytes));
 
         // Convert DOLA to PT token
-        uint256 amount = transformToCollateral(assets, address(this), data);
+        uint256 amount = _convertToCollateral(
+            msg.sender,
+            assets,
+            address(this),
+            data
+        );
 
         // Deposit PT into Market
         IERC20(markets[market].pt).approve(market, amount);
@@ -208,7 +240,7 @@ contract PendlePTHelper is Sweepable, IMultiMarketTransformHelper {
      * @param data The encoded address of the market.
      * @return dolaAmount The amount of DOLA redeemed.
      */
-    function withdrawAndTransformFromCollateral(
+    function withdrawAndConvertFromCollateral(
         uint256 amount,
         address recipient,
         Permit calldata permit,
@@ -217,9 +249,9 @@ contract PendlePTHelper is Sweepable, IMultiMarketTransformHelper {
         (
             address market,
             uint256 minOut,
-            address ytProvider,
+            bool isRedeem,
             bytes memory callData
-        ) = abi.decode(data, (address, uint256, address, bytes));
+        ) = abi.decode(data, (address, uint256, bool, bytes));
         _revertIfMarketNotSet(market);
 
         IMarket(market).withdrawOnBehalf(
@@ -231,13 +263,16 @@ contract PendlePTHelper is Sweepable, IMultiMarketTransformHelper {
             permit.s
         );
 
-        if (ytProvider != address(0)) {
+        IERC20 pt = IERC20(markets[market].pt);
+
+        if (
+            isRedeem && IPendlePT(markets[market].pt).expiry() < block.timestamp
+        ) {
             IERC20 yt = IERC20(markets[market].yt);
-            yt.safeTransferFrom(ytProvider, address(this), amount);
+            yt.safeTransferFrom(msg.sender, address(this), amount);
             yt.approve(router, amount);
         }
 
-        IERC20 pt = IERC20(markets[market].pt);
         pt.approve(router, amount);
 
         uint256 dolaBal = DOLA.balanceOf(recipient);

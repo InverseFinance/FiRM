@@ -27,7 +27,7 @@ contract PendlePTUSDeMarketForkTest is MarketBaseForkTest {
     function setUp() public virtual {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url, 21437191);
+        vm.createSelectFork(url, 21573122);
 
         _advancedInit(address(marketAddr), feedAddr, false);
     }
