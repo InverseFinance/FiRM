@@ -80,8 +80,8 @@ contract PendlePTHelper is Sweepable, IPendleHelper {
      * @dev Can only be used by the ALE. Carefully review input data for Pendle API.
      * The receiver in Pendle API has to be set to this contract address.
      * If a MINT is performed, YT will be sent to the msg.sender.
-     * @param amount The amount of underlying token to be deposited.
-     * @param data Encoded address of the market, minimum amount of PT to receive (and possibly YT), ytRecipient if minting, and Pendle callData.
+     * @param amount The amount of DOLA to be converted.
+     * @param data Encoded address of the market, minimum amount of PT to receive (and possibly YT), and Pendle callData.
      * @return collateralAmount The amount of PT (and possibly YT) token received.
      */
     function convertToCollateral(
@@ -95,8 +95,8 @@ contract PendlePTHelper is Sweepable, IPendleHelper {
     /**
      * @notice Helper function to convert DOLA to PT or PT and YT, sending PT and YT to msg.sender (probably better using directly the Pendle Router for saving gas)
      * @dev The receiver in Pendle API has to be set to this contract address.
-     * @param amount The amount of DOLA to be deposited.
-     * @param data Encoded address of the market, minimum amount of PT to receive (and possibly YT), ytRecipient if minting, and Pendle callData.
+     * @param amount The amount of DOLA to be converted.
+     * @param data Encoded address of the market, minimum amount of PT to receive (and possibly YT), and Pendle callData.
      * @return collateralAmount The amount of PT (and possibly YT) token received.
      */
     function convertToCollateral(
@@ -180,7 +180,7 @@ contract PendlePTHelper is Sweepable, IPendleHelper {
      * The receiver in Pendle API has to be set same as the recipient (ALE)
      * If a redemption is performed, ensure the user has enough balance and allowance for YT if before maturity
      * @param amount The amount of PT token to be redeemed (and YT if specified).
-     * @param data Encoded address of the market, minimum amount of DOLA to receive, ytProvider, and Pendle callData.
+     * @param data Encoded address of the market, minimum amount of DOLA to receive and Pendle callData.
      * @return dolaAmount The amount of DOLA redeemed.
      */
     function convertFromCollateral(
@@ -196,7 +196,7 @@ contract PendlePTHelper is Sweepable, IPendleHelper {
      * @dev The receiver in Pendle API has to be set same as the recipient. If a REDEEM is performed, include a ytProvider with enough allowance.
      * @param amount The amount of PT Token to be redeemed (and YT if specified).
      * @param recipient The address to which the underlying token is transferred.
-     * @param data Encoded address of the market, minimum amount of DOLA to receive for the recipient, ytProvider, and Pendle callData.
+     * @param data Encoded address of the market, minimum amount of DOLA to receive for the recipient and Pendle callData.
      * @return dolaAmount The amount of DOLA redeemed.
      */
     function convertFromCollateral(
@@ -245,7 +245,7 @@ contract PendlePTHelper is Sweepable, IPendleHelper {
      * @param amount The amount of PT token to be withdrawn from the market.
      * @param recipient The address to which DOLA is transferred.
      * @param permit The permit data for the Market.
-     * @param data The encoded address of the market.
+     * @param data Encoded address of the market, minimum amount of DOLA to receive for the recipient and Pendle callData.
      * @return dolaAmount The amount of DOLA redeemed.
      */
     function withdrawAndConvertFromCollateral(
@@ -309,6 +309,7 @@ contract PendlePTHelper is Sweepable, IPendleHelper {
             yt.approve(router, amount);
         }
     }
+
     function _revertIfMarketNotSet(address market) internal view {
         if (address(markets[market].pt) == address(0))
             revert MarketNotSet(market);
