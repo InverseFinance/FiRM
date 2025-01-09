@@ -32,13 +32,15 @@ contract PendlePTHelper is Sweepable, IPendleHelper {
 
     struct PT {
         address pt;
+        uint96 maturity;
         address yt;
     }
 
     event MarketSet(
         address indexed market,
         address indexed pt,
-        address indexed yt
+        address indexed yt,
+        uint256 maturity
     );
     event MarketRemoved(address indexed market);
 
@@ -111,7 +113,7 @@ contract PendlePTHelper is Sweepable, IPendleHelper {
      * @dev The receiver in Pendle API has to be set to this contract address.
      * @param assets Amount of DOLA to be converted and deposited
      * @param recipient The address on behalf of which the PT tokens are deposited.
-     * @param data The encoded address of the market.
+     * @param data Encoded address of the market, minimum amount of PT to receive (and possibly YT), and Pendle callData.
      * @return collateralAmount The amount of collateral deposited into the market.
      */
     function convertToCollateralAndDeposit(
@@ -302,7 +304,7 @@ contract PendlePTHelper is Sweepable, IPendleHelper {
      */
     function _handleYT(address market, address user, uint256 amount) internal {
         // Check if PT is not expired, in which case YT is not needed
-        if (block.timestamp < IPendlePT(markets[market].pt).expiry()) {
+        if (block.timestamp < markets[market].maturity) {
             IERC20 yt = IERC20(markets[market].yt);
             if (yt.balanceOf(user) < amount) revert InsufficientYT();
             yt.safeTransferFrom(user, address(this), amount);
@@ -329,8 +331,13 @@ contract PendlePTHelper is Sweepable, IPendleHelper {
         address ptAddress,
         address ytAddress
     ) external onlyGov {
-        markets[marketAddress] = PT({pt: ptAddress, yt: ytAddress});
-        emit MarketSet(marketAddress, ptAddress, ytAddress);
+        uint96 maturity = uint96(IPendlePT(ptAddress).expiry());
+        markets[marketAddress] = PT({
+            pt: ptAddress,
+            maturity: maturity,
+            yt: ytAddress
+        });
+        emit MarketSet(marketAddress, ptAddress, ytAddress, maturity);
     }
 
     /**
