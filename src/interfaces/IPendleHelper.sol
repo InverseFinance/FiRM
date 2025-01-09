@@ -17,7 +17,6 @@ interface IPendleHelper {
 
     function convertToCollateral(
         uint256 amount,
-        address recipient,
         bytes calldata data
     ) external returns (uint256 collateralAmount);
 

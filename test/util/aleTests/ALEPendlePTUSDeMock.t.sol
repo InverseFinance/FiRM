@@ -4,44 +4,17 @@ import {PendlePTHelper} from "src/util/PendlePTHelper.sol";
 import "test/marketForkTests/PendlePTUSDeMarketForkTest.t.sol";
 import {ALEPendle} from "src/util/ALEPendle.sol";
 import {SimpleERC20Escrow} from "src/escrows/SimpleERC20Escrow.sol";
+import {MockPendleRouter} from "test/mocks/MockPendleRouter.sol";
+
 interface IFlashMinter {
     function setMaxFlashLimit(uint256 _maxFlashLimit) external;
 }
 
-contract MockPendleRouter {
-    IERC20 public DOLA;
-    IERC20 public pendlePT;
-    IERC20 public pendleYT;
-    constructor(address _dola, address _pt, address _yt) {
-        DOLA = IERC20(_dola);
-        pendlePT = IERC20(_pt);
-        pendleYT = IERC20(_yt);
-    }
-
-    function swapForPt(uint256 _amount, address recipient) external {
-        DOLA.transferFrom(msg.sender, address(this), _amount);
-        pendlePT.transfer(recipient, _amount);
-    }
-
-    function mintPt(uint256 _amount, address recipient) external {
-        DOLA.transferFrom(msg.sender, address(this), _amount);
-        pendlePT.transfer(recipient, _amount);
-        pendleYT.transfer(recipient, _amount);
-    }
-
-    function swapForDola(uint256 _amount, address recipient) external {
-        pendlePT.transferFrom(msg.sender, address(this), _amount);
-        DOLA.transfer(recipient, _amount);
-    }
-
-    function redeemPt(uint256 _amount, address recipient) external {
-        pendlePT.transferFrom(msg.sender, address(this), _amount);
-        pendleYT.transferFrom(msg.sender, address(this), _amount);
-        DOLA.transfer(recipient, _amount);
-    }
-}
-
 contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
+    MockPendleRouter.ApproxParams emptyApprox;
+    MockPendleRouter.TokenInput emptyTokenInput;
+    MockPendleRouter.TokenOutput emptyTokenOutput;
+    MockPendleRouter.LimitOrderData emptyLimit;
     ALEPendle ale;
     IFlashMinter flash;
     address userPk = vm.addr(1);
@@ -184,9 +157,13 @@ contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
                 address(market),
                 0,
                 abi.encodeWithSelector(
-                    MockPendleRouter.swapForPt.selector,
+                    MockPendleRouter.swapExactTokenForPt.selector,
+                    address(helper),
+                    address(0),
                     amount,
-                    address(helper)
+                    emptyApprox,
+                    emptyTokenInput,
+                    emptyLimit
                 )
             )
         );
@@ -277,29 +254,12 @@ contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
         DOLA.approve(address(helper), amount);
         uint256 initialLpAmount = helper.convertToCollateral(
             initialDolaDeposit,
-            userPk,
-            abi.encode(
-                address(market),
-                0,
-                abi.encodeWithSelector(
-                    MockPendleRouter.swapForPt.selector,
-                    initialDolaDeposit,
-                    address(helper)
-                )
-            )
+            _encodeSwapForPT(initialDolaDeposit)
         );
         helper.convertToCollateralAndDeposit(
             amount - initialDolaDeposit,
             userPk,
-            abi.encode(
-                address(market),
-                0,
-                abi.encodeWithSelector(
-                    MockPendleRouter.swapForPt.selector,
-                    amount - initialDolaDeposit,
-                    address(helper)
-                )
-            )
+            _encodeSwapForPT(amount - initialDolaDeposit)
         );
         vm.stopPrank();
 
@@ -321,15 +281,7 @@ contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
             address(0),
             swapData,
             _getPermitForBorrow(maxBorrowAmount),
-            abi.encode(
-                address(market),
-                0,
-                abi.encodeWithSelector(
-                    MockPendleRouter.swapForPt.selector,
-                    maxBorrowAmount,
-                    address(helper)
-                )
-            ),
+            _encodeSwapForPT(maxBorrowAmount),
             dbrData,
             true
         );
@@ -475,15 +427,7 @@ contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
         helper.convertToCollateralAndDeposit(
             amount,
             userPk,
-            abi.encode(
-                address(market),
-                0,
-                abi.encodeWithSelector(
-                    MockPendleRouter.swapForPt.selector,
-                    amount,
-                    address(helper)
-                )
-            )
+            _encodeSwapForPT(amount)
         );
         vm.stopPrank();
     }
@@ -550,9 +494,13 @@ contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
                 address(market),
                 0,
                 abi.encodeWithSelector(
-                    MockPendleRouter.swapForPt.selector,
+                    MockPendleRouter.swapExactTokenForPt.selector,
+                    address(helper),
+                    address(0),
                     amount,
-                    address(helper)
+                    emptyApprox,
+                    emptyTokenInput,
+                    emptyLimit
                 )
             );
     }
@@ -564,11 +512,13 @@ contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
             abi.encode(
                 address(market),
                 uint(0),
-                false,
                 abi.encodeWithSelector(
-                    MockPendleRouter.swapForDola.selector,
+                    MockPendleRouter.swapExactPtForToken.selector,
+                    address(ale),
+                    address(0),
                     amount,
-                    address(ale)
+                    emptyTokenOutput,
+                    emptyLimit
                 )
             );
     }
@@ -579,9 +529,11 @@ contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
                 address(market),
                 0,
                 abi.encodeWithSelector(
-                    MockPendleRouter.mintPt.selector,
+                    MockPendleRouter.mintPyFromToken.selector,
+                    address(helper),
+                    address(0),
                     amount,
-                    address(helper)
+                    emptyTokenInput
                 )
             );
     }
@@ -593,11 +545,12 @@ contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
             abi.encode(
                 address(market),
                 uint(0),
-                true,
                 abi.encodeWithSelector(
-                    MockPendleRouter.redeemPt.selector,
+                    MockPendleRouter.redeemPyToToken.selector,
+                    address(ale),
+                    address(0),
                     amount,
-                    address(ale)
+                    emptyTokenOutput
                 )
             );
     }
