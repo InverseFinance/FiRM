@@ -43,6 +43,20 @@ contract PendlePTHelper is Sweepable, IPendleHelper {
         uint256 maturity
     );
     event MarketRemoved(address indexed market);
+    event PTOut(
+        uint256 dolaIn,
+        uint256 ptOut,
+        address indexed from,
+        address indexed to
+    );
+    event DolaOut(
+        uint256 ptIn,
+        uint256 dolaOut,
+        address indexed from,
+        address indexed to
+    );
+    event YTOut(uint256 amount, address indexed from, address indexed to);
+    event YTIn(uint256 amount, address indexed from);
 
     IERC20 public immutable DOLA;
     address public immutable router;
@@ -166,18 +180,21 @@ contract PendlePTHelper is Sweepable, IPendleHelper {
         if (ptBal < minOut) revert InsufficientPT();
         if (recipient != address(this)) pt.safeTransfer(recipient, ptBal);
 
+        emit PTOut(amount, ptBal, msg.sender, recipient);
+
         if (selector == MINT_PT) {
             IERC20 yt = IERC20(markets[market].yt);
             // Send YT to user if minted
             uint256 ytBalMinted = yt.balanceOf(address(this));
             if (ytBalMinted < minOut) revert InsufficientYT();
             yt.safeTransfer(user, ytBalMinted);
+            emit YTOut(ytBalMinted, msg.sender, user);
         }
 
         return ptBal;
     }
     /**
-     * @notice Redeems PT token for DOLA.
+     * @notice Swap or Redeem PT token for DOLA (Redemption using YT if before maturity).
      * @dev Used by the ALE but can be called by anyone. Carefully review input data for Pendle API.
      * The receiver in Pendle API has to be set same as the recipient (ALE)
      * If a redemption is performed, ensure the user has enough balance and allowance for YT if before maturity
@@ -238,6 +255,7 @@ contract PendlePTHelper is Sweepable, IPendleHelper {
         // Ensure recipient received at least minOut DOLA
         dolaAmount = DOLA.balanceOf(recipient) - dolaBal;
         if (dolaAmount < minOut) revert InsufficientDOLA();
+        emit DolaOut(amount, dolaAmount, msg.sender, recipient);
     }
 
     /**
@@ -285,6 +303,7 @@ contract PendlePTHelper is Sweepable, IPendleHelper {
 
         dolaAmount = DOLA.balanceOf(recipient) - dolaBal;
         if (dolaAmount < minOut) revert InsufficientDOLA();
+        emit DolaOut(amount, dolaAmount, msg.sender, recipient);
     }
 
     /**
@@ -309,6 +328,7 @@ contract PendlePTHelper is Sweepable, IPendleHelper {
             if (yt.balanceOf(user) < amount) revert InsufficientYT();
             yt.safeTransferFrom(user, address(this), amount);
             yt.approve(router, amount);
+            emit YTIn(amount, user);
         }
     }
 
