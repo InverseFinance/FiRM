@@ -29,6 +29,7 @@ contract PendlePTHelper is Sweepable, IPendleHelper {
     error NotALE();
     error InvalidRecipient();
     error InvalidSelector();
+    error Slice_OutOfBounds();
 
     struct PT {
         address pt;
@@ -95,7 +96,7 @@ contract PendlePTHelper is Sweepable, IPendleHelper {
      * @notice Convert DOLA to PT or PT and YT
      * @dev Can only be used by the ALE. Carefully review input data for Pendle API.
      * The receiver in Pendle API has to be set to this contract address.
-     * If a MINT is performed, YT will be sent to the msg.sender.
+     * If a MINT is performed, YT will be sent to the user.
      * @param amount The amount of DOLA to be converted.
      * @param data Encoded address of the market, minimum amount of PT to receive (and possibly YT), and Pendle callData.
      * @return collateralAmount The amount of PT (and possibly YT) token received.
@@ -195,9 +196,9 @@ contract PendlePTHelper is Sweepable, IPendleHelper {
     }
     /**
      * @notice Swap or Redeem PT token for DOLA (Redemption using YT if before maturity).
-     * @dev Used by the ALE but can be called by anyone. Carefully review input data for Pendle API.
+     * @dev Can only be used by the ALE. Carefully review input data for Pendle API.
      * The receiver in Pendle API has to be set same as the recipient (ALE)
-     * If a redemption is performed, ensure the user has enough balance and allowance for YT if before maturity
+     * If a REDEEM is performed, ensure the user has enough balance and allowance for YT if before maturity
      * @param amount The amount of PT token to be redeemed (and YT if specified).
      * @param data Encoded address of the market, minimum amount of DOLA to receive and Pendle callData.
      * @return dolaAmount The amount of DOLA redeemed.
@@ -211,8 +212,9 @@ contract PendlePTHelper is Sweepable, IPendleHelper {
     }
 
     /**
-     * @notice Redeems Collateral for DOLA.
-     * @dev The receiver in Pendle API has to be set same as the recipient. If a REDEEM is performed, include a ytProvider with enough allowance.
+     * @notice Redeem Collateral for DOLA.
+     * @dev The receiver in Pendle API has to be set same as the recipient.
+     * If a REDEEM is performed, ensure msg.sender has enough balance and allowance for YT if before maturity.
      * @param amount The amount of PT Token to be redeemed (and YT if specified).
      * @param recipient The address to which the underlying token is transferred.
      * @param data Encoded address of the market, minimum amount of DOLA to receive for the recipient and Pendle callData.
@@ -261,7 +263,7 @@ contract PendlePTHelper is Sweepable, IPendleHelper {
     /**
      * @notice Withdraw the collateral from the market then convert to DOLA.
      * @dev The receiver in Pendle API has to be set same as the recipient.
-     * If a redemption is performed Before maturity, ensure msg.sender has enough balance and allowance for YT
+     * If a REDEEM is performed Before maturity, ensure msg.sender has enough balance and allowance for YT
      * @param amount The amount of PT token to be withdrawn from the market.
      * @param recipient The address to which DOLA is transferred.
      * @param permit The permit data for the Market.
@@ -374,9 +376,7 @@ contract PendlePTHelper is Sweepable, IPendleHelper {
     function getSelector(bytes memory _bytes) internal pure returns (bytes4) {
         uint256 _start = 0;
         uint256 _length = 4;
-        //require(_length + 31 >= _length, "slice_overflow");
-        require(_bytes.length >= _start + _length, "slice_outOfBounds");
-
+        if (_start + _length > _bytes.length) revert Slice_OutOfBounds();
         bytes memory tempBytes;
 
         // Check length is 0. `iszero` return 1 for `true` and 0 for `false`.
