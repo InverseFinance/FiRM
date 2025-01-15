@@ -466,16 +466,8 @@ contract ALEPendle is
 
         if (_dbrData.amountIn != 0)
             _buyDbr(_dbrData.amountIn, _dbrData.minOut, _user);
-        // Scope to avoid stack too deep error
-        {
-            uint256 balance = dola.balanceOf(address(this));
 
-            if (balance > _value) dola.transfer(_user, balance - _value);
-        }
-
-        // Refund any possible unspent fees to the sender.
-        if (address(this).balance > 0)
-            payable(_user).transfer(address(this).balance);
+        _refundExcess(_user, _value);
 
         emit LeverageUp(
             _market,
@@ -576,22 +568,12 @@ contract ALEPendle is
             if (sellTokenBal != 0) sellToken.safeTransfer(_user, sellTokenBal);
         }
 
-        // Scope to avoid stack too deep error
-        {
-            uint256 balance = dola.balanceOf(address(this));
-            if (balance < _value) revert DOLAInvalidRepay(_value, balance);
-            // Send any extra DOLA to the sender (in case the collateral withdrawn and swapped exceeds the value to burn)
-            if (balance > _value) dola.transfer(_user, balance - _value);
-        }
-
         if (_dbrData.amountIn != 0) {
             dbr.transferFrom(_user, address(this), _dbrData.amountIn);
             _sellDbr(_dbrData.amountIn, _dbrData.minOut, _user);
         }
 
-        // Refund any unspent protocol fees to the sender.
-        if (address(this).balance > 0)
-            payable(_user).transfer(address(this).balance);
+        _refundExcess(_user, _value);
 
         emit LeverageDown(
             _market,
@@ -615,15 +597,7 @@ contract ALEPendle is
         DBRHelper memory _dbrData,
         IMarket market
     ) internal {
-        uint256 dolaToBorrow = _value;
-
-        if (_dbrData.dola != 0) {
-            dolaToBorrow += _dbrData.dola;
-        }
-
-        if (_dbrData.amountIn != 0) {
-            dolaToBorrow += _dbrData.amountIn;
-        }
+        uint256 dolaToBorrow = _value + _dbrData.dola + _dbrData.amountIn;
         // We borrow the amount of DOLA we minted before plus the amount for buying DBR if any
         market.borrowOnBehalf(
             _user,
@@ -727,6 +701,19 @@ contract ALEPendle is
             revert DepositFailed(collateralAmount, actualCollateralAmount);
 
         return actualCollateralAmount;
+    }
+
+    /// @notice Send any extra DOLA and ETH to the user
+    /// @param _user The user address
+    /// @param _value The amount of flash borrowed DOLA to be repaid
+    function _refundExcess(address _user, uint256 _value) internal {
+        uint256 balance = dola.balanceOf(address(this));
+        if (balance < _value) revert DOLAInvalidRepay(_value, balance);
+        // Send any extra DOLA to the sender
+        if (balance > _value) dola.transfer(_user, balance - _value);
+        // Refund any unspent protocol fees to the sender.
+        if (address(this).balance > 0)
+            payable(_user).transfer(address(this).balance);
     }
 
     // solhint-disable-next-line no-empty-blocks
