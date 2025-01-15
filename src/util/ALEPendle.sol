@@ -153,19 +153,12 @@ contract ALEPendle is
     // or with DOLA curve LPs, LP token is the collateral and DOLA is the token to be swapped from/to
     mapping(address => Market) public markets;
 
-    modifier dolaSupplyUnchanged() {
-        uint256 totalSupply = dola.totalSupply();
-        _;
-        if (totalSupply != dola.totalSupply())
-            revert TotalSupplyChanged(totalSupply, dola.totalSupply());
-    }
-
     constructor(
         address _exchangeProxy,
         address _pool
     ) Ownable(msg.sender) CurveDBRHelper(_pool) {
         exchangeProxy = payable(address(_exchangeProxy));
-        _approveDola(address(flash), type(uint).max);
+        dola.approve(address(flash), type(uint).max);
     }
 
     function setExchangeProxy(address _exchangeProxy) external onlyOwner {
@@ -186,15 +179,16 @@ contract ALEPendle is
     ) external onlyOwner {
         if (!DBR.markets(_market)) revert NoMarket(_market);
 
-        if (_helper == address(0)) {
-            if (_buySellToken != IMarket(_market).collateral()) {
-                revert MarketSetupFailed(
-                    _market,
-                    _buySellToken,
-                    IMarket(_market).collateral(),
-                    _helper
-                );
-            }
+        if (
+            _helper == address(0) &&
+            _buySellToken != IMarket(_market).collateral()
+        ) {
+            revert MarketSetupFailed(
+                _market,
+                _buySellToken,
+                IMarket(_market).collateral(),
+                _helper
+            );
         }
 
         address collateral = IMarket(_market).collateral();
@@ -260,7 +254,7 @@ contract ALEPendle is
         Permit calldata permit,
         bytes calldata helperData,
         DBRHelper calldata dbrData
-    ) public payable nonReentrant dolaSupplyUnchanged {
+    ) public payable nonReentrant {
         if (address(markets[market].buySellToken) == address(0))
             revert MarketNotSet(market);
 
@@ -353,7 +347,7 @@ contract ALEPendle is
         Permit calldata permit,
         bytes calldata helperData,
         DBRHelper calldata dbrData
-    ) external payable nonReentrant dolaSupplyUnchanged {
+    ) external payable nonReentrant {
         if (address(markets[market].buySellToken) == address(0))
             revert MarketNotSet(market);
 
@@ -437,7 +431,7 @@ contract ALEPendle is
         // Call the encoded swap function call on the contract at `swapTarget`,
         // passing along any ETH attached to this function call to cover protocol fees.
         if (markets[_market].useProxy) {
-            _approveDola(_spender, _value);
+            dola.approve(_spender, _value);
             (bool success, ) = exchangeProxy.call{value: msg.value}(
                 _swapCallData
             );
@@ -609,13 +603,6 @@ contract ALEPendle is
         );
     }
 
-    /// @notice Mint DOLA to this contract and approve the spender
-    /// @param spender The spender address
-    /// @param _value Amount of DOLA to mint and approve
-    function _approveDola(address spender, uint256 _value) internal {
-        dola.approve(spender, _value);
-    }
-
     /// @notice Borrow DOLA on behalf of the user
     /// @param _value Amount of DOLA to borrow
     /// @param _permit Permit data
@@ -670,12 +657,10 @@ contract ALEPendle is
     ) internal {
         if (_dbrData.dola != 0) {
             dola.transferFrom(_user, address(this), _dbrData.dola);
-            _approveDola(address(market), _value + _dbrData.dola);
-            market.repay(_user, _value + _dbrData.dola);
-        } else {
-            _approveDola(address(market), _value);
-            market.repay(_user, _value);
+            _value += _dbrData.dola;
         }
+        dola.approve(address(market), _value);
+        market.repay(_user, _value);
 
         // withdraw amount from ZERO EX quote
         market.withdrawOnBehalf(
