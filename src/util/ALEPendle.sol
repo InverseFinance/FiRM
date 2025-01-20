@@ -180,8 +180,8 @@ contract ALEPendle is
         if (!DBR.markets(_market)) revert NoMarket(_market);
 
         if (
-            _helper == address(0) &&
-            _buySellToken != IMarket(_market).collateral()
+            _helper == address(0) ||
+            _buySellToken == IMarket(_market).collateral()
         ) {
             revert MarketSetupFailed(
                 _market,
