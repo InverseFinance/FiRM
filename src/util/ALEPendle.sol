@@ -200,12 +200,9 @@ contract ALEPendle is
             markets[_market].collateral.approve(_market, type(uint256).max);
         }
 
-        if (_helper != address(0)) {
-            markets[_market].helper = IPendleHelper(_helper);
-
-            markets[_market].buySellToken.approve(_helper, type(uint256).max);
-            markets[_market].collateral.approve(_helper, type(uint256).max);
-        }
+        markets[_market].helper = IPendleHelper(_helper);
+        markets[_market].buySellToken.approve(_helper, type(uint256).max);
+        markets[_market].collateral.approve(_helper, type(uint256).max);
 
         markets[_market].useProxy = useProxy;
         emit NewMarket(_market, _buySellToken, collateral, _helper);
@@ -464,7 +461,7 @@ contract ALEPendle is
 
         if (_dbrData.dola != 0) dola.transfer(_user, _dbrData.dola);
 
-        if (_dbrData.amountIn != 0)
+        if (_dbrData.amountIn > 0 && _dbrData.minOut > 0)
             _buyDbr(_dbrData.amountIn, _dbrData.minOut, _user);
 
         _refundExcess(_user, _value);
@@ -568,7 +565,7 @@ contract ALEPendle is
             if (sellTokenBal != 0) sellToken.safeTransfer(_user, sellTokenBal);
         }
 
-        if (_dbrData.amountIn != 0) {
+        if (_dbrData.amountIn > 0 && _dbrData.minOut > 0) {
             dbr.transferFrom(_user, address(this), _dbrData.amountIn);
             _sellDbr(_dbrData.amountIn, _dbrData.minOut, _user);
         }

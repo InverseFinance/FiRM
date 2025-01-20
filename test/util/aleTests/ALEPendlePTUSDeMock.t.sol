@@ -387,7 +387,7 @@ contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
 
         ALEPendle.DBRHelper memory dbrData = ALEPendle.DBRHelper(
             dbr.balanceOf(userPk),
-            0,
+            10000,
             0
         ); // sell all DBR
         bytes memory swapData;
