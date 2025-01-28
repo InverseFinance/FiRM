@@ -1010,6 +1010,27 @@ contract ALEPendlePTUSDeTest is PendlePTUSDeMarketForkTest {
         );
     }
 
+    function test_updateMarketHelper_if_helper_not_address_zero() public {
+        vm.prank(gov);
+        ale.updateMarketHelper(address(market), address(1));
+        (, , IPendleHelper helper, ) = ale.markets(address(market));
+        assertEq(address(helper), address(1));
+    }
+
+    function test_updateMarketHelper_if_market_not_set() public {
+        vm.expectRevert(
+            abi.encodeWithSelector(ALEPendle.MarketNotSet.selector, address(2))
+        );
+        vm.prank(gov);
+        ale.updateMarketHelper(address(2), address(1));
+    }
+
+    function test_updateMarketHelper_fails_if_helper_not_set() public {
+        vm.expectRevert(ALEPendle.InvalidHelperAddress.selector);
+        vm.prank(gov);
+        ale.updateMarketHelper(address(market), address(0));
+    }
+
     function _getMaxBorrowAmount(
         uint amountCollat
     ) internal view returns (uint) {

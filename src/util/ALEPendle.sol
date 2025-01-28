@@ -179,10 +179,8 @@ contract ALEPendle is
     ) external onlyOwner {
         if (!DBR.markets(_market)) revert NoMarket(_market);
 
-        if (
-            _helper == address(0) ||
-            _buySellToken == IMarket(_market).collateral()
-        ) {
+        address collateral = IMarket(_market).collateral();
+        if (_helper == address(0) || _buySellToken == collateral) {
             revert MarketSetupFailed(
                 _market,
                 _buySellToken,
@@ -191,14 +189,10 @@ contract ALEPendle is
             );
         }
 
-        address collateral = IMarket(_market).collateral();
         markets[_market].buySellToken = IERC20(_buySellToken);
         markets[_market].collateral = IERC20(collateral);
         markets[_market].buySellToken.approve(_market, type(uint256).max);
-
-        if (_buySellToken != collateral) {
-            markets[_market].collateral.approve(_market, type(uint256).max);
-        }
+        markets[_market].collateral.approve(_market, type(uint256).max);
 
         markets[_market].helper = IPendleHelper(_helper);
         markets[_market].buySellToken.approve(_helper, type(uint256).max);
@@ -217,19 +211,15 @@ contract ALEPendle is
     ) external onlyOwner {
         if (address(markets[_market].buySellToken) == address(0))
             revert MarketNotSet(_market);
+        if (_helper == address(0)) revert InvalidHelperAddress();
 
         address oldHelper = address(markets[_market].helper);
-        if (oldHelper != address(0)) {
-            markets[_market].buySellToken.approve(oldHelper, 0);
-            markets[_market].collateral.approve(oldHelper, 0);
-        }
+        markets[_market].buySellToken.approve(oldHelper, 0);
+        markets[_market].collateral.approve(oldHelper, 0);
 
         markets[_market].helper = IPendleHelper(_helper);
-
-        if (_helper != address(0)) {
-            markets[_market].buySellToken.approve(_helper, type(uint256).max);
-            markets[_market].collateral.approve(_helper, type(uint256).max);
-        }
+        markets[_market].buySellToken.approve(_helper, type(uint256).max);
+        markets[_market].collateral.approve(_helper, type(uint256).max);
 
         emit NewHelper(_market, _helper);
     }
