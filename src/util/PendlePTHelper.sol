@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import {IMarket} from "src/interfaces/IMarket.sol";
 import {Sweepable, SafeERC20, IERC20} from "src/util/Sweepable.sol";
 import {IPendleHelper} from "src/interfaces/IPendleHelper.sol";
+import "bytes-utils/BytesLib.sol";
 
 interface IPendlePT {
     function expiry() external view returns (uint256);
@@ -20,6 +21,7 @@ interface IPendlePT {
 
 contract PendlePTHelper is Sweepable, IPendleHelper {
     using SafeERC20 for IERC20;
+    using BytesLib for bytes;
 
     error InsufficientDOLA();
     error InsufficientPT();
@@ -166,7 +168,7 @@ contract PendlePTHelper is Sweepable, IPendleHelper {
         ) = abi.decode(data, (address, uint256, bytes));
         _revertIfMarketNotSet(market);
 
-        bytes4 selector = getSelector(callData);
+        bytes4 selector = bytes4(callData.slice(0, 4));
         if (selector != SWAP_PT && selector != MINT_PT)
             revert InvalidSelector();
 
@@ -241,7 +243,7 @@ contract PendlePTHelper is Sweepable, IPendleHelper {
         ) = abi.decode(data, (address, uint256, bytes));
         _revertIfMarketNotSet(market);
 
-        bytes4 selector = getSelector(callData);
+        bytes4 selector = bytes4(callData.slice(0, 4));
         if (selector != SWAP_DOLA && selector != REDEEM_PT)
             revert InvalidSelector();
 
@@ -282,7 +284,7 @@ contract PendlePTHelper is Sweepable, IPendleHelper {
         );
         _revertIfMarketNotSet(market);
 
-        bytes4 selector = getSelector(callData);
+        bytes4 selector = bytes4(callData.slice(0, 4));
         if (selector != SWAP_DOLA && selector != REDEEM_PT)
             revert InvalidSelector();
 
@@ -370,78 +372,5 @@ contract PendlePTHelper is Sweepable, IPendleHelper {
     function removeMarket(address market) external onlyGuardianOrGov {
         delete markets[market];
         emit MarketRemoved(market);
-    }
-
-    /// UTILS
-    function getSelector(bytes memory _bytes) internal pure returns (bytes4) {
-        uint256 _start = 0;
-        uint256 _length = 4;
-        if (_start + _length > _bytes.length) revert Slice_OutOfBounds();
-        bytes memory tempBytes;
-
-        // Check length is 0. `iszero` return 1 for `true` and 0 for `false`.
-        assembly {
-            switch iszero(_length)
-            case 0 {
-                // Get a location of some free memory and store it in tempBytes as
-                // Solidity does for memory variables.
-                tempBytes := mload(0x40)
-
-                // Calculate length mod 32 to handle slices that are not a multiple of 32 in size.
-                let lengthmod := and(_length, 31)
-
-                // tempBytes will have the following format in memory: <length><data>
-                // When copying data we will offset the start forward to avoid allocating additional memory
-                // Therefore part of the length area will be written, but this will be overwritten later anyways.
-                // In case no offset is require, the start is set to the data region (0x20 from the tempBytes)
-                // mc will be used to keep track where to copy the data to.
-                let mc := add(
-                    add(tempBytes, lengthmod),
-                    mul(0x20, iszero(lengthmod))
-                )
-                let end := add(mc, _length)
-
-                for {
-                    // Same logic as for mc is applied and additionally the start offset specified for the method is added
-                    let cc := add(
-                        add(
-                            add(_bytes, lengthmod),
-                            mul(0x20, iszero(lengthmod))
-                        ),
-                        _start
-                    )
-                } lt(mc, end) {
-                    // increase `mc` and `cc` to read the next word from memory
-                    mc := add(mc, 0x20)
-                    cc := add(cc, 0x20)
-                } {
-                    // Copy the data from source (cc location) to the slice data (mc location)
-                    mstore(mc, mload(cc))
-                }
-
-                // Store the length of the slice. This will overwrite any partial data that
-                // was copied when having slices that are not a multiple of 32.
-                mstore(tempBytes, _length)
-
-                // update free-memory pointer
-                // allocating the array padded to 32 bytes like the compiler does now
-                // To set the used memory as a multiple of 32, add 31 to the actual memory usage (mc)
-                // and remove the modulo 32 (the `and` with `not(31)`)
-                mstore(0x40, and(add(mc, 31), not(31)))
-            }
-            // if we want a zero-length slice let's just return a zero-length array
-            default {
-                tempBytes := mload(0x40)
-                // zero out the 32 bytes slice we are about to return
-                // we need to do it because Solidity does not garbage collect
-                mstore(tempBytes, 0)
-
-                // update free-memory pointer
-                // tempBytes uses 32 bytes in memory (even when empty) for the length.
-                mstore(0x40, add(tempBytes, 0x20))
-            }
-        }
-
-        return bytes4(tempBytes);
     }
 }
