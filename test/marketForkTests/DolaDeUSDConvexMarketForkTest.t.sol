@@ -12,7 +12,6 @@ import "src/feeds/ChainlinkBasePriceFeed.sol";
 import {console} from "forge-std/console.sol";
 import {YearnVaultV2Helper, IYearnVaultV2} from "src/util/YearnVaultV2Helper.sol";
 import {DolaFixedPriceFeed} from "src/feeds/DolaFixedPriceFeed.sol";
-import {MockFeedDescription} from "test/mocks/MockFeedDescription.sol";
 import {ChainlinkBasePriceFeed} from "src/feeds/ChainlinkBasePriceFeed.sol";
 
 contract DolaDeUSDConvexMarketForkTest is MarketBaseForkTest {
@@ -24,7 +23,7 @@ contract DolaDeUSDConvexMarketForkTest is MarketBaseForkTest {
     ICurvePool public constant dolaDeUSD =
         ICurvePool(0x6691DBb44154A9f23f8357C56FC9ff5548A8bdc4);
 
-    MockFeedDescription public deUSDFeed;
+    address deUSDFeed = address(0x471a6299C027Bd81ed4D66069dc510Bd0569f4F8);
     ChainlinkBasePriceFeed deUSDWrapper;
 
     address rewardPool = address(0xD30E66cBc869Aa808eB9c81f8Aad8408767E3a3E);
@@ -91,7 +90,6 @@ contract DolaDeUSDConvexMarketForkTest is MarketBaseForkTest {
         internal
         returns (CurveLPPessimisticFeed feed)
     {
-        deUSDFeed = new MockFeedDescription(8, 100000000, "deUSD / USD");
         deUSDWrapper = new ChainlinkBasePriceFeed(
             gov,
             address(deUSDFeed),

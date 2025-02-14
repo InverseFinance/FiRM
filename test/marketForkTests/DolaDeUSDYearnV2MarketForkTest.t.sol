@@ -19,7 +19,7 @@ contract DolaDeUSDYearnV2MarketForkTest is MarketBaseForkTest {
     CurveLPYearnV2Feed yearnFeed;
     CurveLPPessimisticFeed lpFeed;
 
-    MockFeedDescription public deUSDFeed;
+    address deUSDFeed = address(0x471a6299C027Bd81ed4D66069dc510Bd0569f4F8);
     ChainlinkBasePriceFeed deUSDWrapper;
     ICurvePool public constant dolaDeUSD =
         ICurvePool(0x6691DBb44154A9f23f8357C56FC9ff5548A8bdc4);
@@ -53,7 +53,6 @@ contract DolaDeUSDYearnV2MarketForkTest is MarketBaseForkTest {
         internal
         returns (CurveLPYearnV2Feed feed)
     {
-        deUSDFeed = new MockFeedDescription(8, 100000000, "deUSD / USD");
         deUSDWrapper = new ChainlinkBasePriceFeed(
             gov,
             address(deUSDFeed),
