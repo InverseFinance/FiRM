@@ -5,7 +5,7 @@ import {BaseEscrowLPConvexTest} from "test/escrowForkTests/BaseEscrowLPConvexTes
 
 contract DolaDeUSDEscrowConvexForkTest is BaseEscrowLPConvexTest {
     // Curve
-    address _dolaFraxBP = 0x6691DBb44154A9f23f8357C56FC9ff5548A8bdc4;
+    address _dolaDeUSD = 0x6691DBb44154A9f23f8357C56FC9ff5548A8bdc4;
     address _lpHolder = address(0xcb4a7b790eDB7Fa3e2731Efd7ED85275f92Fc74A);
     address _gauge = 0xa48A3c91b062ca06Fd0d0569695432EB066f8c7E;
 
@@ -24,6 +24,6 @@ contract DolaDeUSDEscrowConvexForkTest is BaseEscrowLPConvexTest {
             _stash
         );
 
-        init(_dolaFraxBP, _lpHolder, _gauge, convexParams, true);
+        init(_dolaDeUSD, _lpHolder, _gauge, convexParams, true);
     }
 }
