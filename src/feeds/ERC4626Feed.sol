@@ -12,9 +12,13 @@ import {IERC4626} from "lib/openzeppelin-contracts/contracts/interfaces/IERC4626
 contract ERC4626Feed {
     error DecimalsMismatch();
 
+    // ChainlinkCurve feed for the normalized asset to USD price
     IChainlinkCurveFeed public immutable feed;
+    // ERC4626 vault asset
     IERC4626 public immutable vault;
+    // Scaling factor
     uint256 public constant SCALE = 1e18;
+    // Description of the feed
     string public description;
 
     constructor(address _vault, address _feed) {
@@ -71,8 +75,8 @@ contract ERC4626Feed {
     }
 
     /** 
-    @notice Retrieves the latest sdeUSD price
-    @return price The latest sdeUSD price
+    @notice Retrieves the latest asset price
+    @return price The latest asset price
     */
     function latestAnswer() external view returns (int256) {
         (, int256 price, , , ) = latestRoundData();
