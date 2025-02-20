@@ -2,24 +2,33 @@
 pragma solidity ^0.8.19;
 
 import "forge-std/Test.sol";
-import "src/feeds/SdeUSDFeed.sol";
+import "src/feeds/ERC4626Feed.sol";
+import "src/interfaces/IChainlinkFeed.sol";
+import {ChainlinkCurveFeed, ICurvePool} from "src/feeds/ChainlinkCurveFeed.sol";
 import "forge-std/console.sol";
 
 contract SdeUSDFeedForkTest is Test {
-    SdeUSDFeed feed;
+    ChainlinkCurveFeed curveFeed;
+    ERC4626Feed feed;
     address curvePool = address(0x82202CAEC5E6d85014eADC68D4912F3C90093e7C);
     uint256 k = 0;
+    uint256 targetIndex = 1;
     address sdeUSD = address(0x5C5b196aBE0d54485975D1Ec29617D42D9198326);
     address dolaFeed = address(0x6255981e2a1EBeA600aFC506185590eD383517be);
 
     function setUp() public {
         string memory url = vm.rpcUrl("mainnet");
         vm.createSelectFork(url);
-        feed = new SdeUSDFeed(curvePool, k, sdeUSD, dolaFeed);
+        curveFeed = new ChainlinkCurveFeed(dolaFeed, curvePool, k, targetIndex);
+        feed = new ERC4626Feed(sdeUSD, address(curveFeed));
     }
 
     function test_decimals() public {
         assertEq(feed.decimals(), 18);
+    }
+
+    function test_description() public {
+        assertEq(feed.description(), "sdeUSD / USD using sdeUSD vault rate");
     }
 
     function test_latestRoundData() public {
@@ -66,17 +75,18 @@ contract SdeUSDFeedForkTest is Test {
 
     function _calculateSdeUSDPrice() internal view returns (int256) {
         uint256 sdeUSDNormalizedToDola = ICurvePool(curvePool).price_oracle(
-            feed.k()
+            curveFeed.assetOrTargetK()
+        );
+
+        int256 dolaToUsdPrice = curveFeed.assetToUsd().latestAnswer();
+        int256 sdeUSDNormalizedToUsdPrice = int256(
+            (sdeUSDNormalizedToDola * uint(dolaToUsdPrice)) / 1e18
         );
 
         uint256 sdeUSDToDeUSDRate = IERC4626(sdeUSD).convertToAssets(1e18);
-        int256 sdeUSDToDolaPrice = int256(
-            (sdeUSDNormalizedToDola * sdeUSDToDeUSDRate) / 1e18
-        );
-        int256 dolaPrice = IChainlinkBasePriceFeed(feed.dolaFeed())
-            .latestAnswer();
-
-        return (sdeUSDToDolaPrice * dolaPrice) / int256(1e18);
+        return
+            (sdeUSDNormalizedToUsdPrice * int(sdeUSDToDeUSDRate)) /
+            int256(1e18);
     }
 
     function _mockVaultRate(address vault, uint256 mockRate) internal {
