@@ -1,27 +1,5 @@
 pragma solidity ^0.8.20;
-
-interface IChainlinkFeed {
-    function aggregator() external view returns (address aggregator);
-    function decimals() external view returns (uint8 decimals);
-    function latestRoundData()
-        external
-        view
-        returns (
-            uint80 roundId,
-            int256 crvUsdPrice,
-            uint256 startedAt,
-            uint256 updatedAt,
-            uint80 answeredInRound
-        );
-    function latestAnswer() external view returns (int256 price);
-}
-interface IAggregator {
-    function maxAnswer() external view returns (int192);
-    function minAnswer() external view returns (int192);
-}
-interface ICurvePool {
-    function price_oracle(uint k) external view returns (uint256);
-}
+import {IChainlinkFeed} from "src/interfaces/IChainlinkFeed.sol";
 
 contract ChainlinkBridgeAssetFeed {
     IChainlinkFeed public immutable collateralToBridgeAsset;
@@ -40,8 +18,11 @@ contract ChainlinkBridgeAssetFeed {
         collateralToBridgeAsset = IChainlinkFeed(_collateralToBridgeAsset);
         bridgeAssetToUsd = IChainlinkFeed(_bridgeAssetToUsd);
         bridgeAssetDenominator = _bridgeAssetDenominator;
-        //TODO: Do string concat
-        description = "Combine oracle of 2 underlying oracles";
+        if(_bridgeAssetDenominator){
+            description = string(abi.encodePacked(collateralToBridgeAsset.description(), " * ", bridgeAssetToUsd.description()));
+        } else {
+            description = string(abi.encodePacked(bridgeAssetToUsd.description(), " / (", collateralToBridgeAsset.description(),")"));
+        }
         require(collateralToBridgeAsset.decimals() == 18, "collateralToBridgeAsset feed not normalized");
         require(bridgeAssetToUsd.decimals() == 18, "bridgeAssetToUsd feed not normalize");
     }

@@ -23,6 +23,10 @@ contract WbtcFeedFork is ChainlinkBridgeAssetBase {
         init(address(wbtcToBtc), address(btcToUsd), true);
     }
 
+    function test_correctDescription() public {
+        assertEq(feed.description(), "WBTC / BTC * BTC / USD");
+    }
+
     function test_latestAnswer_returnSameAsLatestRoundData() public {
         (, int btcLRD, , , ) = feed.collateralToBridgeAsset().latestRoundData();
         int btcLA = feed.collateralToBridgeAsset().latestAnswer();
