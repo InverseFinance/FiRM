@@ -14,7 +14,7 @@ contract SdeUSDMarketForkTest is MarketBaseForkTest {
     address sdeUSD = address(0x5C5b196aBE0d54485975D1Ec29617D42D9198326);
     address dolaFeed = address(0x6255981e2a1EBeA600aFC506185590eD383517be);
 
-    function setUp() public {
+    function setUp() public virtual {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
         vm.createSelectFork(url, 21880783);
