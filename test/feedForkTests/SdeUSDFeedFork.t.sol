@@ -83,7 +83,7 @@ contract SdeUSDFeedForkTest is Test {
             (sdeUSDNormalizedToDola * uint(dolaToUsdPrice)) / 1e18
         );
 
-        uint256 sdeUSDToDeUSDRate = IERC4626(sdeUSD).convertToAssets(1e18);
+        uint256 sdeUSDToDeUSDRate = IERC4626(sdeUSD).previewRedeem(1e18);
         return
             (sdeUSDNormalizedToUsdPrice * int(sdeUSDToDeUSDRate)) /
             int256(1e18);
@@ -92,7 +92,7 @@ contract SdeUSDFeedForkTest is Test {
     function _mockVaultRate(address vault, uint256 mockRate) internal {
         vm.mockCall(
             vault,
-            abi.encodeWithSelector(IERC4626.convertToAssets.selector, 1e18),
+            abi.encodeWithSelector(IERC4626.previewRedeem.selector, 1e18),
             abi.encode(mockRate)
         );
     }

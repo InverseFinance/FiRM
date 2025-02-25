@@ -58,7 +58,7 @@ contract ERC4626Feed {
             uint80 answeredInRound
         ) = feed.latestRoundData();
 
-        uint256 assetToUnderlyingRate = vault.convertToAssets(SCALE);
+        uint256 assetToUnderlyingRate = vault.previewRedeem(SCALE);
 
         // Multiply Normalized Asset/USD price by asset/underlying rate to get Asset/USD price
         int256 assetToUsdPrice = int256(
