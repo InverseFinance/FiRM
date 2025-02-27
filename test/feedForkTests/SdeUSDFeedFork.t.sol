@@ -73,6 +73,17 @@ contract SdeUSDFeedForkTest is Test {
         assertLt(feed.latestAnswer(), answer);
     }
 
+    function test_previewRedeemRevert_useConvertToAssets() public {
+        // Mock preview redeem rate
+        _mockVaultRate(sdeUSD, 2e18);
+        // Answer is equal to preview redeem rate but not equal to convert to assets
+        assertEq(feed.latestAnswer(), _calculateSdeUSDPrice());
+        assertGt(feed.latestAnswer(), _calculateSdeUSDPriceConvertToAssets());
+        // Mock preview redeem revert to use convert to assets
+        _mockPreviewRevert(sdeUSD);
+        assertEq(feed.latestAnswer(), _calculateSdeUSDPriceConvertToAssets());
+    }
+
     function _calculateSdeUSDPrice() internal view returns (int256) {
         uint256 sdeUSDNormalizedToDola = ICurvePool(curvePool).price_oracle(
             curveFeed.assetOrTargetK()
@@ -89,11 +100,39 @@ contract SdeUSDFeedForkTest is Test {
             int256(1e18);
     }
 
+    function _calculateSdeUSDPriceConvertToAssets()
+        internal
+        view
+        returns (int256)
+    {
+        uint256 sdeUSDNormalizedToDola = ICurvePool(curvePool).price_oracle(
+            curveFeed.assetOrTargetK()
+        );
+
+        int256 dolaToUsdPrice = curveFeed.assetToUsd().latestAnswer();
+        int256 sdeUSDNormalizedToUsdPrice = int256(
+            (sdeUSDNormalizedToDola * uint(dolaToUsdPrice)) / 1e18
+        );
+
+        uint256 sdeUSDToDeUSDRate = IERC4626(sdeUSD).convertToAssets(1e18);
+        return
+            (sdeUSDNormalizedToUsdPrice * int(sdeUSDToDeUSDRate)) /
+            int256(1e18);
+    }
+
     function _mockVaultRate(address vault, uint256 mockRate) internal {
         vm.mockCall(
             vault,
             abi.encodeWithSelector(IERC4626.previewRedeem.selector, 1e18),
             abi.encode(mockRate)
+        );
+    }
+
+    function _mockPreviewRevert(address vault) internal {
+        vm.mockCallRevert(
+            vault,
+            abi.encodeWithSelector(IERC4626.previewRedeem.selector, 1e18),
+            "mock revert"
         );
     }
 }
