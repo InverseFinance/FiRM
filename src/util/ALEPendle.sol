@@ -228,7 +228,6 @@ contract ALEPendle is
     /// @dev Requires user to sign message to permit the contract to borrow DOLA on behalf
     /// @param value Amount of DOLA to flash mint/burn
     /// @param market The market contract
-    /// @param spender The `allowanceTarget` field from the API response.
     /// @param swapCallData The `data` field from the API response.
     /// @param permit Permit data
     /// @param helperData Optional helper data in case the collateral needs to be transformed
@@ -236,7 +235,6 @@ contract ALEPendle is
     function leveragePosition(
         uint256 value,
         address market,
-        address spender,
         bytes calldata swapCallData,
         Permit calldata permit,
         bytes calldata helperData,
@@ -250,7 +248,6 @@ contract ALEPendle is
             msg.sender,
             market,
             0, // unused
-            spender,
             swapCallData,
             permit,
             helperData,
@@ -270,7 +267,6 @@ contract ALEPendle is
     /// @param initialDeposit Amount of collateral or underlying (in case of helper) to deposit
     /// @param value Amount of DOLA to borrow
     /// @param market The market address
-    /// @param spender The `allowanceTarget` field from the API response.
     /// @param swapCallData The `data` field from the API response.
     /// @param permit Permit data
     /// @param helperData Optional helper data in case the collateral needs to be transformed
@@ -280,7 +276,6 @@ contract ALEPendle is
         uint256 initialDeposit,
         uint256 value,
         address market,
-        address spender,
         bytes calldata swapCallData,
         Permit calldata permit,
         bytes calldata helperData,
@@ -307,7 +302,6 @@ contract ALEPendle is
         leveragePosition(
             value,
             market,
-            spender,
             swapCallData,
             permit,
             helperData,
@@ -320,7 +314,6 @@ contract ALEPendle is
     /// @param value Amount of DOLA to repay
     /// @param market The market contract
     /// @param collateralAmount Collateral amount to withdraw from the escrow
-    /// @param spender The `allowanceTarget` field from the API response.
     /// @param swapCallData The `data` field from the API response.
     /// @param permit Permit data
     /// @param helperData Optional helper data in case collateral needs to be transformed
@@ -329,7 +322,6 @@ contract ALEPendle is
         uint256 value,
         address market,
         uint256 collateralAmount,
-        address spender,
         bytes calldata swapCallData,
         Permit calldata permit,
         bytes calldata helperData,
@@ -343,7 +335,6 @@ contract ALEPendle is
             msg.sender,
             market,
             collateralAmount,
-            spender,
             swapCallData,
             permit,
             helperData,
@@ -368,14 +359,13 @@ contract ALEPendle is
         if (initiator != address(this)) revert NotALE(initiator);
         if (msg.sender != address(flash)) revert NotFlashMinter(msg.sender);
 
-        (bytes32 ACTION, , , , , , , , ) = abi.decode(
+        (bytes32 ACTION, , , , , , , ) = abi.decode(
             data,
             (
                 bytes32,
                 address,
                 address,
                 uint256,
-                address,
                 bytes,
                 Permit,
                 bytes,
@@ -396,7 +386,6 @@ contract ALEPendle is
             address _user,
             address _market,
             ,
-            address _spender,
             bytes memory _swapCallData,
             Permit memory _permit,
             bytes memory _helperData,
@@ -408,7 +397,6 @@ contract ALEPendle is
                     address,
                     address,
                     uint256,
-                    address,
                     bytes,
                     Permit,
                     bytes,
@@ -418,7 +406,7 @@ contract ALEPendle is
         // Call the encoded swap function call on the contract at `swapTarget`,
         // passing along any ETH attached to this function call to cover protocol fees.
         if (markets[_market].useProxy) {
-            dola.approve(_spender, _value);
+            dola.approve(address(exchangeProxy), _value);
             (bool success, ) = exchangeProxy.call{value: msg.value}(
                 _swapCallData
             );
@@ -475,7 +463,6 @@ contract ALEPendle is
             address _user,
             address _market,
             uint256 _collateralAmount,
-            address _spender,
             bytes memory _swapCallData,
             Permit memory _permit,
             bytes memory _helperData,
@@ -487,7 +474,6 @@ contract ALEPendle is
                     address,
                     address,
                     uint256,
-                    address,
                     bytes,
                     Permit,
                     bytes,
@@ -529,9 +515,9 @@ contract ALEPendle is
         // passing along any ETH attached to this function call to cover protocol fees.
         // NOTE: This will swap the collateral or helperCollateral for DOLA
         if (markets[_market].useProxy) {
-            // Approve sellToken for spender
-            sellToken.approve(_spender, 0);
-            sellToken.approve(_spender, _collateralAmount);
+            // Approve sellToken for exchangeProxy
+            sellToken.approve(address(exchangeProxy), 0);
+            sellToken.approve(address(exchangeProxy), _collateralAmount);
             (bool success, ) = exchangeProxy.call{value: msg.value}(
                 _swapCallData
             );
