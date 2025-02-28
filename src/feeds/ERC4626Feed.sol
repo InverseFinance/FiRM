@@ -5,7 +5,6 @@ import {IChainlinkCurveFeed} from "src/interfaces/IChainlinkCurveFeed.sol";
 import {IERC4626} from "lib/openzeppelin-contracts/contracts/interfaces/IERC4626.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
-import {console} from "forge-std/console.sol";
 
 /// @title ERC4626Feed
 /// @notice This contract is a generalized contract for an ERC4626 vault which has a feed in a Normalized Asset to USD price
