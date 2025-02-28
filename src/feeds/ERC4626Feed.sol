@@ -10,7 +10,7 @@ import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 /// @notice This contract is a generalized contract for an ERC4626 vault which has a feed in a Normalized Asset to USD price
 /// @dev It will convert the normalized asset to USD price to the Asset to USD price using the vault's rate
 /// @dev This is contract is meant to be used in combination with ChainlinkCurveFeed or ChainlinkCurve2CoinsFeed contracts.
-/// @dev Undelying asset decimals must be 18 or lower.
+/// @dev Underlying asset decimals must be 18 or lower.
 
 contract ERC4626Feed {
     using FixedPointMathLib for uint256;
