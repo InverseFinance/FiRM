@@ -6,6 +6,17 @@ import "src/feeds/ERC4626Feed.sol";
 import "src/interfaces/IChainlinkFeed.sol";
 import {ChainlinkCurveFeed, ICurvePool} from "src/feeds/ChainlinkCurveFeed.sol";
 import "forge-std/console.sol";
+import {ERC20 as ERC20Mock} from "test/mocks/ERC20.sol";
+import {ERC4626, ERC20} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
+contract Mock4626 is ERC4626 {
+    constructor(IERC20 _asset) ERC20("MOCK", "MOCK") ERC4626(_asset) {}
+
+    function _decimalsOffset() internal view override returns (uint8) {
+        return 12;
+    }
+}
 
 contract SdeUSDFeedForkTest is Test {
     ChainlinkCurveFeed curveFeed;
@@ -16,6 +27,10 @@ contract SdeUSDFeedForkTest is Test {
     address sdeUSD = address(0x5C5b196aBE0d54485975D1Ec29617D42D9198326);
     address dolaFeed = address(0x6255981e2a1EBeA600aFC506185590eD383517be);
 
+    ERC20Mock mock6Decimals;
+    Mock4626 mock6Vault;
+    ERC4626Feed feed6Decimals;
+
     function setUp() public {
         string memory url = vm.rpcUrl("mainnet");
         vm.createSelectFork(url);
@@ -23,8 +38,47 @@ contract SdeUSDFeedForkTest is Test {
         feed = new ERC4626Feed(sdeUSD, address(curveFeed));
     }
 
+    function test_6Decimals_underlying_asset_Feed_returns_18() public {
+        mock6Decimals = new ERC20Mock("Mock6", "M6", 6);
+        mock6Vault = new Mock4626(IERC20(address(mock6Decimals)));
+        assertEq(mock6Vault.decimals(), 18);
+
+        feed6Decimals = new ERC4626Feed(
+            address(mock6Vault),
+            address(curveFeed)
+        );
+        uint256 amount = 10000e6;
+        assertEq(feed6Decimals.decimals(), 18);
+        assertEq(feed6Decimals.assetScale(), 1e6);
+
+        mock6Decimals.mint(address(this), amount);
+        mock6Decimals.approve(address(mock6Vault), amount);
+        mock6Vault.deposit(amount, address(this));
+
+        assertEq(mock6Vault.convertToAssets(1e18), 1e6);
+        assertEq(mock6Vault.previewRedeem(1e18), 1e6);
+        assertEq(mock6Vault.convertToShares(1e6), 1e18);
+        assertEq(mock6Vault.previewDeposit(1e6), 1e18);
+
+        uint256 sdeUSDNormalizedToDola = ICurvePool(curvePool).price_oracle(
+            curveFeed.assetOrTargetK()
+        );
+
+        int256 dolaToUsdPrice = curveFeed.assetToUsd().latestAnswer();
+        int256 sdeUSDNormalizedToUsdPrice = int256(
+            (sdeUSDNormalizedToDola * uint(dolaToUsdPrice)) / 1e18
+        );
+
+        uint256 sdeUSDToDeUSDRate = mock6Vault.previewRedeem(1e18);
+
+        uint256 price = (uint(sdeUSDNormalizedToUsdPrice) * sdeUSDToDeUSDRate) /
+            1e6;
+        assertEq(feed6Decimals.latestAnswer(), int256(price));
+    }
+
     function test_decimals() public {
         assertEq(feed.decimals(), 18);
+        assertEq(feed.assetScale(), 1e18);
     }
 
     function test_description() public {
