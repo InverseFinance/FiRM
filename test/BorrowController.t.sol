@@ -133,6 +133,122 @@ contract BorrowControllerTest is FiRMBaseTest {
         );
     }
 
+    function test_BorrowAllowed_True_Where_EdgeCaseBugDebtNonZero()
+        public
+    {
+        uint testAmount = 1e18;
+        gibWeth(user, testAmount);
+        uint halfBorrow = getMaxBorrowAmount(testAmount) / 2;
+        gibDOLA(address(market), halfBorrow * 2);
+        vm.startPrank(user, user);
+        deposit(testAmount);
+        market.borrow(halfBorrow);
+        market.repay(user, halfBorrow-1);
+        vm.stopPrank();
+
+        assertEq(market.debts(user), 1, "User debt not 1");
+        assertEq(dbr.balanceOf(user), 0, "DBR balance of user is not 0 before time skip");
+        vm.warp(block.timestamp + 30 days);
+        ethFeed.changeUpdatedAt(block.timestamp);
+        vm.prank(gov);
+        dbr.addMinter(address(borrowController));
+        vm.prank(address(market), user);
+        assertTrue(
+            borrowController.borrowAllowed(user, user, 1)
+        );
+        vm.startPrank(user, user);
+        assertGt(market.getCreditLimit(user), 0, "User has no credit limit");
+        market.borrow(market.getCreditLimit(user) / 100);
+        assertLe(dbr.deficitOf(user), 30 days * 1, "Deficit of user more than expected");
+        assertEq(dbr.balanceOf(user), 0, "DBR balance of user is not 0");
+    }
+
+    function test_BorrowAllowed_True_Where_EdgeCaseBugDebtNonZero365Days()
+        public
+    {
+        uint testAmount = 1e18;
+        gibWeth(user, testAmount);
+        uint halfBorrow = getMaxBorrowAmount(testAmount) / 2;
+        gibDOLA(address(market), halfBorrow * 2);
+        vm.startPrank(user, user);
+        deposit(testAmount);
+        market.borrow(halfBorrow);
+        market.repay(user, halfBorrow-1);
+        vm.stopPrank();
+
+        assertEq(market.debts(user), 1, "User debt not 1");
+        assertEq(dbr.balanceOf(user), 0, "DBR balance of user is not 0 before time skip");
+        vm.warp(block.timestamp + 365 days);
+        ethFeed.changeUpdatedAt(block.timestamp);
+        vm.prank(gov);
+        dbr.addMinter(address(borrowController));
+        vm.prank(address(market), user);
+        assertTrue(
+            borrowController.borrowAllowed(user, user, 1)
+        );
+        vm.startPrank(user, user);
+        assertGt(market.getCreditLimit(user), 0, "User has no credit limit");
+        uint creditLimit = market.getCreditLimit(user);
+        vm.expectRevert("DBR Deficit");
+        market.borrow(creditLimit / 100);
+        dbr.accrueDueTokens(user);
+        assertEq(dbr.deficitOf(user), 1);
+    }
+
+
+    function test_BorrowAllowed_True_Where_EdgeCaseBugDebtNonZeroFuzz(uint timeElapsed)
+        public
+    {
+        uint timeElapsed = timeElapsed % 365 days;
+        uint testAmount = 1e18;
+        gibWeth(user, testAmount);
+        uint halfBorrow = getMaxBorrowAmount(testAmount) / 2;
+        gibDOLA(address(market), halfBorrow * 2);
+        vm.startPrank(user, user);
+        deposit(testAmount);
+        market.borrow(halfBorrow);
+        market.repay(user, halfBorrow-1);
+        vm.stopPrank();
+
+        assertEq(market.debts(user), 1, "User debt not 1");
+        assertEq(dbr.balanceOf(user), 0, "DBR balance of user is not 0 before time skip");
+        vm.warp(block.timestamp + timeElapsed);
+        ethFeed.changeUpdatedAt(block.timestamp);
+        vm.prank(gov);
+        dbr.addMinter(address(borrowController));
+        vm.prank(address(market), user);
+        assertTrue(
+            borrowController.borrowAllowed(user, user, 1)
+        );
+        vm.startPrank(user, user);
+        assertGt(market.getCreditLimit(user), 0, "User has no credit limit");
+        market.borrow(market.getCreditLimit(user) / 100);
+        assertLe(dbr.deficitOf(user), timeElapsed * 1, "Deficit of user more than expected");
+        assertEq(dbr.balanceOf(user), 0, "DBR balance of user is not 0");
+    }
+
+    function test_BorrowAllowed_False_Where_EdgeCaseBugTriggeredWithMinimalDebt()
+        public
+    {
+        uint testAmount = 1e18;
+        gibWeth(user, testAmount);
+        uint maxBorrow = getMaxBorrowAmount(testAmount);
+        gibDOLA(address(market), maxBorrow);
+        vm.startPrank(user, user);
+        deposit(testAmount);
+        market.borrow(maxBorrow);
+        market.repay(user, maxBorrow-1);
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 1);
+        vm.prank(address(market), user);
+        assertFalse(
+            borrowController.borrowAllowed(user, user, 1),
+            "User was allowed to borrow"
+        );
+    }
+
+
     function test_BorrowAllowed_True_Where_EdgeCaseBugTriggeredAndAMinter()
         public
     {
