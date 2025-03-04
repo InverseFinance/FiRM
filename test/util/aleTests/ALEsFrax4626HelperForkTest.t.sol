@@ -7,9 +7,9 @@ import "src/DBR.sol";
 import {Market, IBorrowController} from "src/Market.sol";
 import {Oracle, IChainlinkFeed} from "src/Oracle.sol";
 import {Fed, IMarket} from "src/Fed.sol";
-import {ALE} from "src/util/ALE.sol";
+import {ALEV2} from "src/util/ALEV2.sol";
 import {ERC4626Helper, IERC4626} from "src/util/ERC4626Helper.sol";
-import {IMultiMarketTransformHelper} from "src/interfaces/IMultiMarketTransformHelper.sol";
+import {IMultiMarketConvertHelper} from "src/interfaces/IMultiMarketConvertHelper.sol";
 import {console} from "forge-std/console.sol";
 import {BaseHelperForkTest, IERC4626, MockExchangeProxy} from "test/util/aleTests/BaseHelperForkTest.t.sol";
 import {IERC20} from "lib/openzeppelin-contracts/contracts/interfaces/IERC20.sol";
@@ -56,7 +56,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
     Fed fed;
 
     MockExchangeProxy exchangeProxy;
-    ALE ale;
+    ALEV2 ale;
     IFlashMinter flash;
     ERC4626Helper helper;
     //Variables
@@ -87,7 +87,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
         dbr.addMarket(address(market));
         DOLA.mint(address(market), 1000000e18);
 
-        ale = new ALE(address(exchangeProxy), triDBRAddr);
+        ale = new ALEV2(address(exchangeProxy), triDBRAddr);
         ale.setMarket(address(market), fraxAddr, address(helper), true);
         vm.stopPrank();
         //FiRM
@@ -186,7 +186,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
-        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+        ALEV2.Permit memory permit = ALEV2.Permit(block.timestamp, v, r, s);
 
         bytes memory swapData = abi.encodeWithSelector(
             MockExchangeProxy.swapDolaIn.selector,
@@ -194,12 +194,11 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
             maxBorrowAmount
         );
 
-        ALE.DBRHelper memory dbrData;
+        ALEV2.DBRHelper memory dbrData;
 
         ale.leveragePosition(
             maxBorrowAmount,
             address(market),
-            address(exchangeProxy),
             swapData,
             permit,
             abi.encode(address(market)),
@@ -268,7 +267,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
-        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+        ALEV2.Permit memory permit = ALEV2.Permit(block.timestamp, v, r, s);
 
         bytes memory swapData = abi.encodeWithSelector(
             MockExchangeProxy.swapDolaIn.selector,
@@ -276,7 +275,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
             maxBorrowAmount
         );
 
-        ALE.DBRHelper memory dbrData = ALE.DBRHelper(
+        ALEV2.DBRHelper memory dbrData = ALEV2.DBRHelper(
             dolaForDBR,
             (dbrAmount * 98) / 100,
             0
@@ -285,7 +284,6 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
         ale.leveragePosition(
             maxBorrowAmount,
             address(market),
-            address(exchangeProxy),
             swapData,
             permit,
             abi.encode(address(market)),
@@ -360,11 +358,11 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
-        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+        ALEV2.Permit memory permit = ALEV2.Permit(block.timestamp, v, r, s);
 
-        ALE.DBRHelper memory dbrData = ALE.DBRHelper(
+        ALEV2.DBRHelper memory dbrData = ALEV2.DBRHelper(
             dbr.balanceOf(userPk),
-            0,
+            1,
             0
         ); // sell all DBR
 
@@ -381,7 +379,6 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
             _convertCollatToDola(amountToWithdraw),
             address(market),
             amountToWithdraw,
-            address(exchangeProxy),
             swapData,
             permit,
             abi.encode(address(market)),
@@ -391,11 +388,11 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
         // Some collateral has been withdrawn
         assertEq(
             IERC20(sFraxAddr).balanceOf(address(market.predictEscrow(userPk))),
-            sFraxAmount - amountToWithdraw
+            sFraxAmount - amountToWithdraw, 'COLLATERAL'
         );
 
         // User still has dola and actually he has more bc he sold his DBRs
-        assertGt(DOLA.balanceOf(userPk), borrowAmount);
+       assertGt(DOLA.balanceOf(userPk), borrowAmount, 'DOLA');
 
         assertEq(dbr.balanceOf(userPk), 0);
     }
@@ -455,9 +452,9 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
-        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+        ALEV2.Permit memory permit = ALEV2.Permit(block.timestamp, v, r, s);
 
-        ALE.DBRHelper memory dbrData = ALE.DBRHelper(0, 0, borrowAmount / 2); // repay partially debt with DOLA in the wallet
+        ALEV2.DBRHelper memory dbrData = ALEV2.DBRHelper(0, 0, borrowAmount / 2); // repay partially debt with DOLA in the wallet
 
         bytes memory swapData = abi.encodeWithSelector(
             MockExchangeProxy.swapDolaOut.selector,
@@ -472,7 +469,6 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
             _convertCollatToDola(amountToWithdraw),
             address(market),
             amountToWithdraw,
-            address(exchangeProxy),
             swapData,
             permit,
             abi.encode(address(market)),
@@ -488,7 +484,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
         assertApproxEqAbs(DOLA.balanceOf(userPk), borrowAmount / 2, 1);
     }
 
-    function test_transformToCollateralAndDeposit(uint256 fraxAmount) public {
+    function test_convertToCollateralAndDeposit(uint256 fraxAmount) public {
         //vm.assume(fraxAmount < 1 ether);
 
         uint256 fraxAmount = 1 ether;
@@ -498,7 +494,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
 
         vm.startPrank(userPk, userPk);
         IERC20(fraxAddr).approve(address(helper), fraxAmount);
-        helper.transformToCollateralAndDeposit(
+        helper.convertToCollateralAndDeposit(
             fraxAmount,
             userPk,
             abi.encode(address(market))
@@ -512,7 +508,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
         );
     }
 
-    function test_withdrawAndTransformFromCollateral(
+    function test_withdrawAndConvertFromCollateral(
         uint256 fraxAmount
     ) public {
         // vm.assume(fraxAmount < IsFrax(sFrax).availableDepositLimit());
@@ -524,7 +520,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
 
         vm.startPrank(userPk, userPk);
         IERC20(fraxAddr).approve(address(helper), fraxAmount);
-        helper.transformToCollateralAndDeposit(
+        helper.convertToCollateralAndDeposit(
             fraxAmount,
             userPk,
             abi.encode(address(market))
@@ -555,8 +551,8 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
-        IMultiMarketTransformHelper.Permit
-            memory permit = IMultiMarketTransformHelper.Permit(
+        IMultiMarketConvertHelper.Permit
+            memory permit = IMultiMarketConvertHelper.Permit(
                 block.timestamp,
                 v,
                 r,
@@ -565,7 +561,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
 
         assertEq(IERC20(fraxAddr).balanceOf(userPk), 0);
 
-        helper.withdrawAndTransformFromCollateral(
+        helper.withdrawAndConvertFromCollateral(
             amountToWithdraw,
             userPk,
             permit,
@@ -583,7 +579,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
         address fakeMarket = address(0x69);
 
         vm.expectRevert(
-            abi.encodeWithSelector(ALE.NoMarket.selector, fakeMarket)
+            abi.encodeWithSelector(ALEV2.NoMarket.selector, fakeMarket)
         );
         vm.prank(gov);
         ale.setMarket(fakeMarket, address(0), address(0), true);
@@ -594,7 +590,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                ALE.MarketSetupFailed.selector,
+                ALEV2.MarketSetupFailed.selector,
                 address(market),
                 fakeBuySellToken,
                 address(collateral),
@@ -606,7 +602,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                ALE.MarketSetupFailed.selector,
+                ALEV2.MarketSetupFailed.selector,
                 address(market),
                 address(0),
                 address(collateral),
@@ -626,7 +622,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
         address newHelper = address(0x70);
 
         vm.expectRevert(
-            abi.encodeWithSelector(ALE.MarketNotSet.selector, wrongMarket)
+            abi.encodeWithSelector(ALEV2.MarketNotSet.selector, wrongMarket)
         );
         vm.prank(gov);
         ale.updateMarketHelper(wrongMarket, newHelper);
@@ -686,7 +682,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
-        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+        ALEV2.Permit memory permit = ALEV2.Permit(block.timestamp, v, r, s);
 
         bytes memory swapData = abi.encodeWithSelector(
             MockExchangeProxy.swapDolaIn.selector,
@@ -694,7 +690,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
             maxBorrowAmount
         );
 
-        ALE.DBRHelper memory dbrData;
+        ALEV2.DBRHelper memory dbrData;
 
         // Mock call to return 0 buySellToken balance for the ALE
         vm.mockCall(
@@ -703,11 +699,10 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
             abi.encode(uint256(0))
         );
 
-        vm.expectRevert(ALE.CollateralIsZero.selector);
+        vm.expectRevert(ALEV2.CollateralIsZero.selector);
         ale.leveragePosition(
             maxBorrowAmount,
             address(market),
-            address(exchangeProxy),
             swapData,
             permit,
             abi.encode(address(market)),

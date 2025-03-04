@@ -49,7 +49,7 @@ interface IERC3156FlashLender {
 }
 
 // Accelerated leverage engine
-contract ALEPendle is
+contract ALEV2 is
     Ownable,
     ReentrancyGuard,
     CurveDBRHelper,

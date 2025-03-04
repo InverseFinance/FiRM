@@ -2,7 +2,7 @@ pragma solidity ^0.8.13;
 
 import {PendlePTHelper} from "src/util/PendlePTHelper.sol";
 import "test/marketForkTests/PendlePTUSDeMarketForkTest.t.sol";
-import {ALEPendle} from "src/util/ALEPendle.sol";
+import {ALEV2} from "src/util/ALEV2.sol";
 import {SimpleERC20Escrow} from "src/escrows/SimpleERC20Escrow.sol";
 import {MockPendleRouter} from "test/mocks/MockPendleRouter.sol";
 
@@ -10,12 +10,12 @@ interface IFlashMinter {
     function setMaxFlashLimit(uint256 _maxFlashLimit) external;
 }
 
-contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
+contract ALEV2PTUSDeMockTest is PendlePTUSDeMarketForkTest {
     MockPendleRouter.ApproxParams emptyApprox;
     MockPendleRouter.TokenInput emptyTokenInput;
     MockPendleRouter.TokenOutput emptyTokenOutput;
     MockPendleRouter.LimitOrderData emptyLimit;
-    ALEPendle ale;
+    ALEV2 ale;
     IFlashMinter flash;
     address userPk = vm.addr(1);
     PendlePTHelper helper;
@@ -42,7 +42,7 @@ contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
         vm.startPrank(gov);
         DOLA.mint(address(this), 100000 ether);
 
-        ale = new ALEPendle(address(0), triDBRAddr);
+        ale = new ALEV2(address(0), triDBRAddr);
 
         helper = new PendlePTHelper(
             gov,
@@ -85,7 +85,7 @@ contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
 
         bytes memory swapData;
 
-        ALEPendle.DBRHelper memory dbrData;
+        ALEV2.DBRHelper memory dbrData;
 
         vm.startPrank(userPk);
         ale.leveragePosition(
@@ -120,7 +120,7 @@ contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
 
         bytes memory swapData;
 
-        ALEPendle.DBRHelper memory dbrData;
+        ALEV2.DBRHelper memory dbrData;
 
         vm.startPrank(userPk);
         ale.leveragePosition(
@@ -177,7 +177,7 @@ contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
 
         bytes memory swapData;
 
-        ALEPendle.DBRHelper memory dbrData = ALEPendle.DBRHelper(
+        ALEV2.DBRHelper memory dbrData = ALEV2.DBRHelper(
             dolaForDBR,
             (dbrAmount * 90) / 100,
             0
@@ -217,7 +217,7 @@ contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
 
         bytes memory swapData;
 
-        ALEPendle.DBRHelper memory dbrData;
+        ALEV2.DBRHelper memory dbrData;
 
         vm.startPrank(userPk);
         DOLA.approve(address(ale), initialDolaDeposit);
@@ -266,7 +266,7 @@ contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
 
         bytes memory swapData;
 
-        ALEPendle.DBRHelper memory dbrData;
+        ALEV2.DBRHelper memory dbrData;
 
         vm.startPrank(userPk);
         IERC20(address(pendlePT)).approve(address(ale), initialLpAmount);
@@ -298,7 +298,7 @@ contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
         vm.assume(lpAmount <= totalLpAmount);
         uint256 amountToWithdraw = lpAmount / 2;
 
-        ALEPendle.DBRHelper memory dbrData;
+        ALEV2.DBRHelper memory dbrData;
         bytes memory swapData;
 
         uint256 ytBalBefore = IERC20(pendleYT).balanceOf(userPk);
@@ -340,7 +340,7 @@ contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
         vm.assume(lpAmount <= totalLpAmount);
         uint256 amountToWithdraw = lpAmount / 2;
 
-        ALEPendle.DBRHelper memory dbrData;
+        ALEV2.DBRHelper memory dbrData;
         bytes memory swapData;
 
         vm.startPrank(userPk);
@@ -378,7 +378,7 @@ contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
             amountToRepay = dolaRedeemed;
         }
 
-        ALEPendle.DBRHelper memory dbrData = ALEPendle.DBRHelper(
+        ALEV2.DBRHelper memory dbrData = ALEV2.DBRHelper(
             dbr.balanceOf(userPk),
             10000,
             0
@@ -426,7 +426,7 @@ contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
 
     function _getPermitForBorrow(
         uint amount
-    ) internal view returns (ALEPendle.Permit memory permit) {
+    ) internal view returns (ALEV2.Permit memory permit) {
         // Sign Message for borrow on behalf
         bytes32 hash = keccak256(
             abi.encodePacked(
@@ -448,12 +448,12 @@ contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
-        permit = ALEPendle.Permit(block.timestamp, v, r, s);
+        permit = ALEV2.Permit(block.timestamp, v, r, s);
     }
 
     function _getPermitWithdraw(
         uint256 amountToWithdraw
-    ) internal view returns (ALEPendle.Permit memory permit) {
+    ) internal view returns (ALEV2.Permit memory permit) {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(
             1,
             keccak256(
@@ -475,7 +475,7 @@ contract ALEPendlePTUSDeMockTest is PendlePTUSDeMarketForkTest {
                 )
             )
         );
-        return ALEPendle.Permit(block.timestamp, v, r, s);
+        return ALEV2.Permit(block.timestamp, v, r, s);
     }
 
     function _encodeSwapForPT(

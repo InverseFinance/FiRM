@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 import {IERC4626} from "lib/openzeppelin-contracts/contracts/interfaces/IERC4626.sol";
 import {IMarket} from "src/interfaces/IMarket.sol";
 import {Sweepable, SafeERC20, IERC20} from "src/util/Sweepable.sol";
-import {IMultiMarketTransformHelper} from "src/interfaces/IMultiMarketTransformHelper.sol";
+import {IMultiMarketConvertHelper} from "src/interfaces/IMultiMarketConvertHelper.sol";
 
 /**
  * @title ERC4626 Accelerated Leverage Engine Helper
@@ -13,7 +13,7 @@ import {IMultiMarketTransformHelper} from "src/interfaces/IMultiMarketTransformH
  * Can also be used by anyone to perform wrap/unwrap and deposit/withdraw operations.
  **/
 
-contract ERC4626Helper is Sweepable, IMultiMarketTransformHelper {
+contract ERC4626Helper is Sweepable, IMultiMarketConvertHelper {
     using SafeERC20 for IERC20;
 
     error InsufficientShares();
@@ -48,11 +48,12 @@ contract ERC4626Helper is Sweepable, IMultiMarketTransformHelper {
      * @param data The encoded address of the market.
      * @return shares The amount of ERC4626 token received.
      */
-    function transformToCollateral(
+    function convertToCollateral(
+        address,
         uint256 amount,
         bytes calldata data
     ) external override returns (uint256 shares) {
-        shares = transformToCollateral(amount, msg.sender, data);
+        shares = convertToCollateral(amount, msg.sender, data);
     }
 
     /**
@@ -63,7 +64,7 @@ contract ERC4626Helper is Sweepable, IMultiMarketTransformHelper {
      * @param data The encoded address of the market.
      * @return shares The amount of ERC4626 token received.
      */
-    function transformToCollateral(
+    function convertToCollateral(
         uint256 amount,
         address recipient,
         bytes calldata data
@@ -86,11 +87,12 @@ contract ERC4626Helper is Sweepable, IMultiMarketTransformHelper {
      * @param data The encoded address of the market.
      * @return assets The amount of underlying token redeemed.
      */
-    function transformFromCollateral(
+    function convertFromCollateral(
+        address,
         uint256 amount,
         bytes calldata data
     ) external override returns (uint256 assets) {
-        assets = transformFromCollateral(amount, msg.sender, data);
+        assets = convertFromCollateral(amount, msg.sender, data);
     }
 
     /**
@@ -102,7 +104,7 @@ contract ERC4626Helper is Sweepable, IMultiMarketTransformHelper {
      * @param data The encoded address of the market.
      * @return assets The amount of underlying token redeemed.
      */
-    function transformFromCollateral(
+    function convertFromCollateral(
         uint256 amount,
         address recipient,
         bytes calldata data
@@ -128,7 +130,7 @@ contract ERC4626Helper is Sweepable, IMultiMarketTransformHelper {
      * @param data The encoded address of the market.
      * @return shares The amount of ERC4626 token deposited into the market.
      */
-    function transformToCollateralAndDeposit(
+    function convertToCollateralAndDeposit(
         uint256 assets,
         address recipient,
         bytes calldata data
@@ -138,7 +140,7 @@ contract ERC4626Helper is Sweepable, IMultiMarketTransformHelper {
 
         IERC4626 vault = markets[market].vault;
 
-        shares = transformToCollateral(assets, address(this), data);
+        shares = convertToCollateral(assets, address(this), data);
 
         uint256 actualShares = vault.balanceOf(address(this));
         if (shares > actualShares) revert InsufficientShares();
@@ -155,7 +157,7 @@ contract ERC4626Helper is Sweepable, IMultiMarketTransformHelper {
      * @param data The encoded address of the market.
      * @return assets The amount of underlying token withdrawn from the ERC4626 vault.
      */
-    function withdrawAndTransformFromCollateral(
+    function withdrawAndConvertFromCollateral(
         uint256 amount,
         address recipient,
         Permit calldata permit,
