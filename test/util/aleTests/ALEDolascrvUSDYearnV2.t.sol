@@ -5,7 +5,7 @@ import {CurveDolaLPHelperDynamic} from "src/util/CurveDolaLPHelperDynamic.sol";
 import "test/marketForkTests/DolascrvUSDYearnV2MarketForkTest.t.sol";
 import {console} from "forge-std/console.sol";
 import {IMultiMarketTransformHelper} from "src/interfaces/IMultiMarketTransformHelper.sol";
-import {ALE} from "src/util/ALE.sol";
+import {ALEV2} from "src/util/ALEV2.sol";
 import {YearnVaultV2Helper, IYearnVaultV2} from "src/util/YearnVaultV2Helper.sol";
 import {ALEBaseDolaLPDynYearnV2Test, IFlashMinter} from "test/util/aleTests/ALEBaseDolaLPDynYearnV2.sol";
 
@@ -16,14 +16,21 @@ contract ALEDolascrvUSDYearnV2Test is
     function setUp() public override {
         super.setUp();
         curvePool = ICurvePool(dolascrvUSD);
-        helper = CurveDolaLPHelperDynamic(curveDolaLPHelperDynamicAddr);
+        
+        helper = new CurveDolaLPHelperDynamic(
+            gov,
+            pauseGuardian,
+            address(DOLA)
+        );
+        
         vault = IYearnVaultV2(yearn);
 
         vm.startPrank(gov);
         DOLA.mint(address(this), 100000 ether);
         helper.setMarket(address(market), address(curvePool), 0, 2, yearn);
-        ale = ALE(payable(aleAddr));
+        ale = new ALEV2(address(0), triDBRAddr);
         ale.setMarket(address(market), address(DOLA), address(helper), false);
+        borrowController.allow(address(ale));
         vm.stopPrank();
 
         userPkEscrow = address(market.predictEscrow(userPk));
