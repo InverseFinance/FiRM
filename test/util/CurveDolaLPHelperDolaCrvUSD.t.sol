@@ -4,7 +4,7 @@ import {ICurvePool} from "src/interfaces/ICurvePool.sol";
 import {CurveDolaLPHelper} from "src/util/CurveDolaLPHelper.sol";
 import "test/marketForkTests/CrvUSDDolaConvexMarketForkTest.t.sol";
 import {console} from "forge-std/console.sol";
-import {IMultiMarketTransformHelper} from "src/interfaces/IMultiMarketTransformHelper.sol";
+import {IMultiMarketConvertHelper} from "src/interfaces/IMultiMarketConvertHelper.sol";
 
 contract CurveDolaLPHelperTest is CrvUSDDolaConvexMarketForkTest {
     CurveDolaLPHelper helper;
@@ -27,15 +27,16 @@ contract CurveDolaLPHelperTest is CrvUSDDolaConvexMarketForkTest {
         vm.stopPrank();
     }
 
-    function test_transformToCollateral() public {
+    function test_convertToCollateral() public {
         uint256 amount = 100 ether;
         // Estimate LP amount
         uint256[2] memory amounts = [amount, 0];
         uint estLpAmount = dolaCrvUSD.calc_token_amount(amounts, true);
 
         DOLA.approve(address(helper), amount);
-        uint256 lpAmount = helper.transformToCollateral(
+        uint256 lpAmount = helper.convertToCollateral(
             amount,
+            address(this),
             abi.encode(address(market), uint(1))
         );
         assertEq(
@@ -45,14 +46,14 @@ contract CurveDolaLPHelperTest is CrvUSDDolaConvexMarketForkTest {
         assertEq(lpAmount, estLpAmount);
     }
 
-    function test_transformToCollateral_receiver() public {
+    function test_convertToCollateral_receiver() public {
         uint256 amount = 100 ether;
         // Estimate LP amount
         uint256[2] memory amounts = [amount, 0];
         uint estLpAmount = dolaCrvUSD.calc_token_amount(amounts, true);
 
         DOLA.approve(address(helper), amount);
-        uint256 lpAmount = helper.transformToCollateral(
+        uint256 lpAmount = helper.convertToCollateral(
             amount,
             receiver,
             abi.encode(address(market), uint(1))
@@ -61,14 +62,14 @@ contract CurveDolaLPHelperTest is CrvUSDDolaConvexMarketForkTest {
         assertEq(lpAmount, estLpAmount);
     }
 
-    function test_transformToCollateralAndDeposit() public {
+    function test_convertToCollateralAndDeposit() public {
         uint256 amount = 100 ether;
         // Estimate LP amount
         uint256[2] memory amounts = [amount, 0];
         uint estLpAmount = dolaCrvUSD.calc_token_amount(amounts, true);
 
         DOLA.approve(address(helper), amount);
-        uint256 lpAmount = helper.transformToCollateralAndDeposit(
+        uint256 lpAmount = helper.convertToCollateralAndDeposit(
             amount,
             address(this),
             abi.encode(address(market), uint(1))
@@ -82,14 +83,14 @@ contract CurveDolaLPHelperTest is CrvUSDDolaConvexMarketForkTest {
         assertEq(lpAmount, estLpAmount);
     }
 
-    function test_transformToCollateralAndDeposit_receiver() public {
+    function test_convertToCollateralAndDeposit_receiver() public {
         uint256 amount = 100 ether;
         // Estimate LP amount
         uint256[2] memory amounts = [amount, 0];
         uint estLpAmount = dolaCrvUSD.calc_token_amount(amounts, true);
 
         DOLA.approve(address(helper), amount);
-        uint256 lpAmount = helper.transformToCollateralAndDeposit(
+        uint256 lpAmount = helper.convertToCollateralAndDeposit(
             amount,
             receiver,
             abi.encode(address(market), uint(1))
@@ -102,14 +103,15 @@ contract CurveDolaLPHelperTest is CrvUSDDolaConvexMarketForkTest {
         assertEq(lpAmount, estLpAmount);
     }
 
-    function test_transformFromCollateral() public {
-        test_transformToCollateral();
+    function test_convertFromCollateral() public {
+        test_convertToCollateral();
         uint256 amount = IERC20(address(dolaCrvUSD)).balanceOf(address(this));
         // Estimate DOLA amount
         uint estDolaAmount = dolaCrvUSD.calc_withdraw_one_coin(amount, 0);
         uint dolaBalBefore = DOLA.balanceOf(address(this));
         IERC20(address(dolaCrvUSD)).approve(address(helper), amount);
-        uint256 dolaAmount = helper.transformFromCollateral(
+        uint256 dolaAmount = helper.convertFromCollateral(
+            address(0),
             amount,
             abi.encode(address(market), uint(1))
         );
@@ -118,14 +120,14 @@ contract CurveDolaLPHelperTest is CrvUSDDolaConvexMarketForkTest {
         assertEq(dolaAmount, estDolaAmount);
     }
 
-    function test_transformFromCollateral_receiver() public {
-        test_transformToCollateral();
+    function test_convertFromCollateral_receiver() public {
+        test_convertToCollateral();
         uint256 amount = IERC20(address(dolaCrvUSD)).balanceOf(address(this));
         // Estimate DOLA amount
         uint estDolaAmount = dolaCrvUSD.calc_withdraw_one_coin(amount, 0);
 
         IERC20(address(dolaCrvUSD)).approve(address(helper), amount);
-        uint256 dolaAmount = helper.transformFromCollateral(
+        uint256 dolaAmount = helper.convertFromCollateral(
             amount,
             receiver,
             abi.encode(address(market), uint(1))
@@ -135,8 +137,8 @@ contract CurveDolaLPHelperTest is CrvUSDDolaConvexMarketForkTest {
         assertEq(dolaAmount, estDolaAmount);
     }
 
-    function test_withdrawAndTransformFromCollateral() public {
-        test_transformToCollateralAndDeposit_receiver();
+    function test_withdrawAndConvertFromCollateral() public {
+        test_convertToCollateralAndDeposit_receiver();
         uint256 amount = ConvexEscrowV2(address(market.predictEscrow(receiver)))
             .balance();
         // Estimate DOLA amount
@@ -163,15 +165,15 @@ contract CurveDolaLPHelperTest is CrvUSDDolaConvexMarketForkTest {
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(23, hash);
 
-        IMultiMarketTransformHelper.Permit
-            memory permit = IMultiMarketTransformHelper.Permit(
+        IMultiMarketConvertHelper.Permit
+            memory permit = IMultiMarketConvertHelper.Permit(
                 block.timestamp,
                 v,
                 r,
                 s
             );
         vm.prank(receiver);
-        uint256 dolaAmount = helper.withdrawAndTransformFromCollateral(
+        uint256 dolaAmount = helper.withdrawAndConvertFromCollateral(
             amount,
             receiver,
             permit,
@@ -182,8 +184,8 @@ contract CurveDolaLPHelperTest is CrvUSDDolaConvexMarketForkTest {
         assertEq(dolaAmount, estDolaAmount);
     }
 
-    function test_withdrawAndTransformFromCollateral_other_receiver() public {
-        test_transformToCollateralAndDeposit_receiver();
+    function test_withdrawAndConvertFromCollateral_other_receiver() public {
+        test_convertToCollateralAndDeposit_receiver();
         uint256 amount = ConvexEscrowV2(address(market.predictEscrow(receiver)))
             .balance();
         // Estimate DOLA amount
@@ -211,15 +213,15 @@ contract CurveDolaLPHelperTest is CrvUSDDolaConvexMarketForkTest {
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(23, hash);
 
-        IMultiMarketTransformHelper.Permit
-            memory permit = IMultiMarketTransformHelper.Permit(
+        IMultiMarketConvertHelper.Permit
+            memory permit = IMultiMarketConvertHelper.Permit(
                 block.timestamp,
                 v,
                 r,
                 s
             );
         vm.prank(receiver);
-        uint256 dolaAmount = helper.withdrawAndTransformFromCollateral(
+        uint256 dolaAmount = helper.withdrawAndConvertFromCollateral(
             amount,
             address(this),
             permit,

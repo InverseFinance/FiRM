@@ -5,7 +5,7 @@ import {CurveDolaLPHelper} from "src/util/CurveDolaLPHelper.sol";
 import "test/marketForkTests/DolaFraxBPConvexMarketForkTest.t.sol";
 import {console} from "forge-std/console.sol";
 import {IMultiMarketTransformHelper} from "src/interfaces/IMultiMarketTransformHelper.sol";
-import {ALE} from "src/util/ALE.sol";
+import {ALEV2} from "src/util/ALEV2.sol";
 
 interface IFlashMinter {
     function setMaxFlashLimit(uint256 _maxFlashLimit) external;
@@ -17,7 +17,7 @@ interface IFlashMinter {
 }
 
 contract ALEDolaFraxBPTest is DolaFraxBPConvexMarketForkTest {
-    ALE ale;
+    ALEV2 ale;
     IFlashMinter flash;
     address userPk = vm.addr(1);
     CurveDolaLPHelper helper;
@@ -28,12 +28,12 @@ contract ALEDolaFraxBPTest is DolaFraxBPConvexMarketForkTest {
         super.setUp();
         curvePool = dolaFraxBP;
 
-        helper = CurveDolaLPHelper(curveDolaLPHelperAddr);
+        helper = new CurveDolaLPHelper(gov, pauseGuardian, address(DOLA));
 
         vm.startPrank(gov);
         DOLA.mint(address(this), 100000 ether);
         helper.setMarket(address(market), address(curvePool), 0, 2, address(0));
-        ale = new ALE(address(0), triDBRAddr);
+        ale = new ALEV2(address(0), triDBRAddr);
         ale.setMarket(address(market), address(DOLA), address(helper), false);
 
         flash = IFlashMinter(address(ale.flash()));
@@ -50,7 +50,7 @@ contract ALEDolaFraxBPTest is DolaFraxBPConvexMarketForkTest {
 
         vm.startPrank(userPk, userPk);
         DOLA.approve(address(helper), 10000000 ether);
-        helper.transformToCollateralAndDeposit(
+        helper.convertToCollateralAndDeposit(
             10000000 ether,
             userPk,
             abi.encode(address(market), 0)
@@ -83,11 +83,11 @@ contract ALEDolaFraxBPTest is DolaFraxBPConvexMarketForkTest {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
-        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+        ALEV2.Permit memory permit = ALEV2.Permit(block.timestamp, v, r, s);
 
         bytes memory swapData;
 
-        ALE.DBRHelper memory dbrData;
+        ALEV2.DBRHelper memory dbrData;
 
         uint256[2] memory amounts = [maxBorrowAmount, 0];
         uint256 lpAmountAdded = curvePool.calc_token_amount(amounts, true);
@@ -96,7 +96,6 @@ contract ALEDolaFraxBPTest is DolaFraxBPConvexMarketForkTest {
         ale.leveragePosition(
             maxBorrowAmount,
             address(market),
-            address(0),
             swapData,
             permit,
             abi.encode(address(market), uint(0)),
@@ -119,7 +118,7 @@ contract ALEDolaFraxBPTest is DolaFraxBPConvexMarketForkTest {
 
         vm.startPrank(userPk, userPk);
         DOLA.approve(address(helper), amount);
-        helper.transformToCollateralAndDeposit(
+        helper.convertToCollateralAndDeposit(
             amount,
             userPk,
             abi.encode(address(market), 0)
@@ -155,11 +154,11 @@ contract ALEDolaFraxBPTest is DolaFraxBPConvexMarketForkTest {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
-        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+        ALEV2.Permit memory permit = ALEV2.Permit(block.timestamp, v, r, s);
 
         bytes memory swapData;
 
-        ALE.DBRHelper memory dbrData = ALE.DBRHelper(
+        ALEV2.DBRHelper memory dbrData = ALEV2.DBRHelper(
             dolaForDBR,
             (dbrAmount * 95) / 100,
             0
@@ -172,7 +171,6 @@ contract ALEDolaFraxBPTest is DolaFraxBPConvexMarketForkTest {
         ale.leveragePosition(
             maxBorrowAmount,
             address(market),
-            address(0),
             swapData,
             permit,
             abi.encode(address(market), uint(0)),
@@ -197,7 +195,7 @@ contract ALEDolaFraxBPTest is DolaFraxBPConvexMarketForkTest {
 
         vm.startPrank(userPk, userPk);
         DOLA.approve(address(helper), amount - initialDolaDeposit);
-        helper.transformToCollateralAndDeposit(
+        helper.convertToCollateralAndDeposit(
             amount - initialDolaDeposit,
             userPk,
             abi.encode(address(market), 0)
@@ -230,11 +228,11 @@ contract ALEDolaFraxBPTest is DolaFraxBPConvexMarketForkTest {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
-        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+        ALEV2.Permit memory permit = ALEV2.Permit(block.timestamp, v, r, s);
 
         bytes memory swapData;
 
-        ALE.DBRHelper memory dbrData;
+        ALEV2.DBRHelper memory dbrData;
 
         uint256[2] memory amounts = [maxBorrowAmount + initialDolaDeposit, 0];
         uint256 lpAmountAdded = curvePool.calc_token_amount(amounts, true);
@@ -245,7 +243,6 @@ contract ALEDolaFraxBPTest is DolaFraxBPConvexMarketForkTest {
             initialDolaDeposit,
             maxBorrowAmount,
             address(market),
-            address(0),
             swapData,
             permit,
             abi.encode(address(market), uint(0)),
@@ -270,11 +267,12 @@ contract ALEDolaFraxBPTest is DolaFraxBPConvexMarketForkTest {
 
         vm.startPrank(userPk, userPk);
         DOLA.approve(address(helper), amount);
-        uint256 initialLpAmount = helper.transformToCollateral(
+        uint256 initialLpAmount = helper.convertToCollateral(
+            address(0),
             initialDolaDeposit,
             abi.encode(address(market), 0)
         );
-        helper.transformToCollateralAndDeposit(
+        helper.convertToCollateralAndDeposit(
             amount - initialDolaDeposit,
             userPk,
             abi.encode(address(market), 0)
@@ -307,11 +305,11 @@ contract ALEDolaFraxBPTest is DolaFraxBPConvexMarketForkTest {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
-        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+        ALEV2.Permit memory permit = ALEV2.Permit(block.timestamp, v, r, s);
 
         bytes memory swapData;
 
-        ALE.DBRHelper memory dbrData;
+        ALEV2.DBRHelper memory dbrData;
 
         uint256[2] memory amounts = [maxBorrowAmount, 0];
         uint256 lpAmountAdded = curvePool.calc_token_amount(amounts, true);
@@ -322,7 +320,6 @@ contract ALEDolaFraxBPTest is DolaFraxBPConvexMarketForkTest {
             initialLpAmount,
             maxBorrowAmount,
             address(market),
-            address(0),
             swapData,
             permit,
             abi.encode(address(market), uint(0)),
@@ -370,9 +367,9 @@ contract ALEDolaFraxBPTest is DolaFraxBPConvexMarketForkTest {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
-        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+        ALEV2.Permit memory permit = ALEV2.Permit(block.timestamp, v, r, s);
 
-        ALE.DBRHelper memory dbrData;
+        ALEV2.DBRHelper memory dbrData;
         bytes memory swapData;
 
         vm.prank(userPk);
@@ -380,7 +377,6 @@ contract ALEDolaFraxBPTest is DolaFraxBPConvexMarketForkTest {
             dolaRedeemed / 2,
             address(market),
             amountToWithdraw,
-            address(0),
             swapData,
             permit,
             abi.encode(address(market), uint(0)),
@@ -433,11 +429,11 @@ contract ALEDolaFraxBPTest is DolaFraxBPConvexMarketForkTest {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
-        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+        ALEV2.Permit memory permit = ALEV2.Permit(block.timestamp, v, r, s);
 
-        ALE.DBRHelper memory dbrData = ALE.DBRHelper(
+        ALEV2.DBRHelper memory dbrData = ALEV2.DBRHelper(
             dbr.balanceOf(userPk),
-            0,
+            1,
             0
         ); // sell all DBR
         bytes memory swapData;
@@ -448,7 +444,6 @@ contract ALEDolaFraxBPTest is DolaFraxBPConvexMarketForkTest {
             amountToRepay,
             address(market),
             amountToWithdraw,
-            address(0),
             swapData,
             permit,
             abi.encode(address(market), uint(0)),
