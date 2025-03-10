@@ -17,6 +17,22 @@ contract BorrowContractTxOrigin {
         market.borrow((AMOUNT * COLLATERAL_FACTOR_BPS * PRICE) / BPS_BASIS);
     }
 }
+contract BatchApprove {
+    IDBR immutable dbr;
+
+    constructor(address _dbr){
+        dbr = IDBR(_dbr);
+    }
+
+    function approveDepositAndBorrow(address _market, uint depositAmount, uint borrowAmount) external {
+        require(msg.sender == address(this), "Invalid authority");
+        require(tx.origin == address(this), "Invalid origin");
+        require(dbr.markets(_market), "Invalid market");
+        IMarket market = IMarket(_market);
+        IERC20(market.collateral()).approve(_market, depositAmount);
+        market.depositAndBorrow(depositAmount, borrowAmount);
+    }
+}
 
 contract BorrowControllerTest is FiRMBaseTest {
     BorrowContract borrowContract;
@@ -310,6 +326,22 @@ contract BorrowControllerTest is FiRMBaseTest {
         vm.stopPrank();
     }
 
+    function test_borrowAllowed_False_whenCalledByEIP7702tx() public {
+        uint ALICE_PK = 1;
+        address ALICE = vm.addr(ALICE_PK);
+        BatchApprove implementation = new BatchApprove(address(dbr));
+        //Simulated borrow
+        uint testAmount = 1e18;
+        gibWeth(ALICE, testAmount);
+        uint maxBorrow = getMaxBorrowAmount(testAmount);
+        gibDOLA(address(market), maxBorrow);
+        vm.signAndAttachDelegation(address(implementation), ALICE_PK);
+        vm.startPrank(ALICE, ALICE);
+        vm.expectRevert("Denied by borrow controller");
+        BatchApprove(ALICE).approveDepositAndBorrow(address(market), testAmount, maxBorrow);
+        vm.stopPrank();
+    }
+
     function test_BorrowAllowed_False_Where_DebtIsBelowMininimum() public {
         vm.startPrank(gov);
         borrowController.setMinDebt(address(market), 1 ether);
@@ -393,6 +425,9 @@ contract BorrowControllerTest is FiRMBaseTest {
         );
     }
 
+
+    //Access Control
+
     function test_setDailyLimit() public {
         vm.expectRevert(onlyOperatorLowercase);
         borrowController.setDailyLimit(address(0), 1);
@@ -401,8 +436,6 @@ contract BorrowControllerTest is FiRMBaseTest {
         borrowController.setDailyLimit(address(0), 1);
         assertEq(borrowController.dailyLimits(address(0)), 1);
     }
-
-    //Access Control
 
     function test_accessControl_setOperator() public {
         vm.prank(gov);
