@@ -12,12 +12,12 @@ interface INavFeed {
         view
         returns (uint80, int256, uint256, uint256, uint80);
 }
-/// @title USDeFeed
-/// @notice A contract to get the USDe price using sUSDe Chainlink Wrapper feed and sUSDe/USDe rate
+/// @title USDeFeed Before Maturity using NAV
+/// @notice A contract to get the USDe price using sUSDe Chainlink Wrapper feed and sUSDe/USDe rate and NAV
 contract USDeNavBeforeMaturityFeed {
     error DecimalsMismatch();
     error MaturityPassed();
-    
+
     IChainlinkBasePriceFeed public immutable sUSDeFeed;
     IERC4626 public immutable sUSDe;
     INavFeed public immutable navFeed;
@@ -40,7 +40,7 @@ contract USDeNavBeforeMaturityFeed {
 
     /**
      * @return roundId The round ID of sUSDe Chainlink price feed
-     * @return USDeUsdPrice The latest USDe price in USD
+     * @return USDeUsdPrice The latest USDe price in USD using NAV
      * @return startedAt The timestamp when the latest round of Chainlink price feed started
      * @return updatedAt The timestamp when the latest round of Chainlink price feed was updated
      * @return answeredInRound The round ID in which the answer was computed
@@ -64,9 +64,9 @@ contract USDeNavBeforeMaturityFeed {
         int256 USDeUsdPrice = (sUSDePrice * 1e18) / int256(sUSDeToUSDeRate);
 
         (,int256 navDiscountedPrice,,,)= navFeed.latestRoundData();
-        int256 discountPrice = (USDeUsdPrice * navDiscountedPrice) / 1e18;
+        int256 usdeDiscountPrice = (USDeUsdPrice * navDiscountedPrice) / 1e18;
         
-        return (roundId, discountPrice, startedAt, updatedAt, answeredInRound);
+        return (roundId, usdeDiscountPrice, startedAt, updatedAt, answeredInRound);
     }
 
     /** 
