@@ -19,7 +19,7 @@ contract DolaUSRYearnV2MarketForkTest is MarketBaseForkTest {
     CurveLPYearnV2Feed yearnFeed;
     CurveLPPessimisticFeed lpFeed;
 
-    MockFeedDescription public usrFeed;
+    address public usrFeed = address(0x34ad75691e25A8E9b681AAA85dbeB7ef6561B42c);
  
     ChainlinkBasePriceFeed usrWrapper;
 
@@ -32,7 +32,7 @@ contract DolaUSRYearnV2MarketForkTest is MarketBaseForkTest {
     function setUp() public virtual {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url, 21826229);
+        vm.createSelectFork(url, 21969468);
 
         Market market = new Market(
             gov,
@@ -55,12 +55,11 @@ contract DolaUSRYearnV2MarketForkTest is MarketBaseForkTest {
         internal
         returns (CurveLPYearnV2Feed feed)
     {
-        usrFeed = new MockFeedDescription(8, 100000000, "USR / USD");
         usrWrapper = new ChainlinkBasePriceFeed(
             gov,
             address(usrFeed),
             address(0),
-            1
+            86400
         );
 
         lpFeed = new CurveLPPessimisticFeed(

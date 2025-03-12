@@ -24,7 +24,7 @@ contract DolaUSRConvexMarketForkTest is MarketBaseForkTest {
     ICurvePool public constant dolaUSR =
         ICurvePool(0x38De22a3175708D45E7c7c64CD78479C8B56f76E);
 
-    MockFeedDescription public usrFeed;
+    address public usrFeed = address(0x34ad75691e25A8E9b681AAA85dbeB7ef6561B42c);
  
     ChainlinkBasePriceFeed usrWrapper;
 
@@ -92,12 +92,12 @@ contract DolaUSRConvexMarketForkTest is MarketBaseForkTest {
         internal
         returns (CurveLPPessimisticFeed feed)
     {
-        usrFeed = new MockFeedDescription(8, 100000000, "USR / USD");
+      
         usrWrapper = new ChainlinkBasePriceFeed(
             gov,
-            address(usrFeed),
+            usrFeed,
             address(0),
-            1
+            86400
         );
         feed = new CurveLPPessimisticFeed(
             address(dolaUSR),
