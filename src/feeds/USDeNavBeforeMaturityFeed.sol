@@ -6,8 +6,7 @@ import {IERC4626} from "lib/openzeppelin-contracts/contracts/interfaces/IERC4626
 
 interface INavFeed {
     function maturity() external view returns (uint256);
-    function getDiscount(uint256 timeLeft) external view returns (uint256);
-
+    function decimals() external view returns (uint8);
     function latestRoundData()
         external
         view
@@ -17,7 +16,8 @@ interface INavFeed {
 /// @notice A contract to get the USDe price using sUSDe Chainlink Wrapper feed and sUSDe/USDe rate
 contract USDeNavBeforeMaturityFeed {
     error DecimalsMismatch();
-
+    error MaturityPassed();
+    
     IChainlinkBasePriceFeed public immutable sUSDeFeed;
     IERC4626 public immutable sUSDe;
     INavFeed public immutable navFeed;
@@ -28,9 +28,9 @@ contract USDeNavBeforeMaturityFeed {
         sUSDeFeed = IChainlinkBasePriceFeed(_sUSDeFeed);
         sUSDe = IERC4626(_sUSDe);
         navFeed = INavFeed(_navFeed);
-        if (sUSDeFeed.decimals() != 18 || sUSDe.decimals() != 18)
+        if (sUSDeFeed.decimals() != 18 || sUSDe.decimals() != 18 || navFeed.decimals() != 18)
             revert DecimalsMismatch();
-
+        if(navFeed.maturity() <= block.timestamp) revert MaturityPassed();
         description = string(
             abi.encodePacked(
                 "USDe/USD Feed using sUSDe Chainlink feed and sUSDe/USDe rate with NAV"

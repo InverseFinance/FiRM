@@ -147,4 +147,16 @@ contract USDeNavBeforeMaturityFeedTest is Test {
         assertEq(updatedAt, 0);
         assertEq(answeredInRound, 0);
     }
+
+    function test_maturity_passed() public {
+        uint256 maturity = INavFeed(address(feed.navFeed())).maturity();
+        vm.warp(maturity);
+        address navFeed = navFactory.createWithPt(pendlePT, 0.2 ether); 
+        vm.expectRevert(USDeNavBeforeMaturityFeed.MaturityPassed.selector);
+        feed = new USDeNavBeforeMaturityFeed(
+            address(sUSDeWrappedFeed),
+            address(sUSDe),
+            navFeed
+        );
+    }
 }
