@@ -64,8 +64,9 @@ contract borrowControllerSetup is Script {
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         vm.createSelectFork(vm.envString("RPC_MAINNET"));
-        newBorrowController = BorrowController(0x0d9CE79F4A03Db39ff393569a24a1421D160A641);
-
+        vm.broadcast(deployerPrivateKey);
+        newBorrowController = new BorrowController(gov, address(DBR));
+        /**
         for(uint i; i < markets.length; ++i){
             address market = markets[i];
             require(DBR.markets(market), "Not a market");
@@ -88,7 +89,7 @@ contract borrowControllerSetup is Script {
             }
             console.log("----------------");
         }
-
+        */
         //Add helper contract to allowList
         /*
         vm.startBroadcast(deployerPrivateKey);
