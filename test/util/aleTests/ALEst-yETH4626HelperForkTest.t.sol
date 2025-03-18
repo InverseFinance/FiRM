@@ -93,7 +93,8 @@ contract ALEstYETH4626HelperForkTest is BaseHelperForkTest {
         );
         dbr.addMarket(address(market));
 
-        ale = new ALEV2(address(exchangeProxy), triDBRAddr);
+        ale = new ALEV2(triDBRAddr);
+        ale.allowProxy(address(exchangeProxy));
         ale.setMarket(address(market), yEthAddr, address(helper), true);
 
         vm.stopPrank();
@@ -188,6 +189,7 @@ contract ALEstYETH4626HelperForkTest is BaseHelperForkTest {
         ale.leveragePosition(
             maxBorrowAmount,
             address(market),
+            address(exchangeProxy),
             swapData,
             permit,
             abi.encode(address(market)),
@@ -273,6 +275,7 @@ contract ALEstYETH4626HelperForkTest is BaseHelperForkTest {
         ale.leveragePosition(
             maxBorrowAmount,
             address(market),
+            address(exchangeProxy),
             swapData,
             permit,
             abi.encode(address(market)),
@@ -367,6 +370,7 @@ contract ALEstYETH4626HelperForkTest is BaseHelperForkTest {
         ale.deleveragePosition(
             _convertCollatToDola(amountToWithdraw),
             address(market),
+            address(exchangeProxy),
             amountToWithdraw,
             swapData,
             permit,
@@ -458,6 +462,7 @@ contract ALEstYETH4626HelperForkTest is BaseHelperForkTest {
         ale.deleveragePosition(
             _convertCollatToDola(amountToWithdraw),
             address(market),
+            address(exchangeProxy),
             amountToWithdraw,
             swapData,
             permit,
@@ -664,6 +669,7 @@ contract ALEstYETH4626HelperForkTest is BaseHelperForkTest {
         ale.leveragePosition(
             maxBorrowAmount,
             address(market),
+            address(exchangeProxy),
             swapData,
             permit,
             abi.encode(address(market)),

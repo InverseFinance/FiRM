@@ -33,7 +33,7 @@ contract ALEDolaFraxBPTest is DolaFraxBPConvexMarketForkTest {
         vm.startPrank(gov);
         DOLA.mint(address(this), 100000 ether);
         helper.setMarket(address(market), address(curvePool), 0, 2, address(0));
-        ale = new ALEV2(address(0), triDBRAddr);
+        ale = new ALEV2(triDBRAddr);
         ale.setMarket(address(market), address(DOLA), address(helper), false);
 
         flash = IFlashMinter(address(ale.flash()));
@@ -96,6 +96,7 @@ contract ALEDolaFraxBPTest is DolaFraxBPConvexMarketForkTest {
         ale.leveragePosition(
             maxBorrowAmount,
             address(market),
+            address(0),
             swapData,
             permit,
             abi.encode(address(market), uint(0)),
@@ -171,6 +172,7 @@ contract ALEDolaFraxBPTest is DolaFraxBPConvexMarketForkTest {
         ale.leveragePosition(
             maxBorrowAmount,
             address(market),
+            address(0),
             swapData,
             permit,
             abi.encode(address(market), uint(0)),
@@ -243,6 +245,7 @@ contract ALEDolaFraxBPTest is DolaFraxBPConvexMarketForkTest {
             initialDolaDeposit,
             maxBorrowAmount,
             address(market),
+            address(0),
             swapData,
             permit,
             abi.encode(address(market), uint(0)),
@@ -320,6 +323,7 @@ contract ALEDolaFraxBPTest is DolaFraxBPConvexMarketForkTest {
             initialLpAmount,
             maxBorrowAmount,
             address(market),
+            address(0),
             swapData,
             permit,
             abi.encode(address(market), uint(0)),
@@ -376,6 +380,7 @@ contract ALEDolaFraxBPTest is DolaFraxBPConvexMarketForkTest {
         ale.deleveragePosition(
             dolaRedeemed / 2,
             address(market),
+            address(0),
             amountToWithdraw,
             swapData,
             permit,
@@ -443,6 +448,7 @@ contract ALEDolaFraxBPTest is DolaFraxBPConvexMarketForkTest {
         ale.deleveragePosition(
             amountToRepay,
             address(market),
+            address(0),
             amountToWithdraw,
             swapData,
             permit,

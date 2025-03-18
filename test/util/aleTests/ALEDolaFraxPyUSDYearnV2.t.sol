@@ -39,7 +39,7 @@ contract ALEDolaFraxPyUSDYearnV2Test is DolaFraxPyUSDYearnV2MarketForkTest {
             2,
             address(yearn)
         );
-        ale = new ALEV2(address(0), triDBRAddr);
+        ale = new ALEV2(triDBRAddr);
         ale.setMarket(address(market), address(DOLA), address(helper), false);
 
         flash = IFlashMinter(address(ale.flash()));
@@ -105,6 +105,7 @@ contract ALEDolaFraxPyUSDYearnV2Test is DolaFraxPyUSDYearnV2MarketForkTest {
         ale.leveragePosition(
             maxBorrowAmount,
             address(market),
+            address(0),
             swapData,
             permit,
             abi.encode(address(market), uint(0)),
@@ -179,6 +180,7 @@ contract ALEDolaFraxPyUSDYearnV2Test is DolaFraxPyUSDYearnV2MarketForkTest {
         ale.leveragePosition(
             maxBorrowAmount,
             address(market),
+            address(0),
             swapData,
             permit,
             abi.encode(address(market), uint(0)),
@@ -250,6 +252,7 @@ contract ALEDolaFraxPyUSDYearnV2Test is DolaFraxPyUSDYearnV2MarketForkTest {
             initialDolaDeposit,
             maxBorrowAmount,
             address(market),
+            address(0),
             swapData,
             permit,
             abi.encode(address(market), uint(0)),
@@ -325,6 +328,7 @@ contract ALEDolaFraxPyUSDYearnV2Test is DolaFraxPyUSDYearnV2MarketForkTest {
             initialSharesAmount,
             maxBorrowAmount,
             address(market),
+            address(0),
             swapData,
             permit,
             abi.encode(address(market), uint(0)),
@@ -380,6 +384,7 @@ contract ALEDolaFraxPyUSDYearnV2Test is DolaFraxPyUSDYearnV2MarketForkTest {
         ale.deleveragePosition(
             dolaRedeemed / 2,
             address(market),
+            address(0),
             amountToWithdraw,
             swapData,
             permit,
@@ -460,6 +465,7 @@ contract ALEDolaFraxPyUSDYearnV2Test is DolaFraxPyUSDYearnV2MarketForkTest {
         ale.deleveragePosition(
             dolaRedeemed / 2,
             address(market),
+            address(0),
             amountToWithdraw,
             swapData,
             permit,
@@ -525,6 +531,7 @@ contract ALEDolaFraxPyUSDYearnV2Test is DolaFraxPyUSDYearnV2MarketForkTest {
         ale.deleveragePosition(
             debt,
             address(market),
+            address(0),
             amountToWithdraw,
             swapData,
             permit,

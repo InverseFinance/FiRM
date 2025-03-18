@@ -46,7 +46,7 @@ contract ALEV2PTUSDeTest is PendlePTUSDeMarketForkTest {
 
         vm.startPrank(gov);
 
-        ale = new ALEV2(address(pendleRouter), triDBRAddr);
+        ale = new ALEV2(triDBRAddr);
 
         helper = new PendlePTHelper(
             gov,
@@ -125,6 +125,7 @@ contract ALEV2PTUSDeTest is PendlePTUSDeMarketForkTest {
         ale.leveragePosition(
             maxBorrowAmount,
             address(market),
+            address(0),
             swapData,
             permit,
             abi.encode(address(market), 0, pendleMintData),
@@ -194,6 +195,7 @@ contract ALEV2PTUSDeTest is PendlePTUSDeMarketForkTest {
         ale.leveragePosition(
             maxBorrowAmount,
             address(market),
+            address(0),
             swapData,
             permit,
             abi.encode(address(market), 0, pendleSwapData),
@@ -269,6 +271,7 @@ contract ALEV2PTUSDeTest is PendlePTUSDeMarketForkTest {
         ale.leveragePosition(
             maxBorrowAmount,
             address(market),
+            address(0),
             swapData,
             permit,
             abi.encode(address(market), 0, pendleSwapData),
@@ -349,6 +352,7 @@ contract ALEV2PTUSDeTest is PendlePTUSDeMarketForkTest {
             initialDolaDeposit,
             maxBorrowAmount,
             address(market),
+            address(0),
             swapData,
             permit,
             abi.encode(address(market), uint(100000), pendleSwapDataDeposit),
@@ -439,6 +443,7 @@ contract ALEV2PTUSDeTest is PendlePTUSDeMarketForkTest {
             initialLpAmount,
             maxBorrowAmount,
             address(market),
+            address(0),
             swapData,
             permit,
             abi.encode(address(market), uint(100000), pendleDataLeverage),
@@ -508,6 +513,7 @@ contract ALEV2PTUSDeTest is PendlePTUSDeMarketForkTest {
         ale.deleveragePosition(
             debt, // dola redeemed to be deleveraged
             address(market),
+            address(0),
             amountToWithdraw,
             swapData,
             permit,
@@ -581,6 +587,7 @@ contract ALEV2PTUSDeTest is PendlePTUSDeMarketForkTest {
         ale.deleveragePosition(
             debt, // dola redeemed to be deleveraged
             address(market),
+            address(0),
             amountToWithdraw,
             swapData,
             permit,
@@ -633,6 +640,7 @@ contract ALEV2PTUSDeTest is PendlePTUSDeMarketForkTest {
         ale.deleveragePosition(
             debt, // dola redeemed to be deleveraged (repay debt)
             address(market),
+            address(0),
             amountToWithdraw,
             swapData,
             permit,
@@ -695,6 +703,7 @@ contract ALEV2PTUSDeTest is PendlePTUSDeMarketForkTest {
         ale.deleveragePosition(
             debt, // dola redeemed to be deleveraged (repay debt)
             address(market),
+            address(0),
             amountToWithdraw,
             swapData,
             permit,
@@ -752,6 +761,7 @@ contract ALEV2PTUSDeTest is PendlePTUSDeMarketForkTest {
         ale.deleveragePosition(
             debt,
             address(market),
+            address(0),
             amountToWithdraw,
             swapData,
             permit,

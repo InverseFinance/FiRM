@@ -26,7 +26,7 @@ contract ALESDolascrvUSDTest is
         vm.startPrank(gov);
         DOLA.mint(address(this), 100000 ether);
         helper.setMarket(address(market), address(curvePool), 1, 2, address(0));
-        ale = new ALEV2(address(0), triDBRAddr);
+        ale = new ALEV2(triDBRAddr);
         ale.setMarket(address(market), address(DOLA), address(helper), false);
         borrowController.allow(address(ale));
         vm.stopPrank();

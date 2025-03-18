@@ -102,7 +102,8 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
         vm.prank(chair);
         fed.expansion(IMarket(address(market)), 5000000 ether);
 
-        ale = new ALEV2(address(exchangeProxy), triDBRAddr);
+        ale = new ALEV2(triDBRAddr);
+        ale.allowProxy(address(exchangeProxy));
         ale.setMarket(address(market), yCRV, address(helper), true);
 
         //FiRM
@@ -162,10 +163,9 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
         );
     }
 
-    function test_leveragePosition_grief() public {
-        // vm.assume(styCRVAmount < IERC20(yvyCRVAddr).balanceOf(userPk)); // 16.94M yvyCRV
-        // vm.assume(styCRVAmount > 0.00000001 ether);
-        uint256 styCRVAmount = 100000 ether;
+    function test_leveragePosition(uint256 styCRVAmount) public {
+        vm.assume(styCRVAmount < IERC20(yvyCRVAddr).balanceOf(userPk)); // 16.94M yvyCRV
+        vm.assume(styCRVAmount > 0.00000001 ether);
         // We are going to deposit some yvyCRV, then leverage the position
 
         gibDBR(userPk, styCRVAmount);
@@ -218,6 +218,7 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
         ale.leveragePosition(
             maxBorrowAmount,
             address(market),
+            address(exchangeProxy),
             swapData,
             permit,
             bytes(""),
@@ -298,6 +299,7 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
             styCRVAmount,
             maxBorrowAmount,
             address(market),
+            address(exchangeProxy),
             swapData,
             permit,
             bytes(""),
@@ -386,6 +388,7 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
         ale.leveragePosition(
             maxBorrowAmount,
             address(market),
+            address(exchangeProxy),
             swapData,
             permit,
             bytes(""),
@@ -490,6 +493,7 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
         ale.deleveragePosition(
             _convertCollatToDola(amountToWithdraw) - 1, // repay little less bc of yearn 1 wei conversion loss
             address(market),
+            address(exchangeProxy),
             amountToWithdraw,
             swapData,
             permit,
@@ -587,6 +591,7 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
         ale.deleveragePosition(
             _convertCollatToDola(amountToWithdraw) - 1,
             address(market),
+            address(exchangeProxy),
             amountToWithdraw,
             swapData,
             permit,
@@ -687,6 +692,7 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
             amount,
             maxBorrowAmount,
             address(market),
+            address(exchangeProxy),
             swapData,
             permit,
             bytes(""),
@@ -894,6 +900,7 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
         ale.leveragePosition(
             maxBorrowAmount,
             address(market),
+            address(exchangeProxy),
             swapData,
             permit,
             bytes(""),

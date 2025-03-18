@@ -33,7 +33,7 @@ contract ALEDolaCrvUSDYearnV2Test is CrvUSDDolaYearnV2MarketForkTest {
         vm.startPrank(gov);
         DOLA.mint(address(this), 100000 ether);
         helper.setMarket(address(market), address(dolaCrvUSD), 0, 2, yearn);
-        ale = new ALEV2(address(0), triDBRAddr);
+        ale = new ALEV2(triDBRAddr);
         ale.setMarket(address(market), address(DOLA), address(helper), false);
 
         flash = IFlashMinter(address(ale.flash()));
@@ -99,6 +99,7 @@ contract ALEDolaCrvUSDYearnV2Test is CrvUSDDolaYearnV2MarketForkTest {
         ale.leveragePosition(
             maxBorrowAmount,
             address(market),
+            address(0),
             swapData,
             permit,
             abi.encode(address(market), uint(0)),
@@ -171,6 +172,7 @@ contract ALEDolaCrvUSDYearnV2Test is CrvUSDDolaYearnV2MarketForkTest {
         ale.leveragePosition(
             maxBorrowAmount,
             address(market),
+            address(0),
             swapData,
             permit,
             abi.encode(address(market), uint(0)),
@@ -240,6 +242,7 @@ contract ALEDolaCrvUSDYearnV2Test is CrvUSDDolaYearnV2MarketForkTest {
             initialDolaDeposit,
             maxBorrowAmount,
             address(market),
+            address(0),
             swapData,
             permit,
             abi.encode(address(market), uint(0)),
@@ -313,6 +316,7 @@ contract ALEDolaCrvUSDYearnV2Test is CrvUSDDolaYearnV2MarketForkTest {
             initialSharesAmount,
             maxBorrowAmount,
             address(market),
+            address(0),
             swapData,
             permit,
             abi.encode(address(market), uint(0)),
@@ -368,6 +372,7 @@ contract ALEDolaCrvUSDYearnV2Test is CrvUSDDolaYearnV2MarketForkTest {
         ale.deleveragePosition(
             dolaRedeemed / 2,
             address(market),
+            address(0),
             amountToWithdraw,
             swapData,
             permit,
@@ -441,6 +446,7 @@ contract ALEDolaCrvUSDYearnV2Test is CrvUSDDolaYearnV2MarketForkTest {
         ale.deleveragePosition(
             dolaRedeemed / 2,
             address(market),
+            address(0),
             amountToWithdraw,
             swapData,
             permit,
@@ -506,6 +512,7 @@ contract ALEDolaCrvUSDYearnV2Test is CrvUSDDolaYearnV2MarketForkTest {
         ale.deleveragePosition(
             debt,
             address(market),
+            address(0),
             amountToWithdraw,
             swapData,
             permit,

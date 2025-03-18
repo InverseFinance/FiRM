@@ -80,6 +80,7 @@ abstract contract ALEBaseDolaLPDynTest is MarketForkTest {
         ale.leveragePosition(
             maxBorrowAmount,
             address(market),
+            address(0),
             swapData,
             permit,
             abi.encode(address(market), uint(0)),
@@ -153,6 +154,7 @@ abstract contract ALEBaseDolaLPDynTest is MarketForkTest {
         ale.leveragePosition(
             maxBorrowAmount,
             address(market),
+            address(0),
             swapData,
             permit,
             abi.encode(address(market), uint(0)),
@@ -223,6 +225,7 @@ abstract contract ALEBaseDolaLPDynTest is MarketForkTest {
             initialDolaDeposit,
             maxBorrowAmount,
             address(market),
+            address(0),
             swapData,
             permit,
             abi.encode(address(market), uint(0)),
@@ -298,6 +301,7 @@ abstract contract ALEBaseDolaLPDynTest is MarketForkTest {
             initialLpAmount,
             maxBorrowAmount,
             address(market),
+            address(0),
             swapData,
             permit,
             abi.encode(address(market), uint(0)),
@@ -351,6 +355,7 @@ abstract contract ALEBaseDolaLPDynTest is MarketForkTest {
         ale.deleveragePosition(
             dolaRedeemed / 2,
             address(market),
+            address(0),
             amountToWithdraw,
             swapData,
             permit,
@@ -412,6 +417,7 @@ abstract contract ALEBaseDolaLPDynTest is MarketForkTest {
         ale.deleveragePosition(
             debt,
             address(market),
+            address(0),
             amountToWithdraw,
             swapData,
             permit,

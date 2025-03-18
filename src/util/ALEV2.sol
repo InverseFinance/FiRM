@@ -79,8 +79,7 @@ contract ALEV2 is
         address helper
     );
 
-    // 1Inch ExchangeProxy address.
-    address payable public exchangeProxy;
+    mapping(address => bool) public isExchangeProxy;
 
     IDBR public constant DBR = IDBR(0xAD038Eb671c44b853887A7E32528FaB35dC5D710);
 
@@ -154,16 +153,23 @@ contract ALEV2 is
     mapping(address => Market) public markets;
 
     constructor(
-        address _exchangeProxy,
         address _pool
     ) Ownable(msg.sender) CurveDBRHelper(_pool) {
-        exchangeProxy = payable(address(_exchangeProxy));
         dola.approve(address(flash), type(uint).max);
     }
 
-    function setExchangeProxy(address _exchangeProxy) external onlyOwner {
-        if (_exchangeProxy == address(0)) revert InvalidProxyAddress();
-        exchangeProxy = payable(_exchangeProxy);
+    /// @notice Allow an exchange proxy
+    /// @param _proxy The proxy address
+    function allowProxy(address _proxy) external onlyOwner {
+        if (_proxy == address(0)) revert InvalidProxyAddress();
+        isExchangeProxy[_proxy] = true;
+    }
+
+    /// @notice Deny an exchange proxy
+    /// @param _proxy The proxy address
+    function denyProxy(address _proxy) external onlyOwner {
+        if (_proxy == address(0)) revert InvalidProxyAddress();
+        isExchangeProxy[_proxy] = false;
     }
 
     /// @notice Set the market for a collateral token
@@ -228,6 +234,7 @@ contract ALEV2 is
     /// @dev Requires user to sign message to permit the contract to borrow DOLA on behalf
     /// @param value Amount of DOLA to flash mint/burn
     /// @param market The market contract
+    /// @param exchangeProxy The exchange proxy contract if any
     /// @param swapCallData The `data` field from the API response.
     /// @param permit Permit data
     /// @param helperData Optional helper data in case the collateral needs to be transformed
@@ -235,6 +242,7 @@ contract ALEV2 is
     function leveragePosition(
         uint256 value,
         address market,
+        address exchangeProxy,
         bytes calldata swapCallData,
         Permit calldata permit,
         bytes calldata helperData,
@@ -247,6 +255,7 @@ contract ALEV2 is
             LEVERAGE,
             msg.sender,
             market,
+            exchangeProxy,
             0, // unused
             swapCallData,
             permit,
@@ -267,6 +276,7 @@ contract ALEV2 is
     /// @param initialDeposit Amount of collateral or underlying (in case of helper) to deposit
     /// @param value Amount of DOLA to borrow
     /// @param market The market address
+    /// @param exchangeProxy The exchange proxy contract if any
     /// @param swapCallData The `data` field from the API response.
     /// @param permit Permit data
     /// @param helperData Optional helper data in case the collateral needs to be transformed
@@ -276,6 +286,7 @@ contract ALEV2 is
         uint256 initialDeposit,
         uint256 value,
         address market,
+        address exchangeProxy,
         bytes calldata swapCallData,
         Permit calldata permit,
         bytes calldata helperData,
@@ -302,6 +313,7 @@ contract ALEV2 is
         leveragePosition(
             value,
             market,
+            exchangeProxy,
             swapCallData,
             permit,
             helperData,
@@ -313,6 +325,7 @@ contract ALEV2 is
     /// @dev Requires user to sign message to permit the contract to withdraw collateral from the escrow
     /// @param value Amount of DOLA to repay
     /// @param market The market contract
+    /// @param exchangeProxy The exchange proxy contract if any
     /// @param collateralAmount Collateral amount to withdraw from the escrow
     /// @param swapCallData The `data` field from the API response.
     /// @param permit Permit data
@@ -321,6 +334,7 @@ contract ALEV2 is
     function deleveragePosition(
         uint256 value,
         address market,
+        address exchangeProxy,
         uint256 collateralAmount,
         bytes calldata swapCallData,
         Permit calldata permit,
@@ -334,6 +348,7 @@ contract ALEV2 is
             DELEVERAGE,
             msg.sender,
             market,
+            exchangeProxy,
             collateralAmount,
             swapCallData,
             permit,
@@ -359,10 +374,11 @@ contract ALEV2 is
         if (initiator != address(this)) revert NotALE(initiator);
         if (msg.sender != address(flash)) revert NotFlashMinter(msg.sender);
 
-        (bytes32 ACTION, , , , , , , ) = abi.decode(
+        (bytes32 ACTION, , , , , , , , ) = abi.decode(
             data,
             (
                 bytes32,
+                address,
                 address,
                 address,
                 uint256,
@@ -385,6 +401,7 @@ contract ALEV2 is
             ,
             address _user,
             address _market,
+            address _proxy,
             ,
             bytes memory _swapCallData,
             Permit memory _permit,
@@ -394,6 +411,7 @@ contract ALEV2 is
                 data,
                 (
                     bytes32,
+                    address,
                     address,
                     address,
                     uint256,
@@ -406,8 +424,9 @@ contract ALEV2 is
         // Call the encoded swap function call on the contract at `swapTarget`,
         // passing along any ETH attached to this function call to cover protocol fees.
         if (markets[_market].useProxy) {
-            dola.approve(address(exchangeProxy), _value);
-            (bool success, ) = exchangeProxy.call{value: msg.value}(
+            if(!isExchangeProxy[_proxy]) revert InvalidProxyAddress();
+            dola.approve(_proxy, _value);
+            (bool success, ) = payable(_proxy).call{value: msg.value}(
                 _swapCallData
             );
             if (!success) revert SwapFailed();
@@ -462,6 +481,7 @@ contract ALEV2 is
             ,
             address _user,
             address _market,
+            address _proxy,
             uint256 _collateralAmount,
             bytes memory _swapCallData,
             Permit memory _permit,
@@ -471,6 +491,7 @@ contract ALEV2 is
                 data,
                 (
                     bytes32,
+                    address,
                     address,
                     address,
                     uint256,
@@ -515,10 +536,11 @@ contract ALEV2 is
         // passing along any ETH attached to this function call to cover protocol fees.
         // NOTE: This will swap the collateral or helperCollateral for DOLA
         if (markets[_market].useProxy) {
+            if(!isExchangeProxy[_proxy]) revert InvalidProxyAddress();
             // Approve sellToken for exchangeProxy
-            sellToken.approve(address(exchangeProxy), 0);
-            sellToken.approve(address(exchangeProxy), _collateralAmount);
-            (bool success, ) = exchangeProxy.call{value: msg.value}(
+            sellToken.approve(_proxy, 0);
+            sellToken.approve(_proxy, _collateralAmount);
+            (bool success, ) = payable(_proxy).call{value: msg.value}(
                 _swapCallData
             );
             if (!success) revert SwapFailed();
