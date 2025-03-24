@@ -33,12 +33,14 @@ contract ConvexEscrowForkTest is Test{
     function setUp() public {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url);
+        vm.createSelectFork(url, 22114296);
         
         escrow = new ConvexEscrow();
         vm.startPrank(market, market);
         escrow.initialize(address(cvx), beneficiary);
         vm.stopPrank();
+        deal(address(cvx), holder, 1 ether);
+        deal(address(cvxCrv), holder, 1 ether);
     }
 
     function testOnDeposit_successful_whenContractHoldsCvxCrv() public {
