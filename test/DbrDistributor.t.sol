@@ -151,12 +151,12 @@ contract DbrDistributorTest is Test {
     function test_FailNotAllowedCollateral() external {
         MarketMock evilMarket = new MarketMock(); 
         evilMarket.changeCollateral(address(0xb));
-        INVEscrowMock evilEscrow = market.createEscrow(user);
-        //dbr.allowMarket(address(evilMarket));
+        INVEscrowMock evilEscrow = evilMarket.createEscrow(user);
+        dbr.allowMarket(address(evilMarket));
         vm.prank(address(evilEscrow));
         uint stakeAmount = 10**18;
 
-        vm.expectRevert("UNSUPPORTED MARKET");
+        vm.expectRevert("UNSUPPORTED TOKEN");
         distributor.stake(stakeAmount);
     }
 
