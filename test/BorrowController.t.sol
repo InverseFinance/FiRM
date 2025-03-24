@@ -2,7 +2,8 @@
 pragma solidity ^0.8.13;
 
 import "test/mocks/BorrowContract.sol";
-import "./FiRMBaseTest.sol";
+import "test/FiRMBaseTest.sol";
+import {BorrowController} from "src/BorrowController.sol";
 
 contract BorrowContractTxOrigin {
     uint256 constant AMOUNT = 1 ether;
@@ -37,7 +38,6 @@ contract BatchApprove {
 contract BorrowControllerTest is FiRMBaseTest {
     BorrowContract borrowContract;
     bytes onlyOperatorLowercase = "Only operator";
-
     function setUp() public {
         initialize(
             replenishmentPriceBps,
@@ -46,6 +46,8 @@ contract BorrowControllerTest is FiRMBaseTest {
             liquidationBonusBps,
             callOnDepositCallback
         );
+        vm.startPrank(gov);
+        borrowController.setDailyLimit(address(market), 1 ether);
 
         borrowContract = new BorrowContract(
             address(market),
@@ -58,6 +60,9 @@ contract BorrowControllerTest is FiRMBaseTest {
             address(market.borrowController()) != address(0),
             "Borrow controller not set"
         );
+        //Let daily limit recover fully
+        vm.warp(block.timestamp + 1 days);
+        ethFeed.changeUpdatedAt(block.timestamp);
     }
 
     function test_BorrowAllowed_True_Where_UserIsEOA() public {
@@ -82,9 +87,7 @@ contract BorrowControllerTest is FiRMBaseTest {
         );
     }
 
-    function test_BorrowAllowed_Where_MarketHasDailyLimit() public {
-        vm.prank(borrowController.operator());
-        borrowController.setDailyLimit(address(market), 1 ether);
+    function test_dailyLimit() public {
         vm.startPrank(address(market), user);
         assertEq(
             borrowController.borrowAllowed(user, address(0), 0.5 ether),
@@ -102,14 +105,48 @@ contract BorrowControllerTest is FiRMBaseTest {
             "Allowed to borrow above limit"
         );
         assertEq(
-            borrowController.dailyBorrows(
-                address(market),
-                block.timestamp / 1 days
+            borrowController.remainingDailyBorrowLimit(
+                address(market)
             ),
             0.5 ether,
             "Unexpected daily borrows"
         );
     }
+
+    function test_dailyLimit_replenishesAsExpected() public {
+        vm.startPrank(address(market), user);
+        assertEq(
+            borrowController.borrowAllowed(user, address(0), 0.5 ether),
+            true,
+            "Not allowed to borrow below limit"
+        );
+        assertEq(borrowController.availableBorrowLimit(address(market)), 0.5 ether);
+        vm.warp(block.timestamp + 1 days / 4);
+        ethFeed.changeUpdatedAt(block.timestamp);
+        assertEq(borrowController.availableBorrowLimit(address(market)), 0.75 ether);
+        assertEq(
+            borrowController.borrowAllowed(user, address(0), 1 ether),
+            false,
+            "Allowed to borrow above limit"
+        );
+        assertEq(
+            borrowController.borrowAllowed(user, address(0), 0.75 ether),
+            true,
+            "Not allowed to borrow limit"
+        );
+        assertEq(borrowController.availableBorrowLimit(address(market)), 0);
+
+        vm.warp(block.timestamp + 2 days);
+        ethFeed.changeUpdatedAt(block.timestamp);
+
+        assertEq(borrowController.availableBorrowLimit(address(market)), 1 ether);
+        assertEq(
+            borrowController.borrowAllowed(user, address(0), 1 ether),
+            true,
+            "Not allowed to borrow limit"
+        );
+    }
+
 
     function test_BorrowAllowed_True_Where_UserIsAllowedContract() public {
         vm.startPrank(gov);
@@ -133,7 +170,7 @@ contract BorrowControllerTest is FiRMBaseTest {
     {
         uint testAmount = 1e18;
         gibWeth(user, testAmount);
-        uint maxBorrow = getMaxBorrowAmount(testAmount);
+        uint maxBorrow = 1e18-1;
         gibDOLA(address(market), maxBorrow);
         vm.startPrank(user, user);
         deposit(testAmount);
@@ -270,7 +307,7 @@ contract BorrowControllerTest is FiRMBaseTest {
     {
         uint testAmount = 1e18;
         gibWeth(user, testAmount);
-        uint maxBorrow = getMaxBorrowAmount(testAmount);
+        uint maxBorrow = 1e18-1;
         gibDOLA(address(market), maxBorrow);
         vm.startPrank(user, user);
         deposit(testAmount);
@@ -294,7 +331,7 @@ contract BorrowControllerTest is FiRMBaseTest {
     {
         uint testAmount = 1e18;
         gibWeth(user, testAmount);
-        uint maxBorrow = getMaxBorrowAmount(testAmount);
+        uint maxBorrow = 1e18-1;
         gibDOLA(address(market), maxBorrow);
         vm.startPrank(user, user);
         deposit(testAmount);
@@ -305,9 +342,9 @@ contract BorrowControllerTest is FiRMBaseTest {
         vm.warp(block.timestamp + 1);
         vm.prank(gov);
         dbr.addMinter(address(borrowController));
-        vm.prank(user, user);
+        vm.prank(address(0xdeadbeef), address(0xdeadbeef));
         vm.expectRevert("Message sender is not a market");
-        borrowController.borrowAllowed(user, user, 1);
+        borrowController.borrowAllowed(user, user, 0);
     }
 
     function test_BorrowAllowed_False_Where_PriceIsStale() public {
@@ -409,19 +446,17 @@ contract BorrowControllerTest is FiRMBaseTest {
         vm.startPrank(address(market), user);
         borrowController.borrowAllowed(user, address(0), 1 ether);
         assertEq(
-            borrowController.dailyBorrows(
-                address(market),
-                block.timestamp / 1 days
+            borrowController.remainingDailyBorrowLimit(
+                address(market)
             ),
-            1 ether
+            9 ether
         );
         borrowController.onRepay(0.5 ether);
         assertEq(
-            borrowController.dailyBorrows(
-                address(market),
-                block.timestamp / 1 days
+            borrowController.remainingDailyBorrowLimit(
+                address(market)
             ),
-            0.5 ether
+            9.5 ether
         );
     }
 

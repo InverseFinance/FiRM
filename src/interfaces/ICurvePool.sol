@@ -75,4 +75,6 @@ interface ICurvePool {
     function symbol() external view returns (string memory);
 
     function lp_token() external view returns (address);
+
+    function decimals() external view returns (uint256);
 }
