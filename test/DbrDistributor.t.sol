@@ -138,8 +138,9 @@ contract DbrDistributorTest is Test {
         assertEq(distributor.claimable(address(escrow)), 0);
     }
 
-    function testFailNotAllowedMarket() external {
-        INVEscrowMock evilEscrow = market.createEscrow(user);
+    function test_FailNotAllowedMarket() external {
+        MarketMock evilMarket = new MarketMock(); 
+        INVEscrowMock evilEscrow = evilMarket.createEscrow(user);
         vm.prank(address(evilEscrow));
         uint stakeAmount = 10**18;
 
@@ -147,11 +148,11 @@ contract DbrDistributorTest is Test {
         distributor.stake(stakeAmount);
     }
 
-    function testFailNotAllowedCollateral() external {
+    function test_FailNotAllowedCollateral() external {
         MarketMock evilMarket = new MarketMock(); 
         evilMarket.changeCollateral(address(0xb));
         INVEscrowMock evilEscrow = market.createEscrow(user);
-        dbr.allowMarket(address(evilMarket));
+        //dbr.allowMarket(address(evilMarket));
         vm.prank(address(evilEscrow));
         uint stakeAmount = 10**18;
 
