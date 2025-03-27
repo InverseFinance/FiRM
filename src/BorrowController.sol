@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
-import "src/DBR.sol";
+import {DolaBorrowingRights} from "src/DBR.sol";
 
 interface IChainlinkFeed {
     function decimals() external view returns (uint8);
@@ -18,9 +18,9 @@ interface IMarket {
 }
 
 /**
-@title Borrow Controller
-@notice Contract for limiting the contracts that are allowed to interact with markets
-*/
+ * @title Borrow Controller
+ * @notice Contract for limiting the contracts that are allowed to interact with markets
+ */
 contract BorrowController {
     
     address public operator;
@@ -29,7 +29,8 @@ contract BorrowController {
     mapping(address => bool) public contractAllowlist;
     mapping(address => uint) public dailyLimits;
     mapping(address => uint) public stalenessThreshold;
-    mapping(address => mapping(uint => uint)) public dailyBorrows;
+    mapping(address => uint) public remainingDailyBorrowLimit;
+    mapping(address => uint) public lastDailyBorrowLimitUpdate;
 
     constructor(address _operator, address _DBR) {
         operator = _operator;
@@ -42,66 +43,59 @@ contract BorrowController {
     }
     
     /**
-    @notice Sets the operator of the borrow controller. Only callable by the operator.
-    @param _operator The address of the new operator.
-    */
+     * @notice Sets the operator of the borrow controller. Only callable by the operator.
+     * @param _operator The address of the new operator.
+     */
     function setOperator(address _operator) public onlyOperator { operator = _operator; }
 
     /**
-    @notice Allows a contract to use the associated market.
-    @param allowedContract The address of the allowed contract
-    */
+     * @notice Allows a contract to use the associated market.
+     * @param allowedContract The address of the allowed contract
+     */
     function allow(address allowedContract) public onlyOperator { contractAllowlist[allowedContract] = true; }
 
     /**
-    @notice Denies a contract to use the associated market
-    @param deniedContract The address of the denied contract
-    */
+     * @notice Denies a contract to use the associated market
+     * @param deniedContract The address of the denied contract
+     */
     function deny(address deniedContract) public onlyOperator { contractAllowlist[deniedContract] = false; }
 
     /**
-    @notice Sets the daily borrow limit for a specific market
-    @param market The address of the market contract
-    @param limit The daily borrow limit amount
-    */
+     * @notice Sets the daily borrow limit for a specific market
+     * @param market The address of the market contract
+     * @param limit The daily borrow limit amount
+     */
     function setDailyLimit(address market, uint limit) public onlyOperator { dailyLimits[market] = limit; }
     
     /**
-    @notice Sets the staleness threshold for Chainlink feeds
-    @param newStalenessThreshold The new staleness threshold denominated in seconds
-    @dev Only callable by operator
-    */
+     * @notice Sets the staleness threshold for Chainlink feeds
+     * @param newStalenessThreshold The new staleness threshold denominated in seconds
+     * @dev Only callable by operator
+     */
     function setStalenessThreshold(address market, uint newStalenessThreshold) public onlyOperator { stalenessThreshold[market] = newStalenessThreshold; }
     
     /**
-    @notice sets the market specific minimum amount a debt a borrower needs to take on.
-    @param market The market to set the minimum debt for.
-    @param newMinDebt The new minimum amount of debt.
-    @dev This is to mitigate the creation of positions which are uneconomical to liquidate. Only callable by operator.
-    */
+     * @notice sets the market specific minimum amount a debt a borrower needs to take on.
+     * @param market The market to set the minimum debt for.
+     * @param newMinDebt The new minimum amount of debt.
+     * @dev This is to mitigate the creation of positions which are uneconomical to liquidate. Only callable by operator.
+     */
     function setMinDebt(address market, uint newMinDebt) public onlyOperator {minDebts[market] = newMinDebt; }
-
     /**
-    @notice Checks if a borrow is allowed
-    @dev Currently the borrowController checks if contracts are part of an allow list and enforces a daily limit
-    @param msgSender The message sender trying to borrow
-    @param borrower The address being borrowed on behalf of
-    @param amount The amount to be borrowed
-    @return A boolean that is true if borrowing is allowed and false if not.
-    */
+     * @notice Checks if a borrow is allowed
+     * @dev Currently the borrowController checks if contracts are part of an allow list and enforces a daily limit
+     * @param msgSender The message sender trying to borrow
+     * @param borrower The address being borrowed on behalf of
+     * @param amount The amount to be borrowed
+     * @return A boolean that is true if borrowing is allowed and false if not.
+     */
     function borrowAllowed(address msgSender, address borrower, uint amount) public returns (bool) {
-        uint dailyLimit = dailyLimits[msg.sender];
-        //Check if market exceeds daily limit
-        if(dailyLimit > 0) {
-            uint day = block.timestamp / 1 days;
-            if(dailyBorrows[msg.sender][day] + amount > dailyLimit) {
-                return false;
-            } else {
-                //Safe to use unchecked, as function will revert in if statement if overflow
-                unchecked{
-                    dailyBorrows[msg.sender][day] += amount;
-                }
-            }
+        uint availableBorrow = availableBorrowLimit(msg.sender);
+        if(availableBorrow < amount) return false;
+
+        unchecked{
+            remainingDailyBorrowLimit[msg.sender] = availableBorrow - amount;
+            lastDailyBorrowLimitUpdate[msg.sender] = block.timestamp;
         }
         uint lastUpdated = DBR.lastUpdated(borrower);
         uint debts = DBR.debts(borrower);
@@ -125,20 +119,37 @@ contract BorrowController {
     }
 
     /**
-    @notice Reduces the daily limit used, when a user repays debt
-    @dev This is necessary to prevent a DOS attack, where a user borrows the daily limit and immediately repays it again.
-    @param amount Amount repaid in the market
-    */
+     * @notice Reduces the daily limit used, when a user repays debt
+     * @dev This is necessary to prevent a DOS attack, where a user borrows the daily limit and immediately repays it again.
+     * @param amount Amount repaid in the market
+     */
     function onRepay(uint amount) public {
-        uint day = block.timestamp / 1 days;
-        if(dailyBorrows[msg.sender][day] < amount) {
-            dailyBorrows[msg.sender][day] = 0;
-        } else {
-            //Safe to use unchecked, as dailyBorow is checked to be higher than amount
-            unchecked{
-                dailyBorrows[msg.sender][day] -= amount;
-            }
+        unchecked{
+            uint newLimit = availableBorrowLimit(msg.sender) + amount;
+            uint dailyLimit = dailyLimits[msg.sender];
+            remainingDailyBorrowLimit[msg.sender] = newLimit < dailyLimit ? newLimit : dailyLimit;
+            lastDailyBorrowLimitUpdate[msg.sender] = block.timestamp;
         }
+    }
+
+    /**
+     * @notice Returns the available borrow limit of a market
+     * @param market The address of the market to return the available borrow limt
+     */
+    function availableBorrowLimit(address market) public view returns(uint) {
+        uint timeElapsed = block.timestamp - lastDailyBorrowLimitUpdate[market];
+        uint dailyLimit = dailyLimits[market];
+        uint newLimit = remainingDailyBorrowLimit[market] + timeElapsed * dailyLimit / 1 days;
+        return newLimit < dailyLimit ? newLimit : dailyLimit;
+    }
+
+    /**
+     * @notice Returns the daily borrows.
+     * @dev Ensures backwards compability with interface of previous borrow controller
+     * @param market The market to get the dailyBorrows for.
+     */
+    function dailyBorrows(address market, uint) external view returns(uint) {
+        return dailyLimits[market] - availableBorrowLimit(market);
     }
 
     /**
