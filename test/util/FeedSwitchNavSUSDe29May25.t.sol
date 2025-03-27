@@ -4,10 +4,7 @@ pragma solidity ^0.8.18;
 import {FeedSwitch, IChainlinkFeed} from "src/util/FeedSwitch.sol";
 import {BaseFeedSwitchNavForkTest} from "test/util/BaseFeedSwitchNavFork.t.sol";
 import {USDeNavBeforeMaturityFeed} from "src/feeds/USDeNavBeforeMaturityFeed.sol";
-
-interface PendleSparkLinearDiscountOracleFactory {
-      function createWithPt(address pt, uint256 baseDiscountPerYear) external returns (address);
-}
+import {PendleNAVFeed} from "src/feeds/PendleNAVFeed.sol";
 
 contract FeedSwitchNavSUSDe29May25Test is BaseFeedSwitchNavForkTest {
     address _beforeMaturityFeed;
@@ -16,13 +13,14 @@ contract FeedSwitchNavSUSDe29May25Test is BaseFeedSwitchNavForkTest {
     uint256 _baseDiscount = 0.2 ether; // 20% 
     address sUSDeWrapper = address(0xD723a0910e261de49A90779d38A94aFaAA028F15);
     address sUSDe = address(0x9D39A5DE30e57443BfF2A8307A4256c8797A3497);
-    PendleSparkLinearDiscountOracleFactory navFactory = PendleSparkLinearDiscountOracleFactory(0xA9A924A4BB95509F77868E086154C25e934F6171); 
+   
     function setUp() public {
         string memory url = vm.rpcUrl("mainnet");
         vm.createSelectFork(url, 22018716);
-        address _navFeed = navFactory.createWithPt(_pendlePT, _baseDiscount);
-        _beforeMaturityFeed = address(new USDeNavBeforeMaturityFeed(sUSDeWrapper,sUSDe,_navFeed)); // USDeBeforeMaturityFeed: USDe/USD Feed using sUSDe Chainlink feed and sUSDe/USDe rate and NAV
+      
+        PendleNAVFeed _navFeed = new PendleNAVFeed(_pendlePT, _baseDiscount);
+        _beforeMaturityFeed = address(new USDeNavBeforeMaturityFeed(sUSDeWrapper,sUSDe,address(_navFeed))); // USDeBeforeMaturityFeed: USDe/USD Feed using sUSDe Chainlink feed and sUSDe/USDe rate and NAV
         
-        initialize(address(_beforeMaturityFeed), address(_afterMaturityFeed), _pendlePT , _baseDiscount, _navFeed);
+        initialize(address(_beforeMaturityFeed), address(_afterMaturityFeed), _pendlePT , _baseDiscount, address(_navFeed));
     }
 }

@@ -6,10 +6,7 @@ import {USDeNavBeforeMaturityFeed} from "src/feeds/USDeNavBeforeMaturityFeed.sol
 import {ChainlinkBasePriceFeed, IChainlinkFeed} from "src/feeds/ChainlinkBasePriceFeed.sol";
 import "lib/openzeppelin-contracts/contracts/interfaces/IERC4626.sol";
 import "forge-std/console.sol";
-
-interface PendleSparkLinearDiscountOracleFactory {
-      function createWithPt(address pt, uint256 baseDiscountPerYear) external returns (address);
-}
+import {PendleNAVFeed} from "src/feeds/PendleNAVFeed.sol";
 
 interface INavFeed {
     function getDiscount(uint256 timeLeft) external view returns (uint256) ;
@@ -23,7 +20,6 @@ contract USDeNavBeforeMaturityFeedTest is Test {
     address sUSDeFeed = address(0xFF3BC18cCBd5999CE63E788A1c250a88626aD099);
     IERC4626 sUSDe = IERC4626(0x9D39A5DE30e57443BfF2A8307A4256c8797A3497);
     address gov = address(0x926dF14a23BE491164dCF93f4c468A50ef659D5B);
-    PendleSparkLinearDiscountOracleFactory navFactory = PendleSparkLinearDiscountOracleFactory(0xA9A924A4BB95509F77868E086154C25e934F6171);
     address pendlePT = address(0xb7de5dFCb74d25c2f21841fbd6230355C50d9308); // PT sUSDe 29 May 25
 
     function setUp() public {
@@ -35,7 +31,7 @@ contract USDeNavBeforeMaturityFeedTest is Test {
             address(0),
             24 hours
         );
-        address navFeed = navFactory.createWithPt(pendlePT, 0.2 ether); 
+        address navFeed = address(new PendleNAVFeed(pendlePT, 0.2 ether)); // 20% discount
         feed = new USDeNavBeforeMaturityFeed(
             address(sUSDeWrappedFeed),
             address(sUSDe),
@@ -151,7 +147,7 @@ contract USDeNavBeforeMaturityFeedTest is Test {
     function test_maturity_passed() public {
         uint256 maturity = INavFeed(address(feed.navFeed())).maturity();
         vm.warp(maturity);
-        address navFeed = navFactory.createWithPt(pendlePT, 0.2 ether); 
+        address navFeed = address(new PendleNAVFeed(pendlePT, 0.2 ether)); 
         vm.expectRevert(USDeNavBeforeMaturityFeed.MaturityPassed.selector);
         feed = new USDeNavBeforeMaturityFeed(
             address(sUSDeWrappedFeed),

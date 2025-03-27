@@ -6,11 +6,7 @@ import "./MarketBaseForkTest.sol";
 import {USDeNavBeforeMaturityFeed} from "src/feeds/USDeNavBeforeMaturityFeed.sol";
 import {ChainlinkBasePriceFeed} from "src/feeds/ChainlinkBasePriceFeed.sol";
 import {FeedSwitch} from "src/util/FeedSwitch.sol";
-
-interface PendleSparkLinearDiscountOracleFactory {
-      function createWithPt(address pt, uint256 baseDiscountPerYear) external returns (address);
-}
-
+import {PendleNAVFeed} from "src/feeds/PendleNAVFeed.sol";
 contract PendlePTsUSDe29May25MarketForkTest is MarketBaseForkTest {
     address USDeFeed = address(0xa569d910839Ae8865Da8F8e70FfFb0cBA869F961);
     address sUSDeFeed = address(0xFF3BC18cCBd5999CE63E788A1c250a88626aD099);
@@ -23,7 +19,7 @@ contract PendlePTsUSDe29May25MarketForkTest is MarketBaseForkTest {
     USDeNavBeforeMaturityFeed beforeMaturityFeed;
     ChainlinkBasePriceFeed afterMaturityFeed;
     address navFeed;
-    PendleSparkLinearDiscountOracleFactory navFactory = PendleSparkLinearDiscountOracleFactory(0xA9A924A4BB95509F77868E086154C25e934F6171);
+    
     uint256 baseDiscount = 0.2 ether; // 20%
     FeedSwitch feedSwitch;
     
@@ -57,7 +53,7 @@ contract PendlePTsUSDe29May25MarketForkTest is MarketBaseForkTest {
             address(0),
             24 hours
         );
-        navFeed = navFactory.createWithPt(pendlePT, baseDiscount); 
+        navFeed = address(new PendleNAVFeed(pendlePT, baseDiscount)); 
         beforeMaturityFeed = new USDeNavBeforeMaturityFeed(
             address(sUSDeWrappedFeed),
             address(sUSDe),

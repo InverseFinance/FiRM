@@ -73,6 +73,10 @@ contract MarketForkTest is Test, ConfigAddr {
         );
         borrowController.setDailyLimit(address(market), 10_000_000 * 1e18);
         borrowController.setMinDebt(address(market), 1);
+        borrowController.setStalenessThreshold(
+            address(market),
+            1 days
+        );
         dbr.addMarket(address(market));
         fed.changeMarketCeiling(IMarket(address(market)), type(uint).max);
         fed.changeSupplyCeiling(type(uint).max);
