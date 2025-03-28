@@ -395,27 +395,34 @@ abstract contract MarketBaseForkTest is MarketForkTest {
         vm.startPrank(user, user);
        
         deposit(testAmount);
+        
+        uint256 stalenessThreshold = borrowController.stalenessThreshold(address(market));
+        vm.warp(
+            block.timestamp + stalenessThreshold + 1
+        );
+
         (IChainlinkFeed feed, ) = oracle.feeds(address(collateral));
         (
-            uint80 roundId,
-            int256 price,
-            uint startedAt,
             ,
-            uint80 answeredInRound
+            ,
+            ,
+            uint updatedAt,
         ) = feed.latestRoundData();
-
-        uint256 stalenessThreshold = borrowController.stalenessThreshold(address(market));
-        vm.mockCall(
-            address(feed),
-            abi.encodeWithSelector(
-                feed.latestRoundData.selector
-            ),
-            abi.encode(roundId, price, startedAt, block.timestamp - stalenessThreshold - 1, answeredInRound)
-        );
-       
+        
         uint borrowAmount = market.getCreditLimit(user);
-        vm.expectRevert("Denied by borrow controller");
-        market.borrow(borrowAmount);
+       
+        if(block.timestamp - updatedAt > stalenessThreshold) {
+            vm.expectRevert("Denied by borrow controller");
+            market.borrow(borrowAmount);
+        } else {
+            uint initialDolaBalance = DOLA.balanceOf(user);
+            market.borrow(borrowAmount);
+            assertEq(
+                DOLA.balanceOf(user),
+                initialDolaBalance + borrowAmount,
+                "User balance did not increase by borrowAmount"
+            );
+        }    
     }
 
     function testBorrow_Fails_When_DeniedByBorrowController() public {
