@@ -389,6 +389,42 @@ abstract contract MarketBaseForkTest is MarketForkTest {
         market.borrow(borrowAmount);
     }
 
+    function testBorrow_Fails_When_Exceeds_Threshold() public {
+        gibCollateral(user, testAmount);
+        gibDBR(user, testAmount);
+        vm.startPrank(user, user);
+       
+        deposit(testAmount);
+        
+        uint256 stalenessThreshold = borrowController.stalenessThreshold(address(market));
+        vm.warp(
+            block.timestamp + stalenessThreshold + 1
+        );
+
+        (IChainlinkFeed feed, ) = oracle.feeds(address(collateral));
+        (
+            ,
+            ,
+            ,
+            uint updatedAt,
+        ) = feed.latestRoundData();
+        
+        uint borrowAmount = market.getCreditLimit(user);
+       
+        if(block.timestamp - updatedAt > stalenessThreshold) {
+            vm.expectRevert("Denied by borrow controller");
+            market.borrow(borrowAmount);
+        } else {
+            uint initialDolaBalance = DOLA.balanceOf(user);
+            market.borrow(borrowAmount);
+            assertEq(
+                DOLA.balanceOf(user),
+                initialDolaBalance + borrowAmount,
+                "User balance did not increase by borrowAmount"
+            );
+        }    
+    }
+
     function testBorrow_Fails_When_DeniedByBorrowController() public {
         vm.startPrank(gov);
         market.setBorrowController(
