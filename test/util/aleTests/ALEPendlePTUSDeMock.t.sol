@@ -1,7 +1,7 @@
 pragma solidity ^0.8.13;
 
 import {PendlePTHelper} from "src/util/PendlePTHelper.sol";
-import "test/marketForkTests/PendlePTUSDeMarketForkTest.t.sol";
+import "test/marketForkTests/PendlePTsUSDe27Mar25MarketForkTest.t.sol";
 import {ALEV2} from "src/util/ALEV2.sol";
 import {SimpleERC20Escrow} from "src/escrows/SimpleERC20Escrow.sol";
 import {MockPendleRouter} from "test/mocks/MockPendleRouter.sol";
@@ -10,7 +10,7 @@ interface IFlashMinter {
     function setMaxFlashLimit(uint256 _maxFlashLimit) external;
 }
 
-contract ALEV2PTUSDeMockTest is PendlePTUSDeMarketForkTest {
+contract ALEV2PTUSDeMockTest is PendlePTsUSDe27Mar25MarketForkTest {
     MockPendleRouter.ApproxParams emptyApprox;
     MockPendleRouter.TokenInput emptyTokenInput;
     MockPendleRouter.TokenOutput emptyTokenOutput;
