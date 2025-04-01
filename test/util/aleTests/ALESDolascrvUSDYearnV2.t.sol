@@ -16,18 +16,15 @@ contract ALESDolascrvUSDYearnV2Test is
     function setUp() public override {
         super.setUp();
         curvePool = ICurvePool(sDolascrvUSD);
-        helper = new CurveSDolaLPHelperDynamic(
-            gov,
-            pauseGuardian,
-            address(DOLA),
-            sDolaAddr
+        helper = CurveSDolaLPHelperDynamic(
+            curveSDolaLPHelperDynamicAddr
         );
         vault = IYearnVaultV2(yearn);
 
         vm.startPrank(gov);
         DOLA.mint(address(this), 100000 ether);
         helper.setMarket(address(market), address(curvePool), 1, 2, yearn);
-        ale = new ALEV2(triDBRAddr);
+        ale = ALEV2(payable(aleV2Addr));
         ale.setMarket(address(market), address(DOLA), address(helper), false);
         borrowController.allow(address(ale));
         vm.stopPrank();

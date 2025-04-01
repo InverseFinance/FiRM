@@ -20,7 +20,7 @@ contract ConfigAddr {
 
     // ALE
     address aleAddr = address(0x5233f4C2515ae21B540c438862Abb5603506dEBC);
-
+    address aleV2Addr = address(0x6218d3D6c01f8077F06519d8F5D31f935F3C3C53); // deployed at block 22082376
     // Inverse Feeds
     address styEthFeedAddr =
         address(0xbBE5FaBbB55c2c79ae1efE6b5bd52048A199e166);
@@ -116,10 +116,19 @@ contract ConfigAddr {
     address yearnDolaFraxBPFeedAddr =
         address(0x85f86F9e2dCc370c90d3a7bFC2B8E9a970D84850); // CurveLPYearnV2Feed for DolaFraxBP (use DolaFraxBP LP feed)
 
+    // ALE and Market Helpers
     // CurveDolaLPHelper Static Array
     address curveDolaLPHelperAddr =
-        address(0x6c592Fe4deA245B296476fd72863E8b2B739f911); // Helper for entering and exiting curve pools with Dola. Also support YearnV2 vaults for these LP.
+        address(0x80842059330945523B0Fa0592FD53568D813F8E0); // Helper for entering and exiting curve pools with Dola. Also support YearnV2 vaults for these LP.
     // CurveDolaLPHelper Dynamic Array
     address curveDolaLPHelperDynamicAddr =
-        address(0x0ABe42a1ad400500ac49bDAd38AE6b367982FC9B); // Helper for entering and exiting curve pools (dynamic array input) with Dola. Also support YearnV2 vaults for these LP.
+        address(0x20717e5EE263F2418bADAd9704B88D98cAFFaC8E); // Helper for entering and exiting curve pools (dynamic array input) with Dola. Also support YearnV2 vaults for these LP.
+    
+    address curveSDolaLPHelperDynamicAddr = 
+        address(0x50671Bf561ED15A84066DB2415D1EF55Daf35037); // Helper for entering and exiting curve pools (dynamic array input) with sDola. Also support YearnV2 vaults for these LP.
+    address erc4626HelperAddr =
+        address(0xF2F9b6F0B28f77872Acd2da4187021B3b8C73ab8); // Helper for entering and exiting ERC4626 vaults with underlying. Also support YearnV2 vaults for these LP.
+    address yvyCRVHelperAddr = 
+        address(0xa93DaC9b38aB4a23F1fA934EAbC7f9639a003C4C); // Helper for entering and exiting yvyCRV vaults with underlying. Also support YearnV2 vaults for these LP.
+
 }

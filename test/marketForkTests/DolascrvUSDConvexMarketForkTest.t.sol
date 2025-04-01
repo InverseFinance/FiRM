@@ -36,7 +36,7 @@ contract DolascrvUSDConvexMarketForkTest is MarketBaseForkTest {
     function setUp() public virtual {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url, 21286440);
+        vm.createSelectFork(url);
         escrow = new ConvexEscrowV2(
             rewardPool,
             booster,

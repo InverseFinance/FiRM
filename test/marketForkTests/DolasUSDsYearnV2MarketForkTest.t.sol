@@ -47,7 +47,7 @@ contract DolasUSDsYearnV2MarketForkTest is MarketBaseForkTest {
     function setUp() public virtual {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url, 21239299);
+        vm.createSelectFork(url);
 
         escrow = new SimpleERC20Escrow();
         // Setup YearnVault if needed

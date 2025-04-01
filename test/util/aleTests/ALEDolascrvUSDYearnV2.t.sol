@@ -17,18 +17,14 @@ contract ALEDolascrvUSDYearnV2Test is
         super.setUp();
         curvePool = ICurvePool(dolascrvUSD);
         
-        helper = new CurveDolaLPHelperDynamic(
-            gov,
-            pauseGuardian,
-            address(DOLA)
-        );
+        helper = CurveDolaLPHelperDynamic(curveDolaLPHelperDynamicAddr);
         
         vault = IYearnVaultV2(yearn);
 
         vm.startPrank(gov);
         DOLA.mint(address(this), 100000 ether);
         helper.setMarket(address(market), address(curvePool), 0, 2, yearn);
-        ale = new ALEV2(triDBRAddr);
+        ale = ALEV2(payable(aleV2Addr));
         ale.setMarket(address(market), address(DOLA), address(helper), false);
         borrowController.allow(address(ale));
         vm.stopPrank();

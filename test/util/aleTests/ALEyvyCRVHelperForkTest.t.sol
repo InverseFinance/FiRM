@@ -83,7 +83,7 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
         borrowController = BorrowController(borrowControllerAddr);
         dbr = DolaBorrowingRights(dbrAddr);
 
-        helper = new YVYCRVHelper(gov, pauseGuardian);
+        helper = YVYCRVHelper(yvyCRVHelperAddr);
         initBase(address(helper));
         feedYCRV = new YCRVFeed();
 
@@ -97,15 +97,15 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
         market.pauseBorrows(false);
         borrowController.setDailyLimit(address(market), 5000000 ether);
         fed.changeMarketCeiling(IMarket(address(market)), 100000000 ether);
+        ale = ALEV2(payable(aleV2Addr));
+        ale.allowProxy(address(exchangeProxy));
+        ale.setMarket(address(market), yCRV, address(helper), true);
         vm.stopPrank();
 
         vm.prank(chair);
         fed.expansion(IMarket(address(market)), 5000000 ether);
 
-        ale = new ALEV2(triDBRAddr);
-        ale.allowProxy(address(exchangeProxy));
-        ale.setMarket(address(market), yCRV, address(helper), true);
-
+        
         //FiRM
         oracle = Oracle(address(market.oracle()));
         collateral = IERC20(address(market.collateral()));
@@ -119,7 +119,7 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
 
         flash = IFlashMinter(address(ale.flash()));
         DOLA.addMinter(address(flash));
-        flash.setMaxFlashLimit(5000000e18); // 5M DOLA
+        flash.setMaxFlashLimit(10000000e18); // 5M DOLA
         vm.stopPrank();
 
         collateralFactorBps = market.collateralFactorBps();
@@ -148,7 +148,7 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
     }
 
     function getBlockNumber() public view override returns (uint256) {
-        return 20590050;
+        return 22175224;
     }
 
     function checkEq(
@@ -809,6 +809,7 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
         vm.expectRevert(
             abi.encodeWithSelector(ALEV2.NoMarket.selector, fakeMarket)
         );
+        vm.prank(gov);
         ale.setMarket(fakeMarket, address(0), address(0), true);
     }
 
@@ -819,6 +820,7 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
         vm.expectRevert(
             abi.encodeWithSelector(ALEV2.MarketNotSet.selector, wrongMarket)
         );
+        vm.prank(gov);
         ale.updateMarketHelper(wrongMarket, newHelper);
     }
 

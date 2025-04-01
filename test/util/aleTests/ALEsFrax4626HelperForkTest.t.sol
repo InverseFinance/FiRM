@@ -43,7 +43,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
     IChainlinkFeed feed;
     BorrowController borrowController;
 
-    address sFraxHolder = 0x440888714A6afeD60ff44e9975A96E6a36f7Fac4;
+    address sFraxHolder = 0xBc2F0Ebc412647C7d4EC8FFD88Ca84Bc5b32C8cC;
     address fraxHolder = 0x5E583B6a1686f7Bc09A6bBa66E852A7C80d36F00;
 
     //ERC-20s
@@ -63,7 +63,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
     uint collateralFactorBps;
 
     function getBlockNumber() public view override returns (uint256) {
-        return 20590050;
+        return 22175160;
     }
 
     function setUp() public override {
@@ -74,7 +74,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
         feed = IChainlinkFeed(sFraxFeedAddr);
         borrowController = BorrowController(borrowControllerAddr);
         dbr = DolaBorrowingRights(dbrAddr);
-        helper = new ERC4626Helper(gov, pauseGuardian);
+        helper = ERC4626Helper(erc4626HelperAddr);
         initBase(address(helper));
 
         exchangeProxy = new MockExchangeProxy(
@@ -87,7 +87,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
         dbr.addMarket(address(market));
         DOLA.mint(address(market), 1000000e18);
 
-        ale = new ALEV2(triDBRAddr);
+        ale = ALEV2(payable(aleV2Addr));
         ale.allowProxy(address(exchangeProxy));
         ale.setMarket(address(market), fraxAddr, address(helper), true);
         vm.stopPrank();

@@ -104,7 +104,7 @@ abstract contract ALEBaseSDolaLPDynYearnV2Test is MarketForkTest {
 
         // Calculate the amount of DOLA needed to borrow to buy the DBR needed to cover for the borrowing period
         (uint256 dolaForDBR, uint256 dbrAmount) = ale
-            .approximateDolaAndDbrNeeded(maxBorrowAmount, 15 days, 8);
+            .approximateDolaAndDbrNeeded(maxBorrowAmount, 10 days, 8);
 
         // Sign Message for borrow on behalf
         bytes32 hash = keccak256(

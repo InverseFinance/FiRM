@@ -40,8 +40,8 @@ contract ALEstYETH4626HelperForkTest is BaseHelperForkTest {
     IChainlinkFeed feed;
     BorrowController borrowController;
 
-    address styETHHolder = 0x42b126099beDdCE8f5CcC06b4b39E8343e8F4260;
-    address yETHHolder = 0x12227DFe5363cbE55919e230653810de0fF317e2; // 2 yEthAddr
+    address styETHHolder = 0xd71FE69B6cd5E599992CE51746659aE195cF04F8;
+    address yETHHolder = 0xFa4Ebcb83902Bb1106b85Bb3D4916Dfd72E06721; // 2 yEthAddr
 
     //ERC-20s
     IMintable DOLA;
@@ -63,7 +63,7 @@ contract ALEstYETH4626HelperForkTest is BaseHelperForkTest {
     uint collateralFactorBps;
 
     function getBlockNumber() public view override returns (uint256) {
-        return 20590050; // Random block number
+        return 22175160;
     }
 
     function setUp() public override {
@@ -75,7 +75,7 @@ contract ALEstYETH4626HelperForkTest is BaseHelperForkTest {
         borrowController = BorrowController(borrowControllerAddr);
         dbr = DolaBorrowingRights(dbrAddr);
 
-        helper = new ERC4626Helper(gov, pauseGuardian);
+        helper = ERC4626Helper(erc4626HelperAddr);
         initBase(address(helper));
 
         feedyETH = new YETHFeed();
@@ -93,7 +93,7 @@ contract ALEstYETH4626HelperForkTest is BaseHelperForkTest {
         );
         dbr.addMarket(address(market));
 
-        ale = new ALEV2(triDBRAddr);
+        ale = ALEV2(payable(aleV2Addr));
         ale.allowProxy(address(exchangeProxy));
         ale.setMarket(address(market), yEthAddr, address(helper), true);
 
@@ -110,9 +110,6 @@ contract ALEstYETH4626HelperForkTest is BaseHelperForkTest {
         oracle.setFeed(yEthAddr, IChainlinkFeed(address(feedyETH)), 18);
         borrowController.allow(address(ale));
 
-        flash = IFlashMinter(address(ale.flash()));
-        DOLA.addMinter(address(flash));
-        flash.setMaxFlashLimit(1000000e18);
         vm.stopPrank();
 
         collateralFactorBps = market.collateralFactorBps();
