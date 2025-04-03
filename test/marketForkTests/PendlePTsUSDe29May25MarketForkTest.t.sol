@@ -26,10 +26,10 @@ contract PendlePTsUSDe29May25MarketForkTest is MarketBaseForkTest {
     address feedAddr = 0x8f5d8A77e6C1943218854B1eef22401760D4ca10; //FeedSwitch
     address marketAddr = 0x2D4788893DE7a4fB42106D9Db36b65463428FBD9;
     
-    function setUp() public {
+    function setUp() public virtual {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url);
+        vm.createSelectFork(url,22189615);
         
         _advancedInit(marketAddr, feedAddr, false);
     }

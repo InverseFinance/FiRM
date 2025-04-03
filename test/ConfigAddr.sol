@@ -130,5 +130,6 @@ contract ConfigAddr {
         address(0xF2F9b6F0B28f77872Acd2da4187021B3b8C73ab8); // Helper for entering and exiting ERC4626 vaults with underlying. Also support YearnV2 vaults for these LP.
     address yvyCRVHelperAddr = 
         address(0xa93DaC9b38aB4a23F1fA934EAbC7f9639a003C4C); // Helper for entering and exiting yvyCRV vaults with underlying. Also support YearnV2 vaults for these LP.
-
+    address pendlePTHelperAddr = 
+        address(0x68fb58dae2206a145B2aE458942E1F34B6173181); // Helper for entering and exiting Pendle PT vaults with DOLA. Also support Minting and Redeeming PTs.
 }
