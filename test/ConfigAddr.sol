@@ -20,7 +20,7 @@ contract ConfigAddr {
 
     // ALE
     address aleAddr = address(0x5233f4C2515ae21B540c438862Abb5603506dEBC);
-    address aleV2Addr = address(0x6218d3D6c01f8077F06519d8F5D31f935F3C3C53); // deployed at block 22082376
+    address aleV2Addr = address(0x4dF2EaA1658a220FDB415B9966a9ae7c3d16e240); // deployed at block 22241605
     // Inverse Feeds
     address styEthFeedAddr =
         address(0xbBE5FaBbB55c2c79ae1efE6b5bd52048A199e166);
@@ -131,5 +131,5 @@ contract ConfigAddr {
     address yvyCRVHelperAddr = 
         address(0xa93DaC9b38aB4a23F1fA934EAbC7f9639a003C4C); // Helper for entering and exiting yvyCRV vaults with underlying. Also support YearnV2 vaults for these LP.
     address pendlePTHelperAddr = 
-        address(0x68fb58dae2206a145B2aE458942E1F34B6173181); // Helper for entering and exiting Pendle PT vaults with DOLA. Also support Minting and Redeeming PTs.
+        address(0x4809fE7d314c2AE5b2Eb7fa19C1B166434D29141); // Helper for entering and exiting Pendle PT vaults with DOLA. Also support Minting and Redeeming PTs.
 }

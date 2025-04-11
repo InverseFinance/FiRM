@@ -63,7 +63,7 @@ contract ALEsFrax4626HelperForkTest is BaseHelperForkTest {
     uint collateralFactorBps;
 
     function getBlockNumber() public view override returns (uint256) {
-        return 22175160;
+        return 22241605;
     }
 
     function setUp() public override {

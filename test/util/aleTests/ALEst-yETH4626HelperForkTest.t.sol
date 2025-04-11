@@ -40,8 +40,8 @@ contract ALEstYETH4626HelperForkTest is BaseHelperForkTest {
     IChainlinkFeed feed;
     BorrowController borrowController;
 
-    address styETHHolder = 0xd71FE69B6cd5E599992CE51746659aE195cF04F8;
-    address yETHHolder = 0xFa4Ebcb83902Bb1106b85Bb3D4916Dfd72E06721; // 2 yEthAddr
+    address styETHHolder = 0xE37f3343b3f2b784589B677cfD6C9a166aAC2A19;
+    address yETHHolder = 0x69ACcb968B19a53790f43e57558F5E443A91aF22; // 2 yEthAddr
 
     //ERC-20s
     IMintable DOLA;
@@ -63,7 +63,7 @@ contract ALEstYETH4626HelperForkTest is BaseHelperForkTest {
     uint collateralFactorBps;
 
     function getBlockNumber() public view override returns (uint256) {
-        return 22175160;
+        return 22241605;
     }
 
     function setUp() public override {

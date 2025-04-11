@@ -148,7 +148,7 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
     }
 
     function getBlockNumber() public view override returns (uint256) {
-        return 22175224;
+        return 22241605;
     }
 
     function checkEq(
