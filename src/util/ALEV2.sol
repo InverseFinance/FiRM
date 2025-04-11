@@ -186,7 +186,7 @@ contract ALEV2 is
         if (!DBR.markets(_market)) revert NoMarket(_market);
 
         address collateral = IMarket(_market).collateral();
-        if (_helper == address(0) || _buySellToken == collateral) {
+        if (_helper == address(0) && _buySellToken != collateral) {
             revert MarketSetupFailed(
                 _market,
                 _buySellToken,
@@ -198,11 +198,17 @@ contract ALEV2 is
         markets[_market].buySellToken = IERC20(_buySellToken);
         markets[_market].collateral = IERC20(collateral);
         markets[_market].buySellToken.approve(_market, type(uint256).max);
-        markets[_market].collateral.approve(_market, type(uint256).max);
-
-        markets[_market].helper = IPendleHelper(_helper);
-        markets[_market].buySellToken.approve(_helper, type(uint256).max);
-        markets[_market].collateral.approve(_helper, type(uint256).max);
+        
+        if ( _buySellToken != collateral) {
+            markets[_market].collateral.approve(_market, type(uint256).max);
+        }
+        
+        if (_helper != address(0)) {
+            markets[_market].helper = IPendleHelper(_helper);
+            markets[_market].buySellToken.approve(_helper, type(uint256).max);
+            markets[_market].collateral.approve(_helper, type(uint256).max);
+        }
+       
 
         markets[_market].useProxy = useProxy;
         emit NewMarket(_market, _buySellToken, collateral, _helper);
