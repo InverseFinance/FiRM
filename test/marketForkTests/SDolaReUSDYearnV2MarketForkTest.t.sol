@@ -26,7 +26,7 @@ contract SDolaReUSDYearnV2MarketForkTest is MarketBaseForkTest {
     ChainlinkCurveFeed reUSDFeed;
 
     address yearn = address(0x7c439Df9ADE8831180EA4D546c1E910D4Ba71a86);
-
+    address yearnLPFeed = address(0x8c8A46bbaad08c3b90EEb687cA6E25aBb9203561);
     function setUp() public virtual {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
@@ -46,8 +46,8 @@ contract SDolaReUSDYearnV2MarketForkTest is MarketBaseForkTest {
             1000,
             false
         );
-        yearnFeed = _deploySDolaReUSDYearnV2Feed();
-        _advancedInit(address(market), address(yearnFeed), true);
+        //yearnFeed = _deploySDolaReUSDYearnV2Feed();
+        _advancedInit(address(market), address(yearnLPFeed), true);
     }
 
     function _deploySDolaReUSDYearnV2Feed()

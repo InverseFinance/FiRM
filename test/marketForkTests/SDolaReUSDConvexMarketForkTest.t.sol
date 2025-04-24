@@ -35,6 +35,8 @@ contract SDolaReUSDConvexMarketForkTest is MarketBaseForkTest {
     address public reUSDscrvUSD = address(0xc522A6606BBA746d7960404F22a3DB936B6F4F50);
     address public reUSD = address(0x57aB1E0003F623289CD798B1824Be09a793e4Bec);
     ChainlinkCurveFeed reUSDFeed;
+    address convexEscrow = address(0x6BCaA8f153D81fD0827d21c6a0DF96410eb7646B);
+    address lpFeed = address(0x8c8A46bbaad08c3b90EEb687cA6E25aBb9203561);
 
     function setUp() public virtual {
         //This will fail if there's no mainnet variable in foundry.toml
@@ -47,12 +49,12 @@ contract SDolaReUSDConvexMarketForkTest is MarketBaseForkTest {
             address(crv),
             pid
         );
-        feedSDolaReUSD = _deploySDolaReUSDFeed();
+        //feedSDolaReUSD = _deploySDolaReUSDFeed();
         market = new Market(
             gov,
             fedAddr,
             pauseGuardian,
-            address(escrow),
+            address(convexEscrow),
             IDolaBorrowingRights(address(dbrAddr)),
             IERC20(address(reUSDsDola)),
             IOracle(address(oracleAddr)),
@@ -61,7 +63,7 @@ contract SDolaReUSDConvexMarketForkTest is MarketBaseForkTest {
             1000,
             true
         );
-        _advancedInit(address(market), address(feedSDolaReUSD), true);
+        _advancedInit(address(market), lpFeed, true);
 
         userEscrow = ConvexEscrowV2(
             address(Market(address(market)).predictEscrow(user))
