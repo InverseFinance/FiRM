@@ -27,27 +27,14 @@ contract SDolaReUSDYearnV2MarketForkTest is MarketBaseForkTest {
 
     address yearn = address(0x7c439Df9ADE8831180EA4D546c1E910D4Ba71a86);
     address yearnLPFeed = address(0x8c8A46bbaad08c3b90EEb687cA6E25aBb9203561);
+    address marketAddr = address(0x1fD4985cdd57bDb1eD646B10B7952fCD58946916);
+
     function setUp() public virtual {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
         vm.createSelectFork(url);
 
-
-        Market market = new Market(
-            gov,
-            lender,
-            pauseGuardian,
-            address(simpleERC20EscrowAddr),
-            IDolaBorrowingRights(address(dbr)),
-            IERC20(address(yearn)),
-            IOracle(address(oracle)),
-            5000,
-            5000,
-            1000,
-            false
-        );
-        //yearnFeed = _deploySDolaReUSDYearnV2Feed();
-        _advancedInit(address(market), address(yearnLPFeed), true);
+        _advancedInit(marketAddr, address(yearnLPFeed), true);
     }
 
     function _deploySDolaReUSDYearnV2Feed()
