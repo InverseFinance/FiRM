@@ -418,6 +418,107 @@ abstract contract DolaCurveLPPessimsticFeedBaseTest is Test {
         assertEq(answeredInRoundFall, answeredInRound);
     }
 
+    function test_assetToUsd_upwards_depeg() public {
+        // Check if the coin1Feed is a ChainlinkCurveFeed and not a simple Chainlink feed
+        // If it is a simple Chainlink feed, skip the test since it won't work and the direct depeg is already tested above
+        uint256 targetIndex;
+        try ChainlinkCurveFeed(address(coin1Feed)).targetIndex() returns (uint256 _targetIndex) {
+            targetIndex = _targetIndex;
+        }
+        catch {
+            return;
+        }
+
+        uint256 lpPriceBefore = uint(feed.latestAnswer());
+        _mockCall_Chainlink(
+            address(coin1Feed.assetToUsd()),
+            0,
+            1.5 ether,
+            0,
+            block.timestamp - 10,
+            0
+        );
+        (
+            uint80 roundId,
+            int256 lpUsdPrice,
+            uint startedAt,
+            uint updatedAt,
+            uint80 answeredInRound
+        ) = feed.latestRoundData();
+         uint256 virtualPrice = feed.curvePool().get_virtual_price();
+        if (targetIndex == 0) {
+            // if targetIndex is zero, the upward depeg will cause price of coin1 to increase, so will use coin2(DOLA) price for calculation
+            uint256 dolaPrice = uint(dolaFeed.latestAnswer());
+            uint256 lpPrice = 
+            (virtualPrice * dolaPrice) / 10 ** dolaFeed.decimals();
+             assertEq(uint256(lpUsdPrice), lpPrice);
+             assertGt(uint256(lpUsdPrice), lpPriceBefore);
+             assertGt(uint(coin1Feed.latestAnswer()), dolaPrice);
+        } else {
+            // If targetIndex is not zero, the updard depeg will cause price of coin1 to decrease, so it will use coin1 price for calculation
+             uint256 coin1Price = uint(coin1Feed.latestAnswer());
+             uint256 lpPrice = virtualPrice * coin1Price / 10 ** coin1Feed.decimals();
+             assertEq(uint256(lpUsdPrice), lpPrice);
+             assertLt(uint256(lpUsdPrice), lpPriceBefore);
+             assertGt(uint(dolaFeed.latestAnswer()),coin1Price);
+        }
+      
+        assertEq(roundId, 0);
+        assertEq(startedAt, 0);
+        assertEq(updatedAt, block.timestamp - 10);
+        assertEq(answeredInRound, 0);
+    }
+
+    function test_assetToUsd_downwards_depeg() public {
+        // Check if the coin1Feed is a ChainlinkCurveFeed and not a simple Chainlink Wrapper feed
+        // If it is a simple Chainlink feed, skip the test since it won't work and the direct depeg is already tested above
+        uint256 targetIndex;
+        try ChainlinkCurveFeed(address(coin1Feed)).targetIndex() returns (uint256 _targetIndex) {
+            targetIndex = _targetIndex;
+        }
+        catch {
+            return;
+        }
+        uint256 lpPriceBefore = uint(feed.latestAnswer());
+        _mockCall_Chainlink(
+            address(coin1Feed.assetToUsd()),
+            0,
+            0.5 ether,
+            0,
+            block.timestamp - 10,
+            0
+        );
+        (
+            uint80 roundId,
+            int256 lpUsdPrice,
+            uint startedAt,
+            uint updatedAt,
+            uint80 answeredInRound
+        ) = feed.latestRoundData();
+         uint256 virtualPrice = feed.curvePool().get_virtual_price();
+        if (targetIndex == 0) {
+            // If targetIndex is zero, the downward depeg will cause price of coin1 to decrease, so it will use coin1 price for calculation
+            uint256 coin1Price = uint(coin1Feed.latestAnswer());
+            uint256 lpPrice = virtualPrice * coin1Price / 10 ** coin1Feed.decimals();
+            assertEq(uint256(lpUsdPrice), lpPrice);
+            assertLt(uint256(lpUsdPrice), lpPriceBefore);
+            assertGt(uint(dolaFeed.latestAnswer()),coin1Price);
+           
+        } else {
+             // if targetIndex is not zero, the downward depeg will cause price of coin1 to increase, so will use coin2(DOLA) price for calculation
+            uint256 dolaPrice = uint(dolaFeed.latestAnswer());
+            uint256 lpPrice = 
+            (virtualPrice * dolaPrice) / 10 ** dolaFeed.decimals();
+            assertEq(uint256(lpUsdPrice), lpPrice);
+            assertGt(uint256(lpUsdPrice), lpPriceBefore);
+            assertGt(uint(coin1Feed.latestAnswer()), dolaPrice);
+        }
+      
+        assertEq(roundId, 0);
+        assertEq(startedAt, 0);
+        assertEq(updatedAt, block.timestamp - 10);
+        assertEq(answeredInRound, 0);
+    }
     function _calculateOracleLpPrice()
         internal
         view
