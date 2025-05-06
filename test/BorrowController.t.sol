@@ -189,6 +189,8 @@ contract BorrowControllerTest is FiRMBaseTest {
     function test_BorrowAllowed_True_Where_EdgeCaseBugDebtNonZero()
         public
     {
+        vm.prank(gov);
+        borrowController.setDailyLimit(address(market), 2000 ether);
         uint testAmount = 1e18;
         gibWeth(user, testAmount);
         uint halfBorrow = getMaxBorrowAmount(testAmount) / 2;
@@ -219,6 +221,8 @@ contract BorrowControllerTest is FiRMBaseTest {
     function test_BorrowAllowed_True_Where_EdgeCaseBugDebtNonZero365Days()
         public
     {
+        vm.prank(gov);
+        borrowController.setDailyLimit(address(market), 2000 ether);
         uint testAmount = 1e18;
         gibWeth(user, testAmount);
         uint halfBorrow = getMaxBorrowAmount(testAmount) / 2;
@@ -252,6 +256,8 @@ contract BorrowControllerTest is FiRMBaseTest {
     function test_BorrowAllowed_True_Where_EdgeCaseBugDebtNonZeroFuzz(uint timeElapsed)
         public
     {
+        vm.prank(gov);
+        borrowController.setDailyLimit(address(market), 2000 ether);
         uint timeElapsed = timeElapsed % 365 days;
         uint testAmount = 1e18;
         gibWeth(user, testAmount);
@@ -283,6 +289,8 @@ contract BorrowControllerTest is FiRMBaseTest {
     function test_BorrowAllowed_False_Where_EdgeCaseBugTriggeredWithMinimalDebt()
         public
     {
+        vm.prank(gov);
+        borrowController.setDailyLimit(address(market), 2000 ether);
         uint testAmount = 1e18;
         gibWeth(user, testAmount);
         uint maxBorrow = getMaxBorrowAmount(testAmount);
