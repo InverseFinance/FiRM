@@ -5,7 +5,7 @@ import {CurveDolaLPHelperDynamic} from "src/util/CurveDolaLPHelperDynamic.sol";
 import "test/marketForkTests/DolascrvUSDConvexMarketForkTest.t.sol";
 import {console} from "forge-std/console.sol";
 import {IMultiMarketTransformHelper} from "src/interfaces/IMultiMarketTransformHelper.sol";
-import {ALE} from "src/util/ALE.sol";
+import {ALEV2} from "src/util/ALEV2.sol";
 import {ALEBaseDolaLPDynTest, IFlashMinter} from "test/util/aleTests/ALEBaseDolaLPDyn.sol";
 
 contract ALEDolascrvUSDTest is
@@ -21,8 +21,9 @@ contract ALEDolascrvUSDTest is
         vm.startPrank(gov);
         DOLA.mint(address(this), 100000 ether);
         helper.setMarket(address(market), address(curvePool), 0, 2, address(0));
-        ale = ALE(payable(aleAddr));
+        ale = ALEV2(payable(aleV2Addr));
         ale.setMarket(address(market), address(DOLA), address(helper), false);
+        borrowController.allow(address(ale));
         vm.stopPrank();
 
         userPkEscrow = address(market.predictEscrow(userPk));

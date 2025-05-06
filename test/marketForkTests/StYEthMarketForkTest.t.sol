@@ -6,7 +6,7 @@ import {Market} from "src/Market.sol";
 import {SimpleERC20Escrow} from "src/escrows/SimpleERC20Escrow.sol";
 import {StYEthPriceFeed} from "src/feeds/StYEthPriceFeed.sol";
 import {ERC4626Helper, IERC4626} from "src/util/ERC4626Helper.sol";
-import {ERC4626Helper, IERC4626, IMultiMarketTransformHelper} from "src/util/ERC4626Helper.sol";
+import {ERC4626Helper, IERC4626, IMultiMarketConvertHelper} from "src/util/ERC4626Helper.sol";
 
 contract StYEthMarketForkTest is MarketBaseForkTest {
     SimpleERC20Escrow escrow;
@@ -58,7 +58,7 @@ contract StYEthMarketForkTest is MarketBaseForkTest {
 
         vm.startPrank(user);
         yEth.approve(address(helper), type(uint).max);
-        helper.transformToCollateralAndDeposit(initAmount, user, data);
+        helper.convertToCollateralAndDeposit(initAmount, user, data);
         assertEq(yEth.balanceOf(user), 0);
     }
 
@@ -71,7 +71,7 @@ contract StYEthMarketForkTest is MarketBaseForkTest {
 
         vm.startPrank(userPk);
         yEth.approve(address(helper), type(uint).max);
-        helper.transformToCollateralAndDeposit(initAmount / 2, userPk, data);
+        helper.convertToCollateralAndDeposit(initAmount / 2, userPk, data);
         // Amount of SHARES to withdraw
         uint256 withdrawAmount = market.predictEscrow(userPk).balance();
 
@@ -95,14 +95,14 @@ contract StYEthMarketForkTest is MarketBaseForkTest {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
-        IMultiMarketTransformHelper.Permit
-            memory permit = IMultiMarketTransformHelper.Permit({
+        IMultiMarketConvertHelper.Permit
+            memory permit = IMultiMarketConvertHelper.Permit({
                 deadline: block.timestamp,
                 v: v,
                 r: r,
                 s: s
             });
-        helper.withdrawAndTransformFromCollateral(
+        helper.withdrawAndConvertFromCollateral(
             withdrawAmount,
             userPk,
             permit,
@@ -124,7 +124,7 @@ contract StYEthMarketForkTest is MarketBaseForkTest {
                 address(0)
             )
         );
-        helper.transformToCollateralAndDeposit(
+        helper.convertToCollateralAndDeposit(
             10 ether,
             address(0),
             abi.encode(address(0))
@@ -148,7 +148,7 @@ contract StYEthMarketForkTest is MarketBaseForkTest {
             abi.encodeWithSelector(ERC4626Helper.InsufficientShares.selector)
         );
 
-        helper.transformToCollateralAndDeposit(10 ether, user, data);
+        helper.convertToCollateralAndDeposit(10 ether, user, data);
 
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -156,15 +156,15 @@ contract StYEthMarketForkTest is MarketBaseForkTest {
                 address(0)
             )
         );
-        IMultiMarketTransformHelper.Permit
-            memory permit = IMultiMarketTransformHelper.Permit({
+        IMultiMarketConvertHelper.Permit
+            memory permit = IMultiMarketConvertHelper.Permit({
                 deadline: block.timestamp,
                 v: 0,
                 r: bytes32(0),
                 s: bytes32(0)
             });
         data = abi.encode(address(0));
-        helper.withdrawAndTransformFromCollateral(10 ether, user, permit, data);
+        helper.withdrawAndConvertFromCollateral(10 ether, user, permit, data);
 
         vm.clearMockedCalls();
 
@@ -174,7 +174,7 @@ contract StYEthMarketForkTest is MarketBaseForkTest {
         vm.startPrank(userPk);
         yEth.approve(address(helper), type(uint).max);
         data = abi.encode(address(market));
-        helper.transformToCollateralAndDeposit(10 ether, userPk, data);
+        helper.convertToCollateralAndDeposit(10 ether, userPk, data);
         // Amount of SHARES to withdraw
         uint256 withdrawAmount = market.predictEscrow(userPk).balance();
 
@@ -206,14 +206,14 @@ contract StYEthMarketForkTest is MarketBaseForkTest {
         vm.expectRevert(
             abi.encodeWithSelector(ERC4626Helper.InsufficientShares.selector)
         );
-        IMultiMarketTransformHelper.Permit
-            memory permit2 = IMultiMarketTransformHelper.Permit({
+        IMultiMarketConvertHelper.Permit
+            memory permit2 = IMultiMarketConvertHelper.Permit({
                 deadline: block.timestamp,
                 v: v,
                 r: r,
                 s: s
             });
-        helper.withdrawAndTransformFromCollateral(
+        helper.withdrawAndConvertFromCollateral(
             withdrawAmount,
             userPk,
             permit2,

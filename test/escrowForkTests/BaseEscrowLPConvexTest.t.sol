@@ -46,7 +46,6 @@ abstract contract BaseEscrowLPConvexTest is Test {
     struct ConvexInfo {
         uint256 pid;
         address rewardPool;
-        address depositToken;
         address stash;
     }
 
@@ -62,7 +61,6 @@ abstract contract BaseEscrowLPConvexTest is Test {
         gauge = _gauge;
         pid = _convexInfo.pid;
         rewardPool = IRewardPool(_convexInfo.rewardPool);
-        depositToken = IERC20(_convexInfo.depositToken);
         stash = _convexInfo.stash;
 
         if (_addExtraDolaReward) {

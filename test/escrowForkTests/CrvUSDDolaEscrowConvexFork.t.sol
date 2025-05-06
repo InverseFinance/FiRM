@@ -12,7 +12,6 @@ contract DolaCrvUSDEscrowConvexForkTest is BaseEscrowLPConvexTest {
     // Convex
     uint256 _pid = 215;
     address _rewardPool = 0xC94208D230EEdC4cDC4F80141E21aA485A515660;
-    address _depositToken = 0x408abF1a02388A5EF19E3dB1e08db5eFdC510DFF;
     address _stash = 0x25F5Ccd892985Bf878327B15815bd90066EEf28d;
 
     function setUp() public {
@@ -22,7 +21,6 @@ contract DolaCrvUSDEscrowConvexForkTest is BaseEscrowLPConvexTest {
         BaseEscrowLPConvexTest.ConvexInfo memory convexParams = ConvexInfo(
             _pid,
             _rewardPool,
-            _depositToken,
             _stash
         );
 

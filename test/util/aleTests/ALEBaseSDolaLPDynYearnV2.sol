@@ -4,13 +4,12 @@ import {ICurvePool} from "src/interfaces/ICurvePool.sol";
 import {CurveSDolaLPHelperDynamic} from "src/util/CurveSDolaLPHelperDynamic.sol";
 import "test/marketForkTests/MarketForkTest.sol";
 import {console} from "forge-std/console.sol";
-import {IMultiMarketTransformHelper} from "src/interfaces/IMultiMarketTransformHelper.sol";
-import {ALE} from "src/util/ALE.sol";
+import {ALEV2} from "src/util/ALEV2.sol";
 import {YearnVaultV2Helper, IYearnVaultV2} from "src/util/YearnVaultV2Helper.sol";
 import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 
 abstract contract ALEBaseSDolaLPDynYearnV2Test is MarketForkTest {
-    ALE ale;
+    ALEV2 ale;
     address userPk = vm.addr(1);
     CurveSDolaLPHelperDynamic helper;
     address userPkEscrow;
@@ -23,7 +22,7 @@ abstract contract ALEBaseSDolaLPDynYearnV2Test is MarketForkTest {
 
         vm.startPrank(userPk, userPk);
         DOLA.approve(address(helper), 1000000 ether);
-        helper.transformToCollateralAndDeposit(
+        helper.convertToCollateralAndDeposit(
             1000000 ether,
             userPk,
             abi.encode(address(market), 0)
@@ -56,11 +55,11 @@ abstract contract ALEBaseSDolaLPDynYearnV2Test is MarketForkTest {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
-        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+        ALEV2.Permit memory permit = ALEV2.Permit(block.timestamp, v, r, s);
 
         bytes memory swapData;
 
-        ALE.DBRHelper memory dbrData;
+        ALEV2.DBRHelper memory dbrData;
 
         uint256[] memory amounts = new uint256[](2);
         amounts[1] = sDOLA.convertToShares(maxBorrowAmount);
@@ -92,7 +91,7 @@ abstract contract ALEBaseSDolaLPDynYearnV2Test is MarketForkTest {
 
         vm.startPrank(userPk, userPk);
         DOLA.approve(address(helper), amount);
-        helper.transformToCollateralAndDeposit(
+        helper.convertToCollateralAndDeposit(
             amount,
             userPk,
             abi.encode(address(market), 0)
@@ -105,7 +104,7 @@ abstract contract ALEBaseSDolaLPDynYearnV2Test is MarketForkTest {
 
         // Calculate the amount of DOLA needed to borrow to buy the DBR needed to cover for the borrowing period
         (uint256 dolaForDBR, uint256 dbrAmount) = ale
-            .approximateDolaAndDbrNeeded(maxBorrowAmount, 15 days, 8);
+            .approximateDolaAndDbrNeeded(maxBorrowAmount, 10 days, 8);
 
         // Sign Message for borrow on behalf
         bytes32 hash = keccak256(
@@ -128,11 +127,11 @@ abstract contract ALEBaseSDolaLPDynYearnV2Test is MarketForkTest {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
-        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+        ALEV2.Permit memory permit = ALEV2.Permit(block.timestamp, v, r, s);
 
         bytes memory swapData;
 
-        ALE.DBRHelper memory dbrData = ALE.DBRHelper(
+        ALEV2.DBRHelper memory dbrData = ALEV2.DBRHelper(
             dolaForDBR,
             (dbrAmount * 90) / 100,
             0
@@ -169,7 +168,7 @@ abstract contract ALEBaseSDolaLPDynYearnV2Test is MarketForkTest {
 
         vm.startPrank(userPk, userPk);
         DOLA.approve(address(helper), amount - initialDolaDeposit);
-        helper.transformToCollateralAndDeposit(
+        helper.convertToCollateralAndDeposit(
             amount - initialDolaDeposit,
             userPk,
             abi.encode(address(market), 0)
@@ -202,11 +201,11 @@ abstract contract ALEBaseSDolaLPDynYearnV2Test is MarketForkTest {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
-        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+        ALEV2.Permit memory permit = ALEV2.Permit(block.timestamp, v, r, s);
 
         bytes memory swapData;
 
-        ALE.DBRHelper memory dbrData;
+        ALEV2.DBRHelper memory dbrData;
 
         uint256[] memory amounts = new uint256[](2);
         amounts[1] = sDOLA.convertToShares(
@@ -243,11 +242,12 @@ abstract contract ALEBaseSDolaLPDynYearnV2Test is MarketForkTest {
         uint256 initialDolaForShares = amount / 10;
         vm.startPrank(userPk, userPk);
         DOLA.approve(address(helper), amount);
-        uint256 initialSharesAmount = helper.transformToCollateral(
+        uint256 initialSharesAmount = helper.convertToCollateral(
+            address(0),
             initialDolaForShares,
             abi.encode(address(market), 0)
         );
-        helper.transformToCollateralAndDeposit(
+        helper.convertToCollateralAndDeposit(
             amount - initialDolaForShares,
             userPk,
             abi.encode(address(market), 0)
@@ -280,11 +280,11 @@ abstract contract ALEBaseSDolaLPDynYearnV2Test is MarketForkTest {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
-        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+        ALEV2.Permit memory permit = ALEV2.Permit(block.timestamp, v, r, s);
 
         bytes memory swapData;
 
-        ALE.DBRHelper memory dbrData;
+        ALEV2.DBRHelper memory dbrData;
 
         uint256[] memory amounts = new uint256[](2);
         amounts[1] = sDOLA.convertToShares(maxBorrowAmount);
@@ -347,17 +347,17 @@ abstract contract ALEBaseSDolaLPDynYearnV2Test is MarketForkTest {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
-        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+        ALEV2.Permit memory permit = ALEV2.Permit(block.timestamp, v, r, s);
 
-        ALE.DBRHelper memory dbrData;
+        ALEV2.DBRHelper memory dbrData;
         bytes memory swapData;
 
         vm.prank(userPk);
         ale.deleveragePosition(
             dolaRedeemed / 2,
             address(market),
-            amountToWithdraw,
             address(0),
+            amountToWithdraw,
             swapData,
             permit,
             abi.encode(address(market), uint(0)),
@@ -381,7 +381,7 @@ abstract contract ALEBaseSDolaLPDynYearnV2Test is MarketForkTest {
 
         vm.startPrank(userPk, userPk);
         DOLA.approve(address(helper), 1000 ether);
-        uint256 yearnLeftover = helper.transformToCollateral(
+        uint256 yearnLeftover = helper.convertToCollateral(
             1000 ether,
             address(helper),
             abi.encode(address(market), 0)
@@ -421,17 +421,17 @@ abstract contract ALEBaseSDolaLPDynYearnV2Test is MarketForkTest {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
-        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+        ALEV2.Permit memory permit = ALEV2.Permit(block.timestamp, v, r, s);
 
-        ALE.DBRHelper memory dbrData;
+        ALEV2.DBRHelper memory dbrData;
         bytes memory swapData;
 
         vm.prank(userPk);
         ale.deleveragePosition(
             dolaRedeemed / 2,
             address(market),
-            amountToWithdraw,
             address(0),
+            amountToWithdraw,
             swapData,
             permit,
             abi.encode(address(market), uint(0)),
@@ -483,11 +483,11 @@ abstract contract ALEBaseSDolaLPDynYearnV2Test is MarketForkTest {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
-        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+        ALEV2.Permit memory permit = ALEV2.Permit(block.timestamp, v, r, s);
 
-        ALE.DBRHelper memory dbrData = ALE.DBRHelper(
+        ALEV2.DBRHelper memory dbrData = ALEV2.DBRHelper(
             dbr.balanceOf(userPk),
-            0,
+            1,
             0
         ); // sell all DBR
         bytes memory swapData;
@@ -497,8 +497,8 @@ abstract contract ALEBaseSDolaLPDynYearnV2Test is MarketForkTest {
         ale.deleveragePosition(
             debt,
             address(market),
-            amountToWithdraw,
             address(0),
+            amountToWithdraw,
             swapData,
             permit,
             abi.encode(address(market), uint(0)),

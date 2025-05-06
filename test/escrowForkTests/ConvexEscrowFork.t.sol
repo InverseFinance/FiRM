@@ -5,9 +5,8 @@ import "forge-std/Test.sol";
 import "src/escrows/ConvexEscrow.sol";
 
 contract MockRewards {
-
     IERC20 token;
-    constructor(address _token){
+    constructor(address _token) {
         token = IERC20(_token);
     }
 
@@ -16,25 +15,23 @@ contract MockRewards {
     }
 }
 
-contract ConvexEscrowForkTest is Test{
-
+contract ConvexEscrowForkTest is Test {
     address market = address(0xA);
     address beneficiary = address(0xB);
     address friend = address(0xC);
-    address holder = address(0x50BE13b54f3EeBBe415d20250598D81280e56772);
+    address holder = address(0x272b065A43EF59EA470fbfD9be76AD1b43aAB651);
     IERC20 dola = IERC20(0x865377367054516e17014CcdED1e7d814EDC9ce4);
     IERC20 cvx = IERC20(0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B);
     IERC20 cvxCrv = IERC20(0x62B9c7356A2Dc64a1969e19C23e4f579F9810Aa7);
-    ICvxRewardPool rewardPool = ICvxRewardPool(0xCF50b810E57Ac33B91dCF525C6ddd9881B139332);
-        
-    ConvexEscrow escrow;
+    ICvxRewardPool rewardPool =
+        ICvxRewardPool(0xCF50b810E57Ac33B91dCF525C6ddd9881B139332);
 
+    ConvexEscrow escrow;
 
     function setUp() public {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
         vm.createSelectFork(url, 22114296);
-        
         escrow = new ConvexEscrow();
         vm.startPrank(market, market);
         escrow.initialize(address(cvx), beneficiary);
@@ -46,13 +43,16 @@ contract ConvexEscrowForkTest is Test{
     function testOnDeposit_successful_whenContractHoldsCvxCrv() public {
         uint balanceBefore = escrow.balance();
         uint stakedBalanceBefore = rewardPool.balanceOf(address(escrow));
-        
+
         vm.prank(holder, holder);
         cvx.transfer(address(escrow), 1 ether);
         escrow.onDeposit();
 
         assertEq(escrow.balance(), balanceBefore + 1 ether);
-        assertEq(rewardPool.balanceOf(address(escrow)), stakedBalanceBefore + 1 ether);
+        assertEq(
+            rewardPool.balanceOf(address(escrow)),
+            stakedBalanceBefore + 1 ether
+        );
     }
 
     function testPay_successful_whenContractHasStakedCvxCrv() public {
@@ -66,10 +66,15 @@ contract ConvexEscrowForkTest is Test{
         vm.prank(market, market);
         escrow.pay(beneficiary, 1 ether);
 
-
         assertEq(escrow.balance(), balanceBefore - 1 ether);
-        assertEq(rewardPool.balanceOf(address(escrow)), stakedBalanceBefore - 1 ether);
-        assertEq(cvx.balanceOf(beneficiary), beneficiaryBalanceBefore + 1 ether);
+        assertEq(
+            rewardPool.balanceOf(address(escrow)),
+            stakedBalanceBefore - 1 ether
+        );
+        assertEq(
+            cvx.balanceOf(beneficiary),
+            beneficiaryBalanceBefore + 1 ether
+        );
     }
 
     function testPay_failWithONLYMARKET_whenCalledByNonMarket() public {
@@ -100,13 +105,17 @@ contract ConvexEscrowForkTest is Test{
         vm.prank(holder, holder);
         cvx.transfer(address(escrow), 1 ether);
         escrow.onDeposit();
-        
+
         vm.startPrank(beneficiary);
         vm.warp(block.timestamp + 14 days);
         escrow.claim();
         vm.stopPrank();
 
-        assertGt(cvxCrv.balanceOf(beneficiary), cvxCrvBalanceBefore, "cvxCrv balance did not increase");
+        assertGt(
+            cvxCrv.balanceOf(beneficiary),
+            cvxCrvBalanceBefore,
+            "cvxCrv balance did not increase"
+        );
     }
 
     function testClaimTo_successful_whenExtraRewardsAdded() public {
@@ -120,7 +129,7 @@ contract ConvexEscrowForkTest is Test{
         deal(address(dola), address(reward), 10 ether);
         vm.prank(rewardPool.rewardManager());
         rewardPool.addExtraReward(address(reward));
-        
+
         vm.startPrank(beneficiary);
         vm.warp(block.timestamp + 14 days);
         address[] memory rewards = new address[](1);
@@ -128,8 +137,16 @@ contract ConvexEscrowForkTest is Test{
         escrow.claimTo(beneficiary, rewards);
         vm.stopPrank();
 
-        assertGt(cvxCrv.balanceOf(beneficiary), cvxCrvBalanceBefore, "cvxCrv balance did not increase");
-        assertGt(dola.balanceOf(beneficiary), dolaBalanceBefore, "Dola extra reward balance did not increase");
+        assertGt(
+            cvxCrv.balanceOf(beneficiary),
+            cvxCrvBalanceBefore,
+            "cvxCrv balance did not increase"
+        );
+        assertGt(
+            dola.balanceOf(beneficiary),
+            dolaBalanceBefore,
+            "Dola extra reward balance did not increase"
+        );
     }
 
     function testClaimTo_fails_whenTryingToClaimCollateral() public {
@@ -141,7 +158,7 @@ contract ConvexEscrowForkTest is Test{
         deal(address(cvx), address(reward), 10 ether);
         vm.prank(rewardPool.rewardManager());
         rewardPool.addExtraReward(address(reward));
-        
+
         vm.startPrank(beneficiary);
         vm.warp(block.timestamp + 14 days);
         address[] memory rewards = new address[](1);
@@ -160,7 +177,7 @@ contract ConvexEscrowForkTest is Test{
         deal(address(cvx), address(reward), 10 ether);
         vm.prank(rewardPool.rewardManager());
         rewardPool.addExtraReward(address(reward));
-        
+
         vm.startPrank(beneficiary);
         vm.warp(block.timestamp + 14 days);
         address[] memory rewards = new address[](2);
@@ -237,10 +254,11 @@ contract ConvexEscrowForkTest is Test{
         escrow.allowClaimOnBehalf(friend);
     }
 
-    function testDisallowClaimOnBehalf_fails_whenCalledByNonBeneficiary() public {
+    function testDisallowClaimOnBehalf_fails_whenCalledByNonBeneficiary()
+        public
+    {
         vm.prank(friend);
         vm.expectRevert("ONLY BENEFICIARY");
         escrow.disallowClaimOnBehalf(friend);
     }
-
 }

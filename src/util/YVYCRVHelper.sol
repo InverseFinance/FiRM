@@ -40,7 +40,8 @@ contract YVYCRVHelper is Sweepable, ReentrancyGuard {
     /// @param _value Amount of underlying to transform
     /// @param _helperData Optional helper data in case the collateral needs to be transformed
     /// @return collateralAmount Amount of collateral received
-    function transformToCollateral(
+    function convertToCollateral(
+        address,
         uint256 _value,
         bytes calldata _helperData
     ) external nonReentrant returns (uint256 collateralAmount) {
@@ -65,7 +66,8 @@ contract YVYCRVHelper is Sweepable, ReentrancyGuard {
     /// @param _value Amount of collateral to transform
     /// @param _helperData Optional helper data in case the collateral needs to be transformed
     /// @return underlyingAmount Amount of underlying received
-    function transformFromCollateral(
+    function convertFromCollateral(
+        address,
         uint256 _value,
         bytes calldata _helperData
     ) external nonReentrant returns (uint256 underlyingAmount) {
@@ -87,7 +89,7 @@ contract YVYCRVHelper is Sweepable, ReentrancyGuard {
     /// @notice Transforms underlying to collateral and deposits it into the market
     /// @param amount Amount of underlying to transform
     /// @param data Optional helper data in case the collateral needs to be transformed
-    function transformToCollateralAndDeposit(
+    function convertToCollateralAndDeposit(
         uint256 amount,
         bytes calldata data
     ) external returns (uint256 collateralAmount) {
@@ -101,7 +103,7 @@ contract YVYCRVHelper is Sweepable, ReentrancyGuard {
     /// @notice Withdraws collateral from the market and transforms it to underlying
     /// @param amount Amount of collateral to transform
     /// @param data Optional helper data in case the collateral needs to be transformed
-    function withdrawAndTransformFromCollateral(
+    function withdrawAndConvertFromCollateral(
         uint256 amount,
         Permit calldata permit,
         bytes calldata data

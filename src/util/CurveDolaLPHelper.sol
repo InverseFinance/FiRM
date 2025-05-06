@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import {IMarket} from "src/interfaces/IMarket.sol";
 import {Sweepable, SafeERC20, IERC20} from "src/util/Sweepable.sol";
-import {IMultiMarketTransformHelper} from "src/interfaces/IMultiMarketTransformHelper.sol";
+import {IMultiMarketConvertHelper} from "src/interfaces/IMultiMarketConvertHelper.sol";
 import {ICurvePool} from "src/interfaces/ICurvePool.sol";
 import {IYearnVaultV2} from "src/interfaces/IYearnVaultV2.sol";
 
@@ -14,7 +14,7 @@ import {IYearnVaultV2} from "src/interfaces/IYearnVaultV2.sol";
  * Can also be used by anyone to perform add/remove liquidity from and to DOLA and deposit/withdraw operations.
  **/
 
-contract CurveDolaLPHelper is Sweepable, IMultiMarketTransformHelper {
+contract CurveDolaLPHelper is Sweepable, IMultiMarketConvertHelper {
     using SafeERC20 for IERC20;
 
     error InsufficientLP();
@@ -61,11 +61,12 @@ contract CurveDolaLPHelper is Sweepable, IMultiMarketTransformHelper {
      * @param data The encoded address of the market.
      * @return collateralAmount The amount of LP token received.
      */
-    function transformToCollateral(
+    function convertToCollateral(
+        address,
         uint256 amount,
         bytes calldata data
     ) external override returns (uint256 collateralAmount) {
-        collateralAmount = transformToCollateral(amount, msg.sender, data);
+        collateralAmount = convertToCollateral(amount, msg.sender, data);
     }
 
     /**
@@ -76,7 +77,7 @@ contract CurveDolaLPHelper is Sweepable, IMultiMarketTransformHelper {
      * @param data The encoded address of the market.
      * @return collateralAmount The amount of LP or Yearn token received.
      */
-    function transformToCollateral(
+    function convertToCollateral(
         uint256 amount,
         address recipient,
         bytes calldata data
@@ -115,11 +116,12 @@ contract CurveDolaLPHelper is Sweepable, IMultiMarketTransformHelper {
      * @param data The encoded address of the market.
      * @return dolaAmount The amount of DOLA redeemed.
      */
-    function transformFromCollateral(
+    function convertFromCollateral(
+        address,
         uint256 amount,
         bytes calldata data
     ) external override returns (uint256 dolaAmount) {
-        dolaAmount = transformFromCollateral(amount, msg.sender, data);
+        dolaAmount = convertFromCollateral(amount, msg.sender, data);
     }
 
     /**
@@ -130,7 +132,7 @@ contract CurveDolaLPHelper is Sweepable, IMultiMarketTransformHelper {
      * @param data The encoded address of the market.
      * @return dolaAmount The amount of DOLA redeemed.
      */
-    function transformFromCollateral(
+    function convertFromCollateral(
         uint256 amount,
         address recipient,
         bytes calldata data
@@ -171,7 +173,7 @@ contract CurveDolaLPHelper is Sweepable, IMultiMarketTransformHelper {
      * @param data The encoded address of the market.
      * @return collateralAmount The amount of collateral deposited into the market.
      */
-    function transformToCollateralAndDeposit(
+    function convertToCollateralAndDeposit(
         uint256 assets,
         address recipient,
         bytes calldata data
@@ -180,7 +182,7 @@ contract CurveDolaLPHelper is Sweepable, IMultiMarketTransformHelper {
         _revertIfMarketNotSet(market);
 
         // Convert DOLA to LP or Yearn token
-        uint256 amount = transformToCollateral(assets, address(this), data);
+        uint256 amount = convertToCollateral(assets, address(this), data);
 
         IYearnVaultV2 vault = markets[market].vault;
 
@@ -212,7 +214,7 @@ contract CurveDolaLPHelper is Sweepable, IMultiMarketTransformHelper {
      * @param data The encoded address of the market.
      * @return dolaAmount The amount of DOLA redeemed.
      */
-    function withdrawAndTransformFromCollateral(
+    function withdrawAndConvertFromCollateral(
         uint256 amount,
         address recipient,
         Permit calldata permit,
