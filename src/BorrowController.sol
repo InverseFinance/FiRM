@@ -100,7 +100,8 @@ contract BorrowController {
         uint lastUpdated = DBR.lastUpdated(borrower);
         uint debts = DBR.debts(borrower);
         //Check to prevent effects of edge case bug
-        if(lastUpdated > 0 && debts == 0 && lastUpdated != block.timestamp){
+        uint timeElapsed = block.timestamp - lastUpdated;
+        if(lastUpdated > 0 && debts * timeElapsed < 365 days && lastUpdated != block.timestamp){
             //Important check, otherwise a user could repeatedly mint themsevles DBR
             require(DBR.markets(msg.sender), "Message sender is not a market");
             uint deficit = (block.timestamp - lastUpdated) * amount / 365 days;
@@ -114,7 +115,7 @@ contract BorrowController {
         //If the chainlink oracle price feed is stale, deny borrow
         if(isPriceStale(msg.sender)) return false;
         //If the message sender is not a contract, then there's no need check allowlist
-        if(msgSender == tx.origin) return true;
+        if(msgSender == tx.origin && msgSender.code.length == 0) return true;
         return contractAllowlist[msgSender];
     }
 

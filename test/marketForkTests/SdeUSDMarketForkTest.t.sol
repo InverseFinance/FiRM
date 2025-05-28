@@ -17,7 +17,7 @@ contract SdeUSDMarketForkTest is MarketBaseForkTest {
     function setUp() public virtual {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url, 21880783);
+        vm.createSelectFork(url, 21880983);
         address curveFeed = address(
             new ChainlinkCurveFeed(dolaFeed, curvePool, k, targetIndex)
         );

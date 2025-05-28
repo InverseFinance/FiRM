@@ -135,8 +135,6 @@ abstract contract MarketBaseForkTest is MarketForkTest {
         deposit(testAmount);
 
         uint borrowAmount = market.getCreditLimit(user) / 2;
-        uint timestamp = block.timestamp;
-        vm.warp(timestamp + 0.5 hours);
         uint dbrBal = dbr.balanceOf(user);
         market.borrow(borrowAmount);
         assertEq(
@@ -144,7 +142,7 @@ abstract contract MarketBaseForkTest is MarketForkTest {
             testAmount,
             "DBR balance burned immediately after borrow"
         );
-        vm.warp(timestamp + 0.5 hours + 1);
+        vm.warp(block.timestamp + 1);
         dbr.accrueDueTokens(user);
         assertEq(
             dbr.balanceOf(user),
@@ -387,6 +385,42 @@ abstract contract MarketBaseForkTest is MarketForkTest {
         uint borrowAmount = market.getCreditLimit(user);
         vm.expectRevert("Borrowing is paused");
         market.borrow(borrowAmount);
+    }
+
+    function testBorrow_Fails_When_Exceeds_Threshold() public {
+        gibCollateral(user, testAmount);
+        gibDBR(user, testAmount);
+        vm.startPrank(user, user);
+       
+        deposit(testAmount);
+        
+        uint256 stalenessThreshold = borrowController.stalenessThreshold(address(market));
+        vm.warp(
+            block.timestamp + stalenessThreshold + 1
+        );
+
+        (IChainlinkFeed feed, ) = oracle.feeds(address(collateral));
+        (
+            ,
+            ,
+            ,
+            uint updatedAt,
+        ) = feed.latestRoundData();
+        
+        uint borrowAmount = market.getCreditLimit(user);
+       
+        if(block.timestamp - updatedAt > stalenessThreshold) {
+            vm.expectRevert("Denied by borrow controller");
+            market.borrow(borrowAmount);
+        } else {
+            uint initialDolaBalance = DOLA.balanceOf(user);
+            market.borrow(borrowAmount);
+            assertEq(
+                DOLA.balanceOf(user),
+                initialDolaBalance + borrowAmount,
+                "User balance did not increase by borrowAmount"
+            );
+        }    
     }
 
     function testBorrow_Fails_When_DeniedByBorrowController() public {

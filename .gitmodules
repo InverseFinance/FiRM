@@ -7,3 +7,6 @@
 [submodule "lib/solmate"]
 	path = lib/solmate
 	url = https://github.com/transmissions11/solmate.git
+[submodule "lib/bytes-utils"]
+	path = lib/bytes-utils
+	url = git@github.com:GNSPS/solidity-bytes-utils.git

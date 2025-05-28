@@ -14,9 +14,6 @@ contract MockPendlePT {
     }
 }
 
-interface PendleSparkLinearDiscountOracleFactory {
-      function createWithPt(address pt, uint256 baseDiscountPerYear) external returns (address);
-}
 
 interface INavFeed {
     function getDiscount(uint256 timeLeft) external view returns (uint256) ;
@@ -70,6 +67,16 @@ abstract contract BaseFeedSwitchNavForkTest is Test, ConfigAddr {
         assertEq(INavFeed(address(navFeed)).decimals(), 18);
     }
 
+    function test_updateAt_NAVFeed() public {
+        INavFeed nav = INavFeed(address(navFeed));
+        vm.warp(nav.maturity() - 365 days);
+        uint256 discount = nav.getDiscount(365 days);
+        (uint80 roundId, int256 price, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound) = navFeed.latestRoundData();
+        assertEq(uint(price), 1 ether - discount);
+        assertEq(startedAt, 0);
+        assertEq(updatedAt, block.timestamp);
+        assertEq(answeredInRound, 0);
+    }
     function test_NavDiscount() public {
         INavFeed nav = INavFeed(address(navFeed));
         

@@ -8,7 +8,7 @@ interface IChainlinkFeed {
 
 contract YETHFeed is IChainlinkFeed {
     uint8 decimals_ = 18;
-    uint price_ = 2626e18;
+    uint price_ = 1500e18;
 
     function decimals() external view returns (uint8) {
         return decimals_;

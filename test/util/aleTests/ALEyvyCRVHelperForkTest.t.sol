@@ -6,11 +6,10 @@ import {BorrowController} from "src/BorrowController.sol";
 import "src/DBR.sol";
 import {Market, IBorrowController} from "src/Market.sol";
 import {Oracle, IChainlinkFeed} from "src/Oracle.sol";
+import {ALEV2} from "src/util/ALEV2.sol";
 import {YVYCRVHelper, YearnVaultV2Helper, IYearnVaultV2} from "src/util/YVYCRVHelper.sol";
 import {YCRVFeed} from "test/mocks/YCRVFeed.sol";
 import {Fed, IMarket} from "src/Fed.sol";
-import {ALE} from "src/util/ALE.sol";
-import {YCRVFeed} from "test/mocks/YCRVFeed.sol";
 import {console} from "forge-std/console.sol";
 import {IERC20} from "lib/openzeppelin-contracts/contracts/interfaces/IERC20.sol";
 import {BaseHelperForkTest, MockExchangeProxy} from "test/util/aleTests/BaseHelperForkTest.t.sol";
@@ -64,7 +63,7 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
     DolaBorrowingRights dbr;
 
     // ALE
-    ALE ale;
+    ALEV2 ale;
     YVYCRVHelper helper;
     IFlashMinter flash;
 
@@ -84,7 +83,7 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
         borrowController = BorrowController(borrowControllerAddr);
         dbr = DolaBorrowingRights(dbrAddr);
 
-        helper = new YVYCRVHelper(gov, pauseGuardian);
+        helper = YVYCRVHelper(yvyCRVHelperAddr);
         initBase(address(helper));
         feedYCRV = new YCRVFeed();
 
@@ -98,14 +97,15 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
         market.pauseBorrows(false);
         borrowController.setDailyLimit(address(market), 5000000 ether);
         fed.changeMarketCeiling(IMarket(address(market)), 100000000 ether);
+        ale = ALEV2(payable(aleV2Addr));
+        ale.allowProxy(address(exchangeProxy));
+        ale.setMarket(address(market), yCRV, address(helper), true);
         vm.stopPrank();
 
         vm.prank(chair);
         fed.expansion(IMarket(address(market)), 5000000 ether);
 
-        ale = new ALE(address(exchangeProxy), triDBRAddr);
-        ale.setMarket(address(market), yCRV, address(helper), true);
-
+        
         //FiRM
         oracle = Oracle(address(market.oracle()));
         collateral = IERC20(address(market.collateral()));
@@ -119,7 +119,7 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
 
         flash = IFlashMinter(address(ale.flash()));
         DOLA.addMinter(address(flash));
-        flash.setMaxFlashLimit(5000000e18); // 5M DOLA
+        flash.setMaxFlashLimit(10000000e18); // 5M DOLA
         vm.stopPrank();
 
         collateralFactorBps = market.collateralFactorBps();
@@ -148,7 +148,7 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
     }
 
     function getBlockNumber() public view override returns (uint256) {
-        return 20590050;
+        return 22241605;
     }
 
     function checkEq(
@@ -171,7 +171,7 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
         gibDBR(userPk, styCRVAmount);
 
         uint maxBorrowAmount = _getMaxBorrowAmount(styCRVAmount);
-
+        console.log("maxBorrowAmount", maxBorrowAmount);
         uint256 yCRVAmount = YearnVaultV2Helper.collateralToAsset(
             IYearnVaultV2(yvyCRVAddr),
             _convertDolaToCollat(maxBorrowAmount)
@@ -205,7 +205,7 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
-        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+        ALEV2.Permit memory permit = ALEV2.Permit(block.timestamp, v, r, s);
 
         bytes memory swapData = abi.encodeWithSelector(
             MockExchangeProxy.swapDolaIn.selector,
@@ -213,7 +213,7 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
             maxBorrowAmount
         );
 
-        ALE.DBRHelper memory dbrData;
+        ALEV2.DBRHelper memory dbrData;
 
         ale.leveragePosition(
             maxBorrowAmount,
@@ -285,7 +285,7 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
-        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+        ALEV2.Permit memory permit = ALEV2.Permit(block.timestamp, v, r, s);
 
         bytes memory swapData = abi.encodeWithSelector(
             MockExchangeProxy.swapDolaIn.selector,
@@ -293,7 +293,7 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
             maxBorrowAmount
         );
 
-        ALE.DBRHelper memory dbrData;
+        ALEV2.DBRHelper memory dbrData;
 
         ale.depositAndLeveragePosition(
             styCRVAmount,
@@ -371,7 +371,7 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
-        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+        ALEV2.Permit memory permit = ALEV2.Permit(block.timestamp, v, r, s);
 
         bytes memory swapData = abi.encodeWithSelector(
             MockExchangeProxy.swapDolaIn.selector,
@@ -379,7 +379,7 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
             maxBorrowAmount
         );
 
-        ALE.DBRHelper memory dbrData = ALE.DBRHelper(
+        ALEV2.DBRHelper memory dbrData = ALEV2.DBRHelper(
             dolaForDBR,
             (dbrAmount * 89) / 100,
             0
@@ -470,11 +470,11 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
-        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+        ALEV2.Permit memory permit = ALEV2.Permit(block.timestamp, v, r, s);
 
-        ALE.DBRHelper memory dbrData = ALE.DBRHelper(
+        ALEV2.DBRHelper memory dbrData = ALEV2.DBRHelper(
             dbr.balanceOf(userPk),
-            0,
+            1,
             0
         ); // sell all DBR
 
@@ -493,8 +493,8 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
         ale.deleveragePosition(
             _convertCollatToDola(amountToWithdraw) - 1, // repay little less bc of yearn 1 wei conversion loss
             address(market),
-            amountToWithdraw,
             address(exchangeProxy),
+            amountToWithdraw,
             swapData,
             permit,
             bytes(""),
@@ -572,9 +572,9 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
-        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+        ALEV2.Permit memory permit = ALEV2.Permit(block.timestamp, v, r, s);
 
-        ALE.DBRHelper memory dbrData = ALE.DBRHelper(0, 0, borrowAmount / 2); // repay partially debt with DOLA in the wallet
+        ALEV2.DBRHelper memory dbrData = ALEV2.DBRHelper(0, 0, borrowAmount / 2); // repay partially debt with DOLA in the wallet
 
         bytes memory swapData = abi.encodeWithSelector(
             MockExchangeProxy.swapDolaOut.selector,
@@ -591,8 +591,8 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
         ale.deleveragePosition(
             _convertCollatToDola(amountToWithdraw) - 1,
             address(market),
-            amountToWithdraw,
             address(exchangeProxy),
+            amountToWithdraw,
             swapData,
             permit,
             bytes(""),
@@ -674,7 +674,7 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
-        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+        ALEV2.Permit memory permit = ALEV2.Permit(block.timestamp, v, r, s);
 
         bytes memory swapData = abi.encodeWithSelector(
             MockExchangeProxy.swapDolaIn.selector,
@@ -682,7 +682,7 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
             maxBorrowAmount
         );
 
-        ALE.DBRHelper memory dbrData = ALE.DBRHelper(
+        ALEV2.DBRHelper memory dbrData = ALEV2.DBRHelper(
             dolaForDBR,
             (dbrAmount * 90) / 100,
             0
@@ -708,7 +708,7 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
         );
     }
 
-    function test_transformToCollateralAndDeposit(uint256 yCRVAmount) public {
+    function test_convertToCollateralAndDeposit(uint256 yCRVAmount) public {
         // Fill userPk with max available deposit yCRV
         uint256 maxDeposit = IYearnVaultV2(yvyCRVAddr).availableDepositLimit(); // minting is 1:1
         deal(CRV, userPk, maxDeposit);
@@ -724,7 +724,7 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
 
         uint256 yCRVBalBefore = IERC20(yCRV).balanceOf(userPk);
         IERC20(yCRV).approve(address(helper), yCRVAmount);
-        helper.transformToCollateralAndDeposit(yCRVAmount, "");
+        helper.convertToCollateralAndDeposit(yCRVAmount, "");
 
         assertEq(yCRVBalBefore - yCRVAmount, IERC20(yCRV).balanceOf(userPk));
 
@@ -737,7 +737,7 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
         );
     }
 
-    function test_withdrawAndTransformFromCollateral(
+    function test_withdrawAndConvertFromCollateral(
         uint256 yCRVAmount
     ) public {
         // Fill userPk with max available deposit yCRV
@@ -755,7 +755,7 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
 
         uint256 yCRVBalBefore = IERC20(yCRV).balanceOf(userPk);
         IERC20(yCRV).approve(address(helper), yCRVAmount);
-        helper.transformToCollateralAndDeposit(yCRVAmount, "");
+        helper.convertToCollateralAndDeposit(yCRVAmount, "");
 
         uint256 yCRVBalAfter = IERC20(yCRV).balanceOf(userPk);
         assertEq(yCRVBalBefore - yCRVAmount, yCRVBalAfter);
@@ -791,7 +791,7 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
             s
         );
 
-        helper.withdrawAndTransformFromCollateral(amountToWithdraw, permit, "");
+        helper.withdrawAndConvertFromCollateral(amountToWithdraw, permit, "");
 
         assertApproxEqAbs(
             IERC20(yCRV).balanceOf(userPk) - yCRVBalAfter,
@@ -807,8 +807,9 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
         address fakeMarket = address(0x69);
 
         vm.expectRevert(
-            abi.encodeWithSelector(ALE.NoMarket.selector, fakeMarket)
+            abi.encodeWithSelector(ALEV2.NoMarket.selector, fakeMarket)
         );
+        vm.prank(gov);
         ale.setMarket(fakeMarket, address(0), address(0), true);
     }
 
@@ -817,8 +818,9 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
         address newHelper = address(0x70);
 
         vm.expectRevert(
-            abi.encodeWithSelector(ALE.MarketNotSet.selector, wrongMarket)
+            abi.encodeWithSelector(ALEV2.MarketNotSet.selector, wrongMarket)
         );
+        vm.prank(gov);
         ale.updateMarketHelper(wrongMarket, newHelper);
     }
 
@@ -879,7 +881,7 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
-        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+        ALEV2.Permit memory permit = ALEV2.Permit(block.timestamp, v, r, s);
 
         bytes memory swapData = abi.encodeWithSelector(
             MockExchangeProxy.swapDolaIn.selector,
@@ -887,7 +889,7 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
             maxBorrowAmount
         );
 
-        ALE.DBRHelper memory dbrData;
+        ALEV2.DBRHelper memory dbrData;
 
         // Mock call to return 0 buySellToken balance for the ALE
         vm.mockCall(
@@ -896,7 +898,7 @@ contract ALEyvyCRVHelperForkTest is BaseHelperForkTest {
             abi.encode(uint256(0))
         );
 
-        vm.expectRevert(ALE.CollateralIsZero.selector);
+        vm.expectRevert(ALEV2.CollateralIsZero.selector);
         ale.leveragePosition(
             maxBorrowAmount,
             address(market),
