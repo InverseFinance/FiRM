@@ -26,6 +26,8 @@ contract CvxCrvFeedFork is Test {
         string memory url = vm.rpcUrl("mainnet");
         vm.createSelectFork(url);
         feed = new ConvexCurvePriceFeed();
+        vm.prank(feed.gov());
+        feed.setMinCrvPerCvxCrvRatio(0);
     }
 
     function testNominalCase() public {
