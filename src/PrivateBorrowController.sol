@@ -29,6 +29,8 @@ contract PrivateBorrowController {
     mapping(address => uint) public stalenessThreshold;
     mapping(address => mapping(address => bool)) public allowedBorrowers;
 
+    event IsAllowed(address indexed market, address indexed borrower, bool isAllowed);
+
     constructor(address _operator, address _DBR) {
         operator = _operator;
         DBR = DolaBorrowingRights(_DBR);
@@ -51,7 +53,10 @@ contract PrivateBorrowController {
      * @param allowedBorrower The borrower to be allowed for the market
      * @param isAllowed whether or not the borrower is allowed to borrow from market
      */
-    function allowBorrower(address market, address allowedBorrower, bool isAllowed) public onlyOperator { allowedBorrowers[market][allowedBorrower] = isAllowed; }
+    function allowBorrower(address market, address allowedBorrower, bool isAllowed) public onlyOperator {
+        allowedBorrowers[market][allowedBorrower] = isAllowed;
+        emit IsAllowed(market, allowedBorrower, isAllowed);
+    }
    
     /**
      * @notice Sets the staleness threshold for Chainlink feeds
