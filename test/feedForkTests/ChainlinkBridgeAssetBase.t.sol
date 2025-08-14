@@ -7,7 +7,7 @@ import "src/feeds/ChainlinkBasePriceFeed.sol";
 import {ChainlinkBridgeAssetFeed} from "src/feeds/ChainlinkBridgeAssetFeed.sol";
 
 abstract contract ChainlinkBridgeAssetBase is Test {
-    ChainlinkBridgeAssetFeed feed;
+    ChainlinkBridgeAssetFeed internal feed;
     ChainlinkBasePriceFeed collateralToBridgeAssetFeed; // main coin1 feed
     ChainlinkBasePriceFeed bridgeAssetToUsdFeed; // main coin2 feed
 
