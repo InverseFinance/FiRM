@@ -6,15 +6,18 @@ import {ERC4626Feed, IERC4626} from "src/feeds/ERC4626Feed.sol";
 import {ChainlinkBridgeAssetFeed} from "src/feeds/ChainlinkBridgeAssetFeed.sol";
 import {ChainlinkBridgeAssetBase} from "test/feedForkTests/ChainlinkBridgeAssetBase.t.sol";
 import {ChainlinkBasePriceFeed} from "src/feeds/ChainlinkBasePriceFeed.sol";
-
+import {PriceFeedNoStale} from "src/feeds/PriceFeedNoStale.sol";
+import {PriceFeedNoStaleBasic} from "src/feeds/PriceFeedNoStaleBasic.sol";
 import "forge-std/console2.sol";
 
 
-contract WOETHFeed is ChainlinkBridgeAssetBase {
+contract WOETHFeedTest is ChainlinkBridgeAssetBase {
     ERC4626Feed vaultFeed;
     ChainlinkBasePriceFeed ethWrapper;
     ChainlinkBasePriceFeed oEthToEthWrapper;
-    
+    PriceFeedNoStale feedNoStale;
+    PriceFeedNoStaleBasic feedNoStaleBasic;
+
     address oEthToEth = 0x703118C4CbccCBF2AB31913e0f8075fbbb15f563;
     address wOeth = 0xDcEe70654261AF21C44c093C300eD3Bb97b78192;
     address ethToUsd = 0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419;
@@ -26,6 +29,9 @@ contract WOETHFeed is ChainlinkBridgeAssetBase {
         vaultFeed = new ERC4626Feed(wOeth, address(oEthToEthWrapper));
         ethWrapper = new ChainlinkBasePriceFeed(address(this),ethToUsd, address(0), 3600);
         init(address(vaultFeed), address(ethWrapper), true);
+        feedNoStale = new PriceFeedNoStale(address(feed));
+        feedNoStaleBasic = new PriceFeedNoStaleBasic(address(vaultFeed),address(ethWrapper));
+
     }
 
     function test_woEth() public {
@@ -36,5 +42,21 @@ contract WOETHFeed is ChainlinkBridgeAssetBase {
         uint256 woEthToUsdPrice = woEthToEthPrice * ethToUsdPrice / 1e18;
         assertEq(woEthToUsdPrice, uint(feed.latestAnswer()));
         console2.log(uint(feed.latestAnswer()));
+    }
+
+    function test_feedNoStale() public {
+        assertEq(feed.latestAnswer(), feedNoStale.latestAnswer());
+        (,int price, , uint updateAt,) = feedNoStale.latestRoundData();
+        assertEq(updateAt, block.timestamp);
+        assertEq(price, feed.latestAnswer());
+        console2.log(feedNoStaleBasic.description());
+    }
+
+    function test_feedNoStaleBasic() public {
+        assertEq(feed.latestAnswer(), feedNoStaleBasic.latestAnswer());
+        (,int price, , uint updateAt,) = feedNoStaleBasic.latestRoundData();
+        assertEq(updateAt, block.timestamp);
+        assertEq(price, feed.latestAnswer());
+        console2.log(feedNoStaleBasic.description());
     }
 }
