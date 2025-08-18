@@ -7,7 +7,6 @@ import {ChainlinkBridgeAssetFeed} from "src/feeds/ChainlinkBridgeAssetFeed.sol";
 import {ChainlinkBridgeAssetBase} from "test/feedForkTests/ChainlinkBridgeAssetBase.t.sol";
 import {ChainlinkBasePriceFeed} from "src/feeds/ChainlinkBasePriceFeed.sol";
 import {PriceFeedNoStale} from "src/feeds/PriceFeedNoStale.sol";
-import {PriceFeedNoStaleBasic} from "src/feeds/PriceFeedNoStaleBasic.sol";
 import "forge-std/console2.sol";
 
 
@@ -16,7 +15,6 @@ contract WOETHFeedTest is ChainlinkBridgeAssetBase {
     ChainlinkBasePriceFeed ethWrapper;
     ChainlinkBasePriceFeed oEthToEthWrapper;
     PriceFeedNoStale feedNoStale;
-    PriceFeedNoStaleBasic feedNoStaleBasic;
 
     address oEthToEth = 0x703118C4CbccCBF2AB31913e0f8075fbbb15f563;
     address wOeth = 0xDcEe70654261AF21C44c093C300eD3Bb97b78192;
@@ -30,8 +28,6 @@ contract WOETHFeedTest is ChainlinkBridgeAssetBase {
         ethWrapper = new ChainlinkBasePriceFeed(address(this),ethToUsd, address(0), 3600);
         init(address(vaultFeed), address(ethWrapper), true);
         feedNoStale = new PriceFeedNoStale(address(feed));
-        feedNoStaleBasic = new PriceFeedNoStaleBasic(address(vaultFeed),address(ethWrapper));
-
     }
 
     function test_woEth() public {
@@ -49,14 +45,6 @@ contract WOETHFeedTest is ChainlinkBridgeAssetBase {
         (,int price, , uint updateAt,) = feedNoStale.latestRoundData();
         assertEq(updateAt, block.timestamp);
         assertEq(price, feed.latestAnswer());
-        console2.log(feedNoStaleBasic.description());
-    }
-
-    function test_feedNoStaleBasic() public {
-        assertEq(feed.latestAnswer(), feedNoStaleBasic.latestAnswer());
-        (,int price, , uint updateAt,) = feedNoStaleBasic.latestRoundData();
-        assertEq(updateAt, block.timestamp);
-        assertEq(price, feed.latestAnswer());
-        console2.log(feedNoStaleBasic.description());
+        console2.log(feedNoStale.description());
     }
 }
