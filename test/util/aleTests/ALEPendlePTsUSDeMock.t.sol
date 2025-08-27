@@ -10,7 +10,7 @@ interface IFlashMinter {
     function setMaxFlashLimit(uint256 _maxFlashLimit) external;
 }
 
-contract ALEV2PTUSDeMockTest is PendlePTsUSDe27Mar25MarketForkTest {
+contract ALEV2PTsUSDeMockTest is PendlePTsUSDe27Mar25MarketForkTest {
     MockPendleRouter.ApproxParams emptyApprox;
     MockPendleRouter.TokenInput emptyTokenInput;
     MockPendleRouter.TokenOutput emptyTokenOutput;
