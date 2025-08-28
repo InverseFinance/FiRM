@@ -8,10 +8,10 @@ import {PendleNAVFeed} from "src/feeds/PendleNAVFeed.sol";
 
 contract PTUSDeFeedSwitchFactory {
     address public constant USDeWrapperFeed = 0xB3C1D801A02d88adC96A294123c2Daa382345058;
-    address public constant sUSDeWrapper = address(0xD723a0910e261de49A90779d38A94aFaAA028F15);
-    address public constant sUSDe = address(0x9D39A5DE30e57443BfF2A8307A4256c8797A3497);
-    uint256 public constant timelockPeriod = 64800;
-    address public constant guardian = 0x4b6c63E6a94ef26E2dF60b89372db2d8e211F1B7;
+    address public constant sUSDeWrapper = 0xD723a0910e261de49A90779d38A94aFaAA028F15;
+    address public constant sUSDe = 0x9D39A5DE30e57443BfF2A8307A4256c8797A3497;
+    uint256 public constant TIMELOCK_PERIOD = 64800;
+    address public constant GUARDIAN = 0x4b6c63E6a94ef26E2dF60b89372db2d8e211F1B7;
 
     mapping(address => bool) public isFromFactory;
 
@@ -26,7 +26,7 @@ contract PTUSDeFeedSwitchFactory {
 
         feedSwitch = address(
             new FeedSwitch(
-                address(navFeed), address(beforeMaturityFeed), USDeWrapperFeed, timelockPeriod, pendlePT, guardian
+                address(navFeed), address(beforeMaturityFeed), USDeWrapperFeed, TIMELOCK_PERIOD, pendlePT, GUARDIAN
             )
         );
         isFromFactory[feedSwitch] = true;
@@ -42,7 +42,7 @@ contract PTUSDeFeedSwitchFactory {
 
         feedSwitch = address(
             new FeedSwitch(
-                address(navFeed), address(beforeMaturityFeed), USDeWrapperFeed, timelockPeriod, pendlePT, guardian
+                address(navFeed), address(beforeMaturityFeed), USDeWrapperFeed, TIMELOCK_PERIOD, pendlePT, GUARDIAN
             )
         );
 
