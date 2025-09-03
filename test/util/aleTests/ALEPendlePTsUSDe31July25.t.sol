@@ -13,7 +13,7 @@ import {SimpleERC20Escrow} from "src/escrows/SimpleERC20Escrow.sol";
   DOLA 0x865377367054516e17014CcdED1e7d814EDC9ce4
   pendlePT 0x3b3fB9C57858EF816833dC91565EFcd85D96f634;
 */
-contract ALEV2PTUSDe31July25Test is PendlePTsUSDe31July25MarketForkTest {
+contract ALEV2PTsUSDe31July25Test is PendlePTsUSDe31July25MarketForkTest {
     ALEV2 ale;
     address userPk = vm.addr(1);
     PendlePTHelper helper;

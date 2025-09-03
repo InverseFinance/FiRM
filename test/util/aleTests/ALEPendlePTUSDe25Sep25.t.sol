@@ -76,7 +76,7 @@ contract ALEV2PTUSDe25Sep25Test is PendlePTUSDe25Sep25MarketForkTest {
         uint256 ptAmount = SimpleERC20Escrow(userPkEscrow).balance();
 
         uint maxBorrowAmount = _getMaxBorrowAmount(ptAmount);
-        console2.log(maxBorrowAmount, "maxBorrowAmount");
+        
         // Sign Message for borrow on behalf
         bytes32 hash = keccak256(
             abi.encodePacked(
@@ -300,7 +300,7 @@ contract ALEV2PTUSDe25Sep25Test is PendlePTUSDe25Sep25MarketForkTest {
         gibDBR(userPk, 20000 ether);
 
         uint maxBorrowAmount = _getMaxBorrowAmount(ptAmount);
-        console2.log(maxBorrowAmount,"ESTEEE");
+       
         // Sign Message for borrow on behalf
         bytes32 hash = keccak256(
             abi.encodePacked(
@@ -390,7 +390,7 @@ contract ALEV2PTUSDe25Sep25Test is PendlePTUSDe25Sep25MarketForkTest {
         gibDBR(userPk, 20000 ether);
 
         uint maxBorrowAmount = _getMaxBorrowAmount(lpAmount);
-        console2.log(maxBorrowAmount, "LAST ONE");
+      
         // Sign Message for borrow on behalf
         bytes32 hash = keccak256(
             abi.encodePacked(
@@ -453,7 +453,7 @@ contract ALEV2PTUSDe25Sep25Test is PendlePTUSDe25Sep25MarketForkTest {
         test_leveragePosition_Mint_PT_and_YT_with_DOLA_router();
 
         uint256 amountToWithdraw = SimpleERC20Escrow(userPkEscrow).balance();
-        console2.log(amountToWithdraw,"amount to withdraw");
+
         bytes32 hash = keccak256(
             abi.encodePacked(
                 "\x19\x01",
@@ -590,7 +590,7 @@ contract ALEV2PTUSDe25Sep25Test is PendlePTUSDe25Sep25MarketForkTest {
         test_leveragePosition_Swap_DOLA_for_PT_router();
 
         uint256 amountToWithdraw = SimpleERC20Escrow(userPkEscrow).balance();
-        console2.log(amountToWithdraw,"amount to withdraw");
+     
         bytes32 hash = keccak256(
             abi.encodePacked(
                 "\x19\x01",
@@ -761,7 +761,6 @@ contract ALEV2PTUSDe25Sep25Test is PendlePTUSDe25Sep25MarketForkTest {
         assertEq(SimpleERC20Escrow(userPkEscrow).balance(), 0);
 
         assertEq(dbr.balanceOf(userPk), 0);
-        console2.log(DOLA.balanceOf(userPk)+debt,"HERE");
         // Dola balance is greater than collateral sold for DOLA minus debt because we also sold DBR
         assertGt(DOLA.balanceOf(userPk), 190176420699205756775404 - debt);
         assertEq(market.debts(address(userPk)), 0);
@@ -807,7 +806,7 @@ contract ALEV2PTUSDe25Sep25Test is PendlePTUSDe25Sep25MarketForkTest {
         );
 
         uint256 amountToWithdraw = SimpleERC20Escrow(userPkEscrow).balance();
-        console2.log(amountToWithdraw,"THIS ONE");
+     
         bytes32 hash = keccak256(
             abi.encodePacked(
                 "\x19\x01",
@@ -863,7 +862,7 @@ contract ALEV2PTUSDe25Sep25Test is PendlePTUSDe25Sep25MarketForkTest {
         gibDBR(userPk, 20000 ether);
 
         uint256 amountToWithdraw = SimpleERC20Escrow(userPkEscrow).balance();
-        console2.log(amountToWithdraw,"REDEEM amount");
+      
         bytes32 hash = keccak256(
             abi.encodePacked(
                 "\x19\x01",
