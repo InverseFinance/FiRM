@@ -15,6 +15,8 @@ interface IVault {
     function stakingToken() external view returns (address);
     function gaugeAddress() external view returns (address);
     function getReward() external;
+    function earned() external returns (address[] memory tokenAddresses, uint256[] memory rewards);
+    function transferTokens(address[] calldata _tokenList) external;
 }
 
 interface IGauge {
@@ -166,6 +168,23 @@ contract FXNConvexEscrow {
     */
     function claim() external onlyBeneficiary {
         claimTo(msg.sender);
+    }
+
+    /**
+     * @notice Transfer any tokens held by the vault to the escrow and then to a specified address. Only callable by beneficiary and allowlisted addresses
+     * @dev This is to handle if someone calls earned() on the vault directly and the tokens are sent to the vault instead of the escrow
+     */
+    function transferTokens(address[] calldata _tokenList, address _to) external onlyBeneficiaryOrAllowlist {
+        vault.transferTokens(_tokenList);
+         
+        // Transfer token to beneficiary if any of the tokens is held by the contract
+        for (uint256 i; i < _tokenList.length; ++i) {
+            if (_tokenList[i] == address(token)) continue;
+            uint256 bal = IERC20(_tokenList[i]).balanceOf(address(this));
+            if (bal > 0) {
+                IERC20(_tokenList[i]).safeTransfer(_to, bal);
+            }
+        }
     }
 
     /**

@@ -93,6 +93,52 @@ contract FXNConvexEscrowForkTest is Test {
         assertGt(crv.balanceOf(beneficiary), 0, "Crv balance did not increase");
     }
     
+      function test_transferTokens_if_earned_called() public {
+        test_deposit();
+        //move time forward 30 days to accumulate rewards
+        vm.warp(block.timestamp + 30 days);
+        // No balance in vault before earned is called
+        assertEq(cvx.balanceOf(address(vault)), 0, "Cvx balance in vault should be zero before earned is called");
+        assertEq(crv.balanceOf(address(vault)), 0, "Crv balance in vault should be zero before earned is called");
+        // Permissionless call to earned to update rewards
+       (address[] memory rewardTokens, uint256 [] memory rewards) = vault.earned();
+        // Token are now in the vault and not in the escrow contract
+        assertGt(cvx.balanceOf(address(vault)), 0, "Cvx balance in vault not be zero after earned is called");
+        assertGt(crv.balanceOf(address(vault)), 0, "Crv balance in vault not be zero after earned is called");
+     
+        vm.startPrank(beneficiary);
+        escrow.claim();
+        // Claim only claims fxn
+        assertGt(fxn.balanceOf(beneficiary), 0, "Fxn balance did not increase");
+        assertEq(cvx.balanceOf(beneficiary), 0, "Cvx balance did increased");
+        assertEq(crv.balanceOf(beneficiary), 0, "Crv balance did increased");
+        // Transfer tokens to beneficiary (transfer from Vault to escrow to beneficiary)
+        escrow.transferTokens(rewardTokens, beneficiary);
+        vm.stopPrank();
+        assertEq(cvx.balanceOf(address(vault)), 0, "Cvx balance in vault should be zero after transferTokens is called");
+        assertEq(crv.balanceOf(address(vault)), 0, "Crv balance in vault should be zero after transferTokens is called");
+        assertGt(cvx.balanceOf(beneficiary), 0, "Cvx balance did not increase");
+        assertGt(crv.balanceOf(beneficiary), 0, "Crv balance did not increase");
+
+    }
+
+       function test_transferTokens_does_not_transfer_collateral() public {
+        test_deposit();
+        vm.prank(holder);
+        curveLP.transfer(address(escrow), 100 ether);
+        //move time forward 30 days to accumulate rewards
+        vm.warp(block.timestamp + 30 days);
+        assertEq(escrow.balance(), 200 ether, "Incorrect escrow balance after direct token transfer");
+        address[] memory tokenList = new address[](1);
+        tokenList[0] = address(curveLP);
+
+        uint256 curveLPBalanceBefore = curveLP.balanceOf(beneficiary);
+        vm.prank(beneficiary);
+        escrow.transferTokens(tokenList, beneficiary);
+        vm.stopPrank();
+        assertEq(curveLP.balanceOf(beneficiary), curveLPBalanceBefore, "Collateral token should not be transferred");
+
+    }
 
     function test_claimTo_if_rewards_accumulated() public {
         test_deposit();
