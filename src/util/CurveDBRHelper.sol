@@ -13,16 +13,8 @@ interface ICurvePool {
         uint j,
         uint dx,
         uint min_dy,
-        bool use_eth
-    ) external payable returns (uint);
-
-    function exchange(
-        uint i,
-        uint j,
-        uint dx,
-        uint min_dy,
         address receiver
-    ) external payable returns (uint);
+    ) external returns (uint);
 }
 
 contract CurveDBRHelper {
