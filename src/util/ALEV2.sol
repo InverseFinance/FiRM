@@ -153,8 +153,9 @@ contract ALEV2 is
     mapping(address => Market) public markets;
 
     constructor(
-        address _pool
-    ) Ownable(msg.sender) CurveDBRHelper(_pool) {
+        address _pool,
+        address _gov
+    ) Ownable(msg.sender) CurveDBRHelper(_pool, _gov) {
         dola.approve(address(flash), type(uint).max);
     }
 

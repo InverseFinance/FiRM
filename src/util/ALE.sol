@@ -162,8 +162,9 @@ contract ALE is
 
     constructor(
         address _exchangeProxy,
-        address _pool
-    ) Ownable(msg.sender) CurveDBRHelper(_pool) {
+        address _pool,
+        address _gov
+    ) Ownable(msg.sender) CurveDBRHelper(_pool, _gov) {
         exchangeProxy = payable(address(_exchangeProxy));
         _approveDola(address(flash), type(uint).max);
     }

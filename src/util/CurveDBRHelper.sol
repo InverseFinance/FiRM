@@ -21,21 +21,27 @@ interface ICurvePool {
         uint j,
         uint dx,
         uint min_dy,
-        bool use_eth,
         address receiver
     ) external payable returns (uint);
 }
 
 contract CurveDBRHelper {
-    ICurvePool public immutable curvePool;
+    ICurvePool public curvePool;
+    address public gov;
+    address public pendingGov;
     IDola constant dola = IDola(0x865377367054516e17014CcdED1e7d814EDC9ce4);
     IERC20 constant dbr = IERC20(0xAD038Eb671c44b853887A7E32528FaB35dC5D710);
 
-    uint dbrIndex;
-    uint dolaIndex;
+    uint public dbrIndex;
+    uint public dolaIndex;
 
-    constructor(address _pool) {
+    event NewPendingGov(address indexed oldPendingGov, address indexed newPendingGov);
+    event NewGov(address indexed oldGov, address indexed newGov);
+    event NewCurvePool(address indexed newPool, uint256 dolaIndex, uint256 dbrIndex);
+
+    constructor(address _pool, address _gov) {
         curvePool = ICurvePool(_pool);
+        gov = _gov;
         dola.approve(_pool, type(uint).max);
         dbr.approve(_pool, type(uint).max);
         if (ICurvePool(_pool).coins(0) == address(dola)) {
@@ -45,6 +51,11 @@ contract CurveDBRHelper {
             dolaIndex = 1;
             dbrIndex = 0;
         }
+    }
+
+    modifier onlyGov() {
+        require(msg.sender == gov, "CurveHelper: only gov");
+        _;
     }
 
     /**
@@ -59,7 +70,6 @@ contract CurveDBRHelper {
                 dolaIndex,
                 amount,
                 minOut,
-                false,
                 receiver
             );
         }
@@ -77,7 +87,6 @@ contract CurveDBRHelper {
                 dbrIndex,
                 amount,
                 minOut,
-                false,
                 receiver
             );
         }
@@ -128,5 +137,46 @@ contract CurveDBRHelper {
             stepSize /= 2;
         }
         return (amountIn, ((dolaBorrowAmount + amountIn) * period) / 365 days);
+    }
+
+       /**
+     * @notice Set a new pending gov. The new pending gov then has to call `acceptGov`.
+     * @dev Can only be called by the gov.
+     * @param _pendingGov address of the new pending gov
+     */
+    function setPendingGov(address _pendingGov) external onlyGov {
+        emit NewPendingGov(pendingGov, _pendingGov);
+        pendingGov = _pendingGov;
+    }
+
+    /**
+     * @notice Accept the new pending gov.
+     * @dev Can only be called by the pending gov.
+     */
+    function acceptGov() external {
+        require(msg.sender == pendingGov, "Only pending gov");
+        emit NewGov(gov, pendingGov);
+        gov = pendingGov;
+        pendingGov = address(0);
+    }
+
+    /**
+    @notice Sets a new curve pool
+    @dev Can only be called by the gov
+    @param _pool Address of the new curve pool
+    @param _dolaIndex Index of DOLA in the new curve pool
+    @param _dbrIndex Index of DBR in the new curve pool
+    */
+    function setCurvePool(address _pool, uint256 _dolaIndex, uint256 _dbrIndex) external onlyGov {
+        dola.approve(address(curvePool), 0);
+        dbr.approve(address(curvePool), 0);
+
+        curvePool = ICurvePool(_pool);
+        dola.approve(_pool, type(uint).max);
+        dbr.approve(_pool, type(uint).max);
+
+        dolaIndex = _dolaIndex;
+        dbrIndex = _dbrIndex;
+        emit NewCurvePool(_pool, _dolaIndex, _dbrIndex);
     }
 }

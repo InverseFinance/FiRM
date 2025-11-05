@@ -4,18 +4,25 @@ import "src/util/OffchainAbstractHelper.sol";
 interface ICurvePool {
     function coins(uint index) external view returns(address);
     function get_dy(uint i, uint j, uint dx) external view returns(uint);
-    function exchange(uint i, uint j, uint dx, uint min_dy, bool use_eth) external payable returns(uint);
-    function exchange(uint i, uint j, uint dx, uint min_dy, bool use_eth, address receiver) external payable returns(uint);
+    function exchange(uint i, uint j, uint dx, uint min_dy, address receiver) external returns(uint);
+    function exchange(uint i, uint j, uint dx, uint min_dy) external returns(uint);
 }
 
-contract CurveHelper is OffchainAbstractHelper{
+contract CurveHelper is OffchainAbstractHelper {
 
-    ICurvePool public immutable curvePool;
-    uint dbrIndex;
-    uint dolaIndex;
+    ICurvePool public curvePool;
+    address public pendingGov;
+    address public gov;
+    uint public dbrIndex;
+    uint public dolaIndex;
 
-    constructor(address _pool) {
+    event NewPendingGov(address indexed oldPendingGov, address indexed newPendingGov);
+    event NewGov(address indexed oldGov, address indexed newGov);
+    event NewCurvePool(address indexed newPool, uint256 dolaIndex, uint256 dbrIndex);
+
+    constructor(address _pool, address _gov) {
         curvePool = ICurvePool(_pool);
+        gov = _gov;
         DOLA.approve(_pool, type(uint).max);
         DBR.approve(_pool, type(uint).max);
         if(ICurvePool(_pool).coins(0) == address(DOLA)){
@@ -27,6 +34,11 @@ contract CurveHelper is OffchainAbstractHelper{
         }
     }
 
+    modifier onlyGov() {
+        require(msg.sender == gov, "CurveHelper: only gov");
+        _;
+    }
+
     /**
     @notice Sells an exact amount of DBR for DOLA in a curve pool
     @param amount Amount of DBR to sell
@@ -34,7 +46,7 @@ contract CurveHelper is OffchainAbstractHelper{
     */
     function _sellDbr(uint amount, uint minOut) internal override {
         if(amount > 0){
-            curvePool.exchange(dbrIndex, dolaIndex, amount, minOut, false);
+            curvePool.exchange(dbrIndex, dolaIndex, amount, minOut);
         }
     }
 
@@ -45,7 +57,7 @@ contract CurveHelper is OffchainAbstractHelper{
     */
     function _buyDbr(uint amount, uint minOut, address receiver) internal override {
         if(amount > 0) {
-            curvePool.exchange(dolaIndex, dbrIndex, amount, minOut, false, receiver);
+            curvePool.exchange(dolaIndex, dbrIndex, amount, minOut, receiver);
         }
     }
     
@@ -81,5 +93,44 @@ contract CurveHelper is OffchainAbstractHelper{
             stepSize /= 2;
         }
         return (amountIn, (dolaBorrowAmount + amountIn) * period / 365 days);
+    }
+
+    /**
+     * @notice Set a new pending gov. The new pending gov then has to call `acceptGov`.
+     * @dev Can only be called by the gov.
+     * @param _pendingGov address of the new pending gov
+     */
+    function setPendingGov(address _pendingGov) external onlyGov {
+        emit NewPendingGov(pendingGov, _pendingGov);
+        pendingGov = _pendingGov;
+    }
+
+    /**
+     * @notice Accept the new pending gov.
+     * @dev Can only be called by the pending gov.
+     */
+    function acceptGov() external {
+        require(msg.sender == pendingGov, "Only pending gov");
+        emit NewGov(gov, pendingGov);
+        gov = pendingGov;
+        pendingGov = address(0);
+    }
+
+    /**
+    @notice Sets a new curve pool
+    @dev Can only be called by the gov
+    @param _pool Address of the new curve pool
+    @param _dolaIndex Index of DOLA in the new curve pool
+    @param _dbrIndex Index of DBR in the new curve pool
+    */
+    function setCurvePool(address _pool, uint256 _dolaIndex, uint256 _dbrIndex) external onlyGov {
+        DOLA.approve(address(curvePool), 0);
+        DBR.approve(address(curvePool), 0);
+        curvePool = ICurvePool(_pool);
+        DOLA.approve(_pool, type(uint).max);
+        DBR.approve(_pool, type(uint).max);
+        dolaIndex = _dolaIndex;
+        dbrIndex = _dbrIndex;
+        emit NewCurvePool(_pool, _dolaIndex, _dbrIndex);
     }
 }

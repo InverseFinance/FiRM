@@ -60,10 +60,11 @@ contract PendlePTHelper is Sweepable, IPendleHelper {
     );
     event YTOut(uint256 amount, address indexed from, address indexed to);
     event YTIn(uint256 amount, address indexed from);
+    event NewALE(address oldALE, address newALE);
 
     IERC20 public immutable DOLA;
     address public immutable router;
-    address public immutable ale;
+    address public ale;
 
     /// @notice Mapping of market addresses to their associated PT and YT tokens.
     mapping(address => PT) public markets;
@@ -372,5 +373,15 @@ contract PendlePTHelper is Sweepable, IPendleHelper {
     function removeMarket(address market) external onlyGuardianOrGov {
         delete markets[market];
         emit MarketRemoved(market);
+    }
+
+    /**
+     * @notice Sets the ALE address.
+     * @dev Only callable by gov
+     * @param _ale The address of the new ALE
+     */
+    function setALE(address _ale) external onlyGov {
+        emit NewALE(ale, _ale);
+        ale = _ale;
     }
 }
