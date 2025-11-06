@@ -57,7 +57,7 @@ contract DbrHelperForkTest is MarketBaseForkTest {
     function setUp() public {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url, 18586960);
+        vm.createSelectFork(url);
         distributor = DbrDistributor(
             0xdcd2D918511Ba39F2872EB731BB88681AE184244
         );
@@ -67,7 +67,7 @@ contract DbrHelperForkTest is MarketBaseForkTest {
         dbr.addMinter(address(distributor));
         vm.stopPrank();
 
-        helper = new DbrHelper();
+        helper = new DbrHelper(newTriDBRAddr);
         INV = helper.INV();
 
         vm.expectEmit(true, false, false, true);

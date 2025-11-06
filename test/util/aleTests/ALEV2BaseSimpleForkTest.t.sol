@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 import "test/marketForkTests/SdeUSDMarketForkTest.t.sol";
-import {ALE} from "src/util/ALE.sol";
+import {ALEV2} from "src/util/ALEV2.sol";
 
 contract MockExchangeProxy {
     IOracle oracle;
@@ -41,14 +41,14 @@ interface IFlashMinter {
     function setMaxFlashLimit(uint256 limit) external;
 }
 
-abstract contract ALEBaseSimpleForkTest is MarketForkTest {
+abstract contract ALEV2BaseSimpleForkTest is MarketForkTest {
     bytes exceededLimit = "Exceeded credit limit";
     bytes repaymentGtThanDebt = "Repayment greater than debt";
 
     error NothingToDeposit();
 
     MockExchangeProxy exchangeProxy;
-    ALE ale;
+    ALEV2 ale;
     address triDBR = 0xC7DE47b9Ca2Fc753D6a2F167D8b3e19c6D18b19a;
     IFlashMinter flash;
 
@@ -113,9 +113,9 @@ abstract contract ALEBaseSimpleForkTest is MarketForkTest {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
-        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+        ALEV2.Permit memory permit = ALEV2.Permit(block.timestamp, v, r, s);
 
-        ALE.DBRHelper memory dbrData = ALE.DBRHelper(
+        ALEV2.DBRHelper memory dbrData = ALEV2.DBRHelper(
             dolaForDBR,
             (dbrAmount * 98) / 100,
             0
@@ -198,9 +198,9 @@ abstract contract ALEBaseSimpleForkTest is MarketForkTest {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
-        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+        ALEV2.Permit memory permit = ALEV2.Permit(block.timestamp, v, r, s);
 
-        ALE.DBRHelper memory dbrData = ALE.DBRHelper(
+        ALEV2.DBRHelper memory dbrData = ALEV2.DBRHelper(
             dolaForDBR,
             (dbrAmount * 98) / 100, // DBR buy,
             0 // Dola to borrow and withdraw after leverage
@@ -277,9 +277,9 @@ abstract contract ALEBaseSimpleForkTest is MarketForkTest {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
-        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+        ALEV2.Permit memory permit = ALEV2.Permit(block.timestamp, v, r, s);
 
-        ALE.DBRHelper memory dbrData = ALE.DBRHelper(
+        ALEV2.DBRHelper memory dbrData = ALEV2.DBRHelper(
             dolaForDBR,
             (dbrAmount * 98) / 100, // DBR buy
             dolaToWithdraw // Dola to borrow and withdraw after leverage
@@ -357,9 +357,9 @@ abstract contract ALEBaseSimpleForkTest is MarketForkTest {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
-        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+        ALEV2.Permit memory permit = ALEV2.Permit(block.timestamp, v, r, s);
 
-        ALE.DBRHelper memory dbrData = ALE.DBRHelper(
+        ALEV2.DBRHelper memory dbrData = ALEV2.DBRHelper(
             dolaForDBR,
             (dbrAmount * 98) / 100, // DBR buy
             0 // Dola to borrow and withdraw after leverage
@@ -444,11 +444,11 @@ abstract contract ALEBaseSimpleForkTest is MarketForkTest {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
-        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+        ALEV2.Permit memory permit = ALEV2.Permit(block.timestamp, v, r, s);
 
-        ALE.DBRHelper memory dbrData = ALE.DBRHelper(
+        ALEV2.DBRHelper memory dbrData = ALEV2.DBRHelper(
             dbr.balanceOf(userPk),
-            0,
+            1,
             0
         ); // Sell DBR
 
@@ -463,8 +463,8 @@ abstract contract ALEBaseSimpleForkTest is MarketForkTest {
         ale.deleveragePosition(
             convertCollatToDola(amountToWithdraw),
             address(market),
-            amountToWithdraw,
             address(exchangeProxy),
+            amountToWithdraw,
             swapData,
             permit,
             bytes(""),
@@ -534,11 +534,11 @@ abstract contract ALEBaseSimpleForkTest is MarketForkTest {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
-        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+        ALEV2.Permit memory permit = ALEV2.Permit(block.timestamp, v, r, s);
 
-        ALE.DBRHelper memory dbrData = ALE.DBRHelper(
+        ALEV2.DBRHelper memory dbrData = ALEV2.DBRHelper(
             dbr.balanceOf(userPk),
-            0,
+            1,
             0
         ); // Sell DBR
 
@@ -555,8 +555,8 @@ abstract contract ALEBaseSimpleForkTest is MarketForkTest {
         ale.deleveragePosition(
             borrowAmount,
             address(market),
-            amountToWithdraw,
             address(exchangeProxy),
+            amountToWithdraw,
             swapData,
             permit,
             bytes(""),
@@ -570,9 +570,9 @@ abstract contract ALEBaseSimpleForkTest is MarketForkTest {
         );
 
         // User still has dola and actually he has more bc he sold his DBRs
-        assertGt(DOLA.balanceOf(userPk), borrowAmount);
+        assertGt(DOLA.balanceOf(userPk), borrowAmount," Dola balance didn't increase");
 
-        assertEq(dbr.balanceOf(userPk), 0);
+        assertEq(dbr.balanceOf(userPk), 0, "DBR were not sold");
 
         assertEq(collateral.balanceOf(userPk), amountToWithdraw / 2);
     }
@@ -621,9 +621,9 @@ abstract contract ALEBaseSimpleForkTest is MarketForkTest {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
-        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+        ALEV2.Permit memory permit = ALEV2.Permit(block.timestamp, v, r, s);
 
-        ALE.DBRHelper memory dbrData; // NO DBR
+        ALEV2.DBRHelper memory dbrData; // NO DBR
 
         bytes memory swapData = abi.encodeWithSelector(
             MockExchangeProxy.swapDolaIn.selector,
@@ -703,9 +703,9 @@ abstract contract ALEBaseSimpleForkTest is MarketForkTest {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
-        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+        ALEV2.Permit memory permit = ALEV2.Permit(block.timestamp, v, r, s);
 
-        ALE.DBRHelper memory dbrData; // NO DBR
+        ALEV2.DBRHelper memory dbrData; // NO DBR
 
         bytes memory swapData = abi.encodeWithSelector(
             MockExchangeProxy.swapDolaOut.selector,
@@ -716,8 +716,8 @@ abstract contract ALEBaseSimpleForkTest is MarketForkTest {
         ale.deleveragePosition(
             maxBorrowAmount,
             address(market),
-            amountToWithdraw,
             address(exchangeProxy),
+            amountToWithdraw,
             swapData,
             permit,
             bytes(""),
@@ -783,9 +783,9 @@ abstract contract ALEBaseSimpleForkTest is MarketForkTest {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
-        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+        ALEV2.Permit memory permit = ALEV2.Permit(block.timestamp, v, r, s);
 
-        ALE.DBRHelper memory dbrData; // NO DBR
+        ALEV2.DBRHelper memory dbrData; // NO DBR
 
         bytes memory swapData = abi.encodeWithSelector(
             MockExchangeProxy.swapDolaIn.selector,
@@ -828,7 +828,7 @@ abstract contract ALEBaseSimpleForkTest is MarketForkTest {
         );
         (v, r, s) = vm.sign(1, hash);
 
-        permit = ALE.Permit(block.timestamp, v, r, s);
+        permit = ALEV2.Permit(block.timestamp, v, r, s);
 
         swapData = abi.encodeWithSelector(
             MockExchangeProxy.swapDolaOut.selector,
@@ -839,8 +839,8 @@ abstract contract ALEBaseSimpleForkTest is MarketForkTest {
         ale.deleveragePosition(
             maxBorrowAmount,
             address(market),
-            amountToWithdraw,
             address(exchangeProxy),
+            amountToWithdraw,
             swapData,
             permit,
             bytes(""),
@@ -895,9 +895,9 @@ abstract contract ALEBaseSimpleForkTest is MarketForkTest {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
-        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+        ALEV2.Permit memory permit = ALEV2.Permit(block.timestamp, v, r, s);
 
-        ALE.DBRHelper memory dbrData; // NO DBR
+        ALEV2.DBRHelper memory dbrData; // NO DBR
 
         bytes memory swapData = abi.encodeWithSelector(
             MockExchangeProxy.swapDolaOut.selector,
@@ -910,8 +910,8 @@ abstract contract ALEBaseSimpleForkTest is MarketForkTest {
         ale.deleveragePosition(
             0,
             address(market),
-            amountToWithdraw,
             address(exchangeProxy),
+            amountToWithdraw,
             swapData,
             permit,
             bytes(""),
@@ -964,9 +964,9 @@ abstract contract ALEBaseSimpleForkTest is MarketForkTest {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
-        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+        ALEV2.Permit memory permit = ALEV2.Permit(block.timestamp, v, r, s);
 
-        ALE.DBRHelper memory dbrData; // NO DBR
+        ALEV2.DBRHelper memory dbrData; // NO DBR
 
         bytes memory swapData = abi.encodeWithSelector(
             MockExchangeProxy.swapDolaIn.selector,
@@ -1021,9 +1021,9 @@ abstract contract ALEBaseSimpleForkTest is MarketForkTest {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
-        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+        ALEV2.Permit memory permit = ALEV2.Permit(block.timestamp, v, r, s);
 
-        ALE.DBRHelper memory dbrData; // NO DBR
+        ALEV2.DBRHelper memory dbrData; // NO DBR
 
         bytes memory swapData = abi.encodeWithSelector(
             MockExchangeProxy.swapDolaOut.selector,
@@ -1036,8 +1036,8 @@ abstract contract ALEBaseSimpleForkTest is MarketForkTest {
         ale.deleveragePosition(
             1 ether,
             address(market),
-            amountToWithdraw,
             address(exchangeProxy),
+            amountToWithdraw,
             swapData,
             permit,
             bytes(""),
@@ -1093,9 +1093,9 @@ abstract contract ALEBaseSimpleForkTest is MarketForkTest {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
 
-        ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
+        ALEV2.Permit memory permit = ALEV2.Permit(block.timestamp, v, r, s);
 
-        ALE.DBRHelper memory dbrData = ALE.DBRHelper(
+        ALEV2.DBRHelper memory dbrData = ALEV2.DBRHelper(
             dolaForDBR,
             (dbrAmount * 99) / 100,
             0
@@ -1124,19 +1124,17 @@ abstract contract ALEBaseSimpleForkTest is MarketForkTest {
         address fakeMarket = address(0x69);
 
         vm.expectRevert(
-            abi.encodeWithSelector(ALE.NoMarket.selector, fakeMarket)
+            abi.encodeWithSelector(ALEV2.NoMarket.selector, fakeMarket)
         );
         ale.setMarket(fakeMarket, address(0), address(0), true);
     }
 
     function test_fail_setMarket_Wrong_BuySellToken_Without_Helper() public {
-        ale.updateMarketHelper(address(market), address(0));
-
         address fakeBuySellToken = address(0x69);
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                ALE.MarketSetupFailed.selector,
+                ALEV2.MarketSetupFailed.selector,
                 address(market),
                 fakeBuySellToken,
                 address(collateral),
@@ -1154,7 +1152,7 @@ abstract contract ALEBaseSimpleForkTest is MarketForkTest {
         address newHelper = address(0x70);
 
         vm.expectRevert(
-            abi.encodeWithSelector(ALE.MarketNotSet.selector, wrongMarket)
+            abi.encodeWithSelector(ALEV2.MarketNotSet.selector, wrongMarket)
         );
         ale.updateMarketHelper(wrongMarket, newHelper);
     }

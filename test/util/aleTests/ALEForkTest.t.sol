@@ -57,11 +57,12 @@ contract ALEForkTest is MarketForkTest {
     ALE ale;
     address triDBR = 0xC7DE47b9Ca2Fc753D6a2F167D8b3e19c6D18b19a;
     IFlashMinter flash;
-
+    uint256 privKey = 0x989944;
+    address userPk = vm.addr(privKey);
     function setUp() public {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url, 20590050);
+        vm.createSelectFork(url);
         init(crvMarketAddr, crvUsdFeedAddr);
 
         vm.prank(gov);
@@ -76,7 +77,7 @@ contract ALEForkTest is MarketForkTest {
             address(DOLA)
         );
 
-        ale = new ALE(address(exchangeProxy), triDBR);
+        ale = new ALE(address(exchangeProxy), newTriDBRAddr, gov);
         // ALE setup
         vm.prank(gov);
         DOLA.addMinter(address(ale));
@@ -121,7 +122,7 @@ contract ALEForkTest is MarketForkTest {
         vm.assume(crvTestAmount > 0.000001 ether);
         // We are going to deposit and leverage the position
         //  uint crvTestAmount = 13606;
-        address userPk = vm.addr(1);
+        
         deal(address(market.collateral()), userPk, crvTestAmount);
 
         uint maxBorrowAmount = getMaxBorrowAmount(crvTestAmount) / 10; // we want to borrow only 10% of the max amount to exchange
@@ -158,7 +159,7 @@ contract ALEForkTest is MarketForkTest {
                 )
             )
         );
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privKey, hash);
 
         ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
 
@@ -206,7 +207,7 @@ contract ALEForkTest is MarketForkTest {
     {
         // We are going to deposit and leverage the position
         uint crvTestAmount = 1 ether;
-        address userPk = vm.addr(1);
+        
         deal(address(market.collateral()), userPk, crvTestAmount);
 
         uint maxBorrowAmount = getMaxBorrowAmount(crvTestAmount) / 10; // we want to borrow only 10% of the max amount to exchange
@@ -243,7 +244,7 @@ contract ALEForkTest is MarketForkTest {
                 )
             )
         );
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privKey, hash);
 
         ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
 
@@ -283,7 +284,7 @@ contract ALEForkTest is MarketForkTest {
         uint crvTestAmount = 1000 ether;
         uint dolaToWithdraw = 100 ether;
 
-        address userPk = vm.addr(1);
+        
         deal(address(market.collateral()), userPk, crvTestAmount);
 
         uint maxBorrowAmount = getMaxBorrowAmount(crvTestAmount);
@@ -322,7 +323,7 @@ contract ALEForkTest is MarketForkTest {
                 )
             )
         );
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privKey, hash);
 
         ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
 
@@ -363,7 +364,7 @@ contract ALEForkTest is MarketForkTest {
     function test_leveragePosition_buyDBR() public {
         // We are going to deposit some CRV, then leverage the position
         uint crvTestAmount = 1 ether;
-        address userPk = vm.addr(1);
+        
         deal(address(market.collateral()), userPk, crvTestAmount);
 
         uint maxBorrowAmount = getMaxBorrowAmount(crvTestAmount);
@@ -402,7 +403,7 @@ contract ALEForkTest is MarketForkTest {
                 )
             )
         );
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privKey, hash);
 
         ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
 
@@ -442,7 +443,7 @@ contract ALEForkTest is MarketForkTest {
 
     function test_deleveragePosition_sellDBR() public {
         uint crvTestAmount = 1 ether;
-        address userPk = vm.addr(1);
+        
         deal(address(market.collateral()), userPk, crvTestAmount);
         gibDBR(userPk, crvTestAmount);
 
@@ -492,7 +493,7 @@ contract ALEForkTest is MarketForkTest {
                 )
             )
         );
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privKey, hash);
 
         ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
 
@@ -535,7 +536,7 @@ contract ALEForkTest is MarketForkTest {
 
     function test_deleveragePosition_withdrawALL_sellDBR() public {
         uint crvTestAmount = 1 ether;
-        address userPk = vm.addr(1);
+        
         deal(address(market.collateral()), userPk, crvTestAmount);
         gibDBR(userPk, crvTestAmount);
 
@@ -582,7 +583,7 @@ contract ALEForkTest is MarketForkTest {
                 )
             )
         );
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privKey, hash);
 
         ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
 
@@ -631,7 +632,7 @@ contract ALEForkTest is MarketForkTest {
         // We are going to deposit some CRV, then fully leverage the position
 
         uint crvTestAmount = 1 ether;
-        address userPk = vm.addr(1);
+        
         deal(address(market.collateral()), userPk, crvTestAmount);
         gibDBR(userPk, crvTestAmount);
 
@@ -669,7 +670,7 @@ contract ALEForkTest is MarketForkTest {
                 )
             )
         );
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privKey, hash);
 
         ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
 
@@ -704,7 +705,7 @@ contract ALEForkTest is MarketForkTest {
         vm.assume(crvTestAmount < 40000 ether);
         vm.assume(crvTestAmount > 0.00000001 ether);
 
-        address userPk = vm.addr(1);
+        
         deal(address(market.collateral()), userPk, crvTestAmount);
         gibDBR(userPk, crvTestAmount);
 
@@ -751,7 +752,7 @@ contract ALEForkTest is MarketForkTest {
                 )
             )
         );
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privKey, hash);
 
         ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
 
@@ -791,7 +792,7 @@ contract ALEForkTest is MarketForkTest {
         vm.assume(crvTestAmount < 40000 ether);
         vm.assume(crvTestAmount > 0.00000001 ether);
 
-        address userPk = vm.addr(1);
+        
         deal(address(market.collateral()), userPk, crvTestAmount);
         gibDBR(userPk, crvTestAmount);
 
@@ -833,7 +834,7 @@ contract ALEForkTest is MarketForkTest {
                 )
             )
         );
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privKey, hash);
 
         ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
 
@@ -878,7 +879,7 @@ contract ALEForkTest is MarketForkTest {
                 )
             )
         );
-        (v, r, s) = vm.sign(1, hash);
+        (v, r, s) = vm.sign(privKey, hash);
 
         permit = ALE.Permit(block.timestamp, v, r, s);
 
@@ -913,7 +914,7 @@ contract ALEForkTest is MarketForkTest {
 
     function test_deleveragePosition_if_collateral_no_debt() public {
         uint crvTestAmount = 1 ether;
-        address userPk = vm.addr(1);
+        
         deal(address(market.collateral()), userPk, crvTestAmount);
         gibDBR(userPk, crvTestAmount);
 
@@ -945,7 +946,7 @@ contract ALEForkTest is MarketForkTest {
                 )
             )
         );
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privKey, hash);
 
         ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
 
@@ -980,7 +981,7 @@ contract ALEForkTest is MarketForkTest {
     function test_fail_leveragePosition_if_no_collateral() public {
         // We are going to deposit some CRV, then leverage the position
         uint crvTestAmount = 1 ether;
-        address userPk = vm.addr(1);
+        
         deal(address(market.collateral()), userPk, crvTestAmount);
         gibDBR(userPk, crvTestAmount);
 
@@ -1014,7 +1015,7 @@ contract ALEForkTest is MarketForkTest {
                 )
             )
         );
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privKey, hash);
 
         ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
 
@@ -1040,7 +1041,7 @@ contract ALEForkTest is MarketForkTest {
 
     function test_fail_deleveragePosition_if_no_collateral() public {
         uint crvTestAmount = 1 ether;
-        address userPk = vm.addr(1);
+        
         deal(address(market.collateral()), userPk, crvTestAmount);
         gibDBR(userPk, crvTestAmount);
 
@@ -1071,7 +1072,7 @@ contract ALEForkTest is MarketForkTest {
                 )
             )
         );
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privKey, hash);
 
         ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
 
@@ -1101,7 +1102,7 @@ contract ALEForkTest is MarketForkTest {
         // We are going to deposit some CRV, then fully leverage the position
 
         uint crvTestAmount = 1 ether;
-        address userPk = vm.addr(1);
+        
         deal(address(market.collateral()), userPk, crvTestAmount);
         gibDBR(userPk, crvTestAmount);
 
@@ -1143,7 +1144,7 @@ contract ALEForkTest is MarketForkTest {
                 )
             )
         );
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, hash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privKey, hash);
 
         ALE.Permit memory permit = ALE.Permit(block.timestamp, v, r, s);
 

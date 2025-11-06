@@ -1,56 +1,58 @@
 // SPDX-License-Identifier: UNLICENSED 
 pragma solidity ^0.8.13; 
 
-import "./FiRMBaseTest.sol"; 
+import "forge-std/Test.sol"; 
+import "forge-std/console2.sol"; 
+//import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {SimpleERC20Escrow} from "src/escrows/SimpleERC20Escrow.sol"; 
 import {CurveHelper} from "src/util/CurveHelper.sol";
-
+import {ConfigAddr} from "test/ConfigAddr.sol";
+import {IChainlinkFeed} from "src/interfaces/IChainlinkFeed.sol";
+import {DolaBorrowingRights} from "src/DBR.sol";
+import "src/Market.sol";
+import {IMarket} from "src/interfaces/IMarket.sol";
+import {BorrowController} from "src/BorrowController.sol";
 interface IWeth is IERC20 {
     function withdraw(uint wad) external;
     function deposit() payable external;
 }
-
-
+interface IDOLA {
+    function mint(address to, uint256 amount) external;
+}
 //This test must be run as a mainnet fork, to work correctly
-contract OffchainHelperTest is FiRMBaseTest {
+contract LatestOffchainHelperTest is Test, ConfigAddr {
 
     CurveHelper helper;
     bytes32 borrowHash;
     address userPk;
     uint maxBorrowAmount;
-    IWeth weth;
+    IWeth weth = IWeth(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+    IChainlinkFeed ethFeed = IChainlinkFeed(0x22390B88C53D1631f673b8Dcd91860267137b2c8);
+    IERC20 DOLA = IERC20(dolaAddr);
+    DolaBorrowingRights dbr = DolaBorrowingRights(dbrAddr);
+    Market market = Market(0x63Df5e23Db45a2066508318f172bA45B9CD37035);
+     uint256 wethTestAmount = 10 ether;
+    BorrowController borrowController = BorrowController(0x01ECA33e20a4c379Bd8A5361f896A7dd2bAE4ce8);
     uint256 privKey = 0x989944;
     function setUp() public {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
         vm.createSelectFork(url); 
-
-        initialize(replenishmentPriceBps, collateralFactorBps, replenishmentIncentiveBps, liquidationBonusBps, callOnDepositCallback);
-
-        vm.warp(block.timestamp - 7 days);
-
-        vm.startPrank(chair);
-        fed.expansion(IMarket(address(market)), 1_000_000e18);
-        vm.stopPrank();
-        
-        dbr = DolaBorrowingRights(0xAD038Eb671c44b853887A7E32528FaB35dC5D710);
+        vm.label(address(DOLA),"DOLA");
+        vm.label(address(dbr),"DBR");
+   
         address newTriDBRAddr =
         address(0x66da369fC5dBBa0774Da70546Bd20F2B242Cd34d);
         helper = new CurveHelper{salt: bytes32(uint256(1))}(newTriDBRAddr, gov);
-       
+        
         userPk = vm.addr(privKey);
+     
         vm.startPrank(gov);
-        borrowController = BorrowController(0x01ECA33e20a4c379Bd8A5361f896A7dd2bAE4ce8);
         borrowController.allow(address(helper));
         vm.stopPrank();
-        
-        market = Market(0x63Df5e23Db45a2066508318f172bA45B9CD37035);
-        weth = IWeth(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
-
+        deal(address(weth), address(userPk), wethTestAmount);
         vm.prank(gov);
         borrowController.setMinDebt(address(market), 1 ether);
-        vm.prank(0xF04a5cC80B1E94C69B48f5ee68a08CD2F09A7c3E);
-        weth.transfer(userPk, wethTestAmount);
         
         maxBorrowAmount = getMaxBorrowAmount(wethTestAmount);
         vm.startPrank(userPk, userPk);
@@ -62,6 +64,7 @@ contract OffchainHelperTest is FiRMBaseTest {
         
     }
 
+   
     function testDepositAndBorrowOnBehalf() public {
         uint borrowAmount = maxBorrowAmount / 2;
         (uint dolaForDbr, uint dbrNeeded) = helper.approximateDolaAndDbrNeeded(borrowAmount, 365 days, 18);
@@ -162,7 +165,7 @@ contract OffchainHelperTest is FiRMBaseTest {
         assertEq(dbr.balanceOf(userPk), 0, "Did not sell DBR"); 
     }
 
-    function testSellDbrAndRepayOnBehalf_EarnMoreFromDBRSellThanRepay() public {
+  function testSellDbrAndRepayOnBehalf_EarnMoreFromDBRSellThanRepay() public {
         vm.startPrank(userPk, userPk);
         uint borrowAmount = maxBorrowAmount / 2;
         (uint dolaForDbr, uint dbrNeeded) = helper.approximateDolaAndDbrNeeded(borrowAmount, 365 days, 18);
@@ -173,6 +176,7 @@ contract OffchainHelperTest is FiRMBaseTest {
         deposit(wethTestAmount);
         helper.buyDbrAndBorrowOnBehalf(IMarket(address(market)), borrowAmount, dolaForDbr, dbrNeeded * 99 / 100, block.timestamp, v, r, s);
         //Reduce debt to 1
+        DOLA.approve(address(market), type(uint256).max);
         market.repay(userPk, market.debts(userPk) - 1 ether);
         uint dolaBalanceBefore = DOLA.balanceOf(userPk);
         helper.sellDbrAndRepayOnBehalf(IMarket(address(market)), market.debts(userPk), dbr.balanceOf(userPk) / 100,dbr.balanceOf(userPk));
@@ -285,7 +289,7 @@ contract OffchainHelperTest is FiRMBaseTest {
         (v, r, s) = vm.sign(privKey, withdrawHash);
 
         uint pkBalanceBefore = userPk.balance;
-        
+   
         helper.repayAndWithdrawNativeEthOnBehalf(
             IMarket(address(market)),
             market.debts(userPk),
@@ -293,7 +297,6 @@ contract OffchainHelperTest is FiRMBaseTest {
             block.timestamp,
             v, r, s);
         
-    
         assertEq(weth.balanceOf(address(market.predictEscrow(userPk))), 0, "failed to withdraw weth");
         assertEq(userPk.balance - pkBalanceBefore, wethTestAmount, "failed to withdraw weth");
         assertEq(market.debts(userPk), 0, "Did not repay debt");     
@@ -305,6 +308,7 @@ contract OffchainHelperTest is FiRMBaseTest {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privKey, getBorrowHash(borrowAmount, 0));
 
         vm.startPrank(userPk, userPk);
+        weth.approve(address(weth), type(uint).max);
         weth.withdraw(wethTestAmount);
 
         assertEq(weth.balanceOf(address(market.predictEscrow(userPk))), 0);
@@ -360,4 +364,49 @@ contract OffchainHelperTest is FiRMBaseTest {
                 );
         return hash;
     }
+
+    function deposit(uint amount) internal {
+        weth.approve(address(market), amount);
+        market.deposit(amount);
+    }
+
+    function convertWethToDola(uint amount) public view returns (uint) {
+        return (amount * uint(ethFeed.latestAnswer())) / 1e18;
+    }
+
+    function convertDolaToWeth(uint amount) public view returns (uint) {
+        return (amount * 1e18) / uint(ethFeed.latestAnswer());
+    }
+
+    function getMaxBorrowAmount(uint amountWeth) public view returns (uint) {
+        return
+            (convertWethToDola(amountWeth) * market.collateralFactorBps()) /
+            10_000;
+    }
+
+    // function gibWeth(address _address, uint _amount) internal {
+    //     vm.deal(_address, _amount);
+    //     vm.startPrank(_address);
+    //     WETH.deposit{value: _amount}();
+    //     vm.stopPrank();
+    // }
+
+    // function gibDBR(address _address, uint _amount) internal {
+    //     vm.startPrank(gov);
+    //     dbr.mint(_address, _amount);
+    //     vm.stopPrank();
+    // }
+
+    function gibDOLA(address _address, uint _amount) internal {
+        bytes32 slot;
+        assembly {
+            mstore(0, _address)
+            mstore(0x20, 0x6)
+            slot := keccak256(0, 0x40)
+        }
+
+        vm.store(address(DOLA), slot, bytes32(_amount));
+    }
+
+    receive() external payable {}
 }
