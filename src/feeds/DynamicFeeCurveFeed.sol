@@ -17,12 +17,20 @@ contract DynamicFeeCurveFeed {
     string public description;
     /// @dev Price decimals of this feed
     uint public constant decimals = 18;
+    /// @dev Max fee initially set to 2%
+    int public maxFee = 2e8;
+
+    address public gov;
+
+    address public pendingGov;
 
     constructor(
         address _pairedTokenToUsd,
         address _curvePool,
-        address _asset
+        address _asset,
+        address _gov
     ) {
+        gov = _gov;
         pairedTokenToUsd = IChainlinkBasePriceFeed(_pairedTokenToUsd);
         require(
             pairedTokenToUsd.decimals() == 18,
@@ -39,6 +47,10 @@ contract DynamicFeeCurveFeed {
         string memory coin = IERC20(curvePool.coins(assetIndex)).symbol();
         description = string(abi.encodePacked(coin, " / USD"));
     }
+
+    event NewMaxFee(int maxFee);
+    event NewGov(address newGov);
+    event NewPendingGov(address newPendingGov);
 
     /**
      * @notice Retrieves the latest round data for the pairedToken token price feed
@@ -69,6 +81,7 @@ contract DynamicFeeCurveFeed {
         ) = pairedTokenToUsd.latestRoundData();
         
         int256 fee = int256(curvePool.fee());
+        if(fee > maxFee) fee = maxFee;
         //crv oracle price is either asset/pairedToken or pairedToken/asset depending on asset index
         int256 crvOraclePrice = int256(curvePool.price_oracle());
         //Depending on assetIndex we either divide or multiply by crv oracle price
@@ -87,5 +100,25 @@ contract DynamicFeeCurveFeed {
     function latestAnswer() external view returns (int256) {
         (, int256 latestPrice, , , ) = latestRoundData();
         return latestPrice;
+    }
+
+    function setMaxFee(int _maxFee) external {
+        require(msg.sender == gov, "ONLY GOV");
+        require(maxFee <= 1e10, "CurveFeed: maxFee > 100%");
+        maxFee = _maxFee;
+        emit NewMaxFee(_maxFee);
+    }
+
+    function setPendingGov(address _gov) external {
+        require(msg.sender == gov, "ONLY GOV");
+        pendingGov = _gov;
+        emit NewPendingGov(_gov);
+    }
+
+    function acceptGov() external {
+        require(msg.sender == pendingGov, "ONLY PENDING GOV");
+        gov = pendingGov;
+        pendingGov = address(0);
+        emit NewGov(gov);
     }
 }

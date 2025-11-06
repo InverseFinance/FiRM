@@ -77,4 +77,8 @@ interface ICurvePool {
     function lp_token() external view returns (address);
 
     function decimals() external view returns (uint256);
+
+    function coins(uint) external view returns (address);
+
+    function fee() external view returns(uint);
 }
