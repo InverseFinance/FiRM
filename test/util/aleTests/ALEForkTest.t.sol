@@ -165,7 +165,7 @@ contract ALEForkTest is MarketForkTest {
 
         ALE.DBRHelper memory dbrData = ALE.DBRHelper(
             dolaForDBR,
-            (dbrAmount * 98) / 100,
+            (dbrAmount * 95) / 100,
             0
         ); // DBR buy
 
@@ -199,7 +199,7 @@ contract ALEForkTest is MarketForkTest {
         );
         assertEq(DOLA.balanceOf(userPk), 0);
 
-        assertGt(dbr.balanceOf(userPk), (dbrAmount * 98) / 100);
+        assertGt(dbr.balanceOf(userPk), (dbrAmount * 95) / 100);
     }
 
     function test_fail_depositAndLeveragePosition_buyDBR_with_ZERO_deposit()

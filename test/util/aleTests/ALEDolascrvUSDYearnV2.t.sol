@@ -24,7 +24,7 @@ contract ALEDolascrvUSDYearnV2Test is
         vm.startPrank(gov);
         DOLA.mint(address(this), 100000 ether);
         helper.setMarket(address(market), address(curvePool), 0, 2, yearn);
-        ale = ALEV2(payable(aleV2Addr));
+        ale = new ALEV2(newTriDBRAddr, gov);
         ale.setMarket(address(market), address(DOLA), address(helper), false);
         borrowController.allow(address(ale));
         vm.stopPrank();
