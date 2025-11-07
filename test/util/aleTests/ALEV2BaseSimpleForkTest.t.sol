@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "test/marketForkTests/SdeUSDMarketForkTest.t.sol";
+import "test/marketForkTests/MarketForkTest.sol";
 import {ALEV2} from "src/util/ALEV2.sol";
 
 contract MockExchangeProxy {
@@ -49,7 +49,6 @@ abstract contract ALEV2BaseSimpleForkTest is MarketForkTest {
 
     MockExchangeProxy exchangeProxy;
     ALEV2 ale;
-    address triDBR = 0xC7DE47b9Ca2Fc753D6a2F167D8b3e19c6D18b19a;
     IFlashMinter flash;
 
     function getMaxLeverageBorrowAmount(
