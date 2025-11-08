@@ -155,7 +155,7 @@ contract ALEV2 is
     constructor(
         address _pool,
         address _gov
-    ) Ownable(msg.sender) CurveDBRHelper(_pool, _gov) {
+    ) Ownable(_gov) CurveDBRHelper(_pool, _gov) {
         dola.approve(address(flash), type(uint).max);
     }
 
