@@ -37,14 +37,16 @@ contract DynamicFeeCurveFeed {
             "ChainlinkCurveFeed: DECIMALS_MISMATCH"
         );
         curvePool = ICurvePool(_curvePool);
+        uint _index;
         if(ICurvePool(_curvePool).coins(0) == _asset)
-            assetIndex = 0;
+            _index = 0;
         else if(ICurvePool(_curvePool).coins(1) == _asset)
-            assetIndex = 1;
+            _index = 1;
         else
             revert("CurveFeed: ASSET NOT IN TWO POOL");
+        assetIndex = _index;
 
-        string memory coin = IERC20(curvePool.coins(assetIndex)).symbol();
+        string memory coin = IERC20(_asset).symbol();
         description = string(abi.encodePacked(coin, " / USD"));
     }
 
@@ -104,7 +106,7 @@ contract DynamicFeeCurveFeed {
 
     function setMaxFee(int _maxFee) external {
         require(msg.sender == gov, "ONLY GOV");
-        require(maxFee <= 1e10, "CurveFeed: maxFee > 100%");
+        require(_maxFee <= 1e10, "CurveFeed: maxFee > 100%");
         maxFee = _maxFee;
         emit NewMaxFee(_maxFee);
     }

@@ -78,7 +78,7 @@ interface ICurvePool {
 
     function decimals() external view returns (uint256);
 
-    function coins(uint) external view returns (address);
-
     function fee() external view returns(uint);
+
+    function out_fee() external view returns(uint);
 }
