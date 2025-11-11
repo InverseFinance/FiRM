@@ -385,7 +385,6 @@ contract DbrHelper is Ownable, ReentrancyGuard {
         require(newPool.coins(_dbrIndex) == address(DBR), "Wrong dbr index");
         require(newPool.coins(_invIndex) == address(INV), "Wrong inv index");
         
-        DOLA.approve(address(curvePool), 0);
         DBR.approve(address(curvePool), 0);
 
         curvePool = ICurvePool(_pool);
