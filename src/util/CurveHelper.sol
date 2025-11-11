@@ -13,8 +13,8 @@ contract CurveHelper is OffchainAbstractHelper {
     ICurvePool public curvePool;
     address public pendingGov;
     address public gov;
-    uint public dbrIndex;
-    uint public dolaIndex;
+    uint public dbrIndex = type(uint).max;
+    uint public dolaIndex = type(uint).max;
 
     event NewPendingGov(address indexed oldPendingGov, address indexed newPendingGov);
     event NewGov(address indexed oldGov, address indexed newGov);
@@ -23,15 +23,17 @@ contract CurveHelper is OffchainAbstractHelper {
     constructor(address _pool, address _gov) {
         curvePool = ICurvePool(_pool);
         gov = _gov;
+        for(uint i; i < 3; ++i){
+            if(curvePool.coins(i) == address(DOLA)){
+                dolaIndex = i;
+            }
+            else if(curvePool.coins(i) == address(DBR)){
+                dbrIndex = i;
+            }
+        }
+        require(dolaIndex != type(uint).max && dbrIndex != type(uint).max, "CurveHelper: pool missing DOLA or DBR");
         DOLA.approve(_pool, type(uint).max);
         DBR.approve(_pool, type(uint).max);
-        if(ICurvePool(_pool).coins(0) == address(DOLA)){
-            dolaIndex = 0;
-            dbrIndex = 1;
-        } else {
-            dolaIndex = 1;
-            dbrIndex = 0;
-        }
     }
 
     modifier onlyGov() {
@@ -44,9 +46,9 @@ contract CurveHelper is OffchainAbstractHelper {
     @param amount Amount of DBR to sell
     @param minOut minimum amount of DOLA to receive
     */
-    function _sellDbr(uint amount, uint minOut) internal override {
+    function _sellDbr(uint amount, uint minOut, address receiver) internal override {
         if(amount > 0){
-            curvePool.exchange(dbrIndex, dolaIndex, amount, minOut);
+            curvePool.exchange(dbrIndex, dolaIndex, amount, minOut, receiver);
         }
     }
 
@@ -124,9 +126,12 @@ contract CurveHelper is OffchainAbstractHelper {
     @param _dbrIndex Index of DBR in the new curve pool
     */
     function setCurvePool(address _pool, uint256 _dolaIndex, uint256 _dbrIndex) external onlyGov {
+        ICurvePool newPool = ICurvePool(_pool);
+        require(newPool.coins(_dolaIndex) == address(DOLA), "Wrong dola index");
+        require(newPool.coins(_dbrIndex) == address(DBR), "Wrong dbr index");
         DOLA.approve(address(curvePool), 0);
         DBR.approve(address(curvePool), 0);
-        curvePool = ICurvePool(_pool);
+        curvePool = newPool;
         DOLA.approve(_pool, type(uint).max);
         DBR.approve(_pool, type(uint).max);
         dolaIndex = _dolaIndex;

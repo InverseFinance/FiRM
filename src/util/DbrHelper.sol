@@ -13,6 +13,8 @@ interface ICurvePool {
         uint min_dy,
         address receiver
     ) external returns (uint);
+
+    function coins(uint index) external view returns (address);
 }
 
 interface IINVEscrow {
@@ -50,9 +52,9 @@ contract DbrHelper is Ownable, ReentrancyGuard {
     IERC20 public constant INV =
         IERC20(0x41D5D79431A913C4aE7d69a668ecdfE5fF9DFB68);
 
-    uint256 public dolaIndex = 0;
-    uint256 public dbrIndex = 1;
-    uint256 public invIndex = 2;
+    uint256 public dolaIndex = type(uint).max;
+    uint256 public dbrIndex = type(uint).max;
+    uint256 public invIndex = type(uint).max;
     uint256 public constant DENOMINATOR = 10000; // 100% in basis points
 
     ICurvePool public curvePool;
@@ -84,6 +86,18 @@ contract DbrHelper is Ownable, ReentrancyGuard {
 
     constructor(address _curvePool) Ownable(msg.sender) {
         curvePool = ICurvePool(_curvePool);
+        for(uint i; i < 3; i++){
+            if(curvePool.coins(i) == address(DOLA)){
+                dolaIndex = i;
+            }
+            else if(curvePool.coins(i) == address(DBR)){
+                dbrIndex = i;
+            }
+            else if(curvePool.coins(i) == address(INV)){
+                invIndex = i;
+            }
+        }
+        require(dolaIndex + dbrIndex + invIndex == 3, "Incorrect indices");
         DBR.approve(address(curvePool), type(uint).max);
         INV.approve(address(INV_MARKET), type(uint).max);
     }
@@ -366,6 +380,12 @@ contract DbrHelper is Ownable, ReentrancyGuard {
     @param _invIndex Index of INV in the new curve pool
     */
     function setCurvePool(address _pool, uint256 _dolaIndex, uint256 _dbrIndex, uint256 _invIndex) external onlyGov {
+        ICurvePool newPool = ICurvePool(_pool);
+        require(newPool.coins(_dolaIndex) == address(DOLA), "Wrong dola index");
+        require(newPool.coins(_dbrIndex) == address(DBR), "Wrong dbr index");
+        require(newPool.coins(_invIndex) == address(INV), "Wrong inv index");
+        
+        DOLA.approve(address(curvePool), 0);
         DBR.approve(address(curvePool), 0);
 
         curvePool = ICurvePool(_pool);

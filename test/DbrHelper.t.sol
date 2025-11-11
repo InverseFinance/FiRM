@@ -81,6 +81,7 @@ contract DbrHelperForkTest is MarketBaseForkTest {
             DOLA.allowance(address(helper), marketAddr),
             type(uint256).max
         );
+        assertEq(dbr.balanceOf(address(helper)), 0);
     }
 
     function _depositAllowAndWarp() internal {
@@ -751,7 +752,7 @@ contract DbrHelperForkTest is MarketBaseForkTest {
         DbrHelper.Repay memory repay;
 
         (sell, repay) = _getArguments(
-            address(0),
+            user,
             user,
             user,
             5000,
@@ -768,8 +769,9 @@ contract DbrHelperForkTest is MarketBaseForkTest {
             uint256 dbrAmount
         ) = helper.claimAndSell(sell, repay);
 
-        assertEq(dbrAmount, 0);
-        assertEq(dbr.balanceOf(user), 0);
+        // If DBR amount is odd, user gets 1 wei DBR from rounding down in percentage calc
+        assertApproxEqAbs(dbrAmount, 0, 1);      
+        assertApproxEqAbs(dbr.balanceOf(user), 0, 1);
         assertApproxEqAbs(dolaAmount, dolaRepaid * 2, 1);
         assertGt(dolaAmount, 0);
         assertGt(invAmount, 0);
@@ -808,7 +810,7 @@ contract DbrHelperForkTest is MarketBaseForkTest {
         DbrHelper.Repay memory repay;
 
         (sell, repay) = _getArguments(
-            address(0),
+            user,
             user,
             user,
             5000,
@@ -824,9 +826,9 @@ contract DbrHelperForkTest is MarketBaseForkTest {
             uint256 dolaRepaid,
             uint256 dbrAmount
         ) = helper.claimAndSell(sell, repay);
-
-        assertEq(dbrAmount, 0);
-        assertEq(dbr.balanceOf(user), 0);
+        // If DBR amount is odd, user gets 1 wei DBR from rounding down in percentage calc
+        assertApproxEqAbs(dbrAmount, 0, 1);      
+        assertApproxEqAbs(dbr.balanceOf(user), 0, 1);
         assertEq(dolaAmount, dolaRepaid);
         assertGt(dolaAmount, 0);
         assertGt(invAmount, 0);
@@ -873,9 +875,9 @@ contract DbrHelperForkTest is MarketBaseForkTest {
             uint256 dolaRepaid,
             uint256 dbrAmount
         ) = helper.claimAndSell(sell, repay);
-
-        assertEq(dbrAmount, 0);
-        assertEq(dbr.balanceOf(user), 0);
+        // If DBR amount is odd, user gets 1 wei DBR from rounding down in percentage calc
+        assertApproxEqAbs(dbrAmount, 0, 1);      
+        assertApproxEqAbs(dbr.balanceOf(user), 0, 1);
         assertGt(dolaAmount, 0);
         assertGt(invAmount, 0);
 
