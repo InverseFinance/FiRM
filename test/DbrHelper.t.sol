@@ -67,7 +67,7 @@ contract DbrHelperForkTest is MarketBaseForkTest {
         dbr.addMinter(address(distributor));
         vm.stopPrank();
 
-        helper = new DbrHelper(newTriDBRAddr);
+        helper = new DbrHelper(newTriDBRAddr, gov);
         INV = helper.INV();
 
         vm.expectEmit(true, false, false, true);
@@ -1314,6 +1314,48 @@ contract DbrHelperForkTest is MarketBaseForkTest {
         assertEq(DOLA.balanceOf(user), dolaBeforeUser);
     }
 
+    function test_setPendingGov() public {
+        assertEq(helper.gov(), gov);
+
+        vm.prank(gov);
+        helper.setPendingGov(user2);
+        assertEq(helper.pendingGov(), user2);
+        vm.prank(user2);
+        helper.claimPendingGov();
+        assertEq(helper.gov(), user2);
+
+        vm.prank(user2);
+        helper.setPendingGov(gov);
+        assertEq(helper.pendingGov(), gov);
+        vm.prank(gov);
+        helper.claimPendingGov();
+
+        assertEq(helper.gov(), gov);
+    }
+
+    function test_fail_setPendingGov_not_gov() public {
+        vm.prank(user);
+        vm.expectRevert(
+            abi.encodeWithSelector(Ownable.NotGov.selector, user)
+        );
+        helper.setPendingGov(user2);
+    }
+
+    function test_setCurvePool() public {
+        assertEq(address(helper.curvePool()), address(newTriDBRAddr));
+        vm.prank(gov);
+        helper.setCurvePool(triDBRAddr, 0,1,2);
+        assertEq(address(helper.curvePool()), triDBRAddr);
+    }
+
+    function test_fail_setCurvePool_not_gov() public {
+        vm.prank(user);
+        vm.expectRevert(
+            abi.encodeWithSelector(Ownable.NotGov.selector, user)
+        );
+        helper.setCurvePool(triDBRAddr, 0,1,2);
+    }
+    
     function _getArguments(
         address toDbr,
         address toDola,

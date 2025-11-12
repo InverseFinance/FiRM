@@ -1,5 +1,6 @@
 pragma solidity ^0.8.13;
 import "src/util/OffchainAbstractHelper.sol";
+import {Ownable} from "src/util/Ownable.sol";
 
 interface ICurvePool {
     function coins(uint index) external view returns(address);
@@ -8,21 +9,17 @@ interface ICurvePool {
     function exchange(uint i, uint j, uint dx, uint min_dy) external returns(uint);
 }
 
-contract CurveHelper is OffchainAbstractHelper {
+contract CurveHelper is Ownable, OffchainAbstractHelper {
 
     ICurvePool public curvePool;
-    address public pendingGov;
-    address public gov;
+  
     uint public dbrIndex = type(uint).max;
     uint public dolaIndex = type(uint).max;
 
-    event NewPendingGov(address indexed oldPendingGov, address indexed newPendingGov);
-    event NewGov(address indexed oldGov, address indexed newGov);
     event NewCurvePool(address indexed newPool, uint256 dolaIndex, uint256 dbrIndex);
 
-    constructor(address _pool, address _gov) {
+    constructor(address _pool, address _gov) Ownable(_gov) {
         curvePool = ICurvePool(_pool);
-        gov = _gov;
         for(uint i; i < 3; ++i){
             if(curvePool.coins(i) == address(DOLA)){
                 dolaIndex = i;
@@ -34,11 +31,6 @@ contract CurveHelper is OffchainAbstractHelper {
         require(dolaIndex != type(uint).max && dbrIndex != type(uint).max, "CurveHelper: pool missing DOLA or DBR");
         DOLA.approve(_pool, type(uint).max);
         DBR.approve(_pool, type(uint).max);
-    }
-
-    modifier onlyGov() {
-        require(msg.sender == gov, "CurveHelper: only gov");
-        _;
     }
 
     /**
@@ -95,27 +87,6 @@ contract CurveHelper is OffchainAbstractHelper {
             stepSize /= 2;
         }
         return (amountIn, (dolaBorrowAmount + amountIn) * period / 365 days);
-    }
-
-    /**
-     * @notice Set a new pending gov. The new pending gov then has to call `acceptGov`.
-     * @dev Can only be called by the gov.
-     * @param _pendingGov address of the new pending gov
-     */
-    function setPendingGov(address _pendingGov) external onlyGov {
-        emit NewPendingGov(pendingGov, _pendingGov);
-        pendingGov = _pendingGov;
-    }
-
-    /**
-     * @notice Accept the new pending gov.
-     * @dev Can only be called by the pending gov.
-     */
-    function acceptGov() external {
-        require(msg.sender == pendingGov, "Only pending gov");
-        emit NewGov(gov, pendingGov);
-        gov = pendingGov;
-        pendingGov = address(0);
     }
 
     /**

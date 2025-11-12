@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 import "src/interfaces/IERC20.sol";
 import "src/interfaces/IMarket.sol";
 import {ReentrancyGuard} from "openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
-import {Ownable} from "openzeppelin-contracts/contracts/access/Ownable.sol";
+import {Ownable} from "src/util/Ownable.sol";
 
 interface ICurvePool {
     function exchange(
@@ -58,8 +58,6 @@ contract DbrHelper is Ownable, ReentrancyGuard {
     uint256 public constant DENOMINATOR = 10000; // 100% in basis points
 
     ICurvePool public curvePool;
-    address public gov;
-    address public pendingGov;
 
     event Sell(
         address indexed claimer,
@@ -80,11 +78,9 @@ contract DbrHelper is Ownable, ReentrancyGuard {
         uint invAmount
     );
     event MarketApproved(address indexed market);
-    event NewPendingGov(address indexed oldPendingGov, address indexed newPendingGov);
-    event NewGov(address indexed oldGov, address indexed newGov);
     event NewCurvePool(address indexed newPool, uint256 dolaIndex, uint256 dbrIndex, uint256 invIndex);
 
-    constructor(address _curvePool) Ownable(msg.sender) {
+    constructor(address _curvePool, address _gov) Ownable(_gov) {
         curvePool = ICurvePool(_curvePool);
         for(uint i; i < 3; i++){
             if(curvePool.coins(i) == address(DOLA)){
@@ -100,11 +96,6 @@ contract DbrHelper is Ownable, ReentrancyGuard {
         require(dolaIndex + dbrIndex + invIndex == 3, "Incorrect indices");
         DBR.approve(address(curvePool), type(uint).max);
         INV.approve(address(INV_MARKET), type(uint).max);
-    }
-
-    modifier onlyGov() {
-        require(msg.sender == gov, "CurveHelper: only gov");
-        _;
     }
 
     struct ClaimAndSell {
@@ -347,28 +338,6 @@ contract DbrHelper is Ownable, ReentrancyGuard {
         if (params.sellForDola + params.sellForInv > DENOMINATOR)
             revert SellPercentageTooHigh();
         if (repay.percentage > DENOMINATOR) revert RepayPercentageTooHigh();
-    }
-
-
-       /**
-     * @notice Set a new pending gov. The new pending gov then has to call `acceptGov`.
-     * @dev Can only be called by the gov.
-     * @param _pendingGov address of the new pending gov
-     */
-    function setPendingGov(address _pendingGov) external onlyGov {
-        emit NewPendingGov(pendingGov, _pendingGov);
-        pendingGov = _pendingGov;
-    }
-
-    /**
-     * @notice Accept the new pending gov.
-     * @dev Can only be called by the pending gov.
-     */
-    function acceptGov() external {
-        require(msg.sender == pendingGov, "Only pending gov");
-        emit NewGov(gov, pendingGov);
-        gov = pendingGov;
-        pendingGov = address(0);
     }
 
     /**

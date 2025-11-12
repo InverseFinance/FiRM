@@ -4,7 +4,6 @@ pragma solidity ^0.8.0;
 import "src/interfaces/IMarket.sol";
 import "src/interfaces/IPendleHelper.sol";
 import {CurveHelper} from "src/util/CurveHelper.sol";
-import {Ownable} from "lib/openzeppelin-contracts/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
 import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -50,7 +49,6 @@ interface IERC3156FlashLender {
 
 // Accelerated leverage engine
 contract ALEV2 is
-    Ownable,
     ReentrancyGuard,
     CurveHelper,
     IERC3156FlashBorrower
@@ -153,20 +151,20 @@ contract ALEV2 is
     constructor(
         address _pool,
         address _gov
-    ) Ownable(_gov) CurveHelper(_pool, _gov) {
+    ) CurveHelper(_pool, _gov) {
         DOLA.approve(address(flash), type(uint).max);
     }
 
     /// @notice Allow an exchange proxy
     /// @param _proxy The proxy address
-    function allowProxy(address _proxy) external onlyOwner {
+    function allowProxy(address _proxy) external onlyGov {
         if (_proxy == address(0)) revert InvalidProxyAddress();
         isExchangeProxy[_proxy] = true;
     }
 
     /// @notice Deny an exchange proxy
     /// @param _proxy The proxy address
-    function denyProxy(address _proxy) external onlyOwner {
+    function denyProxy(address _proxy) external onlyGov {
         if (_proxy == address(0)) revert InvalidProxyAddress();
         isExchangeProxy[_proxy] = false;
     }
@@ -181,7 +179,7 @@ contract ALEV2 is
         address _buySellToken,
         address _helper,
         bool useProxy
-    ) external onlyOwner {
+    ) external onlyGov {
         if (!IDBR(address(DBR)).markets(_market)) revert NoMarket(_market);
 
         address collateral = IMarket(_market).collateral();
@@ -219,7 +217,7 @@ contract ALEV2 is
     function updateMarketHelper(
         address _market,
         address _helper
-    ) external onlyOwner {
+    ) external onlyGov {
         if (address(markets[_market].buySellToken) == address(0))
             revert MarketNotSet(_market);
         if (_helper == address(0)) revert InvalidHelperAddress();
