@@ -106,7 +106,7 @@ contract DynamicFeeCurveFeed {
 
     function setMaxFee(int _maxFee) external {
         require(msg.sender == gov, "ONLY GOV");
-        require(_maxFee <= 1e10, "CurveFeed: maxFee > 100%");
+        require(_maxFee >= 0 && _maxFee <= 1e10, "CurveFeed: maxFee > 100% or negative");
         maxFee = _maxFee;
         emit NewMaxFee(_maxFee);
     }
