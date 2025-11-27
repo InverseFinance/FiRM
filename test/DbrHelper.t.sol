@@ -57,7 +57,7 @@ contract DbrHelperForkTest is MarketBaseForkTest {
     function setUp() public {
         //This will fail if there's no mainnet variable in foundry.toml
         string memory url = vm.rpcUrl("mainnet");
-        vm.createSelectFork(url, 18586960);
+        vm.createSelectFork(url);
         distributor = DbrDistributor(
             0xdcd2D918511Ba39F2872EB731BB88681AE184244
         );
@@ -67,7 +67,7 @@ contract DbrHelperForkTest is MarketBaseForkTest {
         dbr.addMinter(address(distributor));
         vm.stopPrank();
 
-        helper = new DbrHelper();
+        helper = new DbrHelper(newTriDBRAddr, gov);
         INV = helper.INV();
 
         vm.expectEmit(true, false, false, true);
@@ -81,6 +81,7 @@ contract DbrHelperForkTest is MarketBaseForkTest {
             DOLA.allowance(address(helper), marketAddr),
             type(uint256).max
         );
+        assertEq(dbr.balanceOf(address(helper)), 0);
     }
 
     function _depositAllowAndWarp() internal {
@@ -751,7 +752,7 @@ contract DbrHelperForkTest is MarketBaseForkTest {
         DbrHelper.Repay memory repay;
 
         (sell, repay) = _getArguments(
-            address(0),
+            user,
             user,
             user,
             5000,
@@ -768,8 +769,9 @@ contract DbrHelperForkTest is MarketBaseForkTest {
             uint256 dbrAmount
         ) = helper.claimAndSell(sell, repay);
 
-        assertEq(dbrAmount, 0);
-        assertEq(dbr.balanceOf(user), 0);
+        // If DBR amount is odd, user gets 1 wei DBR from rounding down in percentage calc
+        assertApproxEqAbs(dbrAmount, 0, 1);      
+        assertApproxEqAbs(dbr.balanceOf(user), 0, 1);
         assertApproxEqAbs(dolaAmount, dolaRepaid * 2, 1);
         assertGt(dolaAmount, 0);
         assertGt(invAmount, 0);
@@ -808,7 +810,7 @@ contract DbrHelperForkTest is MarketBaseForkTest {
         DbrHelper.Repay memory repay;
 
         (sell, repay) = _getArguments(
-            address(0),
+            user,
             user,
             user,
             5000,
@@ -824,9 +826,9 @@ contract DbrHelperForkTest is MarketBaseForkTest {
             uint256 dolaRepaid,
             uint256 dbrAmount
         ) = helper.claimAndSell(sell, repay);
-
-        assertEq(dbrAmount, 0);
-        assertEq(dbr.balanceOf(user), 0);
+        // If DBR amount is odd, user gets 1 wei DBR from rounding down in percentage calc
+        assertApproxEqAbs(dbrAmount, 0, 1);      
+        assertApproxEqAbs(dbr.balanceOf(user), 0, 1);
         assertEq(dolaAmount, dolaRepaid);
         assertGt(dolaAmount, 0);
         assertGt(invAmount, 0);
@@ -873,9 +875,9 @@ contract DbrHelperForkTest is MarketBaseForkTest {
             uint256 dolaRepaid,
             uint256 dbrAmount
         ) = helper.claimAndSell(sell, repay);
-
-        assertEq(dbrAmount, 0);
-        assertEq(dbr.balanceOf(user), 0);
+        // If DBR amount is odd, user gets 1 wei DBR from rounding down in percentage calc
+        assertApproxEqAbs(dbrAmount, 0, 1);      
+        assertApproxEqAbs(dbr.balanceOf(user), 0, 1);
         assertGt(dolaAmount, 0);
         assertGt(invAmount, 0);
 
@@ -1312,6 +1314,48 @@ contract DbrHelperForkTest is MarketBaseForkTest {
         assertEq(DOLA.balanceOf(user), dolaBeforeUser);
     }
 
+    function test_setPendingGov() public {
+        assertEq(helper.gov(), gov);
+
+        vm.prank(gov);
+        helper.setPendingGov(user2);
+        assertEq(helper.pendingGov(), user2);
+        vm.prank(user2);
+        helper.claimPendingGov();
+        assertEq(helper.gov(), user2);
+
+        vm.prank(user2);
+        helper.setPendingGov(gov);
+        assertEq(helper.pendingGov(), gov);
+        vm.prank(gov);
+        helper.claimPendingGov();
+
+        assertEq(helper.gov(), gov);
+    }
+
+    function test_fail_setPendingGov_not_gov() public {
+        vm.prank(user);
+        vm.expectRevert(
+            abi.encodeWithSelector(Ownable.NotGov.selector, user)
+        );
+        helper.setPendingGov(user2);
+    }
+
+    function test_setCurvePool() public {
+        assertEq(address(helper.curvePool()), address(newTriDBRAddr));
+        vm.prank(gov);
+        helper.setCurvePool(triDBRAddr, 0,1,2);
+        assertEq(address(helper.curvePool()), triDBRAddr);
+    }
+
+    function test_fail_setCurvePool_not_gov() public {
+        vm.prank(user);
+        vm.expectRevert(
+            abi.encodeWithSelector(Ownable.NotGov.selector, user)
+        );
+        helper.setCurvePool(triDBRAddr, 0,1,2);
+    }
+    
     function _getArguments(
         address toDbr,
         address toDola,

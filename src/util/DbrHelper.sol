@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 import "src/interfaces/IERC20.sol";
 import "src/interfaces/IMarket.sol";
 import {ReentrancyGuard} from "openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
-import {Ownable} from "openzeppelin-contracts/contracts/access/Ownable.sol";
+import {Ownable} from "src/util/Ownable.sol";
 
 interface ICurvePool {
     function exchange(
@@ -11,9 +11,10 @@ interface ICurvePool {
         uint j,
         uint dx,
         uint min_dy,
-        bool use_eth,
         address receiver
-    ) external payable returns (uint);
+    ) external returns (uint);
+
+    function coins(uint index) external view returns (address);
 }
 
 interface IINVEscrow {
@@ -44,8 +45,6 @@ contract DbrHelper is Ownable, ReentrancyGuard {
 
     IMarket public constant INV_MARKET =
         IMarket(0xb516247596Ca36bf32876199FBdCaD6B3322330B);
-    ICurvePool public constant CURVE_POOL =
-        ICurvePool(0xC7DE47b9Ca2Fc753D6a2F167D8b3e19c6D18b19a);
     IERC20 public constant DOLA =
         IERC20(0x865377367054516e17014CcdED1e7d814EDC9ce4);
     IERC20 public constant DBR =
@@ -53,10 +52,12 @@ contract DbrHelper is Ownable, ReentrancyGuard {
     IERC20 public constant INV =
         IERC20(0x41D5D79431A913C4aE7d69a668ecdfE5fF9DFB68);
 
-    uint256 public constant DOLA_INDEX = 0;
-    uint256 public constant DBR_INDEX = 1;
-    uint256 public constant INV_INDEX = 2;
+    uint256 public dolaIndex = type(uint).max;
+    uint256 public dbrIndex = type(uint).max;
+    uint256 public invIndex = type(uint).max;
     uint256 public constant DENOMINATOR = 10000; // 100% in basis points
+
+    ICurvePool public curvePool;
 
     event Sell(
         address indexed claimer,
@@ -77,9 +78,23 @@ contract DbrHelper is Ownable, ReentrancyGuard {
         uint invAmount
     );
     event MarketApproved(address indexed market);
+    event NewCurvePool(address indexed newPool, uint256 dolaIndex, uint256 dbrIndex, uint256 invIndex);
 
-    constructor() Ownable(msg.sender) {
-        DBR.approve(address(CURVE_POOL), type(uint).max);
+    constructor(address _curvePool, address _gov) Ownable(_gov) {
+        curvePool = ICurvePool(_curvePool);
+        for(uint i; i < 3; i++){
+            if(curvePool.coins(i) == address(DOLA)){
+                dolaIndex = i;
+            }
+            else if(curvePool.coins(i) == address(DBR)){
+                dbrIndex = i;
+            }
+            else if(curvePool.coins(i) == address(INV)){
+                invIndex = i;
+            }
+        }
+        require(dolaIndex + dbrIndex + invIndex == 3, "Incorrect indices");
+        DBR.approve(address(curvePool), type(uint).max);
         INV.approve(address(INV_MARKET), type(uint).max);
     }
 
@@ -174,7 +189,7 @@ contract DbrHelper is Ownable, ReentrancyGuard {
                 dolaAmount = _sellDbr(
                     sellAmountForDola,
                     params.minOutDola,
-                    DOLA_INDEX,
+                    dolaIndex,
                     params.toDola
                 );
             }
@@ -209,7 +224,7 @@ contract DbrHelper is Ownable, ReentrancyGuard {
         address to
     ) internal returns (uint256 invAmount) {
         // Sell DBR for INV
-        _sellDbr(amount, minOutInv, INV_INDEX, address(this));
+        _sellDbr(amount, minOutInv, invIndex, address(this));
         // Deposit INV
         invAmount = INV.balanceOf(address(this));
         INV_MARKET.deposit(to, invAmount);
@@ -229,7 +244,7 @@ contract DbrHelper is Ownable, ReentrancyGuard {
         Repay calldata repay
     ) internal returns (uint256 dolaAmount, uint256 repaidAmount) {
         // Sell DBR for DOLA
-        dolaAmount = _sellDbr(amount, minOutDola, DOLA_INDEX, address(this));
+        dolaAmount = _sellDbr(amount, minOutDola, dolaIndex, address(this));
         // Repay debt
         repaidAmount = _repay(repay, dolaAmount);
     }
@@ -282,12 +297,11 @@ contract DbrHelper is Ownable, ReentrancyGuard {
         uint indexOut,
         address receiver
     ) internal returns (uint256 amountOut) {
-        amountOut = CURVE_POOL.exchange(
-            DBR_INDEX,
+        amountOut = curvePool.exchange(
+            dbrIndex,
             indexOut,
             amountIn,
             minOut,
-            false,
             receiver
         );
         emit Sell(msg.sender, amountIn, amountOut, indexOut, receiver);
@@ -324,5 +338,31 @@ contract DbrHelper is Ownable, ReentrancyGuard {
         if (params.sellForDola + params.sellForInv > DENOMINATOR)
             revert SellPercentageTooHigh();
         if (repay.percentage > DENOMINATOR) revert RepayPercentageTooHigh();
+    }
+
+    /**
+    @notice Sets a new curve pool
+    @dev Can only be called by the gov
+    @param _pool Address of the new curve pool
+    @param _dolaIndex Index of DOLA in the new curve pool
+    @param _dbrIndex Index of DBR in the new curve pool
+    @param _invIndex Index of INV in the new curve pool
+    */
+    function setCurvePool(address _pool, uint256 _dolaIndex, uint256 _dbrIndex, uint256 _invIndex) external onlyGov {
+        ICurvePool newPool = ICurvePool(_pool);
+        require(newPool.coins(_dolaIndex) == address(DOLA), "Wrong dola index");
+        require(newPool.coins(_dbrIndex) == address(DBR), "Wrong dbr index");
+        require(newPool.coins(_invIndex) == address(INV), "Wrong inv index");
+        
+        DBR.approve(address(curvePool), 0);
+
+        curvePool = ICurvePool(_pool);
+
+        DBR.approve(_pool, type(uint).max);
+
+        dolaIndex = _dolaIndex;
+        dbrIndex = _dbrIndex;
+        invIndex = _invIndex;
+        emit NewCurvePool(_pool, _dolaIndex, _dbrIndex, _invIndex);
     }
 }

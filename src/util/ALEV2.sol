@@ -3,8 +3,7 @@ pragma solidity ^0.8.0;
 
 import "src/interfaces/IMarket.sol";
 import "src/interfaces/IPendleHelper.sol";
-import {CurveDBRHelper} from "src/util/CurveDBRHelper.sol";
-import {Ownable} from "lib/openzeppelin-contracts/contracts/access/Ownable.sol";
+import {CurveHelper} from "src/util/CurveHelper.sol";
 import {ReentrancyGuard} from "lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
 import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -50,9 +49,8 @@ interface IERC3156FlashLender {
 
 // Accelerated leverage engine
 contract ALEV2 is
-    Ownable,
     ReentrancyGuard,
-    CurveDBRHelper,
+    CurveHelper,
     IERC3156FlashBorrower
 {
     using SafeERC20 for IERC20;
@@ -80,8 +78,6 @@ contract ALEV2 is
     );
 
     mapping(address => bool) public isExchangeProxy;
-
-    IDBR public constant DBR = IDBR(0xAD038Eb671c44b853887A7E32528FaB35dC5D710);
 
     IERC3156FlashLender public constant flash =
         IERC3156FlashLender(0x6C5Fdc0c53b122Ae0f15a863C349f3A481DE8f1F);
@@ -153,21 +149,22 @@ contract ALEV2 is
     mapping(address => Market) public markets;
 
     constructor(
-        address _pool
-    ) Ownable(msg.sender) CurveDBRHelper(_pool) {
-        dola.approve(address(flash), type(uint).max);
+        address _pool,
+        address _gov
+    ) CurveHelper(_pool, _gov) {
+        DOLA.approve(address(flash), type(uint).max);
     }
 
     /// @notice Allow an exchange proxy
     /// @param _proxy The proxy address
-    function allowProxy(address _proxy) external onlyOwner {
+    function allowProxy(address _proxy) external onlyGov {
         if (_proxy == address(0)) revert InvalidProxyAddress();
         isExchangeProxy[_proxy] = true;
     }
 
     /// @notice Deny an exchange proxy
     /// @param _proxy The proxy address
-    function denyProxy(address _proxy) external onlyOwner {
+    function denyProxy(address _proxy) external onlyGov {
         if (_proxy == address(0)) revert InvalidProxyAddress();
         isExchangeProxy[_proxy] = false;
     }
@@ -182,8 +179,8 @@ contract ALEV2 is
         address _buySellToken,
         address _helper,
         bool useProxy
-    ) external onlyOwner {
-        if (!DBR.markets(_market)) revert NoMarket(_market);
+    ) external onlyGov {
+        if (!IDBR(address(DBR)).markets(_market)) revert NoMarket(_market);
 
         address collateral = IMarket(_market).collateral();
         if (_helper == address(0) && _buySellToken != collateral) {
@@ -220,7 +217,7 @@ contract ALEV2 is
     function updateMarketHelper(
         address _market,
         address _helper
-    ) external onlyOwner {
+    ) external onlyGov {
         if (address(markets[_market].buySellToken) == address(0))
             revert MarketNotSet(_market);
         if (_helper == address(0)) revert InvalidHelperAddress();
@@ -271,7 +268,7 @@ contract ALEV2 is
 
         flash.flashLoan(
             IERC3156FlashBorrower(address(this)),
-            address(dola),
+            address(DOLA),
             value,
             data
         );
@@ -364,7 +361,7 @@ contract ALEV2 is
 
         flash.flashLoan(
             IERC3156FlashBorrower(address(this)),
-            address(dola),
+            address(DOLA),
             value,
             data
         );
@@ -431,7 +428,7 @@ contract ALEV2 is
         // passing along any ETH attached to this function call to cover protocol fees.
         if (markets[_market].useProxy) {
             if(!isExchangeProxy[_proxy]) revert InvalidProxyAddress();
-            dola.approve(_proxy, _value);
+            DOLA.approve(_proxy, _value);
             (bool success, ) = payable(_proxy).call{value: msg.value}(
                 _swapCallData
             );
@@ -462,7 +459,7 @@ contract ALEV2 is
 
         _borrowDola(_user, _value, _permit, _dbrData, IMarket(_market));
 
-        if (_dbrData.dola != 0) dola.transfer(_user, _dbrData.dola);
+        if (_dbrData.dola != 0) DOLA.transfer(_user, _dbrData.dola);
 
         if (_dbrData.amountIn > 0 && _dbrData.minOut > 0)
             _buyDbr(_dbrData.amountIn, _dbrData.minOut, _user);
@@ -563,14 +560,14 @@ contract ALEV2 is
                     collateralAvailable
                 );
             }
-        } else if (address(sellToken) != address(dola)) {
+        } else if (address(sellToken) != address(DOLA)) {
             uint256 sellTokenBal = sellToken.balanceOf(address(this));
             // Send any leftover sellToken to the sender
             if (sellTokenBal != 0) sellToken.safeTransfer(_user, sellTokenBal);
         }
 
         if (_dbrData.amountIn > 0 && _dbrData.minOut > 0) {
-            dbr.transferFrom(_user, address(this), _dbrData.amountIn);
+            DBR.transferFrom(_user, address(this), _dbrData.amountIn);
             _sellDbr(_dbrData.amountIn, _dbrData.minOut, _user);
         }
 
@@ -609,10 +606,10 @@ contract ALEV2 is
             _permit.s
         );
 
-        if (dola.balanceOf(address(this)) < dolaToBorrow)
+        if (DOLA.balanceOf(address(this)) < dolaToBorrow)
             revert DOLAInvalidBorrow(
                 dolaToBorrow,
-                dola.balanceOf(address(this))
+                DOLA.balanceOf(address(this))
             );
     }
 
@@ -631,10 +628,10 @@ contract ALEV2 is
         IMarket market
     ) internal {
         if (_dbrData.dola != 0) {
-            dola.transferFrom(_user, address(this), _dbrData.dola);
+            DOLA.transferFrom(_user, address(this), _dbrData.dola);
             _value += _dbrData.dola;
         }
-        dola.approve(address(market), _value);
+        DOLA.approve(address(market), _value);
         market.repay(_user, _value);
 
         // withdraw amount from ZERO EX quote
@@ -708,15 +705,12 @@ contract ALEV2 is
     /// @param _user The user address
     /// @param _value The amount of flash borrowed DOLA to be repaid
     function _refundExcess(address _user, uint256 _value) internal {
-        uint256 balance = dola.balanceOf(address(this));
+        uint256 balance = DOLA.balanceOf(address(this));
         if (balance < _value) revert DOLAInvalidRepay(_value, balance);
         // Send any extra DOLA to the sender
-        if (balance > _value) dola.transfer(_user, balance - _value);
+        if (balance > _value) DOLA.transfer(_user, balance - _value);
         // Refund any unspent protocol fees to the sender.
         if (address(this).balance > 0)
             payable(_user).transfer(address(this).balance);
     }
-
-    // solhint-disable-next-line no-empty-blocks
-    receive() external payable {}
 }
