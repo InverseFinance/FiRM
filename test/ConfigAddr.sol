@@ -8,6 +8,7 @@ contract ConfigAddr {
     address pauseGuardian = address(0xE3eD95e130ad9E15643f5A5f232a3daE980784cd);
     address dolaAddr = address(0x865377367054516e17014CcdED1e7d814EDC9ce4);
     address dbrAddr = address(0xAD038Eb671c44b853887A7E32528FaB35dC5D710);
+    address invAddr = address(0x41D5D79431A913C4aE7d69a668ecdfE5fF9DFB68);
     address oracleAddr = address(0xaBe146CF570FD27ddD985895ce9B138a7110cce8);
     address borrowControllerAddr =
         address(0x44B7895989Bc7886423F06DeAa844D413384b0d6);
@@ -57,6 +58,8 @@ contract ConfigAddr {
 
     // Curve Pools
     address triDBRAddr = address(0xC7DE47b9Ca2Fc753D6a2F167D8b3e19c6D18b19a);
+    address newTriDBRAddr =
+        address(0x66da369fC5dBBa0774Da70546Bd20F2B242Cd34d);
     // Balancer Pools
 
     // FiRM Escrows

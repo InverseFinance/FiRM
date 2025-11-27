@@ -26,6 +26,7 @@ abstract contract OffchainAbstractHelper {
     @notice Buys DBR for an amount of Dola
     @param amount Amount of Dola to spend on DBR
     @param minOut minimum amount of DBR to receive
+    @param receiver Address to send purchased DBR to
     */
     function _buyDbr(uint amount, uint minOut, address receiver) internal virtual;
 
@@ -33,8 +34,9 @@ abstract contract OffchainAbstractHelper {
     @notice Sells an exact amount of DBR for DOLA
     @param amount Amount of DBR to sell
     @param minOut minimum amount of DOLA to receive
+    @param receiver Address to send purchased DOLA to
     */
-    function _sellDbr(uint amount, uint minOut) internal virtual;
+    function _sellDbr(uint amount, uint minOut, address receiver) internal virtual;
 
     /**
     @notice Approximates the amount of additional DOLA and DBR needed to sustain dolaBorrowAmount over the period
@@ -172,10 +174,10 @@ abstract contract OffchainAbstractHelper {
         //If user has less DBR than ordered, sell what's available
         if(dbrAmountToSell > dbrBal){
             DBR.transferFrom(msg.sender, address(this), dbrBal);
-            _sellDbr(dbrBal, minDolaFromDbr);
+            _sellDbr(dbrBal, minDolaFromDbr, address(this));
         } else {
             DBR.transferFrom(msg.sender, address(this), dbrAmountToSell);
-            _sellDbr(dbrAmountToSell, minDolaFromDbr);
+            _sellDbr(dbrAmountToSell, minDolaFromDbr, address(this));
         }
 
         uint debt = market.debts(msg.sender);
