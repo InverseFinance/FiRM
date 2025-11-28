@@ -14,7 +14,8 @@ interface IVault {
     function withdraw(uint256 _shares) external;
     function stakingToken() external view returns (address);
     function gaugeAddress() external view returns (address);
-    function getReward() external;
+    function getReward(bool _claimExtras, address[] memory _tokenList) external;
+    function getReward(bool _claimExtras) external;
     function earned() external returns (address[] memory tokenAddresses, uint256[] memory rewards);
     function transferTokens(address[] calldata _tokenList) external;
 }
@@ -85,6 +86,7 @@ contract FXNConvexEscrow {
         token.approve(address(vault), type(uint).max);
         require(token == IERC20(vault.stakingToken()), "Wrong token");
         gauge = IERC20(vault.gaugeAddress()); // receipt token that goes into the vault
+        require(address(gauge) != address(0), "No gauge");
     }
 
     /**
@@ -137,12 +139,41 @@ contract FXNConvexEscrow {
     }
 
     /**
+    @notice Claims reward tokens to the message sender. Only callable by beneficiary
+    */
+    function claim() external onlyBeneficiary {
+        _claim(msg.sender, true, new address[](0));
+    }
+
+    /**
     @notice Claims reward tokens to the specified address. Only callable by beneficiary and allowlisted addresses
     @param to Address to send claimed rewards to
     */
-    function claimTo(address to) public onlyBeneficiaryOrAllowlist {
-        //Claim rewards
-        vault.getReward();
+    function claimTo(address to) external onlyBeneficiaryOrAllowlist {
+        _claim(to, true, new address[](0));
+    }
+
+    /**
+    @notice Claims reward tokens to the specified address with option to claim extra rewards or not. Only callable by beneficiary and allowlisted addresses
+    @param to Address to send claimed rewards to
+    @param claimRewards Boolean indicating whether to claim extra rewards
+    @param tokenList List of specific reward tokens to claim. 
+    */
+    function claimWithFlagOrTokenList(
+        address to,
+        bool claimRewards,
+        address[] calldata tokenList
+    ) external onlyBeneficiaryOrAllowlist {
+        _claim(to, claimRewards, tokenList);
+    }
+
+    function _claim(address to, bool claimRewards, address[] memory tokenList) internal {
+        if (tokenList.length > 0) {
+            vault.getReward(claimRewards, tokenList);
+        } else {
+            vault.getReward(claimRewards);
+        }
+        
         //Send fxn balance
         uint256 fxnBal = fxn.balanceOf(address(this));
         if (fxnBal != 0) fxn.safeTransfer(to, fxnBal);
@@ -160,14 +191,6 @@ contract FXNConvexEscrow {
                 IERC20(extraRewards[i]).safeTransfer(to, rewardBal);
             }
         }
-    }
-    
-
-    /**
-    @notice Claims reward tokens to the message sender. Only callable by beneficiary
-    */
-    function claim() external onlyBeneficiary {
-        claimTo(msg.sender);
     }
 
     /**
