@@ -52,7 +52,7 @@ abstract contract OffchainAbstractHelper {
     @param market Market the caller wishes to borrow from
     @param dolaAmount Amount the caller wants to end up with at their disposal
     @param dolaForDbr The max amount of debt the caller is willing to end up with
-     This is a sensitive parameter and should be reasonably low to prevent sandwhiching.
+     This is a sensitive parameter and should be reasonably low to prevent sandwiching.
      A good estimate can be calculated given the approximateDolaAndDbrNeeded function, though should be set slightly higher.
     @param minDbr The minDbr the caller wish to borrow for
     @param deadline Deadline of the signature
@@ -88,7 +88,7 @@ abstract contract OffchainAbstractHelper {
     @param market Market the caller wish to deposit to and borrow from
     @param dolaAmount Amount the caller wants to end up with at their disposal
     @param dolaForDbr The max amount of debt the caller is willing to take on to buy dbr
-     This is a sensitive parameter and should be reasonably low to prevent sandwhiching.
+     This is a sensitive parameter and should be reasonably low to prevent sandwiching.
      A good estimate can be calculated given the approximateDolaAndDbrNeeded function, though should be set slightly higher.
     @param minDbr The minDbr the caller wish to borrow for
     @param deadline Deadline of the signature
@@ -126,7 +126,7 @@ abstract contract OffchainAbstractHelper {
     @param market Market the caller wish to deposit to and borrow from
     @param dolaAmount Amount the caller wants to end up with at their disposal
     @param dolaForDbr The max amount of debt the caller is willing to end up with
-     This is a sensitive parameter and should be reasonably low to prevent sandwhiching.
+     This is a sensitive parameter and should be reasonably low to prevent sandwiching.
      A good estimate can be calculated given the approximateDolaAndDbrNeeded function, though should be set slightly higher.
     @param minDbr The minDbr the caller wish to borrow for
     @param deadline Deadline of the signature
@@ -163,7 +163,7 @@ abstract contract OffchainAbstractHelper {
     @param market The market the user wishes to repay debt in
     @param dolaAmount The maximum amount of dola debt the user is willing to repay
     @param minDolaFromDbr The minimum amount of DOLA the caller expects to get in return for selling their DBR.
-     This is a sensitive parameter and should be provided with reasonably low slippage to prevent sandwhiching.
+     This is a sensitive parameter and should be provided with reasonably low slippage to prevent sandwiching.
     @param dbrAmountToSell The amount of DBR the caller wishes to sell
     */
     function sellDbrAndRepayOnBehalf(IMarket market, uint dolaAmount, uint minDolaFromDbr, uint dbrAmountToSell) public {
@@ -202,7 +202,7 @@ abstract contract OffchainAbstractHelper {
     @param market Market the user wishes to repay debt in
     @param dolaAmount Maximum amount of dola debt the user is willing to repay
     @param minDolaFromDbr Minimum amount of DOLA the caller expects to get in return for selling their DBR
-     This is a sensitive parameter and should be provided with reasonably low slippage to prevent sandwhiching.
+     This is a sensitive parameter and should be provided with reasonably low slippage to prevent sandwiching.
     @param dbrAmountToSell Amount of DBR the caller wishes to sell
     @param collateralAmount Amount of collateral to withdraw
     @param deadline Deadline of the signature
@@ -238,7 +238,7 @@ abstract contract OffchainAbstractHelper {
     @param market Market the user wishes to repay debt in
     @param dolaAmount Maximum amount of dola debt the user is willing to repay
     @param minDolaFromDbr Minimum amount of DOLA the caller expects to get in return for selling their DBR
-     This is a sensitive parameter and should be provided with reasonably low slippage to prevent sandwhiching.
+     This is a sensitive parameter and should be provided with reasonably low slippage to prevent sandwiching.
     @param dbrAmountToSell Amount of DBR the caller wishes to sell
     @param collateralAmount Amount of collateral to withdraw
     @param deadline Deadline of the signature
