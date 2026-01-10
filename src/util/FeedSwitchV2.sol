@@ -139,7 +139,7 @@ contract FeedSwitchV2 {
     /// @dev Can only be called by the pending governance
     function acceptGov() external {
         if (msg.sender != pendingGov) revert NotPendingGov();
-        gov = msg.sender;
+        gov = pendingGov;
         pendingGov = address(0);
         emit GovChanged(gov);
     }
