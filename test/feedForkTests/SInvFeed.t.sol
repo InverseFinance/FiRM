@@ -6,14 +6,13 @@ import "src/feeds/ChainlinkCurve2CoinsFeed.sol";
 import {ChainlinkBasePriceFeed} from "src/feeds/ChainlinkBasePriceFeed.sol";
 import {ConfigAddr} from "test/ConfigAddr.sol";
 import {ERC4626Feed, IERC4626} from "src/feeds/ERC4626Feed.sol";
+import {NormalizedPriceFeed} from "src/feeds/NormalizedPriceFeed.sol";
 
 import "forge-std/console.sol";
 
 contract SInvFeedTest is Test, ConfigAddr {
-    ChainlinkBasePriceFeed ethUsdWrapper = ChainlinkBasePriceFeed(
-        0x22390B88C53D1631f673b8Dcd91860267137b2c8
-    );
     ERC4626Feed sInvFeed;
+    NormalizedPriceFeed ethUsdWrapper;
     ChainlinkBasePriceFeed sInvUsdWrapper;
     address ethUsdClFeed = address(0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419);
     uint256 ethUsdHeartbeat = 1 hours;
@@ -23,7 +22,12 @@ contract SInvFeedTest is Test, ConfigAddr {
     function setUp() public {
         string memory url = vm.rpcUrl("mainnet");
         vm.createSelectFork(url);
-     
+        ethUsdWrapper = new NormalizedPriceFeed(
+            gov,
+            ethUsdClFeed,
+            address(0),
+            ethUsdHeartbeat
+        );
         sInvFeed = new ERC4626Feed(
             sInv,
             invToUsd
@@ -35,7 +39,7 @@ contract SInvFeedTest is Test, ConfigAddr {
         assertEq(address(sInvFeed.feed()), invToUsd);
         assertEq(sInvFeed.decimals(), 18);
         assertEq(address(ethUsdWrapper.assetToUsd()), ethUsdClFeed);
-        assertEq(ethUsdWrapper.assetToUsdHeartbeat(), ethUsdHeartbeat +60);
+        assertEq(ethUsdWrapper.assetToUsdHeartbeat(), ethUsdHeartbeat);
         assertEq(ethUsdWrapper.decimals(), 18);
     }
     function test_description() public {
