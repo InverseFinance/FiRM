@@ -3,7 +3,6 @@ pragma solidity ^0.8.19;
 
 import "forge-std/Test.sol";
 import "src/feeds/ChainlinkCurve2CoinsFeed.sol";
-import {ChainlinkBasePriceFeed} from "src/feeds/ChainlinkBasePriceFeed.sol";
 import {ConfigAddr} from "test/ConfigAddr.sol";
 import {ERC4626Feed, IERC4626} from "src/feeds/ERC4626Feed.sol";
 import {NormalizedPriceFeed} from "src/feeds/NormalizedPriceFeed.sol";
@@ -13,14 +12,15 @@ import "forge-std/console.sol";
 contract SInvFeedTest is Test, ConfigAddr {
     ERC4626Feed sInvFeed;
     NormalizedPriceFeed ethUsdWrapper;
-    ChainlinkBasePriceFeed sInvUsdWrapper;
+    DynamicFeeCurveFeed invToUsd;
+    
     address ethUsdClFeed = address(0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419);
     uint256 ethUsdHeartbeat = 1 hours;
     address sInv = 0x08d23468A467d2bb86FaE0e32F247A26C7E2e994;
     address curvePool = 0xDcD90D866Ff9636e5a04768825d05d27b3Fb19eC;
     address inv = 0x41D5D79431A913C4aE7d69a668ecdfE5fF9DFB68;
-    //address invToUsd = 0x4C871E951228c2f7224416C921e742a86Ef8EECB;
-    DynamicFeeCurveFeed invToUsd;
+   
+   
     function setUp() public {
         string memory url = vm.rpcUrl("mainnet");
         vm.createSelectFork(url);
@@ -43,7 +43,7 @@ contract SInvFeedTest is Test, ConfigAddr {
         );
     }
 
-    function test_deployment() public {
+    function test_deployment() public view{
         assertEq(address(sInvFeed.vault()), address(sInv));
         assertEq(address(sInvFeed.feed()), address(invToUsd));
         assertEq(sInvFeed.decimals(), 18);
@@ -52,7 +52,7 @@ contract SInvFeedTest is Test, ConfigAddr {
         assertEq(ethUsdWrapper.decimals(), 18);
     }
 
-    function test_description() public {
+    function test_description() public view {
         string memory expected = "INV / USD using sINV vault rate";
         string memory actual = sInvFeed.description();
         assertEq(expected, actual);
@@ -60,7 +60,7 @@ contract SInvFeedTest is Test, ConfigAddr {
         assertEq(ethUsdWrapper.description(), "ETH / USD");
     }
 
-    function test_latestRoundData() public {
+    function test_latestRoundData() public view {
         (
             uint80 roundId,
             int256 sInvUsdPrice,
@@ -89,7 +89,7 @@ contract SInvFeedTest is Test, ConfigAddr {
         console.log("sINV/USD Price:", uint(sInvUsdPrice));
     }
 
-    function test_latestAnswer() public {
+    function test_latestAnswer() public view {
         int256 sInvUsdPrice = sInvFeed.latestAnswer();
         uint256 invUsdPrice = uint(invToUsd.latestAnswer());
           
