@@ -59,9 +59,9 @@ contract FeedSwitchV2 {
         _;
     }
 
-    /// @notice Initiate the feed switch, entering the timelock period
+    /// @notice Toggle the feed switch, entering or exiting the timelock period
     /// @dev Can only be called by the guardian
-    function initiateFeedSwitch() external {
+    function toggleFeedSwitch() external {
         if (!isGuardian[msg.sender]) revert NotGuardian();
 
         if (switchCompletedAt < block.timestamp) {
@@ -117,14 +117,12 @@ contract FeedSwitchV2 {
     }
 
     /// @notice Check if the feed switch is queued
-    /// @dev If not queued, will return false and 0 as time left
-    /// @return isQueued Whether the feed switch is queued
+    /// @dev If not queued, will return 0 as time left
     /// @return timeLeft The time left for the switch to be effective
-    function isFeedSwitchQueued() external view returns (bool, uint256) {
-        bool isQueued = switchCompletedAt > 0 &&
-            block.timestamp < switchCompletedAt;
-        if (!isQueued) return (false, 0);
-        else return (isQueued, switchCompletedAt - block.timestamp);
+    function isFeedSwitchQueued() external view returns (uint256) {
+        bool isQueued = block.timestamp < switchCompletedAt;
+        if (!isQueued) return 0;
+        else return switchCompletedAt - block.timestamp;
     }
 
     /// @notice Set a new pending governance
