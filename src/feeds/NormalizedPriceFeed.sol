@@ -16,30 +16,14 @@ contract NormalizedPriceFeed {
     IChainlinkFeed public immutable assetToUsdFallback;
     uint8 public immutable assetToUsdDecimals;
     uint8 public immutable assetToUsdFallbackDecimals;
+    uint256 public immutable assetToUsdHeartbeat;
     string public description;
 
-    address public owner;
-    address public pendingOwner;
-
-    uint256 public assetToUsdHeartbeat;
-
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Only owner");
-        _;
-    }
-
-    modifier onlyPendingOwner() {
-        require(msg.sender == pendingOwner, "Only pending owner");
-        _;
-    }
-
     constructor(
-        address _owner,
         address _assetToUsd,
         address _assetToUsdFallback,
         uint256 _assetToUsdHeartbeat
     ) {
-        owner = _owner;
         assetToUsd = IChainlinkFeed(_assetToUsd);
         assetToUsdFallback = IChainlinkFeed(_assetToUsdFallback);
         assetToUsdHeartbeat = _assetToUsdHeartbeat;
@@ -74,19 +58,15 @@ contract NormalizedPriceFeed {
         (roundId, usdPrice, startedAt, updatedAt, answeredInRound) = assetToUsd
             .latestRoundData();
 
-        if (isPriceStale(usdPrice, updatedAt)) {
-            if (hasFallback()) {
-                (
-                    roundId,
-                    usdPrice,
-                    startedAt,
-                    updatedAt,
-                    answeredInRound
-                ) = assetToUsdFallback.latestRoundData();
-                usdPrice = normalizePrice(usdPrice, assetToUsdFallbackDecimals);
-            } else {
-                usdPrice = normalizePrice(usdPrice, assetToUsdDecimals);
-            }
+        if (isPriceStale(usdPrice, updatedAt) && address(assetToUsdFallback) != address(0)) {
+            (
+                roundId,
+                usdPrice,
+                startedAt,
+                updatedAt,
+                answeredInRound
+            ) = assetToUsdFallback.latestRoundData();
+            usdPrice = normalizePrice(usdPrice, assetToUsdFallbackDecimals);
         } else {
             usdPrice = normalizePrice(usdPrice, assetToUsdDecimals);
         }
@@ -124,23 +104,6 @@ contract NormalizedPriceFeed {
     ) public view returns (bool) {
         bool stalePrice = updatedAt + assetToUsdHeartbeat < block.timestamp;
         return stalePrice || isPriceOutOfBounds(price, assetToUsd);
-    }
-
-    function hasFallback() public view returns (bool) {
-        return address(assetToUsdFallback) != address(0);
-    }
-
-    function setHeartbeat(uint256 newHeartbeat) public onlyOwner {
-        assetToUsdHeartbeat = newHeartbeat;
-    }
-
-    function setPendingOwner(address newPendingOwner) public onlyOwner {
-        pendingOwner = newPendingOwner;
-    }
-
-    function acceptOwner() public onlyPendingOwner {
-        owner = pendingOwner;
-        pendingOwner = address(0);
     }
 
     function decimals() public pure returns (uint8) {

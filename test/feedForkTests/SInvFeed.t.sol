@@ -25,7 +25,6 @@ contract SInvFeedTest is Test, ConfigAddr {
         string memory url = vm.rpcUrl("mainnet");
         vm.createSelectFork(url);
         ethUsdWrapper = new NormalizedPriceFeed(
-            gov,
             ethUsdClFeed,
             address(0),
             ethUsdHeartbeat
