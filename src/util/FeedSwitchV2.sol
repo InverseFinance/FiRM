@@ -28,7 +28,7 @@ contract FeedSwitchV2 {
     IChainlinkFeed public immutable initialFeed;
     IChainlinkFeed public immutable fallbackFeed;
 
-    event FeedSwitchInitiated(address indexed newFeed);
+    event FeedSwitchInitiated(address indexed newFeed, uint256 effectiveAt);
     event NewPendingGov(address indexed pendingGov);
     event GovChanged(address indexed newGov);
     event GuardianSet(address indexed guardian, bool isGuardian);
@@ -76,7 +76,7 @@ contract FeedSwitchV2 {
             previousFeed = fallbackFeed;
         }
 
-        emit FeedSwitchInitiated(address(feed));
+        emit FeedSwitchInitiated(address(feed), switchCompletedAt > 0 ? switchCompletedAt : block.timestamp);
     }
 
     /// @notice Get the current feed data

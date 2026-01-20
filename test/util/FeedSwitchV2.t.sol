@@ -16,7 +16,7 @@ contract FeedSwitchV2Test is Test {
     
     uint256 timelockPeriod = 18 hours;
 
-    event FeedSwitchInitiated(address indexed newFeed);
+    event FeedSwitchInitiated(address indexed newFeed, uint256 effectiveAt);
     event NewPendingGov(address indexed pendingGov);
     event GovChanged(address indexed newGov);
     event GuardianSet(address indexed guardian, bool isGuardian);
@@ -83,7 +83,7 @@ contract FeedSwitchV2Test is Test {
     function test_ToggleFeedSwitch_InitiatesSwitchToFallback() public {
         vm.prank(guardian);
         vm.expectEmit(true, false, false, false);
-        emit FeedSwitchInitiated(address(fallbackFeed));
+        emit FeedSwitchInitiated(address(fallbackFeed), block.timestamp + timelockPeriod);
         feedSwitch.toggleFeedSwitch();
         
         assertEq(address(feedSwitch.feed()), address(fallbackFeed));
@@ -108,7 +108,7 @@ contract FeedSwitchV2Test is Test {
         // Second toggle: fallback -> initial
         vm.prank(guardian);
         vm.expectEmit(true, false, false, false);
-        emit FeedSwitchInitiated(address(initialFeed));
+        emit FeedSwitchInitiated(address(initialFeed), block.timestamp);
         feedSwitch.toggleFeedSwitch();
         
         assertEq(address(feedSwitch.feed()), address(initialFeed));
