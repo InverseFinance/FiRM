@@ -37,6 +37,6 @@ FiRM is built using [Foundry](https://book.getfoundry.sh/getting-started/install
 ## Test
 To run tests, you must first add an `RPC_MAINNET` rpc endpoint to your local `.env` file.
 
-To generate a coverage summary run `forge coverage`, and `forge coverage --reprot lcov` for a full coverage report. To generate a human readable document from the lcov.info file, use the following command:
+To generate a coverage summary run `forge coverage`, and `forge coverage --report lcov` for a full coverage report. To generate a human readable document from the lcov.info file, use the following command:
 `genhtml -o report --branch-coverage`
 
