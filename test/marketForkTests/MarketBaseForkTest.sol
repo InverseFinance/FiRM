@@ -17,7 +17,6 @@ abstract contract MarketBaseForkTest is MarketForkTest {
         "Only pause guardian or governance can pause";
     address lender = 0x2b34548b865ad66A2B046cb82e59eE43F75B90fd;
     bool approximateBalance;
-
     BorrowContract borrowContract;
 
     function _baseInit(address _market, address _feed) public {
