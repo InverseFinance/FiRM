@@ -17,7 +17,7 @@ contract InvMarketBaseForkTest is MarketBaseForkTest {
             0xdcd2D918511Ba39F2872EB731BB88681AE184244
         );
         address marketAddr = 0xb516247596Ca36bf32876199FBdCaD6B3322330B;
-        address feedAddr = 0xC54Ca0a605D5DA34baC77f43efb55519fC53E78e;
+        address feedAddr = 0x5E38e4f3cea5f9333984Fc7B527Fbf2B8bb3bd51;
         _advancedInit(marketAddr, feedAddr, true);
         vm.startPrank(gov);
         dbr.addMinter(address(distributor));
