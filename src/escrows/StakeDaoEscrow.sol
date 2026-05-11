@@ -80,8 +80,8 @@ contract StakeDaoEscrow {
     function initialize(IERC20 _token, address _beneficiary) public {
         if (market != address(0)) revert AlreadyInitialized();
         if(address(_token) != rewardVault.asset()) revert WrongCollateral();
-        if(address(_token) != IMarket(market).collateral()) revert WrongCollateral();
         market = msg.sender;
+        if(address(_token) != IMarket(market).collateral()) revert WrongCollateral();
         token = _token;
         token.approve(address(rewardVault), type(uint).max);
         beneficiary = _beneficiary;
@@ -148,7 +148,7 @@ contract StakeDaoEscrow {
     */
     function _claim(address[] calldata tokens, address to) internal {
         //Claim base reward token (crv, bal, etc.) if there's a balance
-        if(accountant.pendingRewards(address(rewardVault), msg.sender) > 0)
+        if(accountant.pendingRewards(address(rewardVault), address(this)) > 0)
             accountant.claim(gaugeArray, new bytes[](0), to);
         //Claim extra reward tokens (cvx, etc.)
         uint256[] memory amounts = rewardVault.claim(tokens, to);
