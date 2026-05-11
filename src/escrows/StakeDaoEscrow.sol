@@ -4,10 +4,21 @@ pragma solidity ^0.8.13;
 import "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 
 interface IRewardVault is IERC20{
-    function deposit(address account, address receiver, uint assets, address referrer) external returns(uint256);
+    function deposit(address receiver, uint assets, address referrer) external returns(uint256);
     function withdraw(uint256 assets, address receiver, address owner) external returns(uint256);
     function claim(address[] calldata tokens, address receiver) external returns(uint256[] memory amounts);
     function previewRedeem(uint256 shares) external view returns(uint256);
+    function asset() external view returns(address);
+}
+
+interface IAccountant {
+    function REWARD_TOKEN() external view returns(address);
+    function claim(address[] calldata gauges, bytes[] calldata harvestData, address receiver) external;
+    function pendingRewards(address vault, address account) external view returns (uint128);
+}
+
+interface IMarket {
+    function collateral() external view returns(address);
 }
 
 contract StakeDaoEscrow {
@@ -17,9 +28,14 @@ contract StakeDaoEscrow {
     error OnlyMarket();
     error OnlyBeneficiary();
     error OnlyBeneficiaryOrAllowlist();
+    error WrongCollateral();
 
 
     IRewardVault public immutable rewardVault;
+    IAccountant public immutable accountant;
+    address public immutable gauge;
+    address[] public gaugeArray;
+    IERC20 public immutable baseRewardToken;
     address public immutable treasury;
 
     address public market;
@@ -40,13 +56,18 @@ contract StakeDaoEscrow {
     }
 
     event SetClaimer(address indexed claimer, bool isAllowed);
-    event Claim(address caller, address receiver, address[] tokens);
+    event Claim(address caller, address receiver, address[] tokens, address baseRewardToken, uint256[] amounts);
 
     constructor(
         address _rewardVault,
+        address _accountant,
+        address _gauge,
         address _treasury
     ) {
         rewardVault = IRewardVault(_rewardVault);
+        accountant = IAccountant(_accountant);
+        gauge = _gauge;
+        baseRewardToken = IERC20(accountant.REWARD_TOKEN());
         treasury = _treasury;
     }
 
@@ -58,10 +79,13 @@ contract StakeDaoEscrow {
     */
     function initialize(IERC20 _token, address _beneficiary) public {
         if (market != address(0)) revert AlreadyInitialized();
+        if(address(_token) != rewardVault.asset()) revert WrongCollateral();
+        if(address(_token) != IMarket(market).collateral()) revert WrongCollateral();
         market = msg.sender;
         token = _token;
         token.approve(address(rewardVault), type(uint).max);
         beneficiary = _beneficiary;
+        gaugeArray.push(gauge);
     }
 
     /**
@@ -97,7 +121,7 @@ contract StakeDaoEscrow {
     function onDeposit() public {
         uint256 tokenBal = token.balanceOf(address(this));
         if (tokenBal == 0) return;
-        rewardVault.deposit(address(this), address(this), tokenBal, treasury);
+        rewardVault.deposit(address(this), tokenBal, treasury);
     }
 
     /**
@@ -105,18 +129,30 @@ contract StakeDaoEscrow {
     @param tokens Array of reward token address to claim to `to` address
     @param to Address to send claimed rewards to
     */
-    function claimTo(address[] calldata tokens, address to) public onlyBeneficiaryOrAllowlist {
-        rewardVault.claim(tokens, to);
-        emit Claim(msg.sender, to, tokens);
+    function claim(address[] calldata tokens, address to) public onlyBeneficiaryOrAllowlist {
+        _claim(tokens, to);
     }
+
+    /**
+    @notice Claims reward tokens to the specified address. Only callable by beneficiary and allowlisted addresses
+    @param tokens Array of reward token address to claim to `to` address
+    */
+    function claim(address[] calldata tokens) public onlyBeneficiary {
+        _claim(tokens, msg.sender);
+    }
+
 
     /**
     @notice Claims reward tokens to the message sender. Only callable by beneficiary
     @param tokens Array of reward token addresses to claim
     */
-    function claim(address[] calldata tokens) external onlyBeneficiary {
-        rewardVault.claim(tokens, msg.sender);
-        emit Claim(msg.sender, msg.sender, tokens);
+    function _claim(address[] calldata tokens, address to) internal {
+        //Claim base reward token (crv, bal, etc.) if there's a balance
+        if(accountant.pendingRewards(address(rewardVault), msg.sender) > 0)
+            accountant.claim(gaugeArray, new bytes[](0), to);
+        //Claim extra reward tokens (cvx, etc.)
+        uint256[] memory amounts = rewardVault.claim(tokens, to);
+        emit Claim(msg.sender, to, tokens, address(baseRewardToken), amounts);
     }
 
     /**
