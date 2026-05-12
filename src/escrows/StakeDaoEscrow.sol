@@ -57,13 +57,10 @@ contract StakeDaoEscrow {
     event Claim(address caller, address receiver, address[] tokens, address baseRewardToken, uint256[] amounts);
 
     constructor(address _rewardVault, address _treasury) {
-        IRewardVault _vault = IRewardVault(_rewardVault);
-        IAccountant _accountant = IAccountant(_vault.ACCOUNTANT());
-
-        rewardVault = _vault;
-        accountant = _accountant;
-        gauge = _vault.gauge();
-        baseRewardToken = _accountant.REWARD_TOKEN();
+        rewardVault = IRewardVault(_rewardVault);
+        accountant = IAccountant(rewardVault.ACCOUNTANT());
+        gauge = rewardVault.gauge();
+        baseRewardToken = accountant.REWARD_TOKEN();
         treasury = _treasury;
     }
 
