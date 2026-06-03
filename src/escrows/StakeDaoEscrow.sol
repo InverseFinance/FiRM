@@ -28,7 +28,6 @@ contract StakeDaoEscrow {
     error OnlyBeneficiaryOrAllowlist();
     error WrongCollateral();
     error InvalidReceiver();
-    error NoCallbackInMarket();
 
     IRewardVault public immutable rewardVault;
     IAccountant public immutable accountant;
@@ -76,7 +75,6 @@ contract StakeDaoEscrow {
         if (address(_token) != rewardVault.asset()) revert WrongCollateral();
         market = msg.sender;
         if (address(_token) != IMarket(market).collateral()) revert WrongCollateral();
-        if(!IMarket(market).callOnDepositCallback()) revert NoCallbackInMarket();
         token = _token;
         token.approve(address(rewardVault), type(uint256).max);
         beneficiary = _beneficiary;
