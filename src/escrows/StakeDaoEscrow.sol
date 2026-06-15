@@ -4,6 +4,7 @@ pragma solidity ^0.8.13;
 import "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IMarket} from "src/interfaces/IMarket.sol";
 
+// RewardVault implementation: https://etherscan.io/address/0x74D8dd40118B13B210D0a1639141cE4458CAe0c0
 interface IRewardVault is IERC20 {
     function deposit(uint256 assets, address receiver, address referrer) external returns (uint256);
     function withdraw(uint256 assets, address receiver, address owner) external returns (uint256);
@@ -14,6 +15,7 @@ interface IRewardVault is IERC20 {
     function gauge() external view returns (address);
 }
 
+// Accountant implementation: https://etherscan.io/address/0x93b4B9bd266fFA8AF68e39EDFa8cFe2A62011Ce0
 interface IAccountant {
     function REWARD_TOKEN() external view returns (address);
     function claim(address[] calldata gauges, bytes[] calldata harvestData, address receiver) external;
