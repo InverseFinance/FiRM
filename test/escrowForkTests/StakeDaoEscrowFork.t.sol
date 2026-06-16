@@ -4,20 +4,12 @@ pragma solidity ^0.8.13;
 import {Test} from "forge-std/Test.sol";
 import {Market, IOracle, IDolaBorrowingRights} from "src/Market.sol";
 import {IERC20} from "src/interfaces/IERC20.sol";
-import {
-    StakeDaoEscrow,
-    IRewardVault
-} from "src/escrows/StakeDaoEscrow.sol";
+import {StakeDaoEscrow, IRewardVault} from "src/escrows/StakeDaoEscrow.sol";
 
 interface IStakeDaoRewardVault is IRewardVault {
-    function depositRewards(
-        address rewardsToken,
-        uint128 amount
-    ) external;
+    function depositRewards(address rewardsToken, uint128 amount) external;
 
-    function getRewardsDistributor(
-        address token
-    ) external view returns (address);
+    function getRewardsDistributor(address token) external view returns (address);
 
     function getRewardTokens() external view returns (address[] memory);
 }
@@ -25,29 +17,21 @@ interface IStakeDaoRewardVault is IRewardVault {
 contract StakeDaoEscrowForkTest is Test {
     uint256 internal constant FORK_BLOCK = 25_076_112;
 
-    address internal constant GOV =
-        0x926dF14a23BE491164dCF93f4c468A50ef659D5B;
+    address internal constant GOV = 0x926dF14a23BE491164dCF93f4c468A50ef659D5B;
     address internal constant LENDER = address(0xA11CE);
     address internal constant PAUSE_GUARDIAN = address(0xB0B);
-    address internal constant TREASURY =
-        0x926dF14a23BE491164dCF93f4c468A50ef659D5B;
+    address internal constant TREASURY = 0x926dF14a23BE491164dCF93f4c468A50ef659D5B;
     address internal constant USER = address(0xBEEF);
     address internal constant FRIEND = address(0xCAFE);
     address internal constant RECEIVER = address(0xD00D);
 
-    address internal constant DBR =
-        0xAD038Eb671c44b853887A7E32528FaB35dC5D710;
-    address internal constant WETH =
-        0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    address internal constant DBR = 0xAD038Eb671c44b853887A7E32528FaB35dC5D710;
+    address internal constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 
-    address internal constant REWARD_VAULT =
-        0xCA137e3853Eab95541290B372223e7F2ee4c0cFa;
-    address internal constant CRV_FRX_USD_LP =
-        0x13e12BB0E6A2f1A3d6901a59a9d585e89A6243e1;
-    address internal constant CVX =
-        0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B;
-    address internal constant CRV =
-        0xD533a949740bb3306d119CC777fa900bA034cd52;
+    address internal constant REWARD_VAULT = 0xCA137e3853Eab95541290B372223e7F2ee4c0cFa;
+    address internal constant CRV_FRX_USD_LP = 0x13e12BB0E6A2f1A3d6901a59a9d585e89A6243e1;
+    address internal constant CVX = 0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B;
+    address internal constant CRV = 0xD533a949740bb3306d119CC777fa900bA034cd52;
 
     uint256 internal constant DEPOSIT_AMOUNT = 10_000 ether;
     uint256 internal constant REWARD_AMOUNT = 10_000 ether;
@@ -92,17 +76,9 @@ contract StakeDaoEscrowForkTest is Test {
         assertEq(rewardVault.asset(), CRV_FRX_USD_LP, "vault asset");
 
         assertEq(lpToken.balanceOf(address(escrow)), 0, "unstaked LP");
-        assertEq(
-            rewardVault.balanceOf(address(escrow)),
-            DEPOSIT_AMOUNT,
-            "vault shares"
-        );
+        assertEq(rewardVault.balanceOf(address(escrow)), DEPOSIT_AMOUNT, "vault shares");
         assertEq(escrow.balance(), DEPOSIT_AMOUNT, "escrow balance");
-        assertEq(
-            market.getWithdrawalLimit(USER),
-            DEPOSIT_AMOUNT,
-            "withdrawal limit"
-        );
+        assertEq(market.getWithdrawalLimit(USER), DEPOSIT_AMOUNT, "withdrawal limit");
     }
 
     function testMarketWithdrawUnstakesAndPaysLp() public {
@@ -116,24 +92,76 @@ contract StakeDaoEscrowForkTest is Test {
         market.withdraw(half);
 
         assertEq(lpToken.balanceOf(USER), userBalanceBefore + half, "half paid");
-        assertEq(
-            rewardVault.balanceOf(address(escrow)),
-            vaultBalanceBefore - half,
-            "half unstaked"
-        );
+        assertEq(rewardVault.balanceOf(address(escrow)), vaultBalanceBefore - half, "half unstaked");
         assertEq(escrow.balance(), DEPOSIT_AMOUNT - half, "half remaining");
 
         vm.prank(USER, USER);
         market.withdrawMax();
 
-        assertEq(
-            lpToken.balanceOf(USER),
-            userBalanceBefore + DEPOSIT_AMOUNT,
-            "all paid"
-        );
+        assertEq(lpToken.balanceOf(USER), userBalanceBefore + DEPOSIT_AMOUNT, "all paid");
         assertEq(rewardVault.balanceOf(address(escrow)), 0, "shares cleared");
         assertEq(lpToken.balanceOf(address(escrow)), 0, "LP cleared");
         assertEq(escrow.balance(), 0, "escrow cleared");
+    }
+
+    function testPauseGuardianPullsFundsFromStakeDaoAndRestores() public {
+        StakeDaoEscrow escrow = _deposit(DEPOSIT_AMOUNT);
+        uint256 additionalDeposit = 1 ether;
+
+        assertTrue(escrow.stakeDaoDepositsEnabled(), "staking disabled");
+        assertEq(lpToken.allowance(address(escrow), address(rewardVault)), type(uint256).max, "initial allowance");
+
+        vm.prank(PAUSE_GUARDIAN);
+        escrow.setStakeDaoDepositsEnabled(false);
+
+        assertFalse(escrow.stakeDaoDepositsEnabled(), "staking enabled");
+        assertEq(rewardVault.balanceOf(address(escrow)), 0, "shares not redeemed");
+        assertEq(lpToken.balanceOf(address(escrow)), DEPOSIT_AMOUNT, "LP not pulled");
+        assertEq(lpToken.allowance(address(escrow), address(rewardVault)), 0, "allowance not revoked");
+        assertEq(escrow.balance(), DEPOSIT_AMOUNT, "pulled balance");
+
+        _depositMore(additionalDeposit);
+
+        assertEq(rewardVault.balanceOf(address(escrow)), 0, "deposit staked while disabled");
+        assertEq(lpToken.balanceOf(address(escrow)), DEPOSIT_AMOUNT + additionalDeposit, "deposit not held liquid");
+        assertEq(escrow.balance(), DEPOSIT_AMOUNT + additionalDeposit, "disabled balance with deposit");
+
+        uint256 userBalanceBefore = lpToken.balanceOf(USER);
+        vm.prank(USER, USER);
+        market.withdraw(additionalDeposit);
+
+        assertEq(lpToken.balanceOf(USER), userBalanceBefore + additionalDeposit, "withdraw while disabled");
+        assertEq(escrow.balance(), DEPOSIT_AMOUNT, "remaining disabled balance");
+
+        vm.prank(PAUSE_GUARDIAN);
+        escrow.setStakeDaoDepositsEnabled(true);
+
+        assertTrue(escrow.stakeDaoDepositsEnabled(), "staking not enabled");
+        assertEq(lpToken.allowance(address(escrow), address(rewardVault)), type(uint256).max, "allowance not restored");
+        assertEq(lpToken.balanceOf(address(escrow)), 0, "liquid LP not staked");
+        assertEq(rewardVault.balanceOf(address(escrow)), DEPOSIT_AMOUNT, "shares not restored");
+        assertEq(escrow.balance(), DEPOSIT_AMOUNT, "restored balance");
+    }
+
+    function testStakeDaoDepositToggleUsesCurrentMarketPauseGuardian() public {
+        StakeDaoEscrow escrow = _deposit(DEPOSIT_AMOUNT);
+        address newGuardian = address(0x123);
+
+        vm.prank(FRIEND);
+        vm.expectRevert(StakeDaoEscrow.OnlyGuardian.selector);
+        escrow.setStakeDaoDepositsEnabled(false);
+
+        vm.prank(GOV);
+        market.setPauseGuardian(newGuardian);
+
+        vm.prank(PAUSE_GUARDIAN);
+        vm.expectRevert(StakeDaoEscrow.OnlyGuardian.selector);
+        escrow.setStakeDaoDepositsEnabled(false);
+
+        vm.prank(newGuardian);
+        escrow.setStakeDaoDepositsEnabled(false);
+
+        assertFalse(escrow.stakeDaoDepositsEnabled(), "new guardian did not pull");
     }
 
     function testClaimCvxRewardsThroughStakeDaoEscrow() public {
@@ -155,11 +183,7 @@ contract StakeDaoEscrowForkTest is Test {
         vm.prank(USER);
         escrow.claim(rewardTokens);
 
-        assertGt(
-            cvx.balanceOf(USER),
-            beneficiaryBalanceBefore,
-            "CVX not claimed"
-        );
+        assertGt(cvx.balanceOf(USER), beneficiaryBalanceBefore, "CVX not claimed");
         assertEq(cvx.balanceOf(address(escrow)), 0, "escrow CVX dust");
     }
 
@@ -178,11 +202,7 @@ contract StakeDaoEscrowForkTest is Test {
         vm.prank(FRIEND);
         escrow.claim(rewardTokens, RECEIVER);
 
-        assertGt(
-            crv.balanceOf(RECEIVER),
-            receiverBalanceBefore,
-            "CRV not claimed"
-        );
+        assertGt(crv.balanceOf(RECEIVER), receiverBalanceBefore, "CRV not claimed");
         assertEq(crv.balanceOf(address(escrow)), 0, "escrow CRV dust");
     }
 
@@ -219,10 +239,7 @@ contract StakeDaoEscrowForkTest is Test {
     }
 
     function testMarketDepositRevertsForWrongCollateral() public {
-        StakeDaoEscrow wrongCollateralImplementation = new StakeDaoEscrow(
-            REWARD_VAULT,
-            TREASURY
-        );
+        StakeDaoEscrow wrongCollateralImplementation = new StakeDaoEscrow(REWARD_VAULT, TREASURY);
         Market wrongCollateralMarket = new Market(
             GOV,
             LENDER,
@@ -242,10 +259,7 @@ contract StakeDaoEscrowForkTest is Test {
         wrongCollateralMarket.deposit(1);
     }
 
-    function _deployMarket(
-        address collateral,
-        bool callOnDepositCallback
-    ) internal returns (Market deployedMarket) {
+    function _deployMarket(address collateral, bool callOnDepositCallback) internal returns (Market deployedMarket) {
         deployedMarket = new Market(
             GOV,
             LENDER,
@@ -261,9 +275,7 @@ contract StakeDaoEscrowForkTest is Test {
         );
     }
 
-    function _deposit(
-        uint256 amount
-    ) internal returns (StakeDaoEscrow escrow) {
+    function _deposit(uint256 amount) internal returns (StakeDaoEscrow escrow) {
         deal(CRV_FRX_USD_LP, USER, amount, false);
         escrow = StakeDaoEscrow(address(market.predictEscrow(USER)));
 

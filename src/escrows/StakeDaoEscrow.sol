@@ -8,6 +8,7 @@ import {IMarket} from "src/interfaces/IMarket.sol";
 interface IRewardVault is IERC20 {
     function deposit(uint256 assets, address receiver, address referrer) external returns (uint256);
     function withdraw(uint256 assets, address receiver, address owner) external returns (uint256);
+    function redeem(uint256 shares, address receiver, address owner) external returns (uint256);
     function claim(address[] calldata tokens, address receiver) external returns (uint256[] memory amounts);
     function previewRedeem(uint256 shares) external view returns (uint256);
     function asset() external view returns (address);
@@ -21,11 +22,16 @@ interface IAccountant {
     function claim(address[] calldata gauges, bytes[] calldata harvestData, address receiver) external;
 }
 
+interface IMarketGuardian {
+    function pauseGuardian() external view returns (address);
+}
+
 contract StakeDaoEscrow {
     using SafeERC20 for IERC20;
 
     error AlreadyInitialized();
     error OnlyMarket();
+    error OnlyGuardian();
     error OnlyBeneficiary();
     error OnlyBeneficiaryOrAllowlist();
     error WrongCollateral();
@@ -40,6 +46,7 @@ contract StakeDaoEscrow {
     address public market;
     IERC20 public token;
     address public beneficiary;
+    bool public stakeDaoDepositsEnabled;
 
     mapping(address => bool) public allowlist;
 
@@ -57,6 +64,7 @@ contract StakeDaoEscrow {
 
     event SetClaimer(address indexed claimer, bool isAllowed);
     event Claim(address caller, address receiver, address[] tokens, address baseRewardToken, uint256[] amounts);
+    event SetStakeDaoDepositsEnabled(address indexed guardian, bool enabled, uint256 assets, uint256 shares);
 
     constructor(address _rewardVault, address _treasury) {
         rewardVault = IRewardVault(_rewardVault);
@@ -78,8 +86,9 @@ contract StakeDaoEscrow {
         market = msg.sender;
         if (address(_token) != IMarket(market).collateral()) revert WrongCollateral();
         token = _token;
-        token.approve(address(rewardVault), type(uint256).max);
+        token.forceApprove(address(rewardVault), type(uint256).max);
         beneficiary = _beneficiary;
+        stakeDaoDepositsEnabled = true;
     }
 
     /**
@@ -91,7 +100,7 @@ contract StakeDaoEscrow {
         if (msg.sender != market) revert OnlyMarket();
         uint256 tokenBal = token.balanceOf(address(this));
 
-        if (tokenBal < amount) {
+        if (stakeDaoDepositsEnabled && tokenBal < amount) {
             //Withdraw needed amount of tokens to this address
             rewardVault.withdraw(amount - tokenBal, address(this), address(this));
         }
@@ -104,6 +113,7 @@ contract StakeDaoEscrow {
      * @return Uint representing the token balance of the escrow
      */
     function balance() public view returns (uint256) {
+        if (!stakeDaoDepositsEnabled) return token.balanceOf(address(this));
         return rewardVault.previewRedeem(rewardVault.balanceOf(address(this))) + token.balanceOf(address(this));
     }
 
@@ -112,9 +122,40 @@ contract StakeDaoEscrow {
      * @dev This function should remain callable by anyone to handle direct inbound transfers.
      */
     function onDeposit() public {
+        if (!stakeDaoDepositsEnabled) return;
         uint256 tokenBal = token.balanceOf(address(this));
         if (tokenBal == 0) return;
         rewardVault.deposit(tokenBal, address(this), treasury);
+    }
+
+    /**
+     * @notice Allows the market pause guardian to pull funds out of Stake DAO or put them back.
+     * @dev Pulled funds remain in this escrow. Disabling also revokes reward vault allowance.
+     * @param enabled Whether deposits into Stake DAO should be enabled
+     */
+    function setStakeDaoDepositsEnabled(bool enabled) external {
+        if (msg.sender != IMarketGuardian(market).pauseGuardian()) revert OnlyGuardian();
+        if (stakeDaoDepositsEnabled == enabled) return;
+
+        stakeDaoDepositsEnabled = enabled;
+
+        uint256 assets;
+        uint256 shares;
+        if (enabled) {
+            token.forceApprove(address(rewardVault), type(uint256).max);
+            assets = token.balanceOf(address(this));
+            if (assets != 0) {
+                shares = rewardVault.deposit(assets, address(this), treasury);
+            }
+        } else {
+            token.forceApprove(address(rewardVault), 0);
+            shares = rewardVault.balanceOf(address(this));
+            if (shares != 0) {
+                assets = rewardVault.redeem(shares, address(this), address(this));
+            }
+        }
+
+        emit SetStakeDaoDepositsEnabled(msg.sender, enabled, assets, shares);
     }
 
     /**
