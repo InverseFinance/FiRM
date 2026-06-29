@@ -93,7 +93,6 @@ contract DromosEscrowTest is Test {
 
     function testInitializeSetsConfigurationAndApproval() public view {
         assertEq(address(escrow.gauge()), address(gauge));
-        assertEq(address(escrow.stakingToken()), address(collateral));
         assertEq(address(escrow.rewardToken()), address(reward));
         assertEq(address(escrow.token()), address(collateral));
         assertEq(escrow.market(), MARKET);

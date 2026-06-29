@@ -33,11 +33,10 @@ contract DromosEscrow {
     error WrongCollateral();
 
     IDromosGauge public immutable gauge;
-    IERC20 public immutable stakingToken;
+    IERC20 public immutable token;
     IERC20 public immutable rewardToken;
 
     address public market;
-    IERC20 public token;
     address public beneficiary;
 
     mapping(address claimer => bool isAllowed) public allowlist;
@@ -62,14 +61,14 @@ contract DromosEscrow {
 
         gauge = IDromosGauge(_gauge);
 
-        address _stakingToken = gauge.stakingToken();
+        address _token = gauge.stakingToken();
         address _rewardToken = gauge.rewardToken();
-        if (_stakingToken == address(0) || _rewardToken == address(0)) {
+        if (_token == address(0) || _rewardToken == address(0)) {
             revert InvalidGauge();
         }
-        if (_stakingToken == _rewardToken) revert UnsafeRewardToken();
+        if (_token == _rewardToken) revert UnsafeRewardToken();
 
-        stakingToken = IERC20(_stakingToken);
+        token = IERC20(_token);
         rewardToken = IERC20(_rewardToken);
     }
 
@@ -80,13 +79,12 @@ contract DromosEscrow {
      */
     function initialize(IERC20 _token, address _beneficiary) external {
         if (market != address(0)) revert AlreadyInitialized();
-        if (address(_token) != address(stakingToken)) revert WrongCollateral();
+        if (address(_token) != address(token)) revert WrongCollateral();
 
         market = msg.sender;
-        token = _token;
         beneficiary = _beneficiary;
 
-        _token.forceApprove(address(gauge), type(uint256).max);
+        token.forceApprove(address(gauge), type(uint256).max);
     }
 
     /**
