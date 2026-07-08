@@ -151,9 +151,7 @@ contract ALEV2 is
     constructor(
         address _pool,
         address _gov
-    ) CurveHelper(_pool, _gov) {
-        DOLA.approve(address(flash), type(uint).max);
-    }
+    ) CurveHelper(_pool, _gov) {}
 
     /// @notice Allow an exchange proxy
     /// @param _proxy The proxy address
@@ -170,6 +168,8 @@ contract ALEV2 is
     }
 
     /// @notice Set the market for a collateral token
+    /// @dev No token approvals are granted here: every flow approves the exact
+    /// amount it consumes right before use (ad-hoc approvals only)
     /// @param _buySellToken The token which will be bought/sold (usually the collateral token), probably underlying if there's a helper
     /// @param _market The market contract
     /// @param _helper Optional helper contract to transform collateral to buySelltoken and viceversa
@@ -194,19 +194,7 @@ contract ALEV2 is
 
         markets[_market].buySellToken = IERC20(_buySellToken);
         markets[_market].collateral = IERC20(collateral);
-        markets[_market].buySellToken.approve(_market, type(uint256).max);
-        
-        if ( _buySellToken != collateral) {
-            markets[_market].collateral.approve(_market, type(uint256).max);
-        }
-        
-        if (_helper != address(0)) {
-            markets[_market].helper = IPendleHelper(_helper);
-            markets[_market].buySellToken.approve(_helper, type(uint256).max);
-            markets[_market].collateral.approve(_helper, type(uint256).max);
-        }
-       
-
+        markets[_market].helper = IPendleHelper(_helper);
         markets[_market].useProxy = useProxy;
         emit NewMarket(_market, _buySellToken, collateral, _helper);
     }
@@ -222,13 +210,7 @@ contract ALEV2 is
             revert MarketNotSet(_market);
         if (_helper == address(0)) revert InvalidHelperAddress();
 
-        address oldHelper = address(markets[_market].helper);
-        markets[_market].buySellToken.approve(oldHelper, 0);
-        markets[_market].collateral.approve(oldHelper, 0);
-
         markets[_market].helper = IPendleHelper(_helper);
-        markets[_market].buySellToken.approve(_helper, type(uint256).max);
-        markets[_market].collateral.approve(_helper, type(uint256).max);
 
         emit NewHelper(_market, _helper);
     }
@@ -265,6 +247,9 @@ contract ALEV2 is
             helperData,
             dbrData
         );
+
+        // Allow the flash minter to pull back the flash minted DOLA
+        DOLA.approve(address(flash), value);
 
         flash.flashLoan(
             IERC3156FlashBorrower(address(this)),
@@ -359,6 +344,9 @@ contract ALEV2 is
             dbrData
         );
 
+        // Allow the flash minter to pull back the flash minted DOLA
+        DOLA.approve(address(flash), value);
+
         flash.flashLoan(
             IERC3156FlashBorrower(address(this)),
             address(DOLA),
@@ -452,10 +440,11 @@ contract ALEV2 is
         }
 
         // Deposit and borrow on behalf
-        IMarket(_market).deposit(
-            _user,
-            markets[_market].collateral.balanceOf(address(this))
+        uint256 depositAmount = markets[_market].collateral.balanceOf(
+            address(this)
         );
+        markets[_market].collateral.approve(_market, depositAmount);
+        IMarket(_market).deposit(_user, depositAmount);
 
         _borrowDola(_user, _value, _permit, _dbrData, IMarket(_market));
 
@@ -659,6 +648,11 @@ contract ALEV2 is
         IERC20 sellToken,
         bytes memory _helperData
     ) internal returns (uint256) {
+        // Allow the helper to pull the collateral to convert
+        markets[_market].collateral.approve(
+            address(markets[_market].helper),
+            _collateralAmount
+        );
         // Collateral amount is now converted into sellToken
         uint256 assetAmount = markets[_market].helper.convertFromCollateral(
             _user,
@@ -685,6 +679,11 @@ contract ALEV2 is
         address _market,
         bytes memory _helperData
     ) internal returns (uint256) {
+        // Allow the helper to pull the asset to convert
+        markets[_market].buySellToken.approve(
+            address(markets[_market].helper),
+            _assetAmount
+        );
         // Collateral amount is now converted
         uint256 collateralAmount = markets[_market].helper.convertToCollateral(
             _user,
