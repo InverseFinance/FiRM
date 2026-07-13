@@ -69,6 +69,7 @@ contract ALEV2 is
     error WithdrawFailed(uint256 expected, uint256 actual);
     error TotalSupplyChanged(uint256 expected, uint256 actual);
     error CollateralIsZero();
+    error DbrMinOutRequired();
     error NoMarket(address market);
     error MarketSetupFailed(
         address market,
@@ -235,6 +236,10 @@ contract ALEV2 is
     ) public payable nonReentrant {
         if (address(markets[market].buySellToken) == address(0))
             revert MarketNotSet(market);
+        // Buying DBR without a slippage bound is an unprotected swap; reject
+        // rather than borrowing the extra DOLA and silently skipping the buy.
+        if (dbrData.amountIn > 0 && dbrData.minOut == 0)
+            revert DbrMinOutRequired();
 
         bytes memory data = abi.encode(
             LEVERAGE,
@@ -336,6 +341,9 @@ contract ALEV2 is
     ) external payable nonReentrant {
         if (address(markets[market].buySellToken) == address(0))
             revert MarketNotSet(market);
+        // Selling DBR without a slippage bound is an unprotected swap.
+        if (dbrData.amountIn > 0 && dbrData.minOut == 0)
+            revert DbrMinOutRequired();
 
         bytes memory data = abi.encode(
             DELEVERAGE,
