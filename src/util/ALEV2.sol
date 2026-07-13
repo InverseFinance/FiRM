@@ -245,7 +245,12 @@ contract ALEV2 is
             swapCallData,
             permit,
             helperData,
-            dbrData
+            dbrData,
+            // msg.value is captured here because it is 0 inside the flash
+            // callback (the lender re-enters onFlashLoan with a plain call);
+            // the ETH itself sits in this contract and is forwarded from its
+            // own balance during the swap.
+            msg.value
         );
 
         // Allow the flash minter to pull back the flash minted DOLA
@@ -341,7 +346,10 @@ contract ALEV2 is
             swapCallData,
             permit,
             helperData,
-            dbrData
+            dbrData,
+            // See leveragePosition: forwarded to the swap proxy from this
+            // contract's balance since msg.value is 0 in the flash callback.
+            msg.value
         );
 
         // Allow the flash minter to pull back the flash minted DOLA
@@ -365,7 +373,7 @@ contract ALEV2 is
         if (initiator != address(this)) revert NotALE(initiator);
         if (msg.sender != address(flash)) revert NotFlashMinter(msg.sender);
 
-        (bytes32 ACTION, , , , , , , , ) = abi.decode(
+        (bytes32 ACTION, , , , , , , , , ) = abi.decode(
             data,
             (
                 bytes32,
@@ -376,7 +384,8 @@ contract ALEV2 is
                 bytes,
                 Permit,
                 bytes,
-                DBRHelper
+                DBRHelper,
+                uint256
             )
         );
 
@@ -397,7 +406,8 @@ contract ALEV2 is
             bytes memory _swapCallData,
             Permit memory _permit,
             bytes memory _helperData,
-            DBRHelper memory _dbrData
+            DBRHelper memory _dbrData,
+            uint256 _ethValue
         ) = abi.decode(
                 data,
                 (
@@ -409,7 +419,8 @@ contract ALEV2 is
                     bytes,
                     Permit,
                     bytes,
-                    DBRHelper
+                    DBRHelper,
+                    uint256
                 )
             );
         // Call the encoded swap function call on the contract at `swapTarget`,
@@ -417,7 +428,7 @@ contract ALEV2 is
         if (markets[_market].useProxy) {
             if(!isExchangeProxy[_proxy]) revert InvalidProxyAddress();
             DOLA.approve(_proxy, _value);
-            (bool success, ) = payable(_proxy).call{value: msg.value}(
+            (bool success, ) = payable(_proxy).call{value: _ethValue}(
                 _swapCallData
             );
             if (!success) revert SwapFailed();
@@ -443,7 +454,7 @@ contract ALEV2 is
         uint256 depositAmount = markets[_market].collateral.balanceOf(
             address(this)
         );
-        markets[_market].collateral.approve(_market, depositAmount);
+        markets[_market].collateral.forceApprove(_market, depositAmount);
         IMarket(_market).deposit(_user, depositAmount);
 
         _borrowDola(_user, _value, _permit, _dbrData, IMarket(_market));
@@ -478,7 +489,8 @@ contract ALEV2 is
             bytes memory _swapCallData,
             Permit memory _permit,
             bytes memory _helperData,
-            DBRHelper memory _dbrData
+            DBRHelper memory _dbrData,
+            uint256 _ethValue
         ) = abi.decode(
                 data,
                 (
@@ -490,7 +502,8 @@ contract ALEV2 is
                     bytes,
                     Permit,
                     bytes,
-                    DBRHelper
+                    DBRHelper,
+                    uint256
                 )
             );
 
@@ -530,9 +543,8 @@ contract ALEV2 is
         if (markets[_market].useProxy) {
             if(!isExchangeProxy[_proxy]) revert InvalidProxyAddress();
             // Approve sellToken for exchangeProxy
-            sellToken.approve(_proxy, 0);
-            sellToken.approve(_proxy, _collateralAmount);
-            (bool success, ) = payable(_proxy).call{value: msg.value}(
+            sellToken.forceApprove(_proxy, _collateralAmount);
+            (bool success, ) = payable(_proxy).call{value: _ethValue}(
                 _swapCallData
             );
             if (!success) revert SwapFailed();
@@ -649,7 +661,7 @@ contract ALEV2 is
         bytes memory _helperData
     ) internal returns (uint256) {
         // Allow the helper to pull the collateral to convert
-        markets[_market].collateral.approve(
+        markets[_market].collateral.forceApprove(
             address(markets[_market].helper),
             _collateralAmount
         );
@@ -680,7 +692,7 @@ contract ALEV2 is
         bytes memory _helperData
     ) internal returns (uint256) {
         // Allow the helper to pull the asset to convert
-        markets[_market].buySellToken.approve(
+        markets[_market].buySellToken.forceApprove(
             address(markets[_market].helper),
             _assetAmount
         );
