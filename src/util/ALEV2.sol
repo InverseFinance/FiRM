@@ -450,14 +450,25 @@ contract ALEV2 is
             );
         }
 
-        // Deposit and borrow on behalf
-        uint256 depositAmount = markets[_market].collateral.balanceOf(
-            address(this)
-        );
-        markets[_market].collateral.forceApprove(_market, depositAmount);
-        IMarket(_market).deposit(_user, depositAmount);
+        // Deposit collateral into the user's escrow. Scoped in a block so
+        // depositAmount is freed from the stack before the emit below
+        // (avoids stack-too-deep without via-IR).
+        {
+            uint256 depositAmount = markets[_market].collateral.balanceOf(
+                address(this)
+            );
+            markets[_market].collateral.forceApprove(_market, depositAmount);
+            IMarket(_market).deposit(_user, depositAmount);
+        }
 
-        _borrowDola(_user, _value, _permit, _dbrData, IMarket(_market));
+        // Borrow on behalf; returns the full amount added to the user's debt
+        uint256 dolaBorrowed = _borrowDola(
+            _user,
+            _value,
+            _permit,
+            _dbrData,
+            IMarket(_market)
+        );
 
         if (_dbrData.dola != 0) DOLA.transfer(_user, _dbrData.dola);
 
@@ -471,7 +482,7 @@ contract ALEV2 is
             _user,
             _value,
             collateralAmount,
-            _dbrData.dola,
+            dolaBorrowed, // total borrowed on behalf
             _dbrData.amountIn
         );
     }
@@ -589,13 +600,14 @@ contract ALEV2 is
     /// @param _permit Permit data
     /// @param _dbrData DBR data
     /// @param market The market contract
+    /// @return Total DOLA borrowed on behalf of the user (flash principal + extras)
     function _borrowDola(
         address _user,
         uint256 _value,
         Permit memory _permit,
         DBRHelper memory _dbrData,
         IMarket market
-    ) internal {
+    ) internal returns (uint256) {
         uint256 dolaToBorrow = _value + _dbrData.dola + _dbrData.amountIn;
         // We borrow the amount of DOLA we minted before plus the amount for buying DBR if any
         market.borrowOnBehalf(
@@ -612,6 +624,8 @@ contract ALEV2 is
                 dolaToBorrow,
                 DOLA.balanceOf(address(this))
             );
+
+        return dolaToBorrow;
     }
 
     /// @notice Repay DOLA loan and withdraw collateral from the escrow
