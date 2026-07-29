@@ -69,6 +69,7 @@ contract ALEV2 is
     error WithdrawFailed(uint256 expected, uint256 actual);
     error TotalSupplyChanged(uint256 expected, uint256 actual);
     error CollateralIsZero();
+    error DbrMinOutRequired();
     error NoMarket(address market);
     error MarketSetupFailed(
         address market,
@@ -151,9 +152,7 @@ contract ALEV2 is
     constructor(
         address _pool,
         address _gov
-    ) CurveHelper(_pool, _gov) {
-        DOLA.approve(address(flash), type(uint).max);
-    }
+    ) CurveHelper(_pool, _gov) {}
 
     /// @notice Allow an exchange proxy
     /// @param _proxy The proxy address
@@ -170,6 +169,8 @@ contract ALEV2 is
     }
 
     /// @notice Set the market for a collateral token
+    /// @dev No token approvals are granted here: every flow approves the exact
+    /// amount it consumes right before use (ad-hoc approvals only)
     /// @param _buySellToken The token which will be bought/sold (usually the collateral token), probably underlying if there's a helper
     /// @param _market The market contract
     /// @param _helper Optional helper contract to transform collateral to buySelltoken and viceversa
@@ -194,19 +195,7 @@ contract ALEV2 is
 
         markets[_market].buySellToken = IERC20(_buySellToken);
         markets[_market].collateral = IERC20(collateral);
-        markets[_market].buySellToken.approve(_market, type(uint256).max);
-        
-        if ( _buySellToken != collateral) {
-            markets[_market].collateral.approve(_market, type(uint256).max);
-        }
-        
-        if (_helper != address(0)) {
-            markets[_market].helper = IPendleHelper(_helper);
-            markets[_market].buySellToken.approve(_helper, type(uint256).max);
-            markets[_market].collateral.approve(_helper, type(uint256).max);
-        }
-       
-
+        markets[_market].helper = IPendleHelper(_helper);
         markets[_market].useProxy = useProxy;
         emit NewMarket(_market, _buySellToken, collateral, _helper);
     }
@@ -222,13 +211,7 @@ contract ALEV2 is
             revert MarketNotSet(_market);
         if (_helper == address(0)) revert InvalidHelperAddress();
 
-        address oldHelper = address(markets[_market].helper);
-        markets[_market].buySellToken.approve(oldHelper, 0);
-        markets[_market].collateral.approve(oldHelper, 0);
-
         markets[_market].helper = IPendleHelper(_helper);
-        markets[_market].buySellToken.approve(_helper, type(uint256).max);
-        markets[_market].collateral.approve(_helper, type(uint256).max);
 
         emit NewHelper(_market, _helper);
     }
@@ -253,6 +236,10 @@ contract ALEV2 is
     ) public payable nonReentrant {
         if (address(markets[market].buySellToken) == address(0))
             revert MarketNotSet(market);
+        // Buying DBR without a slippage bound is an unprotected swap; reject
+        // rather than borrowing the extra DOLA and silently skipping the buy.
+        if (dbrData.amountIn > 0 && dbrData.minOut == 0)
+            revert DbrMinOutRequired();
 
         bytes memory data = abi.encode(
             LEVERAGE,
@@ -263,8 +250,16 @@ contract ALEV2 is
             swapCallData,
             permit,
             helperData,
-            dbrData
+            dbrData,
+            // msg.value is captured here because it is 0 inside the flash
+            // callback (the lender re-enters onFlashLoan with a plain call);
+            // the ETH itself sits in this contract and is forwarded from its
+            // own balance during the swap.
+            msg.value
         );
+
+        // Allow the flash minter to pull back the flash minted DOLA
+        DOLA.approve(address(flash), value);
 
         flash.flashLoan(
             IERC3156FlashBorrower(address(this)),
@@ -346,6 +341,9 @@ contract ALEV2 is
     ) external payable nonReentrant {
         if (address(markets[market].buySellToken) == address(0))
             revert MarketNotSet(market);
+        // Selling DBR without a slippage bound is an unprotected swap.
+        if (dbrData.amountIn > 0 && dbrData.minOut == 0)
+            revert DbrMinOutRequired();
 
         bytes memory data = abi.encode(
             DELEVERAGE,
@@ -356,8 +354,14 @@ contract ALEV2 is
             swapCallData,
             permit,
             helperData,
-            dbrData
+            dbrData,
+            // See leveragePosition: forwarded to the swap proxy from this
+            // contract's balance since msg.value is 0 in the flash callback.
+            msg.value
         );
+
+        // Allow the flash minter to pull back the flash minted DOLA
+        DOLA.approve(address(flash), value);
 
         flash.flashLoan(
             IERC3156FlashBorrower(address(this)),
@@ -377,7 +381,7 @@ contract ALEV2 is
         if (initiator != address(this)) revert NotALE(initiator);
         if (msg.sender != address(flash)) revert NotFlashMinter(msg.sender);
 
-        (bytes32 ACTION, , , , , , , , ) = abi.decode(
+        (bytes32 ACTION, , , , , , , , , ) = abi.decode(
             data,
             (
                 bytes32,
@@ -388,7 +392,8 @@ contract ALEV2 is
                 bytes,
                 Permit,
                 bytes,
-                DBRHelper
+                DBRHelper,
+                uint256
             )
         );
 
@@ -409,7 +414,8 @@ contract ALEV2 is
             bytes memory _swapCallData,
             Permit memory _permit,
             bytes memory _helperData,
-            DBRHelper memory _dbrData
+            DBRHelper memory _dbrData,
+            uint256 _ethValue
         ) = abi.decode(
                 data,
                 (
@@ -421,7 +427,8 @@ contract ALEV2 is
                     bytes,
                     Permit,
                     bytes,
-                    DBRHelper
+                    DBRHelper,
+                    uint256
                 )
             );
         // Call the encoded swap function call on the contract at `swapTarget`,
@@ -429,7 +436,7 @@ contract ALEV2 is
         if (markets[_market].useProxy) {
             if(!isExchangeProxy[_proxy]) revert InvalidProxyAddress();
             DOLA.approve(_proxy, _value);
-            (bool success, ) = payable(_proxy).call{value: msg.value}(
+            (bool success, ) = payable(_proxy).call{value: _ethValue}(
                 _swapCallData
             );
             if (!success) revert SwapFailed();
@@ -451,13 +458,25 @@ contract ALEV2 is
             );
         }
 
-        // Deposit and borrow on behalf
-        IMarket(_market).deposit(
-            _user,
-            markets[_market].collateral.balanceOf(address(this))
-        );
+        // Deposit collateral into the user's escrow. Scoped in a block so
+        // depositAmount is freed from the stack before the emit below
+        // (avoids stack-too-deep without via-IR).
+        {
+            uint256 depositAmount = markets[_market].collateral.balanceOf(
+                address(this)
+            );
+            markets[_market].collateral.forceApprove(_market, depositAmount);
+            IMarket(_market).deposit(_user, depositAmount);
+        }
 
-        _borrowDola(_user, _value, _permit, _dbrData, IMarket(_market));
+        // Borrow on behalf; returns the full amount added to the user's debt
+        uint256 dolaBorrowed = _borrowDola(
+            _user,
+            _value,
+            _permit,
+            _dbrData,
+            IMarket(_market)
+        );
 
         if (_dbrData.dola != 0) DOLA.transfer(_user, _dbrData.dola);
 
@@ -471,7 +490,7 @@ contract ALEV2 is
             _user,
             _value,
             collateralAmount,
-            _dbrData.dola,
+            dolaBorrowed, // total borrowed on behalf
             _dbrData.amountIn
         );
     }
@@ -489,7 +508,8 @@ contract ALEV2 is
             bytes memory _swapCallData,
             Permit memory _permit,
             bytes memory _helperData,
-            DBRHelper memory _dbrData
+            DBRHelper memory _dbrData,
+            uint256 _ethValue
         ) = abi.decode(
                 data,
                 (
@@ -501,7 +521,8 @@ contract ALEV2 is
                     bytes,
                     Permit,
                     bytes,
-                    DBRHelper
+                    DBRHelper,
+                    uint256
                 )
             );
 
@@ -541,9 +562,8 @@ contract ALEV2 is
         if (markets[_market].useProxy) {
             if(!isExchangeProxy[_proxy]) revert InvalidProxyAddress();
             // Approve sellToken for exchangeProxy
-            sellToken.approve(_proxy, 0);
-            sellToken.approve(_proxy, _collateralAmount);
-            (bool success, ) = payable(_proxy).call{value: msg.value}(
+            sellToken.forceApprove(_proxy, _collateralAmount);
+            (bool success, ) = payable(_proxy).call{value: _ethValue}(
                 _swapCallData
             );
             if (!success) revert SwapFailed();
@@ -588,13 +608,14 @@ contract ALEV2 is
     /// @param _permit Permit data
     /// @param _dbrData DBR data
     /// @param market The market contract
+    /// @return Total DOLA borrowed on behalf of the user (flash principal + extras)
     function _borrowDola(
         address _user,
         uint256 _value,
         Permit memory _permit,
         DBRHelper memory _dbrData,
         IMarket market
-    ) internal {
+    ) internal returns (uint256) {
         uint256 dolaToBorrow = _value + _dbrData.dola + _dbrData.amountIn;
         // We borrow the amount of DOLA we minted before plus the amount for buying DBR if any
         market.borrowOnBehalf(
@@ -611,6 +632,8 @@ contract ALEV2 is
                 dolaToBorrow,
                 DOLA.balanceOf(address(this))
             );
+
+        return dolaToBorrow;
     }
 
     /// @notice Repay DOLA loan and withdraw collateral from the escrow
@@ -659,6 +682,11 @@ contract ALEV2 is
         IERC20 sellToken,
         bytes memory _helperData
     ) internal returns (uint256) {
+        // Allow the helper to pull the collateral to convert
+        markets[_market].collateral.forceApprove(
+            address(markets[_market].helper),
+            _collateralAmount
+        );
         // Collateral amount is now converted into sellToken
         uint256 assetAmount = markets[_market].helper.convertFromCollateral(
             _user,
@@ -685,6 +713,11 @@ contract ALEV2 is
         address _market,
         bytes memory _helperData
     ) internal returns (uint256) {
+        // Allow the helper to pull the asset to convert
+        markets[_market].buySellToken.forceApprove(
+            address(markets[_market].helper),
+            _assetAmount
+        );
         // Collateral amount is now converted
         uint256 collateralAmount = markets[_market].helper.convertToCollateral(
             _user,
