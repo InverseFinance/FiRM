@@ -18,35 +18,59 @@ contract MockDromosToken is ERC20 {
 contract MockDromosGauge is IDromosGauge {
     using SafeERC20 for IERC20;
 
+    error NotAuthorized();
+    error ZeroAddress();
+    error ZeroAmount();
+
     address public immutable stakingToken;
-    address public immutable rewardToken;
+    MockDromosToken public immutable rewardToken;
 
     mapping(address account => uint256 amount) public balanceOf;
-    mapping(address account => uint256 amount) public claimable;
+    mapping(address account => uint256 amount) public earned;
+
+    uint256 public claimCalls;
+    uint256 public depositCalls;
+    uint256 public withdrawCalls;
 
     constructor(address _stakingToken, address _rewardToken) {
         stakingToken = _stakingToken;
-        rewardToken = _rewardToken;
+        rewardToken = MockDromosToken(_rewardToken);
     }
 
     function deposit(uint256 amount) external {
+        if (amount == 0) revert ZeroAmount();
+        depositCalls++;
         IERC20(stakingToken).safeTransferFrom(msg.sender, address(this), amount);
         balanceOf[msg.sender] += amount;
     }
 
     function withdraw(uint256 amount) external {
+        if (amount == 0) revert ZeroAmount();
+        withdrawCalls++;
+
+        // V2Gauge claims emissions to the caller before reducing its stake.
+        _claimEmissions(msg.sender, msg.sender);
+
         balanceOf[msg.sender] -= amount;
         IERC20(stakingToken).safeTransfer(msg.sender, amount);
     }
 
-    function getReward(address account) external {
-        uint256 amount = claimable[account];
-        claimable[account] = 0;
-        if (amount != 0) IERC20(rewardToken).safeTransfer(account, amount);
+    function claimEmissions(address account, address recipient) external {
+        if (recipient == address(0)) revert ZeroAddress();
+        if (msg.sender != account) revert NotAuthorized();
+
+        _claimEmissions(account, recipient);
     }
 
     function setReward(address account, uint256 amount) external {
-        claimable[account] = amount;
+        earned[account] = amount;
+    }
+
+    function _claimEmissions(address account, address recipient) internal {
+        claimCalls++;
+        uint256 amount = earned[account];
+        delete earned[account];
+        if (amount != 0) rewardToken.mint(recipient, amount);
     }
 }
 
@@ -61,6 +85,9 @@ contract DromosEscrowTest is Test {
     MockDromosToken internal reward;
     MockDromosGauge internal gauge;
     DromosEscrow internal escrow;
+
+    event Claim(address indexed caller, address indexed receiver, uint256 amount);
+    event SetClaimer(address indexed claimer, bool isAllowed);
 
     function setUp() public {
         collateral = new MockDromosToken("LP Token", "LP");
@@ -84,16 +111,8 @@ contract DromosEscrowTest is Test {
         new DromosEscrow(address(invalidGauge));
     }
 
-    function testConstructorRejectsCollateralAsRewardToken() public {
-        MockDromosGauge unsafeGauge = new MockDromosGauge(address(collateral), address(collateral));
-
-        vm.expectRevert(DromosEscrow.UnsafeRewardToken.selector);
-        new DromosEscrow(address(unsafeGauge));
-    }
-
     function testInitializeSetsConfigurationAndApproval() public view {
         assertEq(address(escrow.gauge()), address(gauge));
-        assertEq(address(escrow.rewardToken()), address(reward));
         assertEq(address(escrow.token()), address(collateral));
         assertEq(escrow.market(), MARKET);
         assertEq(escrow.beneficiary(), BENEFICIARY);
@@ -113,22 +132,77 @@ contract DromosEscrowTest is Test {
         freshEscrow.initialize(IERC20(address(wrongToken)), BENEFICIARY);
     }
 
-    function testOnDepositStakesEntireBalancePermissionlessly() public {
+    function testInitializeRejectsZeroBeneficiary() public {
+        DromosEscrow freshEscrow = new DromosEscrow(address(gauge));
+
+        vm.prank(MARKET);
+        vm.expectRevert(DromosEscrow.InvalidReceiver.selector);
+        freshEscrow.initialize(IERC20(address(collateral)), address(0));
+    }
+
+    function testInitializeRejectsEscrowAsBeneficiary() public {
+        DromosEscrow freshEscrow = new DromosEscrow(address(gauge));
+
+        vm.prank(MARKET);
+        vm.expectRevert(DromosEscrow.InvalidReceiver.selector);
+        freshEscrow.initialize(IERC20(address(collateral)), address(freshEscrow));
+    }
+
+    function testOnDepositMarketStakesEntireBalanceForBeneficiaryOrigin() public {
         collateral.mint(address(escrow), 10 ether);
 
-        vm.prank(OTHER);
+        vm.prank(MARKET, BENEFICIARY);
         escrow.onDeposit();
 
         assertEq(collateral.balanceOf(address(escrow)), 0);
         assertEq(gauge.balanceOf(address(escrow)), 10 ether);
         assertEq(escrow.balance(), 10 ether);
+        assertEq(gauge.depositCalls(), 1);
+    }
+
+    function testOnDepositBeneficiaryCanStakeDirectly() public {
+        collateral.mint(address(escrow), 10 ether);
+
+        vm.prank(BENEFICIARY, BENEFICIARY);
+        escrow.onDeposit();
+
+        assertEq(gauge.balanceOf(address(escrow)), 10 ether);
+    }
+
+    function testOnDepositRejectsMarketCallWithNonBeneficiaryOrigin() public {
+        collateral.mint(address(escrow), 10 ether);
+
+        vm.prank(MARKET, OTHER);
+        vm.expectRevert(DromosEscrow.OnlyBeneficiaryOrigin.selector);
+        escrow.onDeposit();
+
+        assertEq(collateral.balanceOf(address(escrow)), 10 ether);
+        assertEq(gauge.balanceOf(address(escrow)), 0);
+    }
+
+    function testOnDepositRejectsUnauthorizedCaller() public {
+        collateral.mint(address(escrow), 10 ether);
+
+        vm.prank(OTHER, OTHER);
+        vm.expectRevert(DromosEscrow.OnlyMarketOrBeneficiary.selector);
+        escrow.onDeposit();
+    }
+
+    function testOnDepositRejectsIntermediaryWithBeneficiaryOrigin() public {
+        collateral.mint(address(escrow), 10 ether);
+
+        vm.prank(OTHER, BENEFICIARY);
+        vm.expectRevert(DromosEscrow.OnlyMarketOrBeneficiary.selector);
+        escrow.onDeposit();
     }
 
     function testOnDepositWithZeroBalanceIsNoOp() public {
+        vm.prank(MARKET, BENEFICIARY);
         escrow.onDeposit();
 
         assertEq(gauge.balanceOf(address(escrow)), 0);
         assertEq(escrow.balance(), 0);
+        assertEq(gauge.depositCalls(), 0);
     }
 
     function testOnDepositSupportsRepeatedDeposits() public {
@@ -162,6 +236,8 @@ contract DromosEscrowTest is Test {
         assertEq(collateral.balanceOf(RECEIVER), 6 ether);
         assertEq(collateral.balanceOf(address(escrow)), 4 ether);
         assertEq(gauge.balanceOf(address(escrow)), 0);
+        assertEq(gauge.claimCalls(), 0);
+        assertEq(gauge.withdrawCalls(), 0);
     }
 
     function testPayWithdrawsMissingCollateralFromGauge() public {
@@ -173,6 +249,8 @@ contract DromosEscrowTest is Test {
         assertEq(collateral.balanceOf(RECEIVER), 6 ether);
         assertEq(gauge.balanceOf(address(escrow)), 4 ether);
         assertEq(escrow.balance(), 4 ether);
+        assertEq(gauge.claimCalls(), 2);
+        assertEq(gauge.withdrawCalls(), 1);
     }
 
     function testPayUsesMixedUnstakedAndStakedCollateral() public {
@@ -203,18 +281,36 @@ contract DromosEscrowTest is Test {
         vm.prank(MARKET);
         vm.expectRevert();
         escrow.pay(RECEIVER, 11 ether);
+
+        assertEq(gauge.earned(address(escrow)), 0);
+        assertEq(gauge.claimCalls(), 0);
     }
 
-    function testPayDoesNotClaimEmissions() public {
-        _deposit(10 ether);
+    function testPayUsingUnstakedCollateralDoesNotClaimEmissions() public {
+        collateral.mint(address(escrow), 10 ether);
         _setReward(2 ether);
 
         vm.prank(MARKET);
         escrow.pay(RECEIVER, 5 ether);
 
-        assertEq(gauge.claimable(address(escrow)), 2 ether);
-        assertEq(reward.balanceOf(address(escrow)), 0);
+        assertEq(gauge.earned(address(escrow)), 2 ether);
         assertEq(reward.balanceOf(BENEFICIARY), 0);
+        assertEq(gauge.claimCalls(), 0);
+    }
+
+    function testPayClaimsEmissionsToBeneficiaryBeforeWithdrawal() public {
+        _deposit(10 ether);
+        _setReward(2 ether);
+
+        vm.expectEmit(true, true, false, true, address(escrow));
+        emit Claim(MARKET, BENEFICIARY, 2 ether);
+        vm.prank(MARKET);
+        escrow.pay(RECEIVER, 5 ether);
+
+        assertEq(gauge.earned(address(escrow)), 0);
+        assertEq(reward.balanceOf(address(escrow)), 0);
+        assertEq(reward.balanceOf(BENEFICIARY), 2 ether);
+        assertEq(gauge.claimCalls(), 2);
     }
 
     function testBeneficiaryCanClaimToSelf() public {
@@ -226,7 +322,7 @@ contract DromosEscrowTest is Test {
 
         assertEq(reward.balanceOf(BENEFICIARY), 2 ether);
         assertEq(reward.balanceOf(address(escrow)), 0);
-        assertEq(gauge.claimable(address(escrow)), 0);
+        assertEq(gauge.earned(address(escrow)), 0);
     }
 
     function testBeneficiaryCanClaimToReceiver() public {
@@ -252,6 +348,16 @@ contract DromosEscrowTest is Test {
         assertEq(reward.balanceOf(RECEIVER), 2 ether);
     }
 
+    function testSetClaimerEmitsEvent() public {
+        vm.expectEmit(true, false, false, true, address(escrow));
+        emit SetClaimer(CLAIMER, true);
+
+        vm.prank(BENEFICIARY);
+        escrow.setClaimer(CLAIMER, true);
+
+        assertTrue(escrow.allowlist(CLAIMER));
+    }
+
     function testRevokedClaimerCannotClaim() public {
         vm.startPrank(BENEFICIARY);
         escrow.setClaimer(CLAIMER, true);
@@ -267,6 +373,12 @@ contract DromosEscrowTest is Test {
         vm.prank(OTHER);
         vm.expectRevert(DromosEscrow.OnlyBeneficiaryOrAllowlist.selector);
         escrow.claimTo(RECEIVER);
+    }
+
+    function testUnauthorizedAddressCannotClaimToBeneficiary() public {
+        vm.prank(OTHER);
+        vm.expectRevert(DromosEscrow.OnlyBeneficiary.selector);
+        escrow.claim();
     }
 
     function testOnlyBeneficiaryCanSetClaimer() public {
@@ -292,20 +404,21 @@ contract DromosEscrowTest is Test {
         escrow.claim();
 
         assertEq(reward.balanceOf(BENEFICIARY), 0);
+        assertEq(gauge.claimCalls(), 1);
     }
 
-    function testRewardsRemainClaimableAfterFullWithdrawal() public {
+    function testRewardsAreClaimedDuringFullWithdrawal() public {
         _deposit(10 ether);
         _setReward(2 ether);
 
         vm.prank(MARKET);
         escrow.pay(RECEIVER, 10 ether);
 
-        vm.prank(BENEFICIARY);
-        escrow.claim();
-
         assertEq(escrow.balance(), 0);
         assertEq(reward.balanceOf(BENEFICIARY), 2 ether);
+        assertEq(reward.balanceOf(address(escrow)), 0);
+        assertEq(gauge.earned(address(escrow)), 0);
+        assertEq(gauge.claimCalls(), 2);
     }
 
     function testClaimDoesNotReduceCollateralBalance() public {
@@ -320,13 +433,23 @@ contract DromosEscrowTest is Test {
         assertEq(reward.balanceOf(BENEFICIARY), 2 ether);
     }
 
+    function testGaugeRejectsClaimByNonAccount() public {
+        _setReward(2 ether);
+
+        vm.expectRevert(MockDromosGauge.NotAuthorized.selector);
+        gauge.claimEmissions(address(escrow), RECEIVER);
+
+        assertEq(gauge.earned(address(escrow)), 2 ether);
+    }
+
     function _deposit(uint256 amount) internal {
         collateral.mint(address(escrow), amount);
+
+        vm.prank(MARKET, BENEFICIARY);
         escrow.onDeposit();
     }
 
     function _setReward(uint256 amount) internal {
-        reward.mint(address(gauge), amount);
         gauge.setReward(address(escrow), amount);
     }
 }
