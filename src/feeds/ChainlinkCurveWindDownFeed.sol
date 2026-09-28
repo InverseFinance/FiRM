@@ -10,7 +10,7 @@ import {IERC20} from "src/interfaces/IERC20.sol";
 ///      As with ChainlinkCurveFeed, select the base USD feed to match the pool's rate-normalized units.
 ///      Use ChainlinkCurveFeed for nonzero target indices; their direct EMA has no downside floor.
 ///      Before activation: base USD price * 1e18 / Curve EMA; nonpositive results return zeroed data.
-///      After activation: fixed starting USD price decays to 1 raw feed unit; timestamps are zero.
+///      After activation: fixed starting USD price decays to 100 raw feed units; timestamps are zero.
 ///      Activation is permissionless at EMA >= 1.9e18, without a persistence window or timestamp check.
 ///      The RWG address fixed at deployment can stop wind-down and restore live pricing and timestamps.
 ///      Fund this feed with Ethereum mainnet DOLA before activation to offer a caller reward.
@@ -19,7 +19,8 @@ import {IERC20} from "src/interfaces/IERC20.sol";
 ///      Consuming FiRM markets must enable the borrow controller's staleness check.
 contract ChainlinkCurveWindDownFeed {
     uint256 public constant WIND_DOWN_TRIGGER_EMA = 1.9e18;
-    uint256 public constant TERMINAL_PRICE = 1;
+    // Rounding buffer for downstream LP/vault conversions; deployment must check their combined effect.
+    uint256 public constant TERMINAL_PRICE = 100;
     uint256 public constant TARGET_INDEX = 0;
     IERC20 public constant DOLA = IERC20(0x865377367054516e17014CcdED1e7d814EDC9ce4);
 
@@ -69,7 +70,7 @@ contract ChainlinkCurveWindDownFeed {
     }
 
     /// @notice Whether the EMA permits activation and wind-down has not already started.
-    /// @dev Only checks the trigger. Execution still needs a readable positive USD price and DOLA transfer.
+    /// @dev Only checks the trigger. Execution still needs a USD price >= TERMINAL_PRICE and a successful DOLA call.
     function canStartWindDown() external view returns (bool) {
         return windDownStartPrice == 0 && CURVE_POOL.price_oracle(REFERENCE_ORACLE_INDEX) >= WIND_DOWN_TRIGGER_EMA;
     }
@@ -83,7 +84,7 @@ contract ChainlinkCurveWindDownFeed {
         uint256 ema = CURVE_POOL.price_oracle(REFERENCE_ORACLE_INDEX);
         if (ema < WIND_DOWN_TRIGGER_EMA) revert TriggerNotReached();
         (, int256 price,,,) = latestRoundData();
-        if (price <= 0) revert InvalidBasePrice();
+        if (price < int256(TERMINAL_PRICE)) revert InvalidBasePrice();
         windDownStartedAt = block.timestamp;
         windDownStartPrice = uint256(price);
 

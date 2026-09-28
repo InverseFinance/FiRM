@@ -234,6 +234,7 @@ contract ChainlinkCurveWindDownFeedTest is Test {
         assertEq(feed.TARGET_INDEX(), 0);
         assertEq(feed.decimals(), 18);
         assertEq(feed.WIND_DOWN_TRIGGER_EMA(), 1.9e18);
+        assertEq(feed.TERMINAL_PRICE(), 100);
         assertEq(feed.RWG(), RWG);
     }
 
@@ -335,15 +336,95 @@ contract ChainlinkCurveWindDownFeedTest is Test {
 
     function testMinimumStartingPriceLatchesAtTimestampZero() public {
         vm.warp(0);
-        base.set(2, 0, false);
+        base.set(190, 0, false);
         activate();
         assertEq(feed.windDownStartedAt(), 0);
-        assertEq(feed.windDownStartPrice(), 1);
+        assertEq(feed.windDownStartPrice(), 100);
+        assertEq(feed.latestAnswer(), 100);
         assertFalse(feed.canStartWindDown());
         vm.expectRevert(ChainlinkCurveWindDownFeed.WindDownAlreadyStarted.selector);
         feed.startWindDown();
         vm.warp(DURATION);
-        assertEq(feed.latestAnswer(), 1);
+        assertEq(feed.latestAnswer(), 100);
+    }
+
+    function testPositiveStartingPricesBelowTerminalCannotActivateOrClaimReward() public {
+        pool.set(0, 1.9e18, false);
+        dola.mint(address(feed), 10e18);
+        int256[3] memory basePrices = [int256(2), int256(188), int256(189)];
+        int256[3] memory livePrices = [int256(1), int256(98), int256(99)];
+        for (uint256 i; i < basePrices.length; i++) {
+            base.set(basePrices[i], block.timestamp, false);
+            (, int256 price,, uint256 updatedAt,) = feed.latestRoundData();
+            assertEq(price, livePrices[i]); // live pricing is not clamped or rejected
+            assertEq(updatedAt, block.timestamp);
+            assertTrue(feed.canStartWindDown());
+            vm.expectRevert(ChainlinkCurveWindDownFeed.InvalidBasePrice.selector);
+            feed.startWindDown();
+            assertEq(feed.windDownStartPrice(), 0);
+            assertEq(feed.windDownStartedAt(), 0);
+            assertEq(dola.balanceOf(address(feed)), 10e18);
+            assertEq(dola.balanceOf(address(this)), 0);
+            assertEq(dola.transferCalls(), 0);
+        }
+        base.set(190, block.timestamp, false); // inverted price is exactly 100
+        feed.startWindDown();
+        assertEq(feed.latestAnswer(), 100);
+        assertEq(dola.balanceOf(address(this)), 10e18);
+        vm.warp(block.timestamp + DURATION / 2);
+        assertEq(feed.latestAnswer(), 100);
+        vm.warp(block.timestamp + DURATION);
+        assertEq(feed.latestAnswer(), 100);
+    }
+
+    function testTerminalPriceLPRoundingBoundary() public {
+        WindDownMockBase otherCoin = new WindDownMockBase();
+        CurveLPPessimisticFeed lp = new CurveLPPessimisticFeed(address(pool), address(feed), address(otherCoin), false);
+        Oracle oracle = new Oracle(address(this));
+        address collateral = address(0xCA11);
+        oracle.setFeed(collateral, OracleFeed(address(lp)), 18);
+        activate();
+        vm.warp(block.timestamp + DURATION);
+        uint256[4] memory virtualPrices = [uint256(0.99e18), uint256(0.5e18), uint256(0.01e18), uint256(0.01e18 - 1)];
+        int256[4] memory expected = [int256(99), int256(50), int256(1), int256(0)];
+        for (uint256 i; i < virtualPrices.length; i++) {
+            vm.mockCall(address(pool), abi.encodeWithSignature("get_virtual_price()"), abi.encode(virtualPrices[i]));
+            (, int256 price,, uint256 updatedAt,) = lp.latestRoundData();
+            assertEq(price, expected[i]);
+            assertEq(updatedAt, 0);
+            if (price > 0) {
+                assertEq(oracle.getPrice(collateral, 8500), uint256(price));
+            } else {
+                vm.expectRevert(bytes("Invalid feed price"));
+                oracle.getPrice(collateral, 8500);
+            }
+        }
+    }
+
+    function testTerminalPriceCombinedLPAndYearnRoundingBoundary() public {
+        WindDownMockBase otherCoin = new WindDownMockBase();
+        CurveLPPessimisticFeed lp = new CurveLPPessimisticFeed(address(pool), address(feed), address(otherCoin), false);
+        WindDownMockYearn yearn = new WindDownMockYearn();
+        CurveLPYearnV2Feed yv = new CurveLPYearnV2Feed(address(yearn), address(lp));
+        Oracle oracle = new Oracle(address(this));
+        address collateral = address(0xCA11);
+        oracle.setFeed(collateral, OracleFeed(address(yv)), 18);
+        activate();
+        vm.warp(block.timestamp + DURATION);
+        // A second scale-down must be checked separately, after the LP's integer rounding.
+        vm.mockCall(address(yearn), abi.encodeWithSignature("totalAssets()"), abi.encode(uint256(0.5e18)));
+        vm.mockCall(address(pool), abi.encodeWithSignature("get_virtual_price()"), abi.encode(uint256(0.02e18)));
+        (, int256 price,, uint256 updatedAt,) = yv.latestRoundData();
+        assertEq(price, 1); // 100 -> 2 LP units -> 1 vault unit
+        assertEq(updatedAt, 0);
+        assertEq(oracle.getPrice(collateral, 8500), 1);
+        vm.mockCall(address(pool), abi.encodeWithSignature("get_virtual_price()"), abi.encode(uint256(0.02e18 - 1)));
+        (, price,, updatedAt,) = yv.latestRoundData();
+        assertEq(lp.latestAnswer(), 1);
+        assertEq(price, 0); // 100 -> 1 LP unit -> 0 vault units: buffer is not universal
+        assertEq(updatedAt, 0);
+        vm.expectRevert(bytes("Invalid feed price"));
+        oracle.getPrice(collateral, 8500);
     }
 
     function testInvalidConstructor() public {
@@ -458,7 +539,7 @@ contract ChainlinkCurveWindDownFeedTest is Test {
         pool.set(0, 0, true);
         assertFalse(feed.canStartWindDown()); // the active latch skips the failed pool call
         vm.warp(block.timestamp + DURATION / 2);
-        assertEq(feed.latestAnswer(), int256(1 + (startingPrice - 1) / 2));
+        assertEq(feed.latestAnswer(), int256(100 + (startingPrice - 100) / 2));
         (uint80 roundId,, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound) = feed.latestRoundData();
         assertEq(roundId, 0);
         assertEq(answeredInRound, 0);
@@ -557,7 +638,7 @@ contract ChainlinkCurveWindDownFeedTest is Test {
         assertEq(dola.transferCalls(), 2);
         assertFalse(feed.canStartWindDown());
         vm.warp(block.timestamp + DURATION / 2);
-        assertEq(feed.latestAnswer(), int256(1 + (nextPrice - 1) / 2));
+        assertEq(feed.latestAnswer(), int256(100 + (nextPrice - 100) / 2));
     }
 
     function testStopIsIdempotentAndAvailableAtTerminalPrice() public {
@@ -565,11 +646,11 @@ contract ChainlinkCurveWindDownFeedTest is Test {
         feed.stopWindDown();
         activate();
         vm.warp(block.timestamp + DURATION);
-        assertEq(feed.latestAnswer(), 1);
+        assertEq(feed.latestAnswer(), 100);
         vm.prank(RWG);
         feed.stopWindDown();
         assertEq(feed.windDownStartPrice(), 0);
-        assertGt(feed.latestAnswer(), 1);
+        assertGt(feed.latestAnswer(), 100);
         vm.prank(RWG);
         feed.stopWindDown();
         assertEq(feed.windDownStartedAt(), 0);
@@ -601,7 +682,7 @@ contract ChainlinkCurveWindDownFeedTest is Test {
     }
 
     function testFuzzDecay(uint32 elapsed, uint96 price, uint32 duration) public {
-        price = uint96(bound(price, 2, type(uint96).max));
+        price = uint96(bound(price, 190, type(uint96).max));
         duration = uint32(bound(duration, 1, type(uint32).max));
         feed = deploy(0, duration);
         base.set(int256(uint256(price)), block.timestamp, false);
@@ -609,10 +690,10 @@ contract ChainlinkCurveWindDownFeedTest is Test {
         uint256 start = feed.windDownStartPrice();
         assertEq(feed.latestAnswer(), int256(start));
         vm.warp(block.timestamp + elapsed);
-        uint256 expected = elapsed >= duration ? 1 : 1 + (start - 1) * (duration - elapsed) / duration;
+        uint256 expected = elapsed >= duration ? 100 : 100 + (start - 100) * (duration - elapsed) / duration;
         assertEq(feed.latestAnswer(), int256(expected));
         assertLe(uint256(feed.latestAnswer()), start);
-        assertGe(feed.latestAnswer(), 1);
+        assertGe(feed.latestAnswer(), 100);
         (,, uint256 startedAt, uint256 updatedAt,) = feed.latestRoundData();
         assertEq(startedAt, 0);
         assertEq(updatedAt, 0);
@@ -626,11 +707,11 @@ contract ChainlinkCurveWindDownFeedTest is Test {
         uint256 startPrice = feed.windDownStartPrice();
         assertEq(feed.latestAnswer(), int256(startPrice));
         vm.warp(startTime + type(uint32).max - 1);
-        assertEq(feed.latestAnswer(), int256(1 + (startPrice - 1) / type(uint32).max));
+        assertEq(feed.latestAnswer(), int256(100 + (startPrice - 100) / type(uint32).max));
         vm.warp(startTime + type(uint32).max);
-        assertEq(feed.latestAnswer(), 1);
+        assertEq(feed.latestAnswer(), 100);
         vm.warp(block.timestamp + 365 days);
-        assertEq(feed.latestAnswer(), 1);
+        assertEq(feed.latestAnswer(), 100);
     }
 
     function testLPAndYearnPropagationBlocksBorrowingButKeepsPriceReadable() public {
