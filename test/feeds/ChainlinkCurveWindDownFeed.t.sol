@@ -238,7 +238,7 @@ contract ChainlinkCurveWindDownFeedTest is Test {
         assertEq(feed.RWG(), RWG);
     }
 
-    function testFuzzNormalModeMatchesExistingFeed(uint256 basePrice, uint64 ema) public {
+    function testFuzzLiveModeMatchesExistingFeedExceptThresholdTimestamp(uint256 basePrice, uint64 ema) public {
         basePrice = bound(basePrice, 1e18, uint256(type(int256).max) / 1e18);
         ema = uint64(bound(ema, 1, 2e18));
         base.set(int256(basePrice), block.timestamp, false);
@@ -246,6 +246,9 @@ contract ChainlinkCurveWindDownFeedTest is Test {
         ChainlinkCurveFeed existing = new ChainlinkCurveFeed(address(base), address(pool), 0, 0);
         (bool ok, bytes memory actual) = address(feed).staticcall(abi.encodeWithSignature("latestRoundData()"));
         (bool oldOk, bytes memory expected) = address(existing).staticcall(abi.encodeWithSignature("latestRoundData()"));
+        if (ema >= 1.9e18) {
+            expected = abi.encode(uint80(42), existing.latestAnswer(), block.timestamp, uint256(0), uint80(42));
+        }
         assertTrue(ok && oldOk);
         assertEq(actual, expected);
         assertEq(feed.latestAnswer(), existing.latestAnswer());
@@ -260,7 +263,11 @@ contract ChainlinkCurveWindDownFeedTest is Test {
         assertEq(other.REFERENCE_ORACLE_INDEX(), 1);
         assertEq(other.latestAnswer(), int256(uint256(1e36) / 1.5e18));
         assertFalse(other.canStartWindDown());
+        (,,, uint256 updatedAt,) = other.latestRoundData();
+        assertEq(updatedAt, block.timestamp); // unused oracle index 0 is already above threshold
         pool.set(1, 1.9e18, false);
+        (,,, updatedAt,) = other.latestRoundData();
+        assertEq(updatedAt, 0);
         assertTrue(other.canStartWindDown());
         other.startWindDown();
         assertGt(other.windDownStartPrice(), 0);
@@ -279,6 +286,59 @@ contract ChainlinkCurveWindDownFeedTest is Test {
         feed.startWindDown();
         assertEq(feed.windDownStartPrice(), preview);
         assertEq(feed.windDownStartedAt(), block.timestamp);
+    }
+
+    function testLiveThresholdTimestampAndRecoveryWithoutActivation() public {
+        uint256 upstreamTime = block.timestamp - 60;
+        base.set(1e18, upstreamTime, false);
+        dola.mint(address(feed), 10e18);
+        uint256[4] memory emas = [uint256(1.9e18 - 1), uint256(1.9e18), uint256(2e18), uint256(1.9e18 - 1)];
+        for (uint256 i; i < emas.length; i++) {
+            pool.set(0, emas[i], false);
+            (uint80 roundId, int256 price, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound) =
+                feed.latestRoundData();
+            assertEq(price, int256(uint256(1e36) / emas[i]));
+            assertEq(feed.latestAnswer(), price);
+            assertEq(roundId, 42);
+            assertEq(startedAt, upstreamTime);
+            assertEq(answeredInRound, 42);
+            assertEq(updatedAt, i == 1 || i == 2 ? 0 : upstreamTime);
+            assertEq(feed.windDownStartPrice(), 0);
+            assertEq(feed.windDownStartedAt(), 0);
+            assertEq(dola.transferCalls(), 0);
+            assertEq(dola.balanceOf(address(feed)), 10e18);
+        }
+        base.set(1e18, 0, false);
+        (,,, uint256 recoveredTimestamp,) = feed.latestRoundData();
+        assertEq(recoveredTimestamp, 0); // falling below the trigger does not make stale upstream data fresh
+    }
+
+    function testStopAboveThresholdKeepsBorrowingBlockedUntilRecovery() public {
+        Oracle oracle = new Oracle(address(this));
+        address collateral = address(0xCA11);
+        oracle.setFeed(collateral, OracleFeed(address(feed)), 18);
+        WindDownMockMarket market = new WindDownMockMarket(address(oracle), collateral);
+        BorrowController controller = new BorrowController(address(this), address(new WindDownMockDBR()));
+        controller.setStalenessThreshold(address(market), BORROW_STALENESS_THRESHOLD);
+        controller.allow(address(this));
+        activate();
+        vm.warp(block.timestamp + DURATION / 2);
+        base.set(1e18, block.timestamp, false);
+        vm.prank(RWG);
+        feed.stopWindDown();
+        assertEq(feed.windDownStartPrice(), 0);
+        assertEq(feed.latestAnswer(), int256(uint256(1e36) / 1.9e18));
+        (,,, uint256 updatedAt,) = feed.latestRoundData();
+        assertEq(updatedAt, 0);
+        assertTrue(controller.isPriceStale(address(market)));
+        vm.prank(address(market));
+        assertFalse(controller.borrowAllowed(address(this), address(456), 1e18));
+        pool.set(0, 1.9e18 - 1, false);
+        (,,, updatedAt,) = feed.latestRoundData();
+        assertEq(updatedAt, block.timestamp);
+        assertFalse(controller.isPriceStale(address(market)));
+        vm.prank(address(market));
+        assertTrue(controller.borrowAllowed(address(this), address(456), 1e18));
     }
 
     function testCanStartRechecksAtExecution() public {
@@ -357,7 +417,7 @@ contract ChainlinkCurveWindDownFeedTest is Test {
             base.set(basePrices[i], block.timestamp, false);
             (, int256 price,, uint256 updatedAt,) = feed.latestRoundData();
             assertEq(price, livePrices[i]); // live pricing is not clamped or rejected
-            assertEq(updatedAt, block.timestamp);
+            assertEq(updatedAt, 0); // threshold blocks borrowing even when activation cannot succeed
             assertTrue(feed.canStartWindDown());
             vm.expectRevert(ChainlinkCurveWindDownFeed.InvalidBasePrice.selector);
             feed.startWindDown();
@@ -728,6 +788,30 @@ contract ChainlinkCurveWindDownFeedTest is Test {
         assertFalse(controller.isPriceStale(address(market)));
         vm.prank(address(market));
         assertTrue(controller.borrowAllowed(address(this), address(456), 1e18));
+        // Borrowing is denied before any activation transaction, whichever coin supplies the LP minimum.
+        for (uint256 i; i < 2; i++) {
+            otherCoin.set(i == 0 ? int256(1e18) : int256(0.1e18), block.timestamp, false);
+            pool.set(0, 1.9e18, false);
+            (,,, uint256 pendingLpTimestamp,) = lp.latestRoundData();
+            (, int256 pendingYvPrice,, uint256 pendingYvTimestamp,) = yv.latestRoundData();
+            assertEq(pendingLpTimestamp, 0);
+            assertEq(pendingYvTimestamp, 0);
+            assertGt(pendingYvPrice, 0);
+            assertGt(oracle.viewPrice(collateral, 8500), 0);
+            assertEq(feed.windDownStartPrice(), 0);
+            assertEq(dola.transferCalls(), 0);
+            assertTrue(controller.isPriceStale(address(market)));
+            vm.prank(address(market));
+            assertFalse(controller.borrowAllowed(address(this), address(456), 1e18));
+            controller.setStalenessThreshold(address(market), 0);
+            assertFalse(controller.isPriceStale(address(market))); // check must be enabled
+            controller.setStalenessThreshold(address(market), BORROW_STALENESS_THRESHOLD);
+            pool.set(0, 1.9e18 - 1, false);
+            (,,, pendingYvTimestamp,) = yv.latestRoundData();
+            assertEq(pendingYvTimestamp, block.timestamp);
+            vm.prank(address(market));
+            assertTrue(controller.borrowAllowed(address(this), address(456), 1e18));
+        }
         activate();
         // Timestamp minimum is independent of which coin supplies the minimum price.
         otherCoin.set(0.1e18, block.timestamp, false);

@@ -10,9 +10,10 @@ import {IERC20} from "src/interfaces/IERC20.sol";
 ///      As with ChainlinkCurveFeed, select the base USD feed to match the pool's rate-normalized units.
 ///      Use ChainlinkCurveFeed for nonzero target indices; their direct EMA has no downside floor.
 ///      Before activation: base USD price * 1e18 / Curve EMA; nonpositive results return zeroed data.
+///      EMA >= 1.9e18 sets updatedAt to zero immediately, blocking configured borrowing before activation.
 ///      After activation: fixed starting USD price decays to 100 raw feed units; timestamps are zero.
 ///      Activation is permissionless at EMA >= 1.9e18, without a persistence window or timestamp check.
-///      The RWG address fixed at deployment can stop wind-down and restore live pricing and timestamps.
+///      RWG can restore live pricing; updatedAt remains zero while EMA >= 1.9e18.
 ///      Fund this feed with Ethereum mainnet DOLA before activation to offer a caller reward.
 ///      The caller receives the full balance in the activation transaction, including a zero transfer.
 ///      There is no rescue function; DOLA is paid only when a wind-down is started.
@@ -95,7 +96,7 @@ contract ChainlinkCurveWindDownFeed {
     }
 
     /// @notice RWG-only reset to live pricing, including after the terminal price is reached.
-    /// @dev Does not clear FiRM's recorded daily lows. EMA >= 1.9e18 permits immediate reactivation.
+    /// @dev Does not clear FiRM's recorded daily lows. EMA >= 1.9e18 keeps updatedAt zero and permits reactivation.
     function stopWindDown() external {
         if (msg.sender != RWG) revert OnlyRWG();
         windDownStartPrice = 0;
@@ -120,13 +121,15 @@ contract ChainlinkCurveWindDownFeed {
         }
         int256 assetToUsdPrice;
         (roundId, assetToUsdPrice, startedAt, updatedAt, answeredInRound) = ASSET_TO_USD.latestRoundData();
-        usdPrice = (assetToUsdPrice * int256(10 ** decimals())) / int256(CURVE_POOL.price_oracle(REFERENCE_ORACLE_INDEX));
+        uint256 ema = CURVE_POOL.price_oracle(REFERENCE_ORACLE_INDEX);
+        usdPrice = (assetToUsdPrice * int256(10 ** decimals())) / int256(ema);
         // Accepted precision boundary (V12 F-291933): https://v12.sh/runs/8388/public#finding-291933
         // For 0 < EMA <= 2e18, a positive base USD input can round to zero only at 1 raw unit
         // ($1e-18), with EMA > 1e18. This intentionally remains invalid instead of clamping to 1:
         // FiRM rejects price-dependent operations, including liquidations, and startWindDown()
         // rejects activation even if canStartWindDown() is true. Active decay is unaffected.
         if (usdPrice <= 0) return (0, 0, 0, 0, 0);
+        if (ema >= WIND_DOWN_TRIGGER_EMA) updatedAt = 0;
         return (roundId, usdPrice, startedAt, updatedAt, answeredInRound);
     }
 
