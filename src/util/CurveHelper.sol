@@ -29,8 +29,6 @@ contract CurveHelper is Ownable, OffchainAbstractHelper {
             }
         }
         require(dolaIndex != type(uint).max && dbrIndex != type(uint).max, "CurveHelper: pool missing DOLA or DBR");
-        DOLA.approve(_pool, type(uint).max);
-        DBR.approve(_pool, type(uint).max);
     }
 
     /**
@@ -40,6 +38,7 @@ contract CurveHelper is Ownable, OffchainAbstractHelper {
     */
     function _sellDbr(uint amount, uint minOut, address receiver) internal override {
         if(amount > 0){
+            DBR.approve(address(curvePool), amount);
             curvePool.exchange(dbrIndex, dolaIndex, amount, minOut, receiver);
         }
     }
@@ -51,6 +50,7 @@ contract CurveHelper is Ownable, OffchainAbstractHelper {
     */
     function _buyDbr(uint amount, uint minOut, address receiver) internal override {
         if(amount > 0) {
+            DOLA.approve(address(curvePool), amount);
             curvePool.exchange(dolaIndex, dbrIndex, amount, minOut, receiver);
         }
     }
@@ -100,11 +100,7 @@ contract CurveHelper is Ownable, OffchainAbstractHelper {
         ICurvePool newPool = ICurvePool(_pool);
         require(newPool.coins(_dolaIndex) == address(DOLA), "Wrong dola index");
         require(newPool.coins(_dbrIndex) == address(DBR), "Wrong dbr index");
-        DOLA.approve(address(curvePool), 0);
-        DBR.approve(address(curvePool), 0);
         curvePool = newPool;
-        DOLA.approve(_pool, type(uint).max);
-        DBR.approve(_pool, type(uint).max);
         dolaIndex = _dolaIndex;
         dbrIndex = _dbrIndex;
         emit NewCurvePool(_pool, _dolaIndex, _dbrIndex);
