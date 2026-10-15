@@ -28,6 +28,8 @@ If a user's DBR balance falls below 0, the burn will continue as the user accrue
 ### Escrows
 Each wallet has a unique escrow contract, one for every deployed market. Their primary purpose is holding a user’s collateral, but may have additional functionality that allow borrowers to use their collateral for voting, yield farming etc.
 
+See [StakingRewards escrow integration](docs/StakingRewardsEscrow.md) for staking collateral in a Synthetix-style rewards pool.
+
 ### Fed
 Feds are a class of contracts in the Inverse Finance ecosystem responsible for minting DOLA in a way that preserves the peg and can't be easily abused. In the FiRM protocol, the role of the Fed is to supply and remove DOLA to and from markets.
 
