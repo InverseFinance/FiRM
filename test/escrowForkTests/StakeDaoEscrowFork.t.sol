@@ -4,6 +4,7 @@ pragma solidity ^0.8.13;
 import {Test} from "forge-std/Test.sol";
 import {Market, IOracle, IDolaBorrowingRights} from "src/Market.sol";
 import {IERC20} from "src/interfaces/IERC20.sol";
+import {IERC20 as IERC20Collateral} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {StakeDaoEscrow, IRewardVault} from "src/escrows/StakeDaoEscrow.sol";
 
 interface IStakeDaoRewardVault is IRewardVault {
@@ -104,6 +105,48 @@ contract StakeDaoEscrowForkTest is Test {
         assertEq(escrow.balance(), 0, "escrow cleared");
     }
 
+    function testAnyoneCanStakeDirectlyTransferredLp() public {
+        StakeDaoEscrow escrow = _deposit(DEPOSIT_AMOUNT);
+        uint256 donation = 1 ether;
+        deal(CRV_FRX_USD_LP, USER, donation, false);
+
+        vm.prank(USER);
+        lpToken.transfer(address(escrow), donation);
+
+        assertEq(escrow.balance(), DEPOSIT_AMOUNT + donation, "liquid LP not counted");
+
+        vm.prank(FRIEND);
+        escrow.onDeposit();
+
+        assertEq(lpToken.balanceOf(address(escrow)), 0, "direct transfer not staked");
+        assertEq(rewardVault.balanceOf(address(escrow)), DEPOSIT_AMOUNT + donation, "donated shares");
+        assertEq(escrow.balance(), DEPOSIT_AMOUNT + donation, "balance after staking");
+
+        // An empty callback must succeed without calling the vault.
+        vm.mockCallRevert(
+            REWARD_VAULT, abi.encodeWithSelector(IRewardVault.deposit.selector), bytes("vault unavailable")
+        );
+        vm.prank(FRIEND);
+        escrow.onDeposit();
+    }
+
+    function testEscrowCannotBeReinitialized() public {
+        StakeDaoEscrow escrow = _deposit(DEPOSIT_AMOUNT);
+        IERC20Collateral collateral = escrow.token();
+        vm.expectRevert(StakeDaoEscrow.AlreadyInitialized.selector);
+        escrow.initialize(collateral, FRIEND);
+    }
+
+    function testOnlyMarketCanPay() public {
+        StakeDaoEscrow escrow = _deposit(DEPOSIT_AMOUNT);
+
+        vm.prank(FRIEND);
+        vm.expectRevert(StakeDaoEscrow.OnlyMarket.selector);
+        escrow.pay(RECEIVER, 1 ether);
+
+        assertEq(escrow.balance(), DEPOSIT_AMOUNT, "unauthorized payment changed collateral");
+    }
+
     function testPauseGuardianPullsFundsFromStakeDaoAndRestores() public {
         StakeDaoEscrow escrow = _deposit(DEPOSIT_AMOUNT);
         uint256 additionalDeposit = 1 ether;
@@ -162,6 +205,84 @@ contract StakeDaoEscrowForkTest is Test {
         escrow.setStakeDaoDepositsEnabled(false);
 
         assertFalse(escrow.stakeDaoDepositsEnabled(), "new guardian did not pull");
+    }
+
+    function testDisabledEscrowWorksWhenRewardVaultIsUnavailable() public {
+        StakeDaoEscrow escrow = _deposit(DEPOSIT_AMOUNT);
+        vm.prank(PAUSE_GUARDIAN);
+        escrow.setStakeDaoDepositsEnabled(false);
+
+        vm.mockCallRevert(REWARD_VAULT, bytes(""), bytes("vault unavailable"));
+        _depositMore(1 ether);
+        vm.prank(FRIEND);
+        escrow.onDeposit();
+
+        assertEq(escrow.balance(), DEPOSIT_AMOUNT + 1 ether, "disabled balance needs vault");
+        assertEq(market.getWithdrawalLimit(USER), DEPOSIT_AMOUNT + 1 ether, "disabled withdrawal limit");
+
+        uint256 userBalanceBefore = lpToken.balanceOf(USER);
+        vm.prank(USER, USER);
+        market.withdrawMax();
+
+        assertEq(lpToken.balanceOf(USER), userBalanceBefore + DEPOSIT_AMOUNT + 1 ether, "liquid LP not paid");
+        assertEq(escrow.balance(), 0, "disabled escrow not cleared");
+    }
+
+    function testGuardianRedemptionFailurePreservesStakingStateAndAllowance() public {
+        StakeDaoEscrow escrow = _deposit(DEPOSIT_AMOUNT);
+        vm.mockCallRevert(REWARD_VAULT, abi.encodeWithSelector(IRewardVault.redeem.selector), bytes("redeem failed"));
+
+        vm.prank(PAUSE_GUARDIAN);
+        vm.expectRevert(bytes("redeem failed"));
+        escrow.setStakeDaoDepositsEnabled(false);
+
+        assertTrue(escrow.stakeDaoDepositsEnabled(), "failed redemption disabled staking");
+        assertEq(lpToken.allowance(address(escrow), REWARD_VAULT), type(uint256).max, "allowance changed");
+        assertEq(rewardVault.balanceOf(address(escrow)), DEPOSIT_AMOUNT, "shares changed");
+        assertEq(escrow.balance(), DEPOSIT_AMOUNT, "collateral changed");
+    }
+
+    function testGuardianRestakingFailurePreservesLiquidStateAndAllowance() public {
+        StakeDaoEscrow escrow = _deposit(DEPOSIT_AMOUNT);
+        vm.prank(PAUSE_GUARDIAN);
+        escrow.setStakeDaoDepositsEnabled(false);
+        vm.mockCallRevert(REWARD_VAULT, abi.encodeWithSelector(IRewardVault.deposit.selector), bytes("deposit failed"));
+
+        vm.prank(PAUSE_GUARDIAN);
+        vm.expectRevert(bytes("deposit failed"));
+        escrow.setStakeDaoDepositsEnabled(true);
+
+        assertFalse(escrow.stakeDaoDepositsEnabled(), "failed deposit enabled staking");
+        assertEq(lpToken.allowance(address(escrow), REWARD_VAULT), 0, "allowance changed");
+        assertEq(lpToken.balanceOf(address(escrow)), DEPOSIT_AMOUNT, "liquid collateral changed");
+        assertEq(rewardVault.balanceOf(address(escrow)), 0, "unexpected shares");
+        assertEq(escrow.balance(), DEPOSIT_AMOUNT, "collateral changed");
+    }
+
+    function testGuardianCanToggleEmptyEscrowAndRepeatCurrentSetting() public {
+        StakeDaoEscrow escrow = _deposit(0);
+        vm.mockCallRevert(
+            REWARD_VAULT, abi.encodeWithSelector(IRewardVault.deposit.selector), bytes("unexpected deposit")
+        );
+        vm.mockCallRevert(
+            REWARD_VAULT, abi.encodeWithSelector(IRewardVault.redeem.selector), bytes("unexpected redemption")
+        );
+
+        vm.startPrank(PAUSE_GUARDIAN);
+        escrow.setStakeDaoDepositsEnabled(true);
+        escrow.setStakeDaoDepositsEnabled(false);
+        escrow.setStakeDaoDepositsEnabled(false);
+        vm.stopPrank();
+
+        assertFalse(escrow.stakeDaoDepositsEnabled(), "empty escrow not disabled");
+        assertEq(lpToken.allowance(address(escrow), REWARD_VAULT), 0, "disabled allowance");
+
+        vm.prank(PAUSE_GUARDIAN);
+        escrow.setStakeDaoDepositsEnabled(true);
+
+        assertTrue(escrow.stakeDaoDepositsEnabled(), "empty escrow not enabled");
+        assertEq(lpToken.allowance(address(escrow), REWARD_VAULT), type(uint256).max, "enabled allowance");
+        assertEq(escrow.balance(), 0, "empty balance");
     }
 
     function testClaimCvxRewardsThroughStakeDaoEscrow() public {
@@ -227,6 +348,19 @@ contract StakeDaoEscrowForkTest is Test {
         assertTrue(escrow.allowlist(FRIEND), "friend not allowlisted");
 
         vm.prank(FRIEND);
+        escrow.claim(rewardTokens, RECEIVER);
+
+        // Allowlisting only permits the overload with an explicit receiver.
+        vm.prank(FRIEND);
+        vm.expectRevert(StakeDaoEscrow.OnlyBeneficiary.selector);
+        escrow.claim(rewardTokens);
+
+        vm.prank(USER);
+        escrow.setClaimer(FRIEND, false);
+        assertFalse(escrow.allowlist(FRIEND), "friend still allowlisted");
+
+        vm.prank(FRIEND);
+        vm.expectRevert(StakeDaoEscrow.OnlyBeneficiaryOrAllowlist.selector);
         escrow.claim(rewardTokens, RECEIVER);
 
         vm.prank(USER);

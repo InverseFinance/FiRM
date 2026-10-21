@@ -64,9 +64,27 @@ contract StakeDaoEscrowFactoryTest is Test {
         assertEq(escrow.beneficiary(), USER);
         assertEq(address(escrow.token()), CRV_FRX_USD_LP);
         assertEq(address(escrow.rewardVault()), REWARD_VAULT);
+        assertEq(escrow.treasury(), TREASURY);
+        assertTrue(escrow.stakeDaoDepositsEnabled());
+        assertFalse(factory.isFromFactory(address(escrow)), "clone is not a factory implementation");
         assertEq(lpToken.balanceOf(address(escrow)), 0);
         assertEq(rewardVault.balanceOf(address(escrow)), DEPOSIT_AMOUNT);
         assertEq(escrow.balance(), DEPOSIT_AMOUNT);
+
+        vm.prank(PAUSE_GUARDIAN);
+        escrow.setStakeDaoDepositsEnabled(false);
+
+        assertFalse(escrow.stakeDaoDepositsEnabled());
+        assertEq(lpToken.allowance(address(escrow), REWARD_VAULT), 0);
+        assertEq(rewardVault.balanceOf(address(escrow)), 0);
+        assertEq(lpToken.balanceOf(address(escrow)), DEPOSIT_AMOUNT);
+
+        uint256 userBalanceBefore = lpToken.balanceOf(USER);
+        vm.prank(USER, USER);
+        market.withdrawMax();
+
+        assertEq(lpToken.balanceOf(USER), userBalanceBefore + DEPOSIT_AMOUNT);
+        assertEq(escrow.balance(), 0);
     }
 
     function _deployMarket(address implementationAddress) internal returns (Market market) {
