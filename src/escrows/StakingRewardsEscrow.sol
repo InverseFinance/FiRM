@@ -2,21 +2,18 @@
 pragma solidity ^0.8.20;
 
 import {IERC20, SafeERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
-import {IERC4626} from "openzeppelin-contracts/contracts/interfaces/IERC4626.sol";
 import {ReentrancyGuard} from "openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
 import {IStakingRewards} from "src/interfaces/IStakingRewards.sol";
 
 /// @notice Stakes a borrower's FiRM collateral and lets them claim rewards separately.
 /// @dev Deploy an implementation per initialized staking pool, then initialize each
 /// clone atomically from its market. Tokens must transfer exact amounts and must
-/// not rebase. The pool's staking and reward token configuration and the trusted
-/// sGOV vault's underlying asset must remain fixed.
+/// not rebase. The pool's staking and reward token configuration must remain fixed.
 contract StakingRewardsEscrow is ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     error InvalidStakingRewards();
     error InvalidToken();
-    error InvalidVault();
     error IdenticalTokens();
     error InvalidBeneficiary();
     error InvalidRecipient();
@@ -24,12 +21,10 @@ contract StakingRewardsEscrow is ReentrancyGuard {
     error OnlyMarket();
     error OnlyBeneficiary();
     error OnlyBeneficiaryOrAllowlist();
-    error InsufficientShares();
 
     IStakingRewards public immutable stakingRewards;
     IERC20 public immutable token;
     IERC20 public immutable rewardsToken;
-    IERC4626 public immutable sGOV;
 
     address public market;
     address public beneficiary;
@@ -47,24 +42,20 @@ contract StakingRewardsEscrow is ReentrancyGuard {
         _;
     }
 
-    constructor(address _stakingRewards, address _sGOV) {
+    constructor(address _stakingRewards) {
         if (_stakingRewards.code.length == 0) revert InvalidStakingRewards();
         IStakingRewards pool = IStakingRewards(_stakingRewards);
         IERC20 collateral = pool.stakingToken();
         IERC20 reward = pool.rewardsToken();
         if (address(collateral).code.length == 0 || address(reward).code.length == 0) revert InvalidToken();
         if (collateral == reward) revert IdenticalTokens();
-        if (_sGOV.code.length == 0) revert InvalidVault();
-        IERC4626 vault = IERC4626(_sGOV);
-        if (vault.asset() != address(reward)) revert InvalidVault();
 
         stakingRewards = pool;
         token = collateral;
         rewardsToken = reward;
-        sGOV = vault;
     }
 
-    /// @notice Binds a new clone to its market and beneficiary and approves collateral and reward staking.
+    /// @notice Binds a new clone to its market and beneficiary and approves collateral staking.
     /// @dev Must be called by the market immediately after clone creation.
     function initialize(IERC20 _token, address _beneficiary) external nonReentrant {
         if (market != address(0)) revert AlreadyInitialized();
@@ -73,7 +64,6 @@ contract StakingRewardsEscrow is ReentrancyGuard {
         market = msg.sender;
         beneficiary = _beneficiary;
         token.forceApprove(address(stakingRewards), type(uint256).max);
-        rewardsToken.forceApprove(address(sGOV), type(uint256).max);
     }
 
     /// @notice Stakes all idle collateral, including direct transfers into the escrow.
@@ -110,24 +100,6 @@ contract StakingRewardsEscrow is ReentrancyGuard {
         stakingRewards.getReward();
         uint256 amount = rewardsToken.balanceOf(address(this));
         if (amount != 0) rewardsToken.safeTransfer(to, amount);
-    }
-
-    /// @notice Claims rewards and deposits all held reward tokens into sGOV for the receiver.
-    /// @dev Uses the same permissions as claimTo. Any failure reverts both the claim and deposit.
-    /// @param receiver The nonzero address that receives the sGOV shares directly.
-    /// @param minShares The minimum shares to mint; zero disables the output floor.
-    /// @return shares The minted shares, or zero when there are no rewards to deposit.
-    function claimAndStake(address receiver, uint256 minShares)
-        external
-        onlyBeneficiaryOrAllowlist
-        nonReentrant
-        returns (uint256 shares)
-    {
-        if (receiver == address(0)) revert InvalidRecipient();
-        stakingRewards.getReward();
-        uint256 amount = rewardsToken.balanceOf(address(this));
-        if (amount != 0) shares = sGOV.deposit(amount, receiver);
-        if (shares < minShares) revert InsufficientShares();
     }
 
     /// @notice Returns pending staking rewards plus reward tokens already held here.
