@@ -8,6 +8,7 @@ interface ICvxRewardPool{
     function stake(uint amount) external;
     function stakeAll() external;
     function getReward(address staker, bool claimExtra, bool stake) external;
+    function cvxCrvRewards() external view returns(address);
     function extraRewards(uint index) external returns(address token);
     function extraRewardsLength() external returns(uint length);
     function addExtraReward(address rewardContract) external;
@@ -15,6 +16,11 @@ interface ICvxRewardPool{
     function operator() external returns(address);
     function rewardManager() external returns(address);
     function queueNewRewards(uint amount) external;
+}
+
+interface ICvxCrvRewardPoolRecovery {
+    function balanceOf(address account) external view returns(uint);
+    function withdraw(uint amount, bool claim) external returns(bool);
 }
 
 /**
@@ -96,7 +102,16 @@ contract ConvexEscrow {
         uint extraRewards = rewardPool.extraRewardsLength();
         //Claim rewards, only claim extra rewards if there are any
         rewardPool.getReward(address(this), extraRewards > 0, false);
-        rewardToken.transfer(to, rewardToken.balanceOf(address(this)));
+
+        // Convex allows anyone to stake this escrow's rewards on its behalf.
+        // Withdraw that cvxCRV from the escrow itself before forwarding it.
+        ICvxCrvRewardPoolRecovery secondaryPool =
+            ICvxCrvRewardPoolRecovery(rewardPool.cvxCrvRewards());
+        uint secondaryBalance = secondaryPool.balanceOf(address(this));
+        if (secondaryBalance > 0) {
+            require(secondaryPool.withdraw(secondaryBalance, false), "SECONDARY WITHDRAW FAILED");
+        }
+        rewardToken.safeTransfer(to, rewardToken.balanceOf(address(this)));
     }
 
     /**
