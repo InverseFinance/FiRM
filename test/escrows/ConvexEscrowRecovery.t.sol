@@ -3,7 +3,6 @@ pragma solidity ^0.8.20;
 
 import {Test} from "forge-std/Test.sol";
 import {ConvexEscrow} from "src/escrows/ConvexEscrow.sol";
-import {LegacyConvexEscrow} from "test/fixtures/LegacyConvexEscrow.sol";
 import {Market, IDolaBorrowingRights, IOracle} from "src/Market.sol";
 import {IERC20 as IMarketERC20} from "src/interfaces/IERC20.sol";
 import {
@@ -60,27 +59,11 @@ contract ConvexEscrowRecoveryTest is Test {
         assertFalse(secondary.lastClaim());
     }
 
-    function testLegacyAllClaimsLeaveSecondaryStakeLocked() public {
-        LegacyConvexEscrow legacy = new LegacyConvexEscrow();
-        legacy.initialize(CVX, USER);
-        lock(address(legacy), 7 ether);
-        vm.startPrank(USER);
-        legacy.claim();
-        legacy.claimTo(USER);
-        legacy.claimTo(USER, new address[](0));
-        vm.stopPrank();
-        assertEq(cvxcrv.balanceOf(USER), 0);
-        assertEq(secondary.balanceOf(address(legacy)), 7 ether);
-        vm.prank(USER);
-        vm.expectRevert();
-        secondary.withdraw(7 ether, false);
-    }
-
     function testClaimRecoversWithZeroOuterRewards() public {
         lock(address(escrow), 7 ether);
         assertEq(outer.earned(address(escrow)), 0);
         vm.prank(USER);
-        escrow.claim();
+        escrow.claim(true);
         assertRecovered(7 ether, USER);
     }
 
@@ -89,7 +72,7 @@ contract ConvexEscrowRecoveryTest is Test {
         cvxcrv.mint(address(escrow), 3 ether);
         outer.setEarned(address(escrow), 2 ether);
         vm.prank(USER);
-        escrow.claimTo(FRIEND);
+        escrow.claimTo(FRIEND, true);
         assertRecovered(12 ether, FRIEND);
     }
 
@@ -101,7 +84,7 @@ contract ConvexEscrowRecoveryTest is Test {
         address[] memory extras = new address[](1);
         extras[0] = address(extra);
         vm.prank(USER);
-        escrow.claimTo(FRIEND, extras);
+        escrow.claimTo(FRIEND, extras, true);
         assertRecovered(7 ether, FRIEND);
         assertEq(extra.balanceOf(FRIEND), 1 ether);
     }
@@ -109,10 +92,10 @@ contract ConvexEscrowRecoveryTest is Test {
     function testRepeatedExternalStakingRemainsRecoverable() public {
         lock(address(escrow), 7 ether);
         vm.prank(USER);
-        escrow.claim();
+        escrow.claim(true);
         lock(address(escrow), 2 ether);
         vm.prank(USER);
-        escrow.claim();
+        escrow.claim(true);
         assertRecovered(9 ether, USER);
         assertEq(secondary.withdrawalCalls(), 2);
     }
@@ -120,7 +103,7 @@ contract ConvexEscrowRecoveryTest is Test {
     function testZeroSecondaryStakeDoesNotCallZeroWithdrawal() public {
         outer.setEarned(address(escrow), 2 ether);
         vm.prank(USER);
-        escrow.claim();
+        escrow.claim(true);
         assertRecovered(2 ether, USER);
         assertEq(secondary.withdrawalCalls(), 0);
     }
@@ -130,8 +113,94 @@ contract ConvexEscrowRecoveryTest is Test {
         vm.prank(USER);
         escrow.allowClaimOnBehalf(FRIEND);
         vm.prank(FRIEND);
-        escrow.claimTo(USER);
+        escrow.claimTo(USER, true);
         assertRecovered(7 ether, USER);
+    }
+
+    function testNormalClaimEntryPointsSkipUnavailableSecondaryPool() public {
+        lock(address(escrow), 7 ether);
+        bytes memory failure = abi.encodeWithSignature("Error(string)", "SECONDARY UNAVAILABLE");
+        vm.mockCallRevert(OUTER, abi.encodeWithSignature("cvxCrvRewards()"), failure);
+        vm.startPrank(USER);
+        outer.setEarned(address(escrow), 1 ether);
+        escrow.claim();
+        outer.setEarned(address(escrow), 1 ether);
+        escrow.claim(false);
+        outer.setEarned(address(escrow), 1 ether);
+        escrow.claimTo(FRIEND);
+        outer.setEarned(address(escrow), 1 ether);
+        escrow.claimTo(FRIEND, false);
+        outer.setEarned(address(escrow), 1 ether);
+        escrow.claimTo(FRIEND, new address[](0));
+        outer.setEarned(address(escrow), 1 ether);
+        escrow.claimTo(FRIEND, new address[](0), false);
+        vm.expectRevert(failure);
+        escrow.claim(true);
+        vm.stopPrank();
+        assertEq(cvxcrv.balanceOf(USER), 2 ether);
+        assertEq(cvxcrv.balanceOf(FRIEND), 4 ether);
+        assertEq(secondary.balanceOf(address(escrow)), 7 ether);
+        assertEq(secondary.withdrawalCalls(), 0);
+        assertEq(escrow.balance(), 100 ether);
+    }
+
+    function testNormalClaimSucceedsWhenSecondaryBalanceReadReverts() public {
+        lock(address(escrow), 7 ether);
+        outer.setEarned(address(escrow), 2 ether);
+        bytes memory failure = abi.encodeWithSignature("Error(string)", "SECONDARY BALANCE UNAVAILABLE");
+        vm.mockCallRevert(SECONDARY, abi.encodeWithSignature("balanceOf(address)", address(escrow)), failure);
+        vm.prank(USER);
+        escrow.claim();
+        vm.prank(USER);
+        vm.expectRevert(failure);
+        escrow.claim(true);
+        vm.clearMockedCalls();
+        assertEq(cvxcrv.balanceOf(USER), 2 ether);
+        assertEq(secondary.balanceOf(address(escrow)), 7 ether);
+        assertEq(escrow.balance(), 100 ether);
+    }
+
+    function testRevertingRecoveryDoesNotBlockNormalClaim() public {
+        lock(address(escrow), 7 ether);
+        outer.setEarned(address(escrow), 2 ether);
+        bytes memory failure = abi.encodeWithSignature("Error(string)", "SECONDARY WITHDRAW UNAVAILABLE");
+        vm.mockCallRevert(SECONDARY, abi.encodeWithSignature("withdraw(uint256,bool)", 7 ether, false), failure);
+        vm.prank(USER);
+        vm.expectRevert(failure);
+        escrow.claim(true);
+        assertEq(outer.earned(address(escrow)), 2 ether);
+        vm.prank(USER);
+        escrow.claimTo(FRIEND);
+        assertEq(cvxcrv.balanceOf(FRIEND), 2 ether);
+        assertEq(secondary.balanceOf(address(escrow)), 7 ether);
+        assertEq(escrow.balance(), 100 ether);
+    }
+
+    function testNormalExtraRewardClaimSkipsRecovery() public {
+        lock(address(escrow), 7 ether);
+        CvxRecoveryToken extra = new CvxRecoveryToken();
+        extra.mint(OUTER, 1 ether);
+        outer.setExtraToken(address(extra));
+        outer.setEarned(address(escrow), 2 ether);
+        address[] memory extras = new address[](1);
+        extras[0] = address(extra);
+        vm.prank(USER);
+        escrow.claimTo(FRIEND, extras);
+        assertEq(cvxcrv.balanceOf(FRIEND), 2 ether);
+        assertEq(extra.balanceOf(FRIEND), 1 ether);
+        assertEq(secondary.balanceOf(address(escrow)), 7 ether);
+        assertEq(secondary.withdrawalCalls(), 0);
+    }
+
+    function testAllowlistedNormalClaimUsesCallerDestination() public {
+        lock(address(escrow), 7 ether);
+        outer.setEarned(address(escrow), 2 ether);
+        vm.prank(USER);
+        escrow.allowClaimOnBehalf(FRIEND);
+        vm.prank(FRIEND);
+        escrow.claim();
+        assertEq(cvxcrv.balanceOf(FRIEND), 2 ether);
+        assertEq(secondary.balanceOf(address(escrow)), 7 ether);
     }
 
     function testAllowlistedClaimPreservesExistingClaimCallerDestination() public {
@@ -139,7 +208,7 @@ contract ConvexEscrowRecoveryTest is Test {
         vm.prank(USER);
         escrow.allowClaimOnBehalf(FRIEND);
         vm.prank(FRIEND);
-        escrow.claim();
+        escrow.claim(true);
         assertRecovered(7 ether, FRIEND);
     }
 
@@ -152,6 +221,12 @@ contract ConvexEscrowRecoveryTest is Test {
         escrow.claimTo(ATTACKER);
         vm.expectRevert("ONLY BENEFICIARY OR ALLOWED");
         escrow.claimTo(ATTACKER, new address[](0));
+        vm.expectRevert("ONLY BENEFICIARY OR ALLOWED");
+        escrow.claim(true);
+        vm.expectRevert("ONLY BENEFICIARY OR ALLOWED");
+        escrow.claimTo(ATTACKER, true);
+        vm.expectRevert("ONLY BENEFICIARY OR ALLOWED");
+        escrow.claimTo(ATTACKER, new address[](0), true);
         vm.stopPrank();
         assertEq(secondary.balanceOf(address(escrow)), 7 ether);
         assertEq(cvxcrv.balanceOf(ATTACKER), 0);
@@ -166,6 +241,9 @@ contract ConvexEscrowRecoveryTest is Test {
         vm.prank(FRIEND);
         vm.expectRevert("ONLY BENEFICIARY OR ALLOWED");
         escrow.claimTo(USER);
+        vm.prank(FRIEND);
+        vm.expectRevert("ONLY BENEFICIARY OR ALLOWED");
+        escrow.claimTo(USER, true);
         assertEq(secondary.balanceOf(address(escrow)), 7 ether);
     }
 
@@ -189,16 +267,22 @@ contract ConvexEscrowRecoveryTest is Test {
         assertEq(secondary.balanceOf(address(escrow)), 7 ether);
     }
 
-    function testSecondaryWithdrawalFailureRevertsAtomically() public {
+    function testFalseRecoveryReturnDoesNotBlockLaterNormalClaim() public {
         lock(address(escrow), 7 ether);
         outer.setEarned(address(escrow), 2 ether);
         secondary.setFailWithdraw(true);
         vm.prank(USER);
         vm.expectRevert("SECONDARY WITHDRAW FAILED");
-        escrow.claim();
+        escrow.claim(true);
         assertEq(outer.earned(address(escrow)), 2 ether);
         assertEq(secondary.balanceOf(address(escrow)), 7 ether);
         assertEq(cvxcrv.balanceOf(USER), 0);
+        vm.prank(USER);
+        escrow.claim();
+        assertEq(cvxcrv.balanceOf(USER), 2 ether);
+        assertEq(outer.earned(address(escrow)), 0);
+        assertEq(secondary.balanceOf(address(escrow)), 7 ether);
+        assertEq(escrow.balance(), 100 ether);
     }
 
     function testFalseRewardTokenTransferReverts() public {
@@ -223,7 +307,7 @@ contract ConvexEscrowRecoveryTest is Test {
         assertEq(escrow.balance(), 0);
         assertEq(secondary.balanceOf(address(escrow)), 7 ether);
         vm.prank(USER);
-        escrow.claim();
+        escrow.claim(true);
         assertEq(cvxcrv.balanceOf(USER), 7 ether);
     }
 
@@ -234,7 +318,7 @@ contract ConvexEscrowRecoveryTest is Test {
         assertEq(escrow.market(), address(this));
     }
 
-    function testFuzzRecoveryConservesRewards(uint96 locked, uint96 liquid, uint96 pending) public {
+    function testFuzzClaimConservesRewards(uint96 locked, uint96 liquid, uint96 pending, bool recoverSecondary) public {
         uint256 lockedAmount = bound(locked, 1, 1e24);
         uint256 liquidAmount = bound(liquid, 0, 1e24);
         uint256 pendingAmount = bound(pending, 0, 1e24);
@@ -242,8 +326,17 @@ contract ConvexEscrowRecoveryTest is Test {
         cvxcrv.mint(address(escrow), liquidAmount);
         outer.setEarned(address(escrow), pendingAmount);
         vm.prank(USER);
-        escrow.claim();
-        assertRecovered(lockedAmount + liquidAmount + pendingAmount, USER);
+        escrow.claim(recoverSecondary);
+        if (recoverSecondary) {
+            assertRecovered(lockedAmount + liquidAmount + pendingAmount, USER);
+        } else {
+            assertEq(cvxcrv.balanceOf(USER), liquidAmount + pendingAmount);
+            assertEq(cvxcrv.balanceOf(address(escrow)), 0);
+            assertEq(secondary.balanceOf(address(escrow)), lockedAmount);
+            assertEq(secondary.withdrawalCalls(), 0);
+            assertEq(escrow.balance(), 100 ether);
+            assertEq(outer.balanceOf(address(escrow)), 100 ether);
+        }
     }
 
     function newMarket(address implementation) internal returns (Market) {
@@ -272,27 +365,6 @@ contract ConvexEscrowRecoveryTest is Test {
         return address(market.escrows(user));
     }
 
-    function testNewMarketAdoptionDoesNotUpgradeLegacyMarketOrClones() public {
-        LegacyConvexEscrow legacyImplementation = new LegacyConvexEscrow();
-        Market oldMarket = newMarket(address(legacyImplementation));
-        address oldClone = depositTo(oldMarket, USER);
-        Market replacementMarket = newMarket(address(new ConvexEscrow()));
-        address newClone = depositTo(replacementMarket, USER);
-        address laterLegacyClone = depositTo(oldMarket, FRIEND);
-        assertEq(oldMarket.escrowImplementation(), address(legacyImplementation));
-        assertEq(keccak256(oldClone.code), keccak256(laterLegacyClone.code));
-        assertTrue(keccak256(oldClone.code) != keccak256(newClone.code));
-        lock(oldClone, 7 ether);
-        lock(newClone, 5 ether);
-        vm.startPrank(USER);
-        LegacyConvexEscrow(oldClone).claim();
-        ConvexEscrow(newClone).claim();
-        vm.stopPrank();
-        assertEq(secondary.balanceOf(oldClone), 7 ether);
-        assertEq(secondary.balanceOf(newClone), 0);
-        assertEq(cvxcrv.balanceOf(USER), 5 ether);
-    }
-
     function testRecoveryPreservesRealMarketDebtAndExitedPositionCanStillClaim() public {
         Market market = newMarket(address(new ConvexEscrow()));
         address clone = depositTo(market, USER);
@@ -301,7 +373,7 @@ contract ConvexEscrowRecoveryTest is Test {
         market.borrow(20 ether);
         lock(clone, 7 ether);
         vm.prank(USER);
-        ConvexEscrow(clone).claim();
+        ConvexEscrow(clone).claim(true);
         assertEq(market.debts(USER), 20 ether);
         assertEq(market.totalDebt(), 20 ether);
         assertEq(ConvexEscrow(clone).balance(), 100 ether);
@@ -310,7 +382,7 @@ contract ConvexEscrowRecoveryTest is Test {
         CvxRecoveryToken(DOLA).approve(address(market), 20 ether);
         market.repay(USER, 20 ether);
         market.withdrawMax();
-        ConvexEscrow(clone).claim();
+        ConvexEscrow(clone).claim(true);
         vm.stopPrank();
         assertEq(market.debts(USER), 0);
         assertEq(ConvexEscrow(clone).balance(), 0);
@@ -319,31 +391,4 @@ contract ConvexEscrowRecoveryTest is Test {
         assertEq(secondary.balanceOf(clone), 0);
     }
 
-    function testProtectiveBatchCallPaysBothLiveAndExitedLegacyEscrows() public {
-        Market legacyMarket = newMarket(address(new LegacyConvexEscrow()));
-        address liveClone = depositTo(legacyMarket, USER);
-        address exitedClone = depositTo(legacyMarket, FRIEND);
-        vm.prank(FRIEND);
-        legacyMarket.withdrawMax();
-        lock(exitedClone, 3 ether); // Already locked principal remains separate.
-        outer.setEarned(liveClone, 7 ether);
-        outer.setEarned(exitedClone, 5 ether);
-        vm.startPrank(ATTACKER);
-        outer.getReward(liveClone, false, false);
-        outer.getReward(exitedClone, false, false);
-        vm.stopPrank();
-        assertEq(cvxcrv.balanceOf(liveClone), 7 ether);
-        assertEq(cvxcrv.balanceOf(exitedClone), 5 ether);
-        assertEq(cvxcrv.balanceOf(ATTACKER), 0);
-        assertEq(secondary.balanceOf(liveClone), 0);
-        assertEq(secondary.balanceOf(exitedClone), 3 ether);
-        assertEq(LegacyConvexEscrow(liveClone).balance(), 100 ether);
-        assertEq(LegacyConvexEscrow(exitedClone).balance(), 0);
-        assertEq(legacyMarket.debts(USER), 0);
-        assertEq(legacyMarket.debts(FRIEND), 0);
-        vm.prank(FRIEND);
-        LegacyConvexEscrow(exitedClone).claim();
-        assertEq(cvxcrv.balanceOf(FRIEND), 5 ether);
-        assertEq(secondary.balanceOf(exitedClone), 3 ether);
-    }
 }

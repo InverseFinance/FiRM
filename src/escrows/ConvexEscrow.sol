@@ -97,19 +97,28 @@ contract ConvexEscrow {
      * @notice Claims reward tokens to the specified address. Only callable by beneficiary and allowlisted addresses
      * @param to Address to send claimed rewards to
      */
-    function claimTo(address to) public onlyBeneficiaryOrAllowlist {
+    function claimTo(address to) public {
+        claimTo(to, false);
+    }
+
+    /**
+     * @notice Claims rewards, optionally withdrawing secondary-staked cvxCRV first.
+     * @param to Address to send claimed rewards to
+     * @param recoverSecondary Whether to withdraw secondary-staked cvxCRV
+     */
+    function claimTo(address to, bool recoverSecondary) public onlyBeneficiaryOrAllowlist {
 
         uint extraRewards = rewardPool.extraRewardsLength();
         //Claim rewards, only claim extra rewards if there are any
         rewardPool.getReward(address(this), extraRewards > 0, false);
 
-        // Convex allows anyone to stake this escrow's rewards on its behalf.
-        // Withdraw that cvxCRV from the escrow itself before forwarding it.
-        ICvxCrvRewardPoolRecovery secondaryPool =
-            ICvxCrvRewardPoolRecovery(rewardPool.cvxCrvRewards());
-        uint secondaryBalance = secondaryPool.balanceOf(address(this));
-        if (secondaryBalance > 0) {
-            require(secondaryPool.withdraw(secondaryBalance, false), "SECONDARY WITHDRAW FAILED");
+        if (recoverSecondary) {
+            ICvxCrvRewardPoolRecovery secondaryPool =
+                ICvxCrvRewardPoolRecovery(rewardPool.cvxCrvRewards());
+            uint secondaryBalance = secondaryPool.balanceOf(address(this));
+            if (secondaryBalance > 0) {
+                require(secondaryPool.withdraw(secondaryBalance, false), "SECONDARY WITHDRAW FAILED");
+            }
         }
         rewardToken.safeTransfer(to, rewardToken.balanceOf(address(this)));
     }
@@ -119,9 +128,19 @@ contract ConvexEscrow {
      * @param to Address to send claimed rewards to
      * @param extraRewards Array of token addresses of extra rewards that will be sent to `to`
      */
-    function claimTo(address to, address[] calldata extraRewards) external onlyBeneficiaryOrAllowlist {
+    function claimTo(address to, address[] calldata extraRewards) external {
+        claimTo(to, extraRewards, false);
+    }
+
+    /**
+     * @notice Claims rewards and the specified extra tokens, with optional secondary recovery.
+     * @param to Address to send claimed rewards to
+     * @param extraRewards Array of extra reward token addresses
+     * @param recoverSecondary Whether to withdraw secondary-staked cvxCRV
+     */
+    function claimTo(address to, address[] calldata extraRewards, bool recoverSecondary) public onlyBeneficiaryOrAllowlist {
         require(rewardPool.extraRewardsLength() == extraRewards.length, "UNEQUAL ARRAY");
-        claimTo(to);
+        claimTo(to, recoverSecondary);
         for(uint i; i < extraRewards.length; ++i){
             IERC20 extraRewardToken = IERC20(extraRewards[i]);
             require(address(token) != address(extraRewardToken), "CANT CLAIM COLLATERAL");
@@ -133,7 +152,15 @@ contract ConvexEscrow {
      * @notice Claims reward tokens to the message sender. Only callable by beneficiary and allowlisted addresses
      */
     function claim() external {
-        claimTo(msg.sender);
+        claimTo(msg.sender, false);
+    }
+
+    /**
+     * @notice Claims rewards to the caller, with optional secondary recovery.
+     * @param recoverSecondary Whether to withdraw secondary-staked cvxCRV
+     */
+    function claim(bool recoverSecondary) external {
+        claimTo(msg.sender, recoverSecondary);
     }
 
     /**
