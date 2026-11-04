@@ -105,6 +105,34 @@ contract StakingRewardsClaimAndStakeHelperTest is Test {
         assertEq(escrow.balance(), COLLATERAL);
     }
 
+    function testClaimsAndStakesForSeparateRecipient() public {
+        _accrueRewards();
+
+        vm.prank(borrower);
+        assertEq(helper.claimAndStakeTo(market, factory, daoId, other), FUNDING);
+
+        assertEq(stakedGovToken.balanceOf(borrower), 0);
+        assertEq(stakedGovToken.balanceOf(other), FUNDING);
+        assertEq(escrow.claimable(), 0);
+
+        vm.prank(other);
+        assertTrue(stakedGovToken.withdrawTo(other, FUNDING));
+        assertEq(reward.balanceOf(other), FUNDING);
+    }
+
+    function testRejectsZeroAddressAndHelperAsRecipients() public {
+        _accrueRewards();
+
+        vm.startPrank(borrower);
+        vm.expectRevert(StakingRewardsClaimAndStakeHelper.InvalidRecipient.selector);
+        helper.claimAndStakeTo(market, factory, daoId, address(0));
+        vm.expectRevert(StakingRewardsClaimAndStakeHelper.InvalidRecipient.selector);
+        helper.claimAndStakeTo(market, factory, daoId, address(helper));
+        vm.stopPrank();
+
+        assertEq(escrow.claimable(), FUNDING);
+    }
+
     function testSharedHelperUsesTheSelectedFactoryForEachMarket() public {
         EscrowTestToken secondReward = new EscrowTestToken();
         (Market secondMarket,) = _createMarket(secondReward);
@@ -170,7 +198,7 @@ contract StakingRewardsClaimAndStakeHelperTest is Test {
         vm.mockCall(address(market), abi.encodeWithSignature("escrows(address)", other), abi.encode(address(escrow)));
         vm.prank(other);
         vm.expectRevert(StakingRewardsClaimAndStakeHelper.InvalidEscrow.selector);
-        helper.claimAndStake(market, untrustedFactory, untrustedDaoId);
+        helper.claimAndStakeTo(market, untrustedFactory, untrustedDaoId, other);
         assertEq(escrow.claimable(), FUNDING);
     }
 
