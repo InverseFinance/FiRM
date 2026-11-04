@@ -38,63 +38,42 @@ contract StakingRewardsClaimAndStakeHelper is ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     error InvalidDAOFactory();
-    error MarketAlreadyRegistered();
-    error MarketNotRegistered();
     error RewardTokenMismatch();
     error NoEscrow();
     error InvalidEscrow();
     error StakeFailed();
 
-    struct MarketConfig {
-        IERC20 rewardToken;
-        IStakedGovToken stakedGovToken;
-    }
-
     ICoinDAOFactory public immutable daoFactory;
-    mapping(Market => MarketConfig) public markets;
-
-    event MarketRegistered(address indexed market, address indexed rewardToken, address indexed stakedGovToken);
 
     constructor(ICoinDAOFactory daoFactory_) {
         if (address(daoFactory_).code.length == 0) revert InvalidDAOFactory();
         daoFactory = daoFactory_;
     }
 
-    /// @notice Registers a FiRM market using its Monolith CoinDAO factory deployment ID.
-    /// @dev Anyone can register a market. The factory record determines its permanent staking token.
-    function registerMarket(Market market, uint256 daoId) external {
-        if (address(markets[market].stakedGovToken) != address(0)) revert MarketAlreadyRegistered();
+    /// @notice Claims and stakes rewards from the caller's escrow, crediting the caller.
+    /// @dev The caller must first authorize this helper with allowClaimOnBehalf on their escrow.
+    /// @param market The FiRM market whose rewards are being claimed.
+    /// @param daoId The Monolith CoinDAO factory deployment ID for the escrow's reward token.
+    /// @return amount The amount of reward tokens staked, or zero if none were claimed.
+    function claimAndStake(Market market, uint256 daoId) external nonReentrant returns (uint256 amount) {
+        StakingRewardsEscrow escrow = StakingRewardsEscrow(address(market.escrows(msg.sender)));
+        if (address(escrow) == address(0)) revert NoEscrow();
+        if (escrow.market() != address(market) || escrow.beneficiary() != msg.sender) revert InvalidEscrow();
 
-        IERC20 rewardToken = StakingRewardsEscrow(market.escrowImplementation()).rewardsToken();
+        IERC20 rewardToken = escrow.rewardsToken();
         ICoinDAOFactory.Deployment memory deployment = daoFactory.deployments(daoId);
         IStakedGovToken stakedGovToken = deployment.staker;
         if (deployment.govToken != rewardToken || stakedGovToken.underlying() != rewardToken) {
             revert RewardTokenMismatch();
         }
 
-        markets[market] = MarketConfig(rewardToken, stakedGovToken);
-        emit MarketRegistered(address(market), address(rewardToken), address(stakedGovToken));
-    }
-
-    /// @notice Claims and stakes rewards from the caller's escrow, crediting the caller.
-    /// @dev The caller must first authorize this helper with allowClaimOnBehalf on their escrow.
-    /// @return amount The amount of reward tokens staked, or zero if none were claimed.
-    function claimAndStake(Market market) external nonReentrant returns (uint256 amount) {
-        MarketConfig memory config = markets[market];
-        if (address(config.stakedGovToken) == address(0)) revert MarketNotRegistered();
-
-        StakingRewardsEscrow escrow = StakingRewardsEscrow(address(market.escrows(msg.sender)));
-        if (address(escrow) == address(0)) revert NoEscrow();
-        if (escrow.market() != address(market) || escrow.beneficiary() != msg.sender) revert InvalidEscrow();
-
-        IERC20 rewardToken = config.rewardToken;
         uint256 balanceBefore = rewardToken.balanceOf(address(this));
         escrow.claimTo(address(this));
         amount = rewardToken.balanceOf(address(this)) - balanceBefore;
         if (amount == 0) return 0;
 
-        rewardToken.forceApprove(address(config.stakedGovToken), amount);
-        if (!config.stakedGovToken.depositFor(msg.sender, amount)) revert StakeFailed();
-        rewardToken.forceApprove(address(config.stakedGovToken), 0);
+        rewardToken.forceApprove(address(stakedGovToken), amount);
+        if (!stakedGovToken.depositFor(msg.sender, amount)) revert StakeFailed();
+        rewardToken.forceApprove(address(stakedGovToken), 0);
     }
 }
