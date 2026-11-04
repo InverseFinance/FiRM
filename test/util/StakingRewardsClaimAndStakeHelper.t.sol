@@ -6,13 +6,31 @@ import {ERC20, ERC20Wrapper, IERC20} from "openzeppelin-contracts/contracts/toke
 import {Market, IDolaBorrowingRights, IOracle} from "src/Market.sol";
 import {IERC20 as MarketIERC20} from "src/interfaces/IERC20.sol";
 import {StakingRewardsEscrow} from "src/escrows/StakingRewardsEscrow.sol";
-import {Ownable} from "src/util/Ownable.sol";
-import {IStakedGovToken, StakingRewardsClaimAndStakeHelper} from "src/util/StakingRewardsClaimAndStakeHelper.sol";
+import {
+    ICoinDAOFactory,
+    IStakedGovToken,
+    StakingRewardsClaimAndStakeHelper
+} from "src/util/StakingRewardsClaimAndStakeHelper.sol";
 import {EscrowTestToken} from "test/StakingRewardsEscrow.t.sol";
 import {StakingRewardsFixture} from "test/mocks/StakingRewardsFixture.sol";
 
 contract StakedGovTokenFixture is ERC20Wrapper {
     constructor(IERC20 rewardToken) ERC20("Staked GOV", "sGOV") ERC20Wrapper(rewardToken) {}
+}
+
+contract CoinDAOFactoryFixture {
+    ICoinDAOFactory.Deployment[] private records;
+
+    function deployments(uint256 id) external view returns (ICoinDAOFactory.Deployment memory) {
+        return records[id];
+    }
+
+    function addDeployment(IERC20 govToken, StakedGovTokenFixture staker) external returns (uint256 daoId) {
+        daoId = records.length;
+        ICoinDAOFactory.Deployment storage deployment = records.push();
+        deployment.govToken = govToken;
+        deployment.staker = IStakedGovToken(address(staker));
+    }
 }
 
 contract StakingRewardsClaimAndStakeHelperTest is Test {
@@ -27,6 +45,8 @@ contract StakingRewardsClaimAndStakeHelperTest is Test {
     Market market;
     StakingRewardsEscrow escrow;
     StakedGovTokenFixture stakedGovToken;
+    CoinDAOFactoryFixture factory;
+    uint256 daoId;
     StakingRewardsClaimAndStakeHelper helper;
 
     function setUp() public {
@@ -35,8 +55,10 @@ contract StakingRewardsClaimAndStakeHelperTest is Test {
         escrow = StakingRewardsEscrow(address(market.escrows(borrower)));
 
         stakedGovToken = new StakedGovTokenFixture(reward);
-        helper = new StakingRewardsClaimAndStakeHelper(address(this));
-        helper.registerMarket(market, IStakedGovToken(address(stakedGovToken)));
+        factory = new CoinDAOFactoryFixture();
+        daoId = factory.addDeployment(reward, stakedGovToken);
+        helper = new StakingRewardsClaimAndStakeHelper(ICoinDAOFactory(address(factory)));
+        helper.registerMarket(market, daoId);
         vm.prank(borrower);
         escrow.allowClaimOnBehalf(address(helper));
     }
@@ -88,7 +110,8 @@ contract StakingRewardsClaimAndStakeHelperTest is Test {
         EscrowTestToken secondReward = new EscrowTestToken();
         (Market secondMarket,) = _createMarket(secondReward);
         StakedGovTokenFixture secondStakedGovToken = new StakedGovTokenFixture(secondReward);
-        helper.registerMarket(secondMarket, IStakedGovToken(address(secondStakedGovToken)));
+        uint256 secondDaoId = factory.addDeployment(secondReward, secondStakedGovToken);
+        helper.registerMarket(secondMarket, secondDaoId);
         StakingRewardsEscrow secondEscrow = StakingRewardsEscrow(address(secondMarket.escrows(borrower)));
         _accrueRewards();
         secondReward.mint(address(secondEscrow), 2 ether);
@@ -112,17 +135,21 @@ contract StakingRewardsClaimAndStakeHelperTest is Test {
         helper.claimAndStake(unregisteredMarket);
     }
 
-    function testOnlyGovCanRegisterMarket() public {
+    function testAnyoneCanRegisterMarketWithMatchingFactoryDeployment() public {
         (Market unregisteredMarket,) = _createMarket(reward);
         vm.prank(other);
-        vm.expectRevert(Ownable.NotGov.selector);
-        helper.registerMarket(unregisteredMarket, IStakedGovToken(address(stakedGovToken)));
+        helper.registerMarket(unregisteredMarket, daoId);
+
+        (IERC20 registeredReward, IStakedGovToken registeredToken) = helper.markets(unregisteredMarket);
+        assertEq(address(registeredReward), address(reward));
+        assertEq(address(registeredToken), address(stakedGovToken));
     }
 
     function testCannotReplaceRegisteredStakingToken() public {
         StakedGovTokenFixture replacement = new StakedGovTokenFixture(reward);
+        uint256 replacementId = factory.addDeployment(reward, replacement);
         vm.expectRevert(StakingRewardsClaimAndStakeHelper.MarketAlreadyRegistered.selector);
-        helper.registerMarket(market, IStakedGovToken(address(replacement)));
+        helper.registerMarket(market, replacementId);
         (, IStakedGovToken registeredToken) = helper.markets(market);
         assertEq(address(registeredToken), address(stakedGovToken));
     }
@@ -156,7 +183,7 @@ contract StakingRewardsClaimAndStakeHelperTest is Test {
 
     function testRejectsAnEscrowFromAnotherMarket() public {
         (Market secondMarket,) = _createMarket(reward);
-        helper.registerMarket(secondMarket, IStakedGovToken(address(stakedGovToken)));
+        helper.registerMarket(secondMarket, daoId);
         _accrueRewards();
         vm.mockCall(
             address(secondMarket), abi.encodeWithSignature("escrows(address)", borrower), abi.encode(address(escrow))
@@ -189,12 +216,22 @@ contract StakingRewardsClaimAndStakeHelperTest is Test {
         assertEq(reward.allowance(address(helper), address(stakedGovToken)), 0);
     }
 
-    function testRejectsStakingTokenWithDifferentUnderlying() public {
+    function testRejectsFactoryDeploymentWithDifferentGovToken() public {
         (Market unregisteredMarket,) = _createMarket(reward);
         EscrowTestToken otherToken = new EscrowTestToken();
-        StakedGovTokenFixture wrongToken = new StakedGovTokenFixture(otherToken);
+        StakedGovTokenFixture otherStaker = new StakedGovTokenFixture(otherToken);
+        uint256 otherDaoId = factory.addDeployment(otherToken, otherStaker);
         vm.expectRevert(StakingRewardsClaimAndStakeHelper.RewardTokenMismatch.selector);
-        helper.registerMarket(unregisteredMarket, IStakedGovToken(address(wrongToken)));
+        helper.registerMarket(unregisteredMarket, otherDaoId);
+    }
+
+    function testRejectsFactoryStakerWithDifferentUnderlying() public {
+        (Market unregisteredMarket,) = _createMarket(reward);
+        EscrowTestToken otherToken = new EscrowTestToken();
+        StakedGovTokenFixture wrongStaker = new StakedGovTokenFixture(otherToken);
+        uint256 invalidDaoId = factory.addDeployment(reward, wrongStaker);
+        vm.expectRevert(StakingRewardsClaimAndStakeHelper.RewardTokenMismatch.selector);
+        helper.registerMarket(unregisteredMarket, invalidDaoId);
     }
 
     function _accrueRewards() private {

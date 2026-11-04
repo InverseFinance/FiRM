@@ -5,18 +5,39 @@ import {IERC20, SafeERC20} from "openzeppelin-contracts/contracts/token/ERC20/ut
 import {ReentrancyGuard} from "openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
 import {Market} from "src/Market.sol";
 import {StakingRewardsEscrow} from "src/escrows/StakingRewardsEscrow.sol";
-import {Ownable} from "src/util/Ownable.sol";
 
 interface IStakedGovToken {
     function underlying() external view returns (IERC20);
     function depositFor(address account, uint256 amount) external returns (bool);
 }
 
+interface ICoinDAOFactory {
+    // The factory's public array getter returns these static fields in order.
+    struct Deployment {
+        IERC20 govToken;
+        IStakedGovToken staker;
+        address governor;
+        address timelock;
+        address lender;
+        address coin;
+        address vault;
+        address stakingToken;
+        address revenueRouter;
+        address coinStakingRewards;
+        address coinStakingRewardsFunder;
+        address treasuryVesting;
+        address monolithVesting;
+        address deployerVesting;
+    }
+
+    function deployments(uint256 daoId) external view returns (Deployment memory);
+}
+
 /// @notice Claims FiRM escrow rewards and stakes them as a Monolith StakedGovToken.
-contract StakingRewardsClaimAndStakeHelper is Ownable, ReentrancyGuard {
+contract StakingRewardsClaimAndStakeHelper is ReentrancyGuard {
     using SafeERC20 for IERC20;
 
-    error InvalidGov();
+    error InvalidDAOFactory();
     error MarketAlreadyRegistered();
     error MarketNotRegistered();
     error RewardTokenMismatch();
@@ -29,22 +50,25 @@ contract StakingRewardsClaimAndStakeHelper is Ownable, ReentrancyGuard {
         IStakedGovToken stakedGovToken;
     }
 
+    ICoinDAOFactory public immutable daoFactory;
     mapping(Market => MarketConfig) public markets;
 
     event MarketRegistered(address indexed market, address indexed rewardToken, address indexed stakedGovToken);
 
-    constructor(address gov_) Ownable(gov_) {
-        if (gov_ == address(0)) revert InvalidGov();
+    constructor(ICoinDAOFactory daoFactory_) {
+        if (address(daoFactory_).code.length == 0) revert InvalidDAOFactory();
+        daoFactory = daoFactory_;
     }
 
-    /// @notice Registers a FiRM market with its canonical Monolith staking token.
-    /// @dev Governance verifies the market and staking token addresses before registration.
-    /// A market's registration is permanent.
-    function registerMarket(Market market, IStakedGovToken stakedGovToken) external onlyGov {
+    /// @notice Registers a FiRM market using its Monolith CoinDAO factory deployment ID.
+    /// @dev Anyone can register a market. The factory record determines its permanent staking token.
+    function registerMarket(Market market, uint256 daoId) external {
         if (address(markets[market].stakedGovToken) != address(0)) revert MarketAlreadyRegistered();
 
         IERC20 rewardToken = StakingRewardsEscrow(market.escrowImplementation()).rewardsToken();
-        if (address(rewardToken).code.length == 0 || stakedGovToken.underlying() != rewardToken) {
+        ICoinDAOFactory.Deployment memory deployment = daoFactory.deployments(daoId);
+        IStakedGovToken stakedGovToken = deployment.staker;
+        if (deployment.govToken != rewardToken || stakedGovToken.underlying() != rewardToken) {
             revert RewardTokenMismatch();
         }
 
