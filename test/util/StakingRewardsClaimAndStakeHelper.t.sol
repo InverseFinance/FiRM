@@ -18,7 +18,7 @@ contract StakedGovTokenFixture is ERC20Wrapper {
     constructor(IERC20 rewardToken) ERC20("Staked GOV", "sGOV") ERC20Wrapper(rewardToken) {}
 }
 
-contract CoinDAOFactoryFixture {
+contract CoinDAOFactoryFixture is ICoinDAOFactory {
     ICoinDAOFactory.Deployment[] private records;
 
     function deployments(uint256 id) external view returns (ICoinDAOFactory.Deployment memory) {
@@ -57,7 +57,7 @@ contract StakingRewardsClaimAndStakeHelperTest is Test {
         stakedGovToken = new StakedGovTokenFixture(reward);
         factory = new CoinDAOFactoryFixture();
         daoId = factory.addDeployment(reward, stakedGovToken);
-        helper = new StakingRewardsClaimAndStakeHelper(ICoinDAOFactory(address(factory)));
+        helper = new StakingRewardsClaimAndStakeHelper();
         vm.prank(borrower);
         escrow.allowClaimOnBehalf(address(helper));
     }
@@ -94,7 +94,7 @@ contract StakingRewardsClaimAndStakeHelperTest is Test {
         uint256 claimable = escrow.claimable();
 
         vm.prank(borrower);
-        assertEq(helper.claimAndStake(market, daoId), claimable);
+        assertEq(helper.claimAndStake(market, factory, daoId), claimable);
 
         assertEq(stakedGovToken.balanceOf(borrower), claimable);
         assertEq(stakedGovToken.balanceOf(address(helper)), 0);
@@ -105,32 +105,42 @@ contract StakingRewardsClaimAndStakeHelperTest is Test {
         assertEq(escrow.balance(), COLLATERAL);
     }
 
-    function testSharedHelperLooksUpEachMarketsStakingTokenAtClaimTime() public {
+    function testSharedHelperUsesTheSelectedFactoryForEachMarket() public {
         EscrowTestToken secondReward = new EscrowTestToken();
         (Market secondMarket,) = _createMarket(secondReward);
         StakedGovTokenFixture secondStakedGovToken = new StakedGovTokenFixture(secondReward);
-        uint256 secondDaoId = factory.addDeployment(secondReward, secondStakedGovToken);
+        CoinDAOFactoryFixture secondFactory = new CoinDAOFactoryFixture();
+        uint256 secondDaoId = secondFactory.addDeployment(secondReward, secondStakedGovToken);
+        assertEq(secondDaoId, daoId);
         StakingRewardsEscrow secondEscrow = StakingRewardsEscrow(address(secondMarket.escrows(borrower)));
         _accrueRewards();
         secondReward.mint(address(secondEscrow), 2 ether);
 
         vm.startPrank(borrower);
-        assertEq(helper.claimAndStake(market, daoId), FUNDING);
+        assertEq(helper.claimAndStake(market, factory, daoId), FUNDING);
         vm.expectRevert(StakingRewardsEscrow.OnlyBeneficiaryOrAllowlist.selector);
-        helper.claimAndStake(secondMarket, secondDaoId);
+        helper.claimAndStake(secondMarket, secondFactory, secondDaoId);
         secondEscrow.allowClaimOnBehalf(address(helper));
-        assertEq(helper.claimAndStake(secondMarket, secondDaoId), 2 ether);
+        assertEq(helper.claimAndStake(secondMarket, secondFactory, secondDaoId), 2 ether);
         vm.stopPrank();
 
         assertEq(stakedGovToken.balanceOf(borrower), FUNDING);
         assertEq(secondStakedGovToken.balanceOf(borrower), 2 ether);
     }
 
+    function testRejectsFactoryWithoutCode() public {
+        _accrueRewards();
+        vm.prank(borrower);
+        vm.expectRevert(StakingRewardsClaimAndStakeHelper.InvalidDAOFactory.selector);
+        helper.claimAndStake(market, ICoinDAOFactory(other), daoId);
+        assertEq(escrow.claimable(), FUNDING);
+    }
+
     function testRejectsUnknownDaoId() public {
         _accrueRewards();
         vm.prank(borrower);
         vm.expectRevert();
-        helper.claimAndStake(market, daoId + 1);
+        helper.claimAndStake(market, factory, daoId + 1);
         assertEq(escrow.claimable(), FUNDING);
     }
 
@@ -139,7 +149,7 @@ contract StakingRewardsClaimAndStakeHelperTest is Test {
         vm.startPrank(borrower);
         escrow.disallowClaimOnBehalf(address(helper));
         vm.expectRevert(StakingRewardsEscrow.OnlyBeneficiaryOrAllowlist.selector);
-        helper.claimAndStake(market, daoId);
+        helper.claimAndStake(market, factory, daoId);
         vm.stopPrank();
         assertEq(escrow.claimable(), FUNDING);
     }
@@ -148,16 +158,19 @@ contract StakingRewardsClaimAndStakeHelperTest is Test {
         _accrueRewards();
         vm.prank(other);
         vm.expectRevert(StakingRewardsClaimAndStakeHelper.NoEscrow.selector);
-        helper.claimAndStake(market, daoId);
+        helper.claimAndStake(market, factory, daoId);
         assertEq(escrow.claimable(), FUNDING);
     }
 
-    function testRejectsAnEscrowWithADifferentBeneficiary() public {
+    function testUntrustedFactoryCannotClaimFromAnotherBeneficiary() public {
         _accrueRewards();
+        CoinDAOFactoryFixture untrustedFactory = new CoinDAOFactoryFixture();
+        StakedGovTokenFixture untrustedStaker = new StakedGovTokenFixture(reward);
+        uint256 untrustedDaoId = untrustedFactory.addDeployment(reward, untrustedStaker);
         vm.mockCall(address(market), abi.encodeWithSignature("escrows(address)", other), abi.encode(address(escrow)));
         vm.prank(other);
         vm.expectRevert(StakingRewardsClaimAndStakeHelper.InvalidEscrow.selector);
-        helper.claimAndStake(market, daoId);
+        helper.claimAndStake(market, untrustedFactory, untrustedDaoId);
         assertEq(escrow.claimable(), FUNDING);
     }
 
@@ -169,13 +182,13 @@ contract StakingRewardsClaimAndStakeHelperTest is Test {
         );
         vm.prank(borrower);
         vm.expectRevert(StakingRewardsClaimAndStakeHelper.InvalidEscrow.selector);
-        helper.claimAndStake(secondMarket, daoId);
+        helper.claimAndStake(secondMarket, factory, daoId);
         assertEq(escrow.claimable(), FUNDING);
     }
 
     function testReturnsZeroWithNoRewards() public {
         vm.prank(borrower);
-        assertEq(helper.claimAndStake(market, daoId), 0);
+        assertEq(helper.claimAndStake(market, factory, daoId), 0);
         assertEq(stakedGovToken.balanceOf(borrower), 0);
     }
 
@@ -187,7 +200,7 @@ contract StakingRewardsClaimAndStakeHelperTest is Test {
 
         vm.prank(borrower);
         vm.expectRevert(StakingRewardsClaimAndStakeHelper.StakeFailed.selector);
-        helper.claimAndStake(market, daoId);
+        helper.claimAndStake(market, factory, daoId);
 
         assertEq(escrow.claimable(), FUNDING);
         assertEq(reward.balanceOf(address(pool)), FUNDING);
@@ -202,7 +215,7 @@ contract StakingRewardsClaimAndStakeHelperTest is Test {
         uint256 otherDaoId = factory.addDeployment(otherToken, otherStaker);
         vm.prank(borrower);
         vm.expectRevert(StakingRewardsClaimAndStakeHelper.RewardTokenMismatch.selector);
-        helper.claimAndStake(market, otherDaoId);
+        helper.claimAndStake(market, factory, otherDaoId);
         assertEq(escrow.claimable(), FUNDING);
     }
 
@@ -213,7 +226,7 @@ contract StakingRewardsClaimAndStakeHelperTest is Test {
         uint256 invalidDaoId = factory.addDeployment(reward, wrongStaker);
         vm.prank(borrower);
         vm.expectRevert(StakingRewardsClaimAndStakeHelper.RewardTokenMismatch.selector);
-        helper.claimAndStake(market, invalidDaoId);
+        helper.claimAndStake(market, factory, invalidDaoId);
         assertEq(escrow.claimable(), FUNDING);
     }
 

@@ -43,25 +43,26 @@ contract StakingRewardsClaimAndStakeHelper is ReentrancyGuard {
     error InvalidEscrow();
     error StakeFailed();
 
-    ICoinDAOFactory public immutable daoFactory;
-
-    constructor(ICoinDAOFactory daoFactory_) {
-        if (address(daoFactory_).code.length == 0) revert InvalidDAOFactory();
-        daoFactory = daoFactory_;
-    }
-
     /// @notice Claims and stakes rewards from the caller's escrow, crediting the caller.
     /// @dev The caller must first authorize this helper with allowClaimOnBehalf on their escrow.
+    /// Frontends must supply a known Monolith DAO factory. A malicious factory can return a
+    /// staking contract that keeps the caller's claimed rewards even if the token checks pass.
     /// @param market The FiRM market whose rewards are being claimed.
-    /// @param daoId The Monolith CoinDAO factory deployment ID for the escrow's reward token.
+    /// @param factory The caller-selected Monolith DAO factory that deployed the DAO.
+    /// @param daoId The DAO's deployment ID within that factory.
     /// @return amount The amount of reward tokens staked, or zero if none were claimed.
-    function claimAndStake(Market market, uint256 daoId) external nonReentrant returns (uint256 amount) {
+    function claimAndStake(Market market, ICoinDAOFactory factory, uint256 daoId)
+        external
+        nonReentrant
+        returns (uint256 amount)
+    {
         StakingRewardsEscrow escrow = StakingRewardsEscrow(address(market.escrows(msg.sender)));
         if (address(escrow) == address(0)) revert NoEscrow();
         if (escrow.market() != address(market) || escrow.beneficiary() != msg.sender) revert InvalidEscrow();
 
+        if (address(factory).code.length == 0) revert InvalidDAOFactory();
         IERC20 rewardToken = escrow.rewardsToken();
-        ICoinDAOFactory.Deployment memory deployment = daoFactory.deployments(daoId);
+        ICoinDAOFactory.Deployment memory deployment = factory.deployments(daoId);
         IStakedGovToken stakedGovToken = deployment.staker;
         if (deployment.govToken != rewardToken || stakedGovToken.underlying() != rewardToken) {
             revert RewardTokenMismatch();
