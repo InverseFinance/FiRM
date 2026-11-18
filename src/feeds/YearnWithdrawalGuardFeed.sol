@@ -14,7 +14,7 @@ contract YearnWithdrawalGuardFeed {
     error InvalidShortfallBps();
 
     uint256 private constant BPS = 10_000;
-    uint256 private constant CAPACITY_CHECK_GAS = 500_000;
+    uint256 private constant CAPACITY_CHECK_GAS = 300_000;
 
     ERC4626Feed public immutable feed;
     IERC4626 public immutable vault;
