@@ -136,7 +136,6 @@ contract StakingRewardsClaimAndStakeHelper is ReentrancyGuard {
 
         rewardToken.forceApprove(address(stakedGovToken), amount);
         if (!stakedGovToken.depositFor(recipient, amount)) revert StakeFailed();
-        rewardToken.forceApprove(address(stakedGovToken), 0);
     }
 
     function _claimAndCompound(Market market, IERC4626 vault, uint256 minShares, address recipient)
@@ -157,7 +156,6 @@ contract StakingRewardsClaimAndStakeHelper is ReentrancyGuard {
         rewardToken.forceApprove(address(vault), amount);
         shares = vault.deposit(amount, recipient);
         if (shares == 0 || shares < minShares) revert InsufficientShares(shares, minShares);
-        rewardToken.forceApprove(address(vault), 0);
     }
 
     function _getEscrow(Market market) private view returns (StakingRewardsEscrow escrow) {
