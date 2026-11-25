@@ -4,11 +4,12 @@ pragma solidity ^0.8.18;
 import "forge-std/Test.sol";
 import {FeedSwitchV2} from "src/util/FeedSwitchV2.sol";
 import {MockFeed} from "test/mocks/MockFeed.sol";
+import {MockFeedDescription} from "test/mocks/MockFeedDescription.sol";
 
 contract FeedSwitchV2Test is Test {
     FeedSwitchV2 feedSwitch;
-    MockFeed initialFeed;
-    MockFeed fallbackFeed;
+    MockFeedDescription initialFeed;
+    MockFeedDescription fallbackFeed;
     
     address gov = address(0x1);
     address guardian = address(0x2);
@@ -23,8 +24,8 @@ contract FeedSwitchV2Test is Test {
     event TimelockPeriodChanged(uint256 newTimelockPeriod);
 
     function setUp() public {
-        initialFeed = new MockFeed(18, 1e18);
-        fallbackFeed = new MockFeed(18, 0.95e18);
+        initialFeed = new MockFeedDescription(18, 1e18, "Initial / USD");
+        fallbackFeed = new MockFeedDescription(18, 0.95e18, "Fallback / USD");
         
         feedSwitch = new FeedSwitchV2(
             address(initialFeed),
@@ -40,6 +41,7 @@ contract FeedSwitchV2Test is Test {
     //////////////////////////////////////////////////////////////*/
 
     function test_Deployment() public view {
+        assertEq(feedSwitch.description(), "FeedSwitchV2: Initial / USD or Fallback / USD");
         assertEq(address(feedSwitch.feed()), address(initialFeed));
         assertEq(address(feedSwitch.initialFeed()), address(initialFeed));
         assertEq(address(feedSwitch.fallbackFeed()), address(fallbackFeed));
@@ -48,6 +50,26 @@ contract FeedSwitchV2Test is Test {
         assertEq(feedSwitch.isGuardian(guardian), true);
         assertEq(feedSwitch.decimals(), 18);
         assertEq(feedSwitch.switchCompletedAt(), 0);
+    }
+
+    function test_DescriptionIsSnapshotThroughSwitches() public {
+        string memory expected = feedSwitch.description();
+        vm.mockCall(address(initialFeed), abi.encodeWithSignature("description()"), abi.encode("Changed"));
+        vm.prank(guardian);
+        feedSwitch.toggleFeedSwitch();
+        assertEq(feedSwitch.description(), expected);
+        vm.warp(block.timestamp + 1);
+        vm.prank(guardian);
+        feedSwitch.toggleFeedSwitch(); // cancel
+        assertEq(feedSwitch.description(), expected);
+        vm.prank(guardian);
+        feedSwitch.toggleFeedSwitch();
+        vm.warp(block.timestamp + timelockPeriod);
+        assertEq(feedSwitch.description(), expected);
+        vm.prank(guardian);
+        feedSwitch.toggleFeedSwitch();
+        vm.warp(block.timestamp + timelockPeriod);
+        assertEq(feedSwitch.description(), expected);
     }
 
     function test_Deployment_RevertsIfInitialFeedNotDecimals18() public {

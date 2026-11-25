@@ -28,6 +28,9 @@ contract FeedSwitchV2 {
     IChainlinkFeed public immutable initialFeed;
     IChainlinkFeed public immutable fallbackFeed;
 
+    /// @notice Describes both pricing sources; does not indicate the active feed.
+    string public description;
+
     event FeedSwitchInitiated(address indexed newFeed, uint256 effectiveAt);
     event NewPendingGov(address indexed pendingGov);
     event GovChanged(address indexed newGov);
@@ -48,6 +51,10 @@ contract FeedSwitchV2 {
             fallbackFeed.decimals() != 18 ||
             feed.decimals() != 18
         ) revert FeedDecimalsMismatch();
+
+        description = string.concat(
+            "FeedSwitchV2: ", initialFeed.description(), " or ", fallbackFeed.description()
+        );
 
         timelockPeriod = _timelockPeriod;
         gov = _gov;
